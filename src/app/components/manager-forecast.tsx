@@ -1,12 +1,21 @@
 import Link from "next/link";
 
 import type { ForecastResult } from "@/server/intelligence/forecast";
+import type { AiAssessmentResult } from "@/server/integrations/openai/operational-intelligence";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
 
-export function ManagerForecast({ result, error }: { result: ForecastResult | null; error?: string }) {
+export function ManagerForecast({
+  result,
+  aiResult,
+  error,
+}: {
+  result: ForecastResult | null;
+  aiResult?: AiAssessmentResult | null;
+  error?: string;
+}) {
   return (
     <main className="shell">
       <header className="topbar">
@@ -16,8 +25,8 @@ export function ManagerForecast({ result, error }: { result: ForecastResult | nu
       <section className="panel">
         <span className="eyebrow">Manager · operational intelligence</span>
         <h1>Demand → staffing decision</h1>
-        <p>FairShift — the AI operating intelligence layer for hourly businesses.</p>
-        <p className="method-note">Local statistical forecast · deterministic, explainable, no external AI model.</p>
+        <p>FairShift — operational intelligence for hourly businesses.</p>
+        <p className="method-note">Deterministic demand and staffing baseline · separate AI-assisted operational interpretation.</p>
       </section>
       {!result || result.status === "UNAVAILABLE" ? (
         <section className="panel" role="status">
@@ -47,6 +56,49 @@ export function ManagerForecast({ result, error }: { result: ForecastResult | nu
             <p className="method-note">This illustrative capacity policy assumes each worker covers the full trading day. It is not an individual quota, wage calculation, or staffing schedule.</p>
             <h3>Manager action</h3>
             <p>{result.action}</p>
+          </section>
+          <section className="panel" aria-label="AI operational assessment">
+            <span className="eyebrow">AI operational assessment</span>
+            <h2>Operational interpretation</h2>
+            {aiResult?.status === "AVAILABLE" ? (
+              <>
+                <strong className="sandbox-banner">REAL AI · OPENAI · {aiResult.model}</strong>
+                <div className="status-grid forecast-grid">
+                  <article>
+                    <span>Demand outlook</span>
+                    <strong>{aiResult.assessment.demandOutlook.replaceAll("_", " ")}</strong>
+                    <small>AI interpretation of the deterministic evidence</small>
+                  </article>
+                  <article>
+                    <span>Signal quality</span>
+                    <strong>{aiResult.assessment.signalQuality}</strong>
+                    <small>Evidence-quality assessment, not forecast confidence</small>
+                  </article>
+                  <article>
+                    <span>Staffing assessment</span>
+                    <strong>{aiResult.assessment.staffingAssessment.replaceAll("_", " ")}</strong>
+                    <small>The AI cannot replace the deterministic worker count</small>
+                  </article>
+                </div>
+                <h3>Assessment</h3>
+                <p>{aiResult.assessment.summary}</p>
+                <h3>Manager action</h3>
+                <p>{aiResult.assessment.managerAction}</p>
+                <p className="method-note">
+                  AI provides bounded decision support only. The deterministic forecast and staffing baseline above remain unchanged, and manager judgement is required.
+                </p>
+              </>
+            ) : aiResult?.status === "NOT_CONFIGURED" ? (
+              <>
+                <strong className="sandbox-banner">AI · NOT CONFIGURED</strong>
+                <p>OpenAI operational assessment is not configured. The deterministic forecast and staffing baseline remain available.</p>
+              </>
+            ) : (
+              <>
+                <strong className="sandbox-banner">AI · UNAVAILABLE</strong>
+                <p>AI operational assessment is temporarily unavailable. No AI assessment has been fabricated; use the deterministic evidence above.</p>
+              </>
+            )}
           </section>
           <section className="panel">
             <h2>Historical evidence</h2>

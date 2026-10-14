@@ -7,6 +7,11 @@ const databaseSchema = z.object({
   ),
 });
 
+const aiSchema = z.object({
+  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_MODEL: z.string().min(1).default("gpt-6-luna"),
+});
+
 const paypalSchema = z.object({
   PAYPAL_ENV: z.literal("sandbox"),
   PAYPAL_CLIENT_ID: z.string().min(1),
@@ -18,12 +23,17 @@ const paypalSchema = z.object({
 });
 
 export type DatabaseConfig = z.infer<typeof databaseSchema>;
+export type AiConfig = z.infer<typeof aiSchema>;
 export type PayPalConfig = z.infer<typeof paypalSchema> & {
   apiBaseUrl: "https://api-m.sandbox.paypal.com";
 };
 
 export function getDatabaseConfig(): DatabaseConfig {
   return databaseSchema.parse(process.env);
+}
+
+export function getAiConfig(): AiConfig {
+  return aiSchema.parse(process.env);
 }
 
 export function getPayPalConfig(): PayPalConfig {
@@ -37,10 +47,12 @@ export function getPayPalConfig(): PayPalConfig {
 export function getConfigurationStatus() {
   const database = databaseSchema.safeParse(process.env);
   const paypal = paypalSchema.safeParse(process.env);
+  const ai = aiSchema.safeParse(process.env);
 
   return {
     databaseConfigured: database.success,
     paypalConfigured: paypal.success,
+    aiConfigured: ai.success,
     environment: process.env.PAYPAL_ENV === "sandbox" ? "SANDBOX" : "NOT CONFIGURED",
     currency: process.env.PAYPAL_SANDBOX_CURRENCY === "USD" ? "USD" : "USD",
     amount: /^\d+\.\d{2}$/.test(process.env.PAYPAL_SANDBOX_AMOUNT ?? "")

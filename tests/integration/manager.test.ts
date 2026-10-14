@@ -36,7 +36,7 @@ describe("persisted commercial history to manager output", () => {
 
       vi.mocked(getDatabase).mockReturnValue(testDb.db);
       vi.mocked(getConfigurationStatus).mockReturnValue({
-        databaseConfigured: true, paypalConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
+        databaseConfigured: true, paypalConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
       const html = renderToStaticMarkup(await ManagerPage());
       expect(html).toContain("DEMO / SEEDED — NOT PAYPAL-VERIFIED");
@@ -108,7 +108,7 @@ describe("persisted commercial history to manager output", () => {
       expect(result.status).toBe("UNAVAILABLE");
       expect(renderToStaticMarkup(createElement(ManagerForecast, { result }))).toContain("No eligible completed sales");
       vi.mocked(getConfigurationStatus).mockReturnValue({
-        databaseConfigured: false, paypalConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
+        databaseConfigured: false, paypalConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
       expect(renderToStaticMarkup(await ManagerPage())).toContain("PostgreSQL is not configured");
       expect(getDatabase).not.toHaveBeenCalled();
