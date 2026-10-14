@@ -67,7 +67,8 @@ export const saleTransactions = pgTable(
       .references(() => outlets.id, { onDelete: "restrict" }),
     paypalOrderId: text("paypal_order_id"),
     paypalCaptureId: text("paypal_capture_id"),
-    paypalCustomId: text("paypal_custom_id").notNull(),
+    paypalCustomId: text("paypal_custom_id"),
+    source: text("source").notNull().default("PAYPAL_SANDBOX"),
     currencyCode: text("currency_code").notNull(),
     grossAmountMinor: bigint("gross_amount_minor", { mode: "number" }).notNull(),
     providerStatus: text("provider_status").notNull().default("CREATED"),
@@ -85,6 +86,15 @@ export const saleTransactions = pgTable(
     uniqueIndex("sale_transactions_paypal_order_unique").on(table.paypalOrderId),
     uniqueIndex("sale_transactions_paypal_capture_unique").on(table.paypalCaptureId),
     index("sale_transactions_outlet_created_idx").on(table.outletId, table.createdAt),
+    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED')`),
+    check("sale_transactions_paypal_reference_check", sql`${table.source} != 'PAYPAL_SANDBOX' or ${table.paypalCustomId} is not null`),
+    check("sale_transactions_demo_provenance_check", sql`${table.source} != 'DEMO_SEEDED' or (
+      ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
+      ${table.paypalCustomId} is null and ${table.providerCreatedAt} is null and
+      ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
+      ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
+      ${table.providerStatus} = 'DEMO_SEEDED'
+    )`),
     check("sale_transactions_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
     check("sale_transactions_amount_nonnegative", sql`${table.grossAmountMinor} >= 0`),
     check(

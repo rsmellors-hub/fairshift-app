@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CreateSaleButton } from "@/app/components/create-sale-button";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -72,7 +74,7 @@ export default async function Home() {
         <article><span>PayPal integration</span><strong className={paypalState === "CONNECTED" ? "good" : "neutral"}>{paypalState}</strong><small>{configuration.environment}</small></article>
         <article><span>PostgreSQL</span><strong className={databaseState === "CONNECTED" ? "good" : "neutral"}>{databaseState}</strong><small>Authoritative application state</small></article>
         <article><span>Webhook</span><strong className="neutral">IMPLEMENTED</strong><small>NOT YET LIVE-VERIFIED</small></article>
-        <article><span>AI integration</span><strong className="neutral">NOT IMPLEMENTED</strong><small>Out of scope for this package</small></article>
+        <article><span>Operational intelligence</span><strong className="good">IMPLEMENTED</strong><small>Local statistical forecast · <Link href="/manager">View demand &amp; staffing</Link></small></article>
       </section>
 
       <section className="panel outlet-panel">

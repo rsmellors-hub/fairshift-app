@@ -22,7 +22,7 @@ export async function listDemoOutletTransactions(db: Database, limit = 20) {
   return db
     .select()
     .from(saleTransactions)
-    .where(eq(saleTransactions.outletId, DEMO_OUTLET_ID))
+    .where(and(eq(saleTransactions.outletId, DEMO_OUTLET_ID), eq(saleTransactions.source, "PAYPAL_SANDBOX")))
     .orderBy(desc(saleTransactions.createdAt))
     .limit(limit);
 }

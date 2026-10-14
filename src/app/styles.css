@@ -92,6 +92,14 @@ button, a { font: inherit; }
 .result-card code { display: block; background: #f1f3f8; padding: 12px; border-radius: 9px; margin: 17px 0; overflow-wrap: anywhere; }
 .result-card .primary-button { margin-top: 18px; }
 .text-link { display: inline-block; color: var(--indigo); font-weight: 800; text-decoration: none; margin-top: 20px; }
+.method-note { margin-top: 12px !important; font-size: 12px; line-height: 1.6; }
+.forecast-grid strong { font-size: 23px; }
+.forecast-grid small { line-height: 1.5; }
+.history-scroll { overflow-x: auto; }
+.history-table { width: 100%; border-collapse: collapse; margin-top: 18px; text-align: left; }
+.history-table caption { text-align: left; padding-bottom: 12px; color: var(--muted); font-size: 13px; }
+.history-table th, .history-table td { border-bottom: 1px solid var(--line); padding: 12px 10px; white-space: nowrap; font-size: 13px; }
+.panel li { margin: 10px 0; line-height: 1.5; }
 
 @media (max-width: 850px) {
   .hero { grid-template-columns: 1fr; padding: 30px; }
