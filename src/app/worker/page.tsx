@@ -58,7 +58,7 @@ export default async function WorkerPage({
 
   try {
     assignment = await getDemoWorkerShift(getDatabase());
-    incentive = await getDemoIncentive(getDatabase());
+    incentive = assignment ? await getDemoIncentive(getDatabase(), assignment.shift.id) : null;
   } catch {
     return (
       <div className="product-page">
@@ -187,6 +187,7 @@ export default async function WorkerPage({
           <StatusBadge tone="success">Accepted</StatusBadge>
         ) : (
           <form action={acceptDemoShiftAction}>
+            <input type="hidden" name="shiftId" value={shift.id} />
             <button className="primary-button" type="submit">Accept shift</button>
           </form>
         )}

@@ -14,7 +14,7 @@ import {
   submitDemoIncentivePayout,
 } from "@/server/incentives/demo";
 import type { PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
-import { acceptDemoShift, publishDemoShift } from "@/server/scheduling/demo";
+import { acceptDemoShift, getDemoWorkerShift, publishDemoShift, startNewDemoCycle } from "@/server/scheduling/demo";
 import { createTestDatabase } from "../helpers/database";
 
 const successAdapter = (overrides: Partial<PayPalPayoutAdapter> = {}): PayPalPayoutAdapter => ({
@@ -64,7 +64,7 @@ describe("shift incentive and PayPal payout workflow", () => {
 
       const paid = await refreshDemoIncentivePayout(testDb.db, adapter);
       expect(paid).toMatchObject({ status: "PAID", paypalStatus: "SUCCESS", paypalBatchId: "PAYPAL-BATCH-1", paypalItemId: "PAYPAL-ITEM-1" });
-      const persisted = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, DEMO_INCENTIVE_ID));
+      const persisted = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, earned.id));
       expect(persisted[0].status).toBe("PAID");
       expect(persisted[0].paidAt).toBeInstanceOf(Date);
     } finally {
@@ -126,6 +126,64 @@ describe("shift incentive and PayPal payout workflow", () => {
       expect(await getDemoIncentive(testDb.db)).toMatchObject({ incentive: { status: "FAILED", failureCode: "PAYOUT_REQUEST_FAILED", submittedAt: expect.any(Date) } });
       await expect(submitDemoIncentivePayout(testDb.db, adapter)).rejects.toThrow(/not eligible/);
       expect(createPayout).toHaveBeenCalledTimes(1);
+    } finally {
+      await testDb.close();
+    }
+  });
+
+  it("preserves a failed payout while a new cycle earns and reconciles its own payout", async () => {
+    const testDb = await createTestDatabase();
+    try {
+      await completedAcceptedShift(testDb.db);
+      const firstRecorded = await recordDemoPerformance(testDb.db, 70_000);
+      const [historical] = await testDb.db.update(shiftIncentives).set({
+        id: DEMO_INCENTIVE_ID,
+        paypalSenderBatchId: `FS-BATCH-${DEMO_INCENTIVE_ID.replaceAll("-", "")}`,
+        paypalSenderItemId: `FS-ITEM-${DEMO_INCENTIVE_ID.replaceAll("-", "")}`,
+      }).where(eq(shiftIncentives.id, firstRecorded.id)).returning();
+      await setDemoPayoutDestination(testDb.db, "worker@example.test");
+      await approveDemoIncentive(testDb.db);
+      const failedCreate = vi.fn(async () => { throw new Error("uncertain provider response"); });
+      await expect(submitDemoIncentivePayout(testDb.db, successAdapter({ createPayout: failedCreate })))
+        .rejects.toThrow(/duplicate submission is locked/);
+      const [locked] = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, historical.id));
+      expect(locked).toMatchObject({ status: "FAILED", submittedAt: expect.any(Date) });
+
+      const fresh = await startNewDemoCycle(testDb.db);
+      expect((await getDemoWorkerShift(testDb.db))?.shift.id).toBe(fresh.shift.id);
+      expect(await getDemoIncentive(testDb.db)).toBeNull();
+      await expect(acceptDemoShift(testDb.db, historical.shiftId)).rejects.toThrow(/unavailable/);
+      await acceptDemoShift(testDb.db);
+      await markDemoShiftCompleted(testDb.db);
+      const current = await recordDemoPerformance(testDb.db, 72_000);
+      expect(current.id).not.toBe(historical.id);
+      expect(current.shiftId).toBe(fresh.shift.id);
+      expect(current.paypalSenderBatchId).not.toBe(historical.paypalSenderBatchId);
+      expect(current.paypalSenderItemId).not.toBe(historical.paypalSenderItemId);
+      expect(await getDemoIncentive(testDb.db)).toMatchObject({ incentive: { id: current.id, status: "EARNED" } });
+
+      const createPayout = vi.fn(async () => ({ batchId: "PAYPAL-BATCH-NEW", itemId: "PAYPAL-ITEM-NEW", status: "PENDING" }));
+      const getPayout = vi.fn(async () => ({ batchId: "PAYPAL-BATCH-NEW", itemId: "PAYPAL-ITEM-NEW", status: "SUCCESS" }));
+      const adapter = successAdapter({ createPayout, getPayout });
+      await expect(submitDemoIncentivePayout(testDb.db, adapter, historical.id)).rejects.toThrow(/not eligible/);
+      await expect(submitDemoIncentivePayout(testDb.db, adapter)).rejects.toThrow(/not eligible/);
+      expect(createPayout).not.toHaveBeenCalled();
+      await approveDemoIncentive(testDb.db);
+      const submitted = await submitDemoIncentivePayout(testDb.db, adapter);
+      expect(submitted).toMatchObject({ id: current.id, status: "SUBMITTED", paypalBatchId: "PAYPAL-BATCH-NEW", paypalItemId: "PAYPAL-ITEM-NEW" });
+      expect(createPayout).toHaveBeenCalledWith(expect.objectContaining({
+        senderBatchId: current.paypalSenderBatchId, senderItemId: current.paypalSenderItemId,
+      }));
+      await expect(submitDemoIncentivePayout(testDb.db, adapter)).rejects.toThrow(/not eligible/);
+      expect(createPayout).toHaveBeenCalledTimes(1);
+
+      const paid = await refreshDemoIncentivePayout(testDb.db, adapter);
+      await expect(refreshDemoIncentivePayout(testDb.db, adapter, historical.id)).rejects.toThrow(/changed/);
+      expect(paid).toMatchObject({ id: current.id, status: "PAID", paypalStatus: "SUCCESS" });
+      expect(getPayout).toHaveBeenCalledWith("PAYPAL-BATCH-NEW", current.paypalSenderItemId);
+      const [historicalAfter] = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, historical.id));
+      expect(historicalAfter).toEqual(locked);
+      expect(failedCreate).toHaveBeenCalledTimes(1);
     } finally {
       await testDb.close();
     }

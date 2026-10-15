@@ -7,11 +7,13 @@ import {
   DEMO_SHIFT_OFFER_ID,
 } from "@/server/constants";
 import { auditEvents, shiftOffers, shifts } from "@/server/db/schema";
+import { markDemoShiftCompleted, recordDemoPerformance } from "@/server/incentives/demo";
 import {
   acceptDemoShift,
   DEMO_SHIFT_TERMS,
   getDemoWorkerShift,
   publishDemoShift,
+  startNewDemoCycle,
 } from "@/server/scheduling/demo";
 import { createTestDatabase } from "../helpers/database";
 
@@ -168,6 +170,41 @@ describe("workforce scheduling persistence", () => {
           })
           .where(eq(shiftOffers.id, DEMO_SHIFT_OFFER_ID)),
       ).rejects.toThrow();
+    } finally {
+      await testDb.close();
+    }
+  });
+
+  it("starts a distinct current cycle, retains history and audits each publication and acceptance", async () => {
+    const testDb = await createTestDatabase();
+    try {
+      const first = await publishDemoShift(testDb.db);
+      await acceptDemoShift(testDb.db);
+      await markDemoShiftCompleted(testDb.db);
+      await recordDemoPerformance(testDb.db, 0);
+
+      const second = await startNewDemoCycle(testDb.db);
+      expect(second.shift.id).not.toBe(first.shift.id);
+      expect(second.offer.id).not.toBe(first.offer.id);
+      expect(second.shift.shiftDate > first.shift.shiftDate).toBe(true);
+      expect((await getDemoWorkerShift(testDb.db))?.shift.id).toBe(second.shift.id);
+      await expect(startNewDemoCycle(testDb.db)).rejects.toThrow(/Finish the current/);
+
+      await acceptDemoShift(testDb.db);
+      const persistedShifts = await testDb.db.select().from(shifts);
+      const persistedOffers = await testDb.db.select().from(shiftOffers);
+      expect(persistedShifts.map((row) => row.id)).toContain(first.shift.id);
+      expect(persistedOffers.map((row) => row.id)).toContain(first.offer.id);
+      expect(persistedShifts).toHaveLength(2);
+      expect(persistedOffers).toHaveLength(2);
+
+      const events = await testDb.db.select().from(auditEvents);
+      expect(events.filter((event) => event.action === "SHIFT_PUBLISHED")).toHaveLength(2);
+      expect(events.filter((event) => event.action === "SHIFT_ACCEPTED")).toHaveLength(2);
+      expect(new Set(events.map((event) => event.id)).size).toBe(4);
+      expect(new Set(events.map((event) => event.correlationId))).toEqual(new Set([
+        `demo-cycle:${first.shift.id}`, `demo-cycle:${second.shift.id}`,
+      ]));
     } finally {
       await testDb.close();
     }
