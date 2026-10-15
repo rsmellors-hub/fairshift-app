@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 export class PayPalPayoutError extends Error {
-  constructor(message: string, readonly code: string, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status?: number,
+    readonly debugId?: string,
+    readonly details?: Array<{ field?: string; issue?: string; description?: string }>,
+  ) {
     super(message);
     this.name = "PayPalPayoutError";
   }
@@ -137,8 +143,35 @@ export class PayPalPayoutClient implements PayPalPayoutAdapter {
       throw new PayPalPayoutError("PayPal returned a non-JSON response.", "MALFORMED_RESPONSE", response.status);
     }
     if (!response.ok) {
-      const error = z.object({ name: z.string().optional(), message: z.string().optional() }).safeParse(data);
-      throw new PayPalPayoutError("PayPal rejected the payout request.", error.success ? error.data.name ?? "PAYPAL_HTTP_ERROR" : "PAYPAL_HTTP_ERROR", response.status);
+      const error = z.object({
+        name: z.string().optional(),
+        message: z.string().optional(),
+        debug_id: z.string().optional(),
+        details: z.array(z.object({
+          field: z.string().optional(),
+          issue: z.string().optional(),
+          description: z.string().optional(),
+        })).optional(),
+      }).safeParse(data);
+
+      const code = error.success ? error.data.name ?? "PAYPAL_HTTP_ERROR" : "PAYPAL_HTTP_ERROR";
+      const debugId = error.success ? error.data.debug_id : undefined;
+      const details = error.success ? error.data.details : undefined;
+
+      console.error("PayPal API rejected request", {
+        status: response.status,
+        code,
+        debugId,
+        details,
+      });
+
+      throw new PayPalPayoutError(
+        "PayPal rejected the payout request.",
+        code,
+        response.status,
+        debugId,
+        details,
+      );
     }
     return data;
   }
