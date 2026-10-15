@@ -1,3 +1,5 @@
+import { businessDetails, personalDetails } from "./onboarding";
+import { requireEntitlement } from "@/server/billing/entitlement";
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -8,12 +10,14 @@ import { newToken, tokenHash, consumeLimit } from "./identity";
 import { notify } from "@/server/notifications/service";
 
 export async function createOrganisation(db:Database,userId:string,input:unknown) {
-  const value = z.object({name:z.string().trim().min(1).max(150),locationName:z.string().trim().min(1).max(150)}).strict().parse(input);
+  const value = businessDetails.extend({locationName:z.string().trim().min(1).max(150)}).strict().parse(input);
   return db.transaction(async tx => {
     const [user] = await tx.select().from(users).where(eq(users.id,userId)).for("update");
     if (!user || !user.emailVerifiedAt) throw new Error("Verify your email before creating an organisation.");
+    personalDetails.parse(user);
     const organisationId=randomUUID(), locationId=randomUUID(), membershipId=randomUUID();
-    await tx.insert(organisations).values({id:organisationId,name:value.name});
+    const business=businessDetails.parse(value);
+    await tx.insert(organisations).values({id:organisationId,...business});
     await tx.insert(outlets).values({id:locationId,organisationId,name:value.locationName,timezone:"Africa/Johannesburg"});
     await tx.insert(memberships).values({id:membershipId,userId,organisationId,role:"OWNER"});
     await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID(),status:"UNCONFIGURED"});
@@ -22,6 +26,7 @@ export async function createOrganisation(db:Database,userId:string,input:unknown
 }
 export async function inviteMember(db:Database,scope:Scope,input:unknown) {
   assertRole(scope,["OWNER","MANAGER"]);
+ await requireEntitlement(db,scope.organisationId);
   const value = z.object({role:z.enum(["MANAGER","TEAM_MEMBER"]),email:z.string().trim().toLowerCase().email().max(254),firstName:z.string().trim().min(1).max(100),surname:z.string().trim().min(1).max(100),telephone:z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/)}).strict().parse(input);
   if (value.role === "MANAGER") assertRole(scope,["OWNER"]);
   await consumeLimit(db,`invite:${scope.userId}:${scope.organisationId}`,50);
@@ -71,12 +76,14 @@ export async function redeemInvitation(db:Database,userId:string,input:unknown) 
 }
 export async function revokeInvitation(db:Database,scope:Scope,id:string) {
   assertRole(scope,["OWNER","MANAGER"]);
+ await requireEntitlement(db,scope.organisationId);
   const [row]=await db.select().from(teamInvitations).where(and(eq(teamInvitations.id,id),eq(teamInvitations.organisationId,scope.organisationId),eq(teamInvitations.outletId,scope.locationId)));
   if (!row || row.state === "REDEEMED" || (scope.role === "MANAGER" && row.role !== "TEAM_MEMBER")) throw new Error("Invitation unavailable.");
   await db.update(teamInvitations).set({state:"REVOKED"}).where(and(eq(teamInvitations.id,id),eq(teamInvitations.state,row.state)));
 }
 export async function resendInvitation(db:Database,scope:Scope,id:string) {
  assertRole(scope,["OWNER","MANAGER"]);
+ await requireEntitlement(db,scope.organisationId);
  await consumeLimit(db,`invite-resend:${scope.userId}:${scope.organisationId}`,10);
  const token=newToken();
  return db.transaction(async tx=>{

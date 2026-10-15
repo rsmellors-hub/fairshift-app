@@ -15,9 +15,11 @@ import {
 
 export const users = pgTable("auth_users", {
   id: uuid("id").primaryKey(), email: text("email").notNull(), name: text("name").notNull(),
+  title: text("title"), firstName: text("first_name"), surname: text("surname"),
+  position: text("position"), telephone: text("telephone"),
   passwordHash: text("password_hash").notNull(), emailVerifiedAt: timestamp("email_verified_at", {withTimezone:true}),
   createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
-}, t => [uniqueIndex("auth_users_email_unique").on(t.email), check("auth_users_email_normalized", sql`${t.email} = lower(trim(${t.email}))`)]);
+}, t => [uniqueIndex("auth_users_email_unique").on(t.email), check("auth_users_email_normalized", sql`${t.email} = lower(trim(${t.email}))`), check("auth_users_title_check", sql`${t.title} in ('Mr','Mrs','Ms','Dr','Other')`)]);
 export const sessions = pgTable("auth_sessions", {
   id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(), expiresAt: timestamp("expires_at", {withTimezone:true}).notNull(),
@@ -34,6 +36,8 @@ export const authLimits = pgTable("auth_limits", {
 export const organisations = pgTable("organisations", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
+  businessAddress: text("business_address"), city: text("city"), province: text("province"),
+  postalCode: text("postal_code"), country: text("country"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

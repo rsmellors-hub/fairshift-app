@@ -570,3 +570,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .product-shell-worker .panel p { overflow-wrap: anywhere; }
 .workspace-form select, .inline-form select, .inline-form input { max-width: 100%; padding: .6rem; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font: inherit; }
+
+.onboarding-page { max-width: 920px; }
+.onboarding-progress { display: flex; flex-wrap: wrap; gap: 1rem 2rem; padding: 1rem 1.5rem; border-block: 1px solid var(--line); }
+.onboarding-page .workspace-form, .registration-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; align-items: end; }
+.onboarding-page .workspace-form label, .registration-form label { min-width: 0; }
+.onboarding-page .workspace-form input:not([type="checkbox"]), .registration-form input, .registration-form select { width: 100%; }
+.onboarding-page .workspace-form button, .onboarding-page .workspace-form p, .registration-form button { grid-column: 1 / -1; justify-self: start; }
+.registration-shell { max-width: 720px; margin-inline: auto; }
+@media (max-width: 560px) { .onboarding-page .workspace-form, .registration-form { grid-template-columns: 1fr; } }

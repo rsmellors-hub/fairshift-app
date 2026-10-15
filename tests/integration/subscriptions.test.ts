@@ -1,3 +1,5 @@
+import { organisationEntitled } from "@/server/billing/entitlement";
+import { personal, business } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe,expect,it,vi } from "vitest";
@@ -9,10 +11,10 @@ import { resolveScope } from "@/server/auth/access";
 import { startSubscription,refreshSubscription,subscriptionFor,processSubscriptionWebhook } from "@/server/billing/service";
 import type { SubscriptionAdapter } from "@/server/billing/paypal";
 async function setup(db:Awaited<ReturnType<typeof createTestDatabase>>["db"]) {
- const userId=randomUUID();await db.insert(users).values({id:userId,email:"owner@example.test",name:"Owner",passwordHash:"not-used",emailVerifiedAt:new Date()});
- const org=await createOrganisation(db,userId,{name:"My Co",locationName:"HQ"});
+ const userId=randomUUID();await db.insert(users).values({id:userId,email:"owner@example.test",name:"Owner",passwordHash:"not-used",...personal,emailVerifiedAt:new Date()});
+ const org=await createOrganisation(db,userId,{...business,name:"My Co",locationName:"HQ"});
  const scope=await resolveScope(db,userId,org.membershipId);
- let status:"ACTIVE"|"APPROVAL_PENDING"|"SUSPENDED"="APPROVAL_PENDING";
+ let status:"ACTIVE"|"APPROVAL_PENDING"|"SUSPENDED"|"CANCELLED"|"EXPIRED"="APPROVAL_PENDING";
  const details=()=>({id:"I-EXAMPLE123",custom_id:scope.organisationId,plan_id:"P-EXAMPLE",status,links:[{rel:"approve",href:"https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=example"}]});
  const adapter:SubscriptionAdapter={create:vi.fn(async()=>details()),get:vi.fn(async()=>details()),verifyWebhookSignature:vi.fn(async()=>true)};
  return {scope,adapter,setStatus:(s:typeof status)=>{status=s;}};
@@ -28,7 +30,9 @@ describe("organisation PayPal subscription authority",()=>{
    const created=await startSubscription(t.db,scope,adapter,"P-EXAMPLE");
    expect(created).toMatchObject({status:"APPROVAL_PENDING",providerId:"I-EXAMPLE123",verifiedAt:null});
    expect(await subscriptionFor(t.db,scope)).toMatchObject({status:"APPROVAL_PENDING"});
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
    expect(await refreshSubscription(t.db,scope,adapter)).toMatchObject({status:"ACTIVE",verifiedAt:expect.any(Date)});
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(true);
    await startSubscription(t.db,scope,adapter,"P-EXAMPLE");expect(adapter.create).toHaveBeenCalledTimes(1);
   }finally{await t.close();}
  });
@@ -42,8 +46,10 @@ describe("organisation PayPal subscription authority",()=>{
    expect(adapter.get).toHaveBeenCalledTimes(1);
    setStatus("ACTIVE");await processSubscriptionWebhook(t.db,adapter,event("WH-SUB-2"),paypalHeaders());
    expect((await subscriptionFor(t.db,scope))?.status).toBe("ACTIVE");
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(true);
    setStatus("SUSPENDED");await processSubscriptionWebhook(t.db,adapter,event("WH-SUB-3"),paypalHeaders());
    expect((await subscriptionFor(t.db,scope))?.status).toBe("SUSPENDED");
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
    expect(await t.db.select().from(subscriptionEvents)).toHaveLength(3);
    await expect(processSubscriptionWebhook(t.db,adapter,event().replace('"ACTIVE"','"SUSPENDED"'),paypalHeaders())).rejects.toMatchObject({code:"EVENT_CONTENT_MISMATCH"});
   }finally{await t.close();}
@@ -75,4 +81,22 @@ describe("organisation PayPal subscription authority",()=>{
    await expect(startSubscription(t.db,scope,adapter,"P-EXAMPLE")).rejects.toThrow(/reconciliation/);
   }finally{await t.close();}
  });
+ it("withdraws entitlement on authoritative cancellation/expiry and refuses billing setup with an incomplete profile",async()=>{
+  const t=await createTestDatabase();try {
+   const {scope,adapter,setStatus}=await setup(t.db);
+   await t.db.update(users).set({firstName:null}).where(eq(users.id,scope.userId));
+   await expect(startSubscription(t.db,scope,adapter,"P-EXAMPLE")).rejects.toThrow(/Complete/);
+   expect(adapter.create).not.toHaveBeenCalled();
+   await t.db.update(users).set(personal).where(eq(users.id,scope.userId));
+   await startSubscription(t.db,scope,adapter,"P-EXAMPLE");
+   setStatus("ACTIVE");await refreshSubscription(t.db,scope,adapter);
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(true);
+   for (const status of ["CANCELLED","EXPIRED"] as const) {
+    setStatus(status);await processSubscriptionWebhook(t.db,adapter,event(`WH-${status}`),paypalHeaders());
+    expect((await subscriptionFor(t.db,scope))?.status).toBe(status);
+    expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
+   }
+  }finally{await t.close();}
+ });
+
 });

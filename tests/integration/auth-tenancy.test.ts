@@ -1,3 +1,4 @@
+import { personal, business, entitled } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { and,eq } from "drizzle-orm";
 import { describe,expect,it } from "vitest";
@@ -14,13 +15,14 @@ import { ResendEmail } from "@/server/notifications/email";
 type DB=Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const password="a-long-test-password-42";
 async function identity(db:DB,email:string,verify=true) {
- const user=await registerIdentity(db,{email,name:email.split("@")[0],password});
+ const user=await registerIdentity(db,{email,...personal,password});
  if (verify) await redeemIdentityToken(db,await createIdentityToken(db,user.id,"VERIFY_EMAIL"),"VERIFY_EMAIL");
  return user;
 }
 async function owner(db:DB,email="owner@example.test") {
  const user=await identity(db,email);
- const org=await createOrganisation(db,user.id,{name:`Company ${email}`,locationName:"Main location"});
+ const org=await createOrganisation(db,user.id,{...business,name:`Company ${email}`,locationName:"Main location"});
+ await entitled(db,org.organisationId);
  return {user,...org,scope:await resolveScope(db,user.id,org.membershipId)};
 }
 const invitation=(email:string,role:"MANAGER"|"TEAM_MEMBER"="TEAM_MEMBER")=>({email,role,firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
@@ -36,15 +38,15 @@ async function requirement(db:DB,scope:Awaited<ReturnType<typeof owner>>["scope"
 describe("authenticated Owner-originated tenancy",()=>{
  it("registers identity without authority, verifies mailbox, bootstraps organisation and manages hashed sessions",async()=>{
   const t=await createTestDatabase();try {
-   await expect(registerIdentity(t.db,{email:"bad@example.test",name:"Bad",password,role:"OWNER"})).rejects.toThrow();
+   await expect(registerIdentity(t.db,{email:"bad@example.test",...personal,password,role:"OWNER"})).rejects.toThrow();
    const u=await identity(t.db,"new@example.test",false);
    expect(await t.db.select().from(memberships)).toHaveLength(0);
-   await expect(createOrganisation(t.db,u.id,{name:"Co",locationName:"HQ"})).rejects.toThrow(/Verify/);
+   await expect(createOrganisation(t.db,u.id,{...business,name:"Co",locationName:"HQ"})).rejects.toThrow(/Verify/);
    const token=await createIdentityToken(t.db,u.id,"VERIFY_EMAIL");
    expect((await t.db.select().from(identityTokens))[0].tokenHash).not.toBe(token);
    await redeemIdentityToken(t.db,token,"VERIFY_EMAIL");
    await expect(redeemIdentityToken(t.db,token,"VERIFY_EMAIL")).rejects.toThrow();
-   const org=await createOrganisation(t.db,u.id,{name:"Co",locationName:"HQ"});
+   const org=await createOrganisation(t.db,u.id,{...business,name:"Co",locationName:"HQ"});
    expect(await resolveScope(t.db,u.id,org.membershipId)).toMatchObject({role:"OWNER",organisationId:org.organisationId});
    const session=await signIn(t.db,u.email,password);
    expect((await resolveSession(t.db,session))?.user.id).toBe(u.id);

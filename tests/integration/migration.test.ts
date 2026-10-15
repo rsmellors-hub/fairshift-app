@@ -96,3 +96,27 @@ describe("authenticated tenancy upgrade",()=>{
   }finally{await client.close();}
  });
 });
+
+describe("Owner onboarding upgrade", () => {
+ it("preserves existing 0007 identities, organisations, memberships, subscriptions and locations without fabricating profile/address data", async () => {
+  const client=new PGlite();
+  try {
+   const journal=JSON.parse(await readFile("drizzle/meta/_journal.json","utf8")) as {entries:{tag:string}[]};
+   async function apply(tag:string) {for(const statement of (await readFile(`drizzle/${tag}.sql`,"utf8")).split("--> statement-breakpoint")) if(statement.trim()) await client.exec(statement);}
+   for(const entry of journal.entries.slice(0,8)) await apply(entry.tag);
+   await client.exec(`INSERT INTO auth_users(id,email,name,password_hash,email_verified_at) VALUES ('90000000-0000-4000-8000-000000000001','owner@example.test','Historical Owner','fixture',now());
+    UPDATE organisations SET name='FairShift Demo';
+    INSERT INTO organisation_memberships(id,user_id,organisation_id,role) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','OWNER');
+    INSERT INTO organisation_subscriptions(id,organisation_id,request_id) VALUES ('90000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','90000000-0000-4000-8000-000000000004');`);
+   const unchanged=["organisation_memberships","organisation_subscriptions","outlets"];
+   const before=await Promise.all(unchanged.map(table=>client.query(`SELECT * FROM ${table}`)));
+   const userBefore=(await client.query<Record<string,unknown>>("SELECT * FROM auth_users")).rows[0];
+   const orgBefore=(await client.query<Record<string,unknown>>("SELECT * FROM organisations")).rows[0];
+   for(const entry of journal.entries.slice(8)) await apply(entry.tag);
+   for(const [i,table] of unchanged.entries()) expect((await client.query(`SELECT * FROM ${table}`)).rows).toEqual(before[i].rows);
+   expect((await client.query("SELECT * FROM auth_users")).rows[0]).toEqual({...userBefore,title:null,first_name:null,surname:null,position:null,telephone:null});
+   expect((await client.query("SELECT * FROM organisations")).rows[0]).toEqual({...orgBefore,business_address:null,city:null,province:null,postal_code:null,country:null});
+   await expect(client.exec("UPDATE auth_users SET title='Invalid'" )).rejects.toThrow();
+  } finally {await client.close();}
+ });
+});

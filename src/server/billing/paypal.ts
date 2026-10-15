@@ -11,7 +11,7 @@ export interface SubscriptionAdapter {
 }
 export class PayPalSubscriptions extends PayPalClient implements SubscriptionAdapter {
  async create(input:{organisationId:string;requestId:string;planId:string}) {
-  return subscriptionDetails.parse(await this.authorizedRequest("/v1/billing/subscriptions",{method:"POST",headers:{"Content-Type":"application/json","PayPal-Request-Id":input.requestId,Prefer:"return=representation"},body:JSON.stringify({plan_id:input.planId,custom_id:input.organisationId,application_context:{brand_name:"FairShift",user_action:"SUBSCRIBE_NOW",shipping_preference:"NO_SHIPPING",return_url:`${applicationOrigin()}/billing/return`,cancel_url:`${applicationOrigin()}/owner/settings?billing=cancelled`}})}));
+  return subscriptionDetails.parse(await this.authorizedRequest("/v1/billing/subscriptions",{method:"POST",headers:{"Content-Type":"application/json","PayPal-Request-Id":input.requestId,Prefer:"return=representation"},body:JSON.stringify({plan_id:input.planId,custom_id:input.organisationId,application_context:{brand_name:"FairShift",user_action:"SUBSCRIBE_NOW",shipping_preference:"NO_SHIPPING",return_url:`${applicationOrigin()}/billing/return`,cancel_url:`${applicationOrigin()}/onboarding?billing=cancelled`}})}));
  }
  async get(id:string) {return subscriptionDetails.parse(await this.authorizedRequest(`/v1/billing/subscriptions/${encodeURIComponent(id)}`,{method:"GET"}));}
 }

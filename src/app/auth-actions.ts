@@ -6,12 +6,16 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/server/db/client";
 import { users, outlets } from "@/server/db/schema";
 import { registerIdentity, signIn, issueSession, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
-import { requireIdentity, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE } from "@/server/auth/request";
+import { requireIdentity, requireMembershipScope, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE } from "@/server/auth/request";
 import { createOrganisation, inviteMember, redeemInvitation, revokeInvitation } from "@/server/auth/tenancy";
 import { notify, dispatchNotification, markNotificationRead, dispatchOperationalEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { startSubscription, refreshSubscription } from "@/server/billing/service";
 import { getSubscriptionAdapter } from "@/server/billing/paypal";
+import { savePersonalDetails, saveBusinessDetails } from "@/server/auth/onboarding";
+import { organisationEntitled } from "@/server/billing/entitlement";
+const personalKeys=["title","firstName","surname","position","telephone"];
+const businessKeys=["name","businessAddress","city","province","postalCode","country"];
 const field=(form:FormData,name:string) => String(form.get(name) ?? "");
 async function identityEmail(user:{id:string;email:string},purpose:"VERIFY_EMAIL"|"RESET_PASSWORD") {
  const db=getDatabase(),token=await createIdentityToken(db,user.id,purpose),id=randomUUID();
@@ -22,7 +26,7 @@ export async function registerAction(form:FormData) {
  let token:string;
  try {
   await consumeLimit(getDatabase(),"registration-global",100);
-  const user=await registerIdentity(getDatabase(),{email:field(form,"email"),name:field(form,"name"),password:field(form,"password")});
+  const user=await registerIdentity(getDatabase(),{email:field(form,"email"),...Object.fromEntries(personalKeys.map(key=>[key,field(form,key)])),password:field(form,"password")});
   token=await issueSession(getDatabase(),user.id);
   await identityEmail(user,"VERIFY_EMAIL");
  } catch {redirect("/register?status=error");}
@@ -64,13 +68,13 @@ export async function resetPasswordAction(form:FormData) {
 export async function createOrganisationAction(form:FormData) {
  const {user}=await requireIdentity();
  let membershipId:string;
- try {await consumeLimit(getDatabase(),`organisation:${user.id}`,5);membershipId=(await createOrganisation(getDatabase(),user.id,{name:field(form,"name"),locationName:field(form,"locationName")})).membershipId;} catch {redirect("/account?status=error");}
- await selectMembership(membershipId);(await cookies()).delete("fairshift_location");redirect("/owner/settings");
+ try {await consumeLimit(getDatabase(),`organisation:${user.id}`,5);membershipId=(await createOrganisation(getDatabase(),user.id,{...Object.fromEntries(businessKeys.map(key=>[key,field(form,key)])),locationName:field(form,"locationName")})).membershipId;} catch {redirect("/onboarding?status=error");}
+ await selectMembership(membershipId);(await cookies()).delete("fairshift_location");redirect("/onboarding");
 }
 export async function selectMembershipAction(form:FormData) {
  const member=await selectMembership(field(form,"membershipId"));
  (await cookies()).delete("fairshift_location");
- redirect(member.role === "OWNER" ? "/owner" : member.role === "MANAGER" ? "/manager":"/worker");
+ redirect(await membershipDestination(member));
 }
 export async function selectLocationAction(form:FormData) {
  const scope=await requireScope(["OWNER"]);
@@ -93,7 +97,7 @@ export async function redeemInvitationAction(form:FormData) {
  let id:string;
  try {await consumeLimit(getDatabase(),`redeem:${user.id}`);id=(await redeemInvitation(getDatabase(),user.id,{token:field(form,"token")})).id;} catch {redirect("/invite?status=error");}
  const member=await selectMembership(id);
- redirect(member.role === "MANAGER" ? "/manager":"/worker");
+ redirect(await membershipDestination(member));
 }
 export async function revokeInvitationAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);
@@ -108,16 +112,16 @@ export async function deliverNotificationsAction() {
  await dispatchOperationalEmails(getDatabase(),getEmailAdapter(),user.id);redirect("/account");
 }
 export async function startSubscriptionAction() {
- const scope=await requireScope(["OWNER"]);
+ const scope=await requireMembershipScope(["OWNER"]);
  let approval:string|null|undefined;
- try {approval=(await startSubscription(getDatabase(),scope,getSubscriptionAdapter(),process.env.PAYPAL_SUBSCRIPTION_PLAN_ID))?.approvalUrl;} catch {redirect("/owner/settings?status=error");}
+ try {approval=(await startSubscription(getDatabase(),scope,getSubscriptionAdapter(),process.env.PAYPAL_SUBSCRIPTION_PLAN_ID))?.approvalUrl;} catch {redirect("/onboarding?status=error");}
  if (approval) redirect(approval);
- redirect("/owner/settings?billing=unconfigured");
+ redirect("/onboarding?billing=unconfigured");
 }
 export async function refreshSubscriptionAction() {
- const scope=await requireScope(["OWNER"]);
- try {await refreshSubscription(getDatabase(),scope,getSubscriptionAdapter());} catch {redirect("/owner/settings?status=error");}
- redirect("/owner/settings");
+ const scope=await requireMembershipScope(["OWNER"]);
+ try {await refreshSubscription(getDatabase(),scope,getSubscriptionAdapter());} catch {redirect("/onboarding?status=error");}
+ redirect("/onboarding");
 }
 export async function resendInvitationAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]),path=scope.role === "OWNER" ? "/owner/workforce":"/manager/team";
@@ -127,4 +131,19 @@ export async function resendInvitationAction(form:FormData) {
   await dispatchNotification(getDatabase(),getEmailAdapter(),result.notificationId,`/invite#${result.token}`);
  } catch {redirect(`${path}?status=error`);}
  redirect(`${path}?status=saved`);
+}
+
+async function membershipDestination(member:{organisationId:string;role:string}) {
+ if (!await organisationEntitled(getDatabase(),member.organisationId)) return member.role === "OWNER" ? "/onboarding":"/account?status=subscription-required";
+ return member.role === "OWNER" ? "/owner":member.role === "MANAGER" ? "/manager":"/worker";
+}
+export async function savePersonalAction(form:FormData) {
+ const {user}=await requireIdentity();
+ try {await savePersonalDetails(getDatabase(),user.id,Object.fromEntries(personalKeys.map(key=>[key,field(form,key)])));} catch {redirect("/onboarding?status=error");}
+ redirect("/onboarding?status=saved");
+}
+export async function saveBusinessAction(form:FormData) {
+ const scope=await requireMembershipScope(["OWNER"]);
+ try {await saveBusinessDetails(getDatabase(),scope.userId,scope.organisationId,Object.fromEntries(businessKeys.map(key=>[key,field(form,key)])));} catch {redirect("/onboarding?status=error");}
+ redirect("/onboarding?status=saved");
 }

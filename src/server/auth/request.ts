@@ -5,6 +5,7 @@ import { getDatabase } from "@/server/db/client";
 import { memberships, sessions } from "@/server/db/schema";
 import { resolveSession } from "./identity";
 import { resolveScope, type Role } from "./access";
+import { organisationEntitled } from "@/server/billing/entitlement";
 export const SESSION_COOKIE = "fairshift_session";
 export async function currentIdentity() {
   return resolveSession(getDatabase(),(await cookies()).get(SESSION_COOKIE)?.value);
@@ -14,7 +15,8 @@ export async function requireIdentity() {
   if (!identity) redirect("/sign-in");
   return identity;
 }
-export async function requireScope(roles:Role[]) {
+// Account/onboarding/billing only. Operational entry points must use requireScope.
+export async function requireMembershipScope(roles:Role[]) {
   const {user,session}=await requireIdentity();
   const rows = await getDatabase().select().from(memberships).where(and(eq(memberships.userId,user.id),eq(memberships.state,"ACTIVE")));
   const selected=rows.find(m => m.id === session.membershipId);
@@ -22,6 +24,13 @@ export async function requireScope(roles:Role[]) {
   if (!membership) redirect("/account");
   const locationId=(await cookies()).get("fairshift_location")?.value;
   return resolveScope(getDatabase(),user.id,membership.id,membership.role === "OWNER" ? locationId : undefined,roles);
+}
+export async function requireScope(roles:Role[]) {
+  const scope = await requireMembershipScope(roles);
+  if (!await organisationEntitled(getDatabase(), scope.organisationId)) {
+    redirect(scope.role === "OWNER" ? "/onboarding" : "/account?status=subscription-required");
+  }
+  return scope;
 }
 export async function setSessionCookie(token:string) {
   (await cookies()).set(SESSION_COOKIE,token,{httpOnly:true,secure:process.env.NODE_ENV === "production",sameSite:"lax",path:"/",maxAge:7*86400});

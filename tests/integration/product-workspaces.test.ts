@@ -1,3 +1,4 @@
+import { entitled } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
@@ -46,6 +47,7 @@ async function configure(db: Awaited<ReturnType<typeof createTestDatabase>>["db"
   await db.insert(users).values({id:"90000000-0000-4000-8000-000000000001",email:"owner@example.test",name:"Owner",passwordHash:"test",emailVerifiedAt:new Date()});
   await db.insert(memberships).values({id:randomUUID(),userId:"90000000-0000-4000-8000-000000000001",organisationId:DEMO_ORGANISATION_ID,role:"OWNER"});
   await db.insert(subscriptions).values({id:randomUUID(),organisationId:DEMO_ORGANISATION_ID,requestId:randomUUID()});
+  await entitled(db,DEMO_ORGANISATION_ID);
   await ensureDemoCasualWorker(db);
   await db.update(workers).set({userId:"90000000-0000-4000-8000-000000000001",locationId:DEMO_OUTLET_ID}).where(eq(workers.id,DEMO_CASUAL_WORKER_ID));
   vi.mocked(getDatabase).mockReturnValue(db);

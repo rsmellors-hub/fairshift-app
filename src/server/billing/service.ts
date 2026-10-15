@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { memberships, subscriptions, subscriptionEvents } from "@/server/db/schema";
+import { personalDetails, businessDetails } from "@/server/auth/onboarding";
+import { users, organisations, memberships, subscriptions, subscriptionEvents } from "@/server/db/schema";
 import { assertRole, type Scope } from "@/server/auth/access";
 import { tokenHash } from "@/server/auth/identity";
 import { readPayPalTransmissionHeaders, WebhookError } from "@/server/integrations/paypal/webhook";
@@ -20,6 +21,9 @@ export async function subscriptionFor(db:DatabaseSession,scope:Scope) {
 export async function startSubscription(db:Database,scope:Scope,adapter:SubscriptionAdapter|null,planId?:string) {
  await owner(db,scope);
  if (!adapter || !planId) return subscriptionFor(db,scope);
+ const [user]=await db.select().from(users).where(eq(users.id,scope.userId));
+ const [business]=await db.select().from(organisations).where(eq(organisations.id,scope.organisationId));
+ if (!user?.emailVerifiedAt || !personalDetails.safeParse(user).success || !businessDetails.safeParse(business).success) throw new Error("Complete your personal and business details first.");
  // Reserve a stable request ID before any provider call. Network failure leaves a retryable pending fact.
  await db.update(subscriptions).set({status:"PENDING",planId,requestId:randomUUID(),updatedAt:new Date()}).where(and(eq(subscriptions.organisationId,scope.organisationId),eq(subscriptions.status,"UNCONFIGURED")));
  return db.transaction(async tx => {
