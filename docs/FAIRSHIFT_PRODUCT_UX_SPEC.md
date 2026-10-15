@@ -17,6 +17,18 @@ The POS integration is the factual operational input to forecasting and staffing
 
 [PayPal Zettle](https://developer.zettle.com) is the preferred POS provider for the hackathon demonstration. Its current status is **PLANNED / NEEDS VERIFICATION**. FairShift must not describe Zettle as integrated until real API authentication and data retrieval succeed. Exact capabilities, scopes, endpoints, merchant access, geography, and attribution behavior must be verified against current official Zettle documentation rather than inferred.
 
+### Canonical hackathon demonstration vertical
+
+FairShift remains a cross-industry product for organisations with variable demand and flexible workforce requirements. The canonical PayPal AI Hackathon demonstration uses a **fictional five-location specialty retailer**, with **consumer electronics retail** as the preferred vertical. The retailer's final brand and store locations remain open decisions.
+
+This scenario makes the complete proposition easy to follow:
+
+> retail commercial activity → POS sales history → demand forecast → staffing recommendation → manager scheduling → flexible sales-floor worker → performance or target result → deterministic incentive → manager approval → PayPal payout
+
+The demonstration business has location-specific sales and demand history, variable demand between stores and days, existing staffing coverage, and flexible or casual sales-floor workers who close staffing gaps. Managers make operational staffing decisions; the Owner/Admin needs both consolidated and per-location intelligence; workers receive clear shift terms and incentive opportunities; and approved incentives can be paid through PayPal.
+
+Specialty retail gives demand, sales-floor coverage, performance, and incentive economics an understandable relationship. Weekday/weekend variation, location differences, promotions or commercial peaks, and seasonality are relevant scenario context only where supported by actual data or implementation. Their presence in the scenario does not imply that FairShift currently models them. Historical facts, deterministic forecasts, AI interpretation, manager decisions, and outcomes must remain distinguishable.
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.
@@ -44,7 +56,7 @@ The exact adapter interface name is an implementation decision. The architectura
 The sales data serves two distinct purposes:
 
 1. **Location / business sales** power historical demand analysis, day/time patterns, forecasts, staffing recommendations, and owner/manager reporting. Verified location-level POS sales are sufficient for the core forecast and staffing workflow.
-2. **Worker-attributed sales** may later support a worker's own aggregate performance and deterministic incentive progress or calculation. A suitable Zettle worker-attribution mechanism has not been verified. Its absence must not block location-level POS sales ingestion or forecasting.
+2. **Worker-attributed sales** may later support a worker's own aggregate performance and deterministic incentive progress or calculation. A suitable Zettle worker-attribution mechanism has not been verified. Do not assume that a POS provider exposes reliable employee or cashier attribution, and do not fabricate it. Its absence must not block location-level POS sales ingestion or forecasting. Until attribution is verified, incentives may use location, team, or shift-level sales targets and/or the existing authorised manager-recorded result workflow.
 
 Provider provenance remains attached to normalised records. Failed, partial, seeded, simulated, and provider-derived data must never be silently blended or promoted to a stronger evidence status.
 
@@ -124,6 +136,12 @@ Owner drill-down follows this hierarchy where authorised:
 
 Worker-level data must still be limited to legitimate operational need. Consolidated analysis should not become a worker leaderboard.
 
+### Customer economic value
+
+The Owner/Admin experience should eventually answer: **“What economic value is FairShift creating for the customer?”** Where supported by implemented data and methods, it may present forecast demand, recommended and scheduled labour, staffing variance, labour cost, labour cost as a percentage of sales, sales per labour hour, forecast accuracy, incentive spend, staffing adjustments, and clearly labelled estimated avoidable labour cost or similar implications.
+
+Every value must be classified and presented as a **factual metric**, **calculated estimate**, or **AI/predictive output**. FairShift must not claim causal savings that its data cannot support. Any estimate requires an understandable methodology, assumptions, and scope. Exact economic calculations are a later implementation decision and are not defined by this specification amendment.
+
 ## 6. Manager experience
 
 The manager experience makes the FairShift thesis visible as an operational sequence:
@@ -167,6 +185,18 @@ The FairShift SaaS operator surface is separate from the customer company's Admi
 
 This surface is bounded and deferred for the competition golden path. Full subscription, merchant billing, and plan infrastructure must not consume submission-critical implementation time. Customer-company administrators must never be confused with FairShift platform operators in product language, navigation, or permissions.
 
+### Commercial entry and FairShift viability
+
+FairShift's current commercial direction is **B2B SaaS**. A potential model combines a base subscription with location-based pricing and may later add tiering, usage, or workforce-scale components. This is direction rather than approved pricing. Do not invent subscription prices, margins, acquisition costs, payment fees, ROI, or break-even claims.
+
+The product and final presentation should make the relationship between **customer value created** and **FairShift cost** credible and understandable. This business case strengthens Potential Impact, Design, Presentation, and overall credibility, but it must remain evidence-based.
+
+Commercial product entry is **JUDGING-VALUE**, with this target lifecycle:
+
+> Discover FairShift → business setup → plan → PayPal commercial payment where technically appropriate → onboarding → connect commercial/POS data → FairShift operation
+
+A lightweight genuine PayPal-powered commercial entry flow may be evaluated later against current official capability, Sandbox availability, implementation cost, demo reliability, judging value, and regression risk. Full production subscription infrastructure—including recurring billing, proration, tax, dunning, cancellation management, and production invoicing—remains **DEFERRED**. Worker payout and meaningful commercial intelligence remain higher priority than SaaS billing.
+
 ## 9. Weekly planning model
 
 Weekly planning is the primary owner and manager planning frame.
@@ -190,9 +220,9 @@ Weekly totals may aid orientation but must not obscure daily timing and capacity
 
 ### Target golden path
 
-The strongest intended demonstration is one connected story:
+The strongest intended demonstration is one connected specialty-retail story:
 
-1. **Zettle records business sales.** Zettle is the preferred demonstration POS, subject to verified API access.
+1. **A retail location records sales through Zettle.** Zettle is the preferred demonstration POS, subject to verified API access.
 2. **FairShift ingests and normalises sales.** A provider adapter converts authenticated POS data into canonical, location-scoped FairShift sales records with provenance.
 3. **Historical demand becomes visible.** Owners and managers see factual sales history separately from predictions.
 4. **AI forecasts next-week demand.** The manager sees predicted demand, uncertainty, comparable history, and an explanation.
@@ -218,6 +248,8 @@ The current repository verifies a controlled path using canonical seeded sales h
 PayPal payout status is **SANDBOX-CONNECTED**. The current path proves the forecast-to-payment workflow and provider payout behavior, but it does not prove Zettle ingestion or worker-level POS attribution.
 
 The currently verified demonstration uses a $650 performance target and a $25 incentive handled in integer cents. This proves a deterministic path; it is not the permanent universal incentive policy.
+
+The final retail narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
 
 ## 11. Key screen specifications
 
@@ -529,6 +561,14 @@ Integrations must strengthen the product and its evidence. FairShift does not ad
 
 Use these evidence terms consistently where applicable: **MOCKED**, **SIMULATED**, **SANDBOX-CONNECTED**, **API-BACKED**, **VERIFIED**, and **DEMO-READY**. Planned work remains labelled as planned; a mocked response is not API evidence, API access alone is not end-to-end verification, and verified engineering behavior is not automatically demo-ready.
 
+### PayPal's potential product roles
+
+PayPal may support three distinct parts of the product. Their statuses must never be conflated:
+
+1. **FairShift commerce — future / evaluate.** A business customer pays FairShift during commercial entry. No customer-billing flow is currently implemented.
+2. **Commercial intelligence — Zettle PLANNED / NEEDS VERIFICATION.** PayPal/Zettle commercial activity may feed the canonical location sales and demand layer. Zettle ingestion is not currently implemented.
+3. **Worker reward — SANDBOX-CONNECTED.** FairShift sends a manager-approved worker incentive through PayPal and reconciles its state. This is the strongest currently verified PayPal role.
+
 ### Core product and competition integrations
 
 #### PayPal — SANDBOX-CONNECTED
@@ -606,6 +646,8 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 ### OPEN
 
+- Final fictional specialty-retailer brand and exact five store locations.
+- Final SaaS pricing and packaging.
 - Permanent incentive policy and formula; the $650 / $25 demo rule is evidence of the current path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.
 - Over-invitation and capacity behaviour when more workers accept than required.
@@ -618,15 +660,17 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - Zettle authentication, merchant access, applicable scopes/endpoints, location-level sales retrieval, pagination/synchronisation behavior, and commercial/geographic availability against current official documentation.
 - Zettle worker-level attribution mechanism suitable for FairShift. This is separate from, and must not block, location-level sales ingestion for forecasting.
 - Any provider metadata proposed as evidence of worker-attributed performance.
+- Current PayPal capability, Sandbox fit, and implementation cost for a possible lightweight commercial entry flow.
 - Bryntum and AG Grid licensing, supported package versions, and technical fit before installation.
 - The exact APIMatic implementation and evidence that materially supports the PayPal integration.
 
 ### DEFERRED
 
-- Exact SaaS subscription and billing model.
+- Full production subscription infrastructure, including recurring billing, proration, tax, dunning, cancellation management, and production invoicing.
 - Cross-location casual-worker scheduling.
 - Full-time employee accounts.
 - Full FairShift operator console.
+- Production authentication and role-based access control.
 - Production PayPal operation beyond the verified Sandbox implementation.
 
 ## 22. Competition-governance boundary
@@ -634,6 +678,18 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 FairShift is currently being built for the PayPal AI Hackathon. As re-verified on 15 October 2026, governing requirements include a functional application using PayPal's free Sandbox developer platform, meaningful AI, a central PayPal integration, truthful alignment between the working product and submission claims, authorised third-party integrations, and submission by 12 November 2026 at 12:00 PM PST. Judging priorities are Technological Implementation, Design, Potential Impact, Innovation / Idea, and Presentation.
 
 These constraints guide delivery and evidence; they are not FairShift business rules. Do not encode deadlines, judging criteria or weights, sponsor-prize conditions, Devpost wording, or eligibility rules in application logic. Current official competition sources override stale repository copies for compliance decisions.
+
+### Judging-value filter
+
+Significant remaining work should improve multiple judging dimensions while strengthening the golden path:
+
+- **Technological Implementation:** real PayPal plus meaningful AI with observable operational consequences.
+- **Design:** one coherent product lifecycle rather than disconnected prototype screens.
+- **Potential Impact:** a credible operational and economic problem/solution for variable-demand businesses.
+- **Innovation / Idea:** the closed commercial-activity → labour-decision → performance → reward loop.
+- **Presentation:** one understandable end-to-end demonstration with truthful positive and negative evidence.
+
+These are delivery and presentation filters, not application business logic. Do not hard-code judging weights or transient competition wording.
 
 ## 23. Current implementation → target UX migration
 
@@ -664,6 +720,8 @@ Functionality that must survive redesign includes truthful provenance, validated
 ## 24. Implementation sequencing recommendation
 
 Implementation should proceed in slices that leave a coherent product after each step:
+
+All subsequent demo work should use one coherent five-location specialty-retail scenario rather than inventing unrelated fixtures for each feature. Zettle ingestion, five-location demo data, weekly intelligence, Manager and Worker UX, worker targets, Owner economic-value analytics, Bryntum scheduling, AG Grid/Studio analytics, and final presentation evidence should describe the same fictional business once their exact fixtures are deliberately approved.
 
 1. **Preserve the verified backend golden path.** Keep canonical sales records, forecast/staffing behavior, scheduling state, deterministic incentives, approval, PayPal idempotency, and payout reconciliation passing while presentation work proceeds.
 2. **Establish coherent product UX foundations.** Create role-specific owner, manager, and worker shells, navigation, location context, responsive patterns, and natural state language without breaking the working path.
