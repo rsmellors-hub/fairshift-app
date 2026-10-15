@@ -1,434 +1,354 @@
-# FairShift — Codex Project Instructions
+# FairShift — Repository Engineering Instructions
 
-## 1. Project
+## 1. Purpose and authority
 
-FairShift is being developed as an entry for the PayPal AI Hackathon 2026.
+FairShift is an AI-assisted multi-outlet workforce planning and transparent worker-payment platform being developed for the PayPal AI Hackathon.
 
-This repository is the canonical implementation repository for the hackathon submission.
+Use these authority boundaries:
 
-Competition compliance, demonstrable functionality, engineering quality, and evidence take priority over unnecessary feature expansion.
+1. **Repository implementation state:** the current repository and reproducible runtime evidence are authoritative.
+2. **Product and UX direction:** [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md) is the current authoritative product/UX specification.
+3. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources are authoritative. Repository copies of transient competition details may become stale.
 
-Do not invent hackathon requirements.
+Do not infer implementation status from product copy, prototypes, plans, or prior conversation. Do not treat planned behavior as implemented.
 
-When a task identifies a requirement as an OFFICIAL RULE, treat the supplied wording as controlling. If implementation work exposes ambiguity about a competition requirement, stop and report the ambiguity rather than silently interpreting it.
+When a material implementation or submission decision depends on a deadline, eligibility condition, judging criterion or weight, sponsor-prize requirement, or Devpost wording, verify the current official source. Never encode those competition details in application business logic.
 
-## 2. Official Competition Control
+## 2. Product north star
 
-The project must implement a functioning application that integrates:
+Protect this operational loop:
 
-- the PayPal developer platform using the free sandbox environment; and
-- an AI tool, model, or platform.
+POS sales
+→ FairShift ingestion and normalisation
+→ canonical historical sales
+→ AI demand forecast
+→ staffing recommendation
+→ manager scheduling
+→ worker shift and target acceptance
+→ performance
+→ deterministic incentive calculation
+→ manager approval
+→ PayPal payout
+→ confirmation
 
-PayPal integration must be central to the project.
+The detailed roles, information architecture, navigation, golden-path UX, visibility rules, screen behavior, responsive expectations, terminology, and implementation sequence live in the authoritative product specification. Reference it rather than duplicating it here.
 
-The final application must function as represented.
+Do not silently expand FairShift into a general HRIS, payroll suite, recruitment platform, CRM, accounting system, or enterprise workforce-management suite.
 
-A static mockup, static prototype, or non-functional demonstration is not sufficient for the final submission.
+## 3. Product decision control
 
-The final submission is expected to include a public source repository containing the necessary source, assets, instructions, and an open-source licence.
+Implementation must not silently invent or materially change the product roles, navigation architecture, golden-path UX, owner/admin experience, manager experience, worker experience, data visibility, or unresolved product rules defined in the product specification.
 
-This project is being substantially developed during the hackathon submission period. Preserve a clear Git history showing material development.
+If implementation requires a material product decision not resolved there, stop affected work and surface the decision rather than inventing it.
 
-Do not rewrite Git history, squash historical evidence, force-push, or delete development evidence unless explicitly instructed by the project owner.
+Do not resolve OPEN, NEEDS VERIFICATION, or DEFERRED decisions inside this file. These include, among others:
 
-## 3. Official Judging Criteria
+- permanent incentive formula;
+- fairness or matching weighting;
+- over-invitation and capacity behavior;
+- invitation transport;
+- Shift Sheet distribution;
+- detailed payment-dispute workflow;
+- verified Zettle worker attribution;
+- SaaS subscription model;
+- cross-location casual-worker scheduling;
+- full-time employee accounts.
 
-The five Stage Two judging criteria supplied to this project are equally weighted:
+Use the product specification for their current authoritative status.
 
-1. Technological Implementation
-2. Design
-3. Potential Impact
-4. Innovation/Idea
-5. Presentation
+## 4. Current integration strategy
 
-Do not invent additional official criteria, weights, scoring systems, or competition requirements.
+### PayPal — SANDBOX-CONNECTED
 
-Recommendations may be made, but they must be identified as engineering or competition strategy rather than Official Rules.
+PayPal is the central worker-payment integration. Current evidence establishes:
 
-## 4. Product Definition
+- Sandbox OAuth authentication;
+- one controlled $25 Sandbox payout;
+- persisted provider identifiers and payout state;
+- provider status refresh and reconciliation to `PAID` after PayPal item `SUCCESS`;
+- duplicate payout protection.
 
-FairShift is an AI-assisted multi-outlet workforce planning, sales-target, gratuity, incentive, and worker-payment platform.
+This evidence does not imply production capability or verification of every PayPal feature. Never represent an unverified, pending, failed, or unknown operation as successful.
 
-The intended closed loop is:
+### PayPal Zettle POS — PLANNED / NEEDS VERIFICATION
 
-PayPal sales/events
-→ contextual demand signals
-→ AI-assisted demand forecast
-→ staffing requirement
-→ manager staffing decision
-→ applicable team sales target
-→ worker shift terms and acceptance
-→ live team sales progress
-→ result verification
-→ base pay + gratuity + optional incentive calculation
-→ human approval
-→ PayPal payment/payout
-→ worker receipt
+Zettle is the intended demo POS/sales source. It should supply factual location sales and demand input to FairShift.
 
-The core product principle is:
+Keep provider payloads behind a provider ingestion/normalisation boundary:
 
-Predict demand.
-Staff for it.
-Set the target.
-Show the team.
-Verify the result.
-Pay transparently.
+POS provider
+→ provider adapter / ingestion
+→ canonical FairShift sales records
+→ forecasting and staffing
 
-## 5. Domain Boundaries
+Do not make forecasting depend on Zettle-specific structures. Do not claim Zettle is integrated until current official documentation and real API evidence establish authentication, merchant/data access, and retrieval. Worker-level attribution is independently unverified and must not block location-level forecasting.
 
-Keep these concepts separate:
+### Planned sponsor integrations
 
-- demand forecast
-- business sales target
-- staffing requirement
-- staffing plan
-- incentive threshold
-- gratuity
-- base pay
-- payout
+- **AG Grid / AG Studio — PLANNED:** owner/manager operational analytics where dense data presentation materially improves comprehension.
+- **Bryntum — PLANNED:** manager workforce/resource scheduling and Shift Allocations.
+- **APIMatic — PLANNED / evidence required:** PayPal API development and integration support where it materially improves quality, documentation, workflow reliability, or credible sponsor evidence. It is not a user-facing module.
 
-Do not collapse them into one field or concept merely for implementation convenience.
+Do not add technology merely to increase sponsor count. Overall submission quality and a working golden path outrank sponsor accumulation. Verify capability, licensing, supported environments, and fit before implementation or claims.
 
-FairShift supports regular/permanent workers and flexible/casual workers.
+## 5. AI and deterministic control
 
-A useful capacity relationship is:
+Meaningful AI follows this chain:
 
-required labour capacity
-- scheduled regular labour capacity
-= staffing gap or surplus
+historical sales and demand
+→ forecast
+→ staffing recommendation
+→ manager operational decision
 
-AI may recommend:
-
-- expected demand;
-- required staffing capacity;
-- role/capacity gaps;
-- target reasonableness;
-- contextual signals;
-- operational recommendations.
-
-AI must not autonomously:
-
-- hire or fire workers;
-- rank workers for employment;
-- make disciplinary decisions;
-- approve financial payouts;
-- fabricate financial results.
-
-A manager or other authorised human remains responsible for consequential employment and financial decisions.
-
-## 6. Team Target Principle
-
-The product uses team/outlet sales targets for the applicable measurement window.
-
-Do not introduce individual worker:
-
-- sales quotas;
-- sales rankings;
-- performance leaderboards;
-- individual revenue attribution for performance surveillance
-
-unless explicitly authorised by the project owner.
-
-Worker-facing views should emphasise:
-
-- shift terms;
-- guaranteed/base pay;
-- applicable gratuity policy;
-- optional incentive;
-- shared team target;
-- team progress;
-- current or potential earnings;
-- payment/receipt status.
-
-## 7. AI Boundary
-
-Use AI where probabilistic reasoning is appropriate, including:
-
-- demand forecasting;
-- contextual signal interpretation;
-- explanations;
-- operational recommendations.
+AI must have understandable inputs, validated structured output, observable product consequences, and clear separation from factual historical data. Managers retain operational control. Do not treat an LLM explanation as evidence that a forecast occurred.
 
 Use deterministic application logic for:
 
-- wage calculations;
-- gratuity allocation calculations;
-- incentive calculations;
-- payout amounts;
-- approval thresholds;
-- permissions;
-- financial reconciliation rules.
+- permissions and scoping;
+- scheduling conflicts;
+- wage and incentive calculations;
+- payout amounts and eligibility;
+- financial reconciliation;
+- other exact business rules.
 
-Do not ask an LLM to calculate authoritative financial amounts where deterministic code can perform the calculation.
+AI must not determine whether a worker gets paid, approve payouts, fabricate financial results, or make consequential employment decisions.
 
-Validate structured AI output before it enters application state.
+## 6. Core domain and data boundaries
 
-Do not treat an LLM's explanation as evidence that a forecast calculation occurred.
+Keep these concepts distinct: factual sales, forecast, staffing requirement, staffing decision, shift, shift offer, worker response, shift allocation, performance result, incentive result, approved payable amount, payout, and payment status.
 
-## 8. Context Signals
+Preserve provenance between provider-derived records, seeded/demo data, simulated or mocked data, forecasts, recommendations, manager decisions, and verified outcomes. Never present seeded or simulated sales as provider-verified facts.
 
-Potential contextual inputs include:
+Casual workers are location-bound in the current product scope. Worker-facing performance is limited to the worker's own permitted aggregates. Do not expose customer/transaction detail, store-wide revenue, another worker's performance or earnings, or worker leaderboards.
 
-- historical sales;
-- weekday/time;
-- seasonality;
-- recent momentum;
-- weather;
-- local events;
-- holidays;
-- promotions;
-- closures;
-- transport disruptions;
-- relevant local operational signals;
-- comparable-event history.
+Worker-level commerce attribution requires a verified provider mechanism. Do not fabricate attribution identifiers or infer capability from generic metadata.
 
-The preferred conceptual pipeline is:
+Server-side authorisation must enforce organisation, location, worker, and financial-operation scope. Hidden UI is not authorisation.
 
-signal discovery
-→ relevance assessment
-→ structured feature
-→ forecasting/recommendation system
+## 7. Failure-safe development
 
-Do not arbitrarily convert free-form LLM sentiment into unsupported numeric sales uplift.
+Submission-critical functionality must fail safely and truthfully:
 
-## 9. PayPal Boundary
+- POS failure is not zero sales.
+- AI or forecast failure is not an invented forecast.
+- A scheduling conflict is not a valid allocation.
+- An unapproved incentive is not payable.
+- PayPal failure is not `PAID`.
+- An unknown payout state is not `SUCCESS`.
 
-PayPal is a central commerce/payment integration.
+On critical failure, preserve valid prior state where appropriate, block unsafe downstream action, provide understandable user-facing feedback, support a safe recovery or retry path where appropriate, and retain enough evidence for diagnosis.
 
-Do not simulate PayPal functionality and represent it as a real integration.
+Golden-path work should include positive verification and relevant negative-path verification. Priority judge-visible controls are scheduling conflict prevention, the manager approval gate, and duplicate PayPal payout protection. Keep demonstrations focused; do not build exhaustive enterprise-grade fault infrastructure for the hackathon.
 
-Whenever PayPal functionality is displayed, distinguish among:
+## 8. Evidence and status discipline
 
-- real sandbox functionality;
-- simulated/demo functionality;
-- planned functionality.
+Describe evidence using:
 
-Never expose PayPal credentials or secrets in:
+- **VERIFIED**
+- **REPOSITORY EVIDENCE**
+- **AGENT-REPORTED**
+- **INFERENCE**
+- **RECOMMENDATION**
+- **NOT VERIFIED**
 
-- source code;
-- client bundles;
-- logs;
-- screenshots;
-- committed environment files.
+Describe integrations using:
 
-Use server-side handling for secrets.
+- **MOCKED**
+- **SIMULATED**
+- **SANDBOX-CONNECTED**
+- **API-BACKED**
+- **VERIFIED**
+- **DEMO-READY**
 
-Use appropriate verification, authorization, idempotency, reconciliation, and error handling for financial operations.
+Never promote a status without evidence. Do not confuse implemented with tested, tested with externally verified, or externally verified with demo-ready. Never claim a test passed unless it was executed successfully. State why when a required check could not run.
 
-Do not assume a particular PayPal API is appropriate merely because prototype copy names it.
+Product-facing copy should use natural language while remaining truthful about data and provider state.
 
-Before implementing a material PayPal capability, verify that the selected PayPal API actually supports the required operation.
+## 9. Repository verification and engineering discipline
 
-## 10. Prototype Claims
+Before substantive implementation, debugging, architecture, integration, repository review, or coding-agent handoff:
 
-A prior FairShift prototype exists outside this canonical repository.
+1. read this `AGENTS.md`;
+2. verify the current working directory;
+3. verify the current branch;
+4. verify HEAD;
+5. inspect Git status;
+6. inspect the relevant implementation and dependencies;
+7. identify material assumptions and existing uncommitted work.
 
-It contains product concepts and simulated UI.
+The repository is authoritative for implementation state. If repository reality differs materially from the work package expectation, stop affected work and report:
 
-Prototype labels such as:
+Expected →
+Found →
+Impact →
+Recommended action →
 
-- PayPal connected;
-- Orders API;
-- sandbox connected;
-- webhook;
-- transaction count;
-- payout reference;
-- AI forecast;
-- forecast confidence;
-- weather/event signals;
-- payment sent;
-- RBAC;
-- audit trail
+Preserve existing work and working behavior unless the authorised task requires change. Do not silently restructure established architecture or overwrite unrelated changes.
 
-must NOT be treated as evidence that those capabilities have actually been implemented.
+## 10. Architecture and implementation approach
 
-Implementation status must be determined from this repository and reproducible runtime evidence.
+Use the simplest architecture capable of producing a reliable, understandable hackathon demonstration.
 
-## 11. Implementation Status Vocabulary
+Prefer:
 
-When auditing or reporting functionality, use:
+- implementation speed;
+- reliability;
+- comprehensibility;
+- integration quality;
+- demo resilience;
+- the smallest coherent change.
 
-IMPLEMENTED
-PARTIAL
-SIMULATED
-HARDCODED
-ABSENT
-UNKNOWN
+Avoid:
 
-For externally integrated functionality, where useful also distinguish:
+- unnecessary microservices;
+- speculative scalability;
+- duplicate data layers;
+- speculative or unnecessary abstractions;
+- unrelated refactors;
+- architecture rewrites without demonstrated need;
+- technology added solely for novelty.
 
-REAL
-PARTIAL
-SIMULATED
-ABSENT
-UNKNOWN
+Do not change the selected stack merely because another stack is preferred. Report a major architectural conflict before replacement work.
 
-Do not upgrade a status without evidence.
+## 11. Security and secret handling
 
-## 12. Security Baseline
+Financial and workforce functionality must account for server-side authorisation, organisation/location scope, worker isolation, role permissions, secret management, input/webhook verification, idempotency, auditability, and data minimisation.
 
-Financial and workforce data require deliberate access control.
+Never expose, print, stage, or commit credentials, access tokens, private keys, sandbox passwords, database credentials, `.env` contents, or unnecessary payer/recipient information. Keep provider secrets server-side. Do not log raw sensitive provider responses.
 
-At minimum, architecture should account for:
+Before a commit, review tracked, untracked, and staged files. Exclude local databases, dependency directories, build/cache output, editor/OS files, temporary reproductions, screenshots containing sensitive data, and other generated or unrelated files.
 
-- server-side authorization;
-- organisation/outlet scoping;
-- worker data isolation;
-- role-based permissions;
-- secret management;
-- webhook/input verification;
-- idempotency;
-- auditability;
-- financial-operation authorization;
-- data minimisation.
-
-Do not rely solely on hidden UI elements for authorization.
-
-Never print secret values during audits.
-
-## 13. Engineering Discipline
-
-Before modifying code:
-
-1. inspect the relevant implementation;
-2. understand existing architecture;
-3. identify dependencies;
-4. state assumptions;
-5. preserve working behaviour unless the task requires change.
-
-Prefer the smallest coherent implementation that satisfies the task.
-
-Avoid speculative abstraction.
-
-Avoid unnecessary dependencies.
-
-Do not perform unrelated refactors.
-
-Do not silently broaden scope.
-
-Do not change the selected technology stack merely because another stack is preferred.
-
-If a requested implementation conflicts with existing architecture, report the conflict before making a major architectural replacement.
-
-## 14. Verification
-
-A feature is not complete merely because code was written.
-
-Where applicable verify with:
-
-- build;
-- typecheck;
-- lint;
-- unit tests;
-- integration tests;
-- end-to-end tests;
-- API response evidence;
-- sandbox evidence;
-- persisted-state evidence;
-- UI behaviour.
-
-Never claim a test passed if it was not run.
-
-If a test cannot be run, state why.
-
-## 15. Evidence
-
-For material integrations, preserve enough evidence to establish:
-
-- what was implemented;
-- where it is implemented;
-- how it was tested;
-- expected behaviour;
-- actual result.
-
-Where useful, reports should identify file paths and relevant line ranges.
-
-Do not fabricate evidence.
-
-## 16. Git Safety
+## 12. Git and repository safety
 
 Do not:
 
 - force-push;
-- rewrite history;
-- delete branches;
-- delete evidence;
-- reset destructive changes;
-- commit secrets;
-- commit .env files;
-- commit generated dependency directories.
+- rewrite or squash development history;
+- rebase without explicit authorisation;
+- delete branches or evidence;
+- destructively reset existing work;
+- overwrite unrelated uncommitted work;
+- stage or commit secrets or `.env` files;
+- commit generated dependency or build directories.
 
-Do not create commits unless the task explicitly authorises a commit.
+Do not create a commit unless the current work package explicitly authorises it. Review the staged file list and staged diff before every authorised commit. After work, report changed files and final Git state.
 
-Before material implementation, inspect Git status.
+## 13. Testing priorities
 
-After implementation, report changed files.
+A feature is not complete because code was written. Use targeted tests first, then the repository's normal verification when justified by the change.
 
-## 17. Scope Control
+Prioritise:
 
-Each implementation task should have a bounded objective and definition of done.
+1. golden-path behavior;
+2. POS ingestion and normalisation when implemented;
+3. AI input/output contracts and degraded states;
+4. scheduling, availability, and overlap conflicts;
+5. worker offer response and acceptance;
+6. deterministic performance and incentive calculation;
+7. manager approval gate;
+8. PayPal API behavior;
+9. payout persistence and status reconciliation;
+10. duplicate/idempotency protection;
+11. other submission-critical negative paths;
+12. organisation/location/worker access boundaries when implemented.
 
-If additional work is discovered, report it separately rather than silently implementing an expanding feature set.
+Use build, typecheck, lint, unit, integration, end-to-end, API, Sandbox, persisted-state, and UI evidence as applicable. Do not chase coverage percentages or broad repetitive checks at the expense of submission readiness.
 
-Use these classifications when supplied by project control:
+## 14. Demo and submission evidence
 
-R = Official Rule requirement
-J = Judging contribution
-S = Sponsor-prize strategy
-E = Engineering enabler
-D = Deferred
+For material integrations and golden-path stages, preserve evidence of what was implemented, where it lives, how it was tested, the expected behavior, the actual result, integration status, and visible application consequence.
 
-An E item is not automatically an Official Rule.
+Before submission, maintain the Demo Evidence Matrix required by the product specification:
 
-An S item is not automatically an Official Rule.
+feature or stage
+→ positive behavior
+→ negative or control behavior
+→ automated verification
+→ integration status
+→ user-visible evidence
+→ intended demo step
 
-A recommendation is not automatically an Official Rule.
+Do not create unsupported Devpost or presentation claims. Do not place private strategy or unrelated working notes in public technical documentation.
 
-## 18. Sponsor Technology
+## 15. Scope and priority control
 
-Sponsor technologies may be integrated when they materially strengthen FairShift.
+Use this decision order:
 
-Current strategic candidates include:
+1. Competition compliance and eligibility
+2. Submission deadline
+3. Working end-to-end demo
+4. PayPal plus meaningful AI
+5. Judging criteria
+6. Demo reliability
+7. Valuable sponsor integrations
+8. Design and presentation
+9. Extra features
+10. Post-hackathon work
 
-- Bryntum — workforce planning/scheduling;
-- AG Grid / AG Studio — portfolio operational intelligence;
-- Render — deployment/backend infrastructure;
-- APIMatic — PayPal API development context;
-- Elastic — contextual/operational intelligence;
-- Postman — API testing/evidence.
+Classify work as:
 
-Do not integrate sponsor products merely to increase sponsor count.
+- **SUBMISSION-CRITICAL**
+- **JUDGING-VALUE**
+- **SPONSOR-VALUE**
+- **POLISH**
+- **POST-HACKATHON**
 
-Do not allow sponsor integrations to compromise the core FairShift workflow.
+Protect the working golden path from lower-value scope. A functioning, defensible core outranks feature count.
 
-PayPal + AI remain the primary technical story.
+## 16. Coding-agent work packages
 
-## 19. Stop Conditions
+Substantive coding tasks should begin with one of:
 
-Stop and report rather than guessing when:
+- `CONTINUE CURRENT SESSION`
+- `START NEW SESSION — EMPTY CONTEXT`
 
-- an Official Rule appears ambiguous;
-- a requested PayPal operation cannot be verified as supported;
-- required credentials are unavailable;
-- implementation would expose secrets;
-- a destructive migration is required unexpectedly;
-- an architectural replacement becomes necessary;
+The work package should state:
+
+- recommended agent/model;
+- reasoning/effort;
+- objective and definition of done;
+- authorised scope;
+- prohibited actions;
+- repository baseline and verification;
+- tests and verification;
+- stopping condition;
+- commit policy.
+
+Prefer one coherent package per session. Related implementation and necessary tests may be combined. Continue useful session context when available and avoid broad rediscovery when repository and product authority already answer the question.
+
+## 17. Hackathon and token efficiency
+
+Keep work proportional to submission value:
+
+- use narrow implementation packages;
+- inspect only relevant repository areas;
+- run targeted tests first;
+- run the full suite/build when change risk or work-package requirements justify it;
+- keep progress and final reports concise;
+- preserve useful session context;
+- avoid repeated rediscovery of settled product decisions.
+
+Do not sacrifice correctness, security, or necessary verification merely to save time or tokens.
+
+## 18. Public repository hygiene
+
+Keep public files focused on FairShift product and engineering evidence. Comments should explain genuine domain or technical reasons rather than private evaluation strategy or prompt history.
+
+Only include programme, event, or submission-specific material when required for a public deliverable. Competition governance belongs in planning and evidence, not product behavior.
+
+## 19. Stop conditions
+
+Stop affected work and report rather than guessing when:
+
 - repository state differs materially from task assumptions;
 - existing uncommitted work could be overwritten;
-- a task would falsely represent simulated functionality as real.
+- a material product rule is missing or conflicts with the product specification;
+- a required provider operation or capability cannot be verified;
+- required credentials/configuration are unavailable for an operation that cannot proceed without them;
+- implementation would expose secrets;
+- an unexpected destructive migration is required;
+- a major architecture replacement becomes necessary;
+- a task would present planned, mocked, seeded, or simulated behavior as real;
+- current official competition requirements are ambiguous or conflict with the package.
 
-## 20. Priority
-
-Until the core application works, priority is:
-
-1. functioning PayPal sandbox integration;
-2. functioning AI integration;
-3. central FairShift end-to-end workflow;
-4. reliable application state and persistence;
-5. human approval and deterministic financial calculations;
-6. testing and evidence;
-7. coherent product experience;
-8. sponsor integrations that materially improve the product;
-9. presentation polish.
-
-A functioning, defensible core outranks feature count.
+Use the discrepancy report format in section 9. Safe independent work may continue when it does not depend on the blocked decision.
