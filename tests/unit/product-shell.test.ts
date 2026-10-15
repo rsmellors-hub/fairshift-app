@@ -4,23 +4,26 @@ import { describe, expect, it, vi } from "vitest";
 
 import ManagerLayout from "@/app/manager/layout";
 import OwnerLayout from "@/app/owner/layout";
-import OwnerPage from "@/app/owner/page";
 import WorkerLayout from "@/app/worker/layout";
 import WorkerPage from "@/app/worker/page";
+import OperatorLayout from "@/app/operator/layout";
 import { StatePanel } from "@/app/components/product-ui";
 import { getConfigurationStatus } from "@/server/config/env";
 
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/worker/earnings" }));
 
 describe("shared product shell", () => {
-  it("renders semantic manager navigation without presenting future destinations as links", () => {
+  it("links all manager functions inside the manager workspace", () => {
     const html = renderToStaticMarkup(createElement(ManagerLayout, null, createElement("p", null, "Manager content")));
 
     expect(html).toContain('<nav class="product-nav" aria-label="Manager navigation">');
     expect(html).toContain('href="/manager"');
     expect(html).toContain("Forecast &amp; Staffing");
-    expect(html).not.toContain('href="/manager/forecast"');
-    expect(html).toContain("access controls are not yet implemented");
+    for (const area of ["forecast", "fill-shifts", "allocations", "workers", "performance", "payments"]) expect(html).toContain(`href="/manager/${area}"`);
+    expect(html).not.toContain("Coming next");
+    expect(html).not.toContain('href="/worker');
+    expect(html).not.toContain('href="/operator');
     expect(html).not.toContain("signed in");
   });
 
@@ -30,17 +33,16 @@ describe("shared product shell", () => {
     expect(html).toContain('aria-label="Worker navigation"');
     expect(html).toContain('aria-label="Worker mobile navigation"');
     expect(html).toContain('href="/worker"');
-    expect(html).not.toContain('href="/worker/earnings"');
+    for (const area of ["shifts", "schedule", "performance", "earnings", "profile"]) expect(html).toContain(`href="/worker/${area}"`);
+    expect(html).toContain('aria-current="page" href="/worker/earnings"');
+    expect(html).not.toContain('aria-current="page" href="/worker"');
+    expect(html).not.toContain('href="/manager');
   });
 
   it("renders a truthful minimum owner context", () => {
-    const html = renderToStaticMarkup(createElement(OwnerLayout, null, createElement(OwnerPage)));
-
-    expect(html).toContain("Company overview");
-    expect(html).toContain("PayPal Sandbox connected");
-    expect(html).toContain("Zettle needs verification");
-    expect(html).toContain("No multi-location figures are shown yet");
-    expect(html).not.toContain("Zettle connected");
+    const html = renderToStaticMarkup(createElement(OwnerLayout, null, "Owner content"));
+    for (const area of ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"]) expect(html).toContain(`href="/owner/${area}"`);
+    expect(html).not.toContain('href="/manager');
   });
 
   it("keeps the existing worker route usable when its data is unavailable", async () => {
@@ -55,9 +57,17 @@ describe("shared product shell", () => {
     });
 
     const html = renderToStaticMarkup(createElement(WorkerLayout, null, await WorkerPage()));
-    expect(html).toContain("Shift information is unavailable");
+    expect(html).toContain("Workspace information is unavailable");
     expect(html).not.toContain("migration");
     expect(html).not.toContain("persisted");
+  });
+
+  it("keeps environment controls in a distinct operator shell", () => {
+    const html = renderToStaticMarkup(createElement(OperatorLayout, null, "Operator content"));
+    expect(html).toContain('aria-label="Operator navigation"');
+    expect(html).toContain('href="/operator/environment"');
+    expect(html).toContain('href="/operator/integrations"');
+    expect(html).not.toContain('href="/manager');
   });
 
   it("provides reusable, semantic status panels", () => {

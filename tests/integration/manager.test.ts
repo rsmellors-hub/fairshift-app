@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import ManagerPage from "@/app/manager/page";
+import { ManagerWorkspace } from "@/app/manager/workspace";
 import { getConfigurationStatus } from "@/server/config/env";
 import { DEMO_OUTLET_ID } from "@/server/constants";
 import { getDatabase } from "@/server/db/client";
@@ -38,7 +39,7 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      const html = renderToStaticMarkup(await ManagerPage());
+      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "forecast" }));
       expect(html).toContain("Demo / seeded · not PayPal verified");
       expect(html).toContain("Recommended worker delta");
       expect(html).toContain("+3");
@@ -46,8 +47,8 @@ describe("persisted commercial history to manager output", () => {
       expect(html).toContain("comparison assumption, not a saved plan");
       expect(html).toContain("comparable-days-recency-v1");
       expect(html).toContain("not a calibrated confidence interval");
-      expect(html).toContain("Shift result → earned incentive → approval → PayPal");
-      expect(html).toContain("Publish and accept the demo shift");
+      expect(html).toContain('href="/manager/fill-shifts"');
+      expect(html).not.toContain("Approve incentive");
     } finally {
       vi.resetAllMocks();
       await testDb.close();
@@ -114,7 +115,7 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: false, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      expect(renderToStaticMarkup(await ManagerPage())).toContain("Commercial history is unavailable");
+      expect(renderToStaticMarkup(await ManagerPage())).toContain("Workspace information is unavailable");
       expect(getDatabase).not.toHaveBeenCalled();
     } finally {
       vi.resetAllMocks();

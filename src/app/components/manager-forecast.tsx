@@ -18,8 +18,8 @@ export function ManagerForecast({
   return (
     <>
       <PageHeader
-        eyebrow="Operational overview"
-        title="Demand to staffing decision"
+        eyebrow="Forecast & Staffing"
+        title="Demand and recommended staffing"
         description="Review the factual sales history, demand forecast and staffing recommendation before taking action."
       />
       {!result || result.status === "UNAVAILABLE" ? (
@@ -56,21 +56,21 @@ export function ManagerForecast({
             <h2>Operational interpretation</h2>
             {aiResult?.status === "AVAILABLE" ? (
               <>
-                <strong className="sandbox-banner">REAL AI · OPENAI · {aiResult.model}</strong>
+                <strong className="sandbox-banner">AI interpretation</strong>
                 <div className="status-grid forecast-grid">
                   <article>
                     <span>Demand outlook</span>
-                    <strong>{aiResult.assessment.demandOutlook.replaceAll("_", " ")}</strong>
+                    <strong>{aiResult.assessment.demandOutlook.replaceAll("_", " ").toLowerCase()}</strong>
                     <small>AI interpretation of the deterministic evidence</small>
                   </article>
                   <article>
                     <span>Signal quality</span>
-                    <strong>{aiResult.assessment.signalQuality}</strong>
+                    <strong>{aiResult.assessment.signalQuality.toLowerCase()}</strong>
                     <small>Evidence-quality assessment, not forecast confidence</small>
                   </article>
                   <article>
                     <span>Staffing assessment</span>
-                    <strong>{aiResult.assessment.staffingAssessment.replaceAll("_", " ")}</strong>
+                    <strong>{aiResult.assessment.staffingAssessment.replaceAll("_", " ").toLowerCase()}</strong>
                     <small>The AI cannot replace the deterministic worker count</small>
                   </article>
                 </div>
@@ -84,12 +84,10 @@ export function ManagerForecast({
               </>
             ) : aiResult?.status === "NOT_CONFIGURED" ? (
               <>
-                <strong className="sandbox-banner">AI · NOT CONFIGURED</strong>
-                <p>OpenAI operational assessment is not configured. The deterministic forecast and staffing baseline remain available.</p>
+                <p>AI interpretation is unavailable. The deterministic forecast and staffing baseline remain available.</p>
               </>
             ) : (
               <>
-                <strong className="sandbox-banner">AI · UNAVAILABLE</strong>
                 <p>AI operational assessment is temporarily unavailable. No AI assessment has been fabricated; use the deterministic evidence above.</p>
               </>
             )}
@@ -106,12 +104,12 @@ export function ManagerForecast({
               </table>
             </div>
           </section>
-          <section className="panel">
-            <h2>Reasoning and limits</h2>
+          <details className="panel">
+            <summary>Reasoning and limits</summary>
             <ul>{result.drivers.map((driver) => <li key={driver}>{driver}</li>)}</ul>
             <p className="method-note">History cutoff: {result.dataAsOf}. Generated: {result.generatedAt}. Method: {result.methodVersion}. Policy: {result.staffing.policy.version}.</p>
             <p className="method-note">No weather, events, promotions, labour availability or service-time measurements are included. Confirm capacity and data completeness before acting.</p>
-          </section>
+          </details>
         </>
       )}
     </>

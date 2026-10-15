@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { ProductNavigation } from "@/app/components/product-navigation";
 
 export type ProductNavItem = {
   label: string;
-  href?: string;
+  href: string;
 };
 
-export function FairShiftBrand({ compact = false }: { compact?: boolean }) {
+export function FairShiftBrand({ compact = false, href = "/" }: { compact?: boolean; href?: string }) {
   return (
-    <Link className={`product-brand${compact ? " product-brand-compact" : ""}`} href="/" aria-label="FairShift home">
+    <Link className={`product-brand${compact ? " product-brand-compact" : ""}`} href={href} aria-label="FairShift home">
       <span aria-hidden="true">F</span>
       <strong>FairShift</strong>
     </Link>
@@ -20,7 +21,7 @@ export function ProductShell({
   mobile = false,
   children,
 }: {
-  role: "Manager" | "Worker" | "Owner";
+  role: "Manager" | "Worker" | "Owner" | "Operator";
   context: string;
   navigation: ProductNavItem[];
   mobile?: boolean;
@@ -29,27 +30,17 @@ export function ProductShell({
   return (
     <div className={`product-shell${mobile ? " product-shell-worker" : ""}`}>
       <aside className="product-sidebar">
-        <FairShiftBrand />
+        <FairShiftBrand href={`/${role.toLowerCase()}`} />
         <div className="role-context">
           <span>{role} workspace</span>
           <strong>{context}</strong>
         </div>
-        <nav className="product-nav" aria-label={`${role} navigation`}>
-          {navigation.map((item) => item.href ? (
-            <Link key={item.label} href={item.href} aria-current={item.href === `/${role.toLowerCase()}` ? "page" : undefined}>
-              {item.label}
-            </Link>
-          ) : (
-            <span className="product-nav-planned" key={item.label} aria-disabled="true">
-              {item.label}<small>Coming next</small>
-            </span>
-          ))}
-        </nav>
-        <p className="demo-context">Demo product context · access controls are not yet implemented.</p>
+        <ProductNavigation navigation={navigation} label={`${role} navigation`} />
+        <p className="demo-context">Sandbox environment</p>
       </aside>
       <div className="product-workspace">
         <header className="workspace-bar">
-          <FairShiftBrand compact />
+          <FairShiftBrand compact href={`/${role.toLowerCase()}`} />
           <div>
             <span>{role}</span>
             <strong>{context}</strong>
@@ -58,13 +49,7 @@ export function ProductShell({
         <main className="product-main">{children}</main>
       </div>
       {mobile ? (
-        <nav className="worker-bottom-nav" aria-label="Worker mobile navigation">
-          {navigation.map((item) => item.href ? (
-            <Link key={item.label} href={item.href} aria-current={item.href === "/worker" ? "page" : undefined}>{item.label}</Link>
-          ) : (
-            <span key={item.label} aria-disabled="true">{item.label}</span>
-          ))}
-        </nav>
+        <ProductNavigation navigation={navigation} label="Worker mobile navigation" mobile />
       ) : null}
     </div>
   );

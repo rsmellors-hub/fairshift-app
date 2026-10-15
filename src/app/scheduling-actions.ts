@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -15,84 +16,69 @@ import {
 } from "@/server/incentives/demo";
 import {
   acceptDemoShift,
+  ensureDemoCasualWorker,
   publishDemoShift,
-  startNewDemoCycle,
 } from "@/server/scheduling/demo";
 
 function requiredDemoId(formData: FormData, name: string) {
   const value = String(formData.get(name) ?? "");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-    throw new Error("Demo page is out of date. Reload and try again.");
+    throw new Error("This page is out of date. Reload and try again.");
   }
   return value;
 }
 
-export async function publishDemoShiftAction() {
-  if (!getConfigurationStatus().databaseConfigured) {
-    throw new Error("PostgreSQL is not configured.");
+async function performAction(path: string, action: () => Promise<unknown>) {
+  if (!getConfigurationStatus().databaseConfigured) redirect(`${path}?status=error`);
+  try { await action(); } catch { redirect(`${path}?status=error`); }
+  for (const workspace of ["/manager", "/worker", "/owner", "/operator"]) {
+    revalidatePath(workspace, "layout");
   }
-
-  await publishDemoShift(getDatabase());
-  redirect("/worker");
+  redirect(`${path}?status=saved`);
 }
 
-export async function startNewDemoCycleAction() {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  await startNewDemoCycle(getDatabase());
-  redirect("/manager");
+export async function publishDemoShiftAction(formData: FormData) {
+  return performAction("/manager/fill-shifts", async () => {
+    if (formData.get("workerSelected") !== "yes") throw new Error("Select the invitation recipient.");
+    await publishDemoShift(getDatabase());
+  });
 }
 
 export async function acceptDemoShiftAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) {
-    throw new Error("PostgreSQL is not configured.");
-  }
-
-  await acceptDemoShift(getDatabase(), requiredDemoId(formData, "shiftId"));
-  redirect("/worker");
+  return performAction("/worker/shifts", async () => acceptDemoShift(getDatabase(), requiredDemoId(formData, "shiftId")));
 }
 
 export async function recordDemoPerformanceAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  const value = String(formData.get("performanceSales") ?? "").trim();
-  if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) throw new Error("Enter a valid USD sales amount.");
-  const [whole, fraction = ""] = value.split(".");
-  const amountMinor = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(amountMinor)) throw new Error("Sales amount is too large.");
-  const db = getDatabase();
-  const shiftId = requiredDemoId(formData, "shiftId");
-  await markDemoShiftCompleted(db, shiftId);
-  await recordDemoPerformance(db, amountMinor, shiftId);
-  redirect("/manager");
+  return performAction("/manager/performance", async () => {
+    if (formData.get("completed") !== "yes") throw new Error("Confirm completed work.");
+    const value = String(formData.get("performanceSales") ?? "").trim();
+    if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) throw new Error("Enter a valid USD sales amount.");
+    const [whole, fraction = ""] = value.split(".");
+    const amountMinor = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+    if (!Number.isSafeInteger(amountMinor)) throw new Error("Sales amount is too large.");
+    const db = getDatabase();
+    const shiftId = requiredDemoId(formData, "shiftId");
+    await markDemoShiftCompleted(db, shiftId);
+    await recordDemoPerformance(db, amountMinor, shiftId);
+  });
 }
 
 export async function approveDemoIncentiveAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  await approveDemoIncentive(getDatabase(), requiredDemoId(formData, "incentiveId"));
-  redirect("/manager");
+  return performAction("/manager/payments", async () => approveDemoIncentive(getDatabase(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function submitDemoIncentivePayoutAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  await submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId"));
-  redirect("/manager");
+  return performAction("/manager/payments", async () => submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function refreshDemoIncentivePayoutAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  await refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId"));
-  redirect("/manager");
+  return performAction("/manager/payments", async () => refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) {
-    redirect("/worker?paymentDetails=error");
-  }
-
-  try {
-    await setDemoPayoutDestination(getDatabase(), String(formData.get("payoutEmail") ?? ""));
-  } catch {
-    redirect("/worker?paymentDetails=error");
-  }
-
-  redirect("/worker?paymentDetails=saved");
+  return performAction("/worker/profile", async () => {
+    const db = getDatabase();
+    await ensureDemoCasualWorker(db);
+    await setDemoPayoutDestination(db, String(formData.get("payoutEmail") ?? ""));
+  });
 }

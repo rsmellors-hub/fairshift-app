@@ -1,0 +1,9 @@
+import { notFound } from "next/navigation";
+import { ManagerWorkspace, managerAreas, type ManagerArea } from "@/app/manager/workspace";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export default async function ManagerAreaPage({ params, searchParams }: { params: Promise<{ area: string }>; searchParams: Promise<{ status?: string }> }) {
+  const { area } = await params;
+  if (!managerAreas.includes(area as typeof managerAreas[number])) notFound();
+  return <div className="product-page">{await ManagerWorkspace({ area: area as ManagerArea, status: (await searchParams).status })}</div>;
+}

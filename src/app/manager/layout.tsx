@@ -2,12 +2,12 @@ import { ProductShell } from "@/app/components/product-shell";
 
 const navigation = [
   { label: "Overview", href: "/manager" },
-  { label: "Forecast & Staffing" },
-  { label: "Fill Shifts" },
-  { label: "Shift Allocations" },
-  { label: "Worker Pool" },
-  { label: "Performance" },
-  { label: "Payments & Approvals" },
+  { label: "Forecast & Staffing", href: "/manager/forecast" },
+  { label: "Fill Shifts", href: "/manager/fill-shifts" },
+  { label: "Shift Allocations", href: "/manager/allocations" },
+  { label: "Worker Pool", href: "/manager/workers" },
+  { label: "Performance", href: "/manager/performance" },
+  { label: "Payments & Approvals", href: "/manager/payments" },
 ];
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
