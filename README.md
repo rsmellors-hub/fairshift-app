@@ -2,7 +2,7 @@
 
 FairShift is an AI-assisted workforce and transparent-payments product being built for the PayPal AI Hackathon 2026. This repository currently contains only the first executable vertical slice: a **PayPal sandbox inbound payment** becomes a persisted, reconciled FairShift sale.
 
-This package is sandbox-only. It does not complete the PayPal + AI competition requirement, and it does not implement payouts.
+PayPal Sandbox supports an inbound sale proof and a demo shift-incentive payout path. One controlled $25 Sandbox incentive payout has been accepted and reconciled to `PAID`; payouts require a recorded target result and explicit manager approval. No production PayPal functionality is configured.
 
 ## Current architecture
 
@@ -10,7 +10,7 @@ This package is sandbox-only. It does not complete the PayPal + AI competition r
 - Node.js 24.22.0 LTS and pnpm 12.11.2
 - PostgreSQL application state through Drizzle ORM
 - Zod validation at environment and PayPal-response boundaries
-- A server-only PayPal adapter for OAuth, Orders v2, Payments v2, and webhook verification
+- Server-only PayPal REST adapters for OAuth, Orders v2, Payments v2, webhook verification, and Payouts v1
 - Vitest unit and PostgreSQL-compatible PGlite integration tests
 
 The browser starts a sale and follows the approval URL, but it never receives the PayPal client secret or OAuth token. After buyer approval, the server captures the order and retrieves the capture from PayPal Payments v2. Only a completed capture whose order, currency, and amount match the persisted FairShift transaction becomes `VERIFIED`.
@@ -68,12 +68,15 @@ pnpm build
 | --- | --- |
 | `DATABASE_URL` | Server-side PostgreSQL connection URL. |
 | `APP_BASE_URL` | Exact public application origin used in PayPal return and cancel URLs. |
-| `PAYPAL_ENV` | Must be exactly `sandbox`; other values fail validation. |
+| `PAYPAL_ENV` | Inbound payments environment; must be exactly `sandbox`. |
+| `PAYPAL_ENVIRONMENT` | Payout environment; defaults to and accepts only `sandbox`. |
 | `PAYPAL_CLIENT_ID` | Sandbox REST app client ID. Used only on the server. |
 | `PAYPAL_CLIENT_SECRET` | Sandbox REST app secret. Used only on the server. |
 | `PAYPAL_WEBHOOK_ID` | ID of the webhook registered for this application endpoint. |
 | `PAYPAL_SANDBOX_CURRENCY` | Must be `USD` in this package. |
 | `PAYPAL_SANDBOX_AMOUNT` | Fixed two-decimal technical proof amount; defaults to `5.00`. |
+
+PayPal client credentials are read only by server code. The worker enters their payout email in the worker view. Do not put real recipient details in source, tests, or documentation. The demo shift target and incentive amount are fixed in its terms; performance is recorded in integer USD cents, earned only when sales meet the target, then separately approved by the manager before a payout can be submitted.
 
 The implementation deliberately uses USD. USD appears in PayPal's current REST currency-code documentation; ZAR does not, so this technical proof does not infer ZAR checkout capability or say anything about Payouts currency support.
 
@@ -116,6 +119,8 @@ A local-only URL cannot receive PayPal deliveries. Use an HTTPS public deploymen
 | Capture approved order | `POST /v2/checkout/orders/{order_id}/capture` |
 | Reconcile capture | `GET /v2/payments/captures/{capture_id}` |
 | Verify webhook | `POST /v1/notifications/verify-webhook-signature` |
+| Submit approved incentive | `POST /v1/payments/payouts` |
+| Refresh payout status | `GET /v1/payments/payouts/{payout_batch_id}?fields=items` |
 
 All calls target `https://api-m.sandbox.paypal.com`. Production configuration cannot be selected by environment variable in this package.
 
@@ -131,11 +136,11 @@ All calls target `https://api-m.sandbox.paypal.com`. Production configuration ca
 | Real PayPal sandbox order and capture evidence | IMPLEMENTED — NOT LIVE-VERIFIED | Sandbox credentials are not available in this environment. |
 | AI integration | NOT IMPLEMENTED | Deliberately deferred to a later package. |
 | Authentication/RBAC UI | NOT IMPLEMENTED | Deliberately out of scope for this package. |
-| Payouts, gratuities, incentives, and workforce scheduling | NOT IMPLEMENTED | Deliberately out of scope for this package. |
+| Demo shift incentive, manager approval, and PayPal Sandbox payout/status path | SANDBOX-CONNECTED | One controlled $25 Sandbox payout reached `SUCCESS`; FairShift persisted `PAID`, prevented duplicate submission, and refreshed the status. |
 
 ## Data and security boundaries
 
-The minimum schema contains `organisations`, `outlets`, `paypal_connections`, `sale_transactions`, `provider_events`, and `audit_events`. Money is stored as integer minor units plus a three-letter currency code. Provider event IDs, PayPal order IDs, and PayPal capture IDs are uniquely constrained.
+The schema contains organisation/outlet commerce records, shifts/workers/offers, and `shift_incentives`. Monetary values use integer minor units. Incentives are unique per shift and worker; PayPal batch and sender IDs are unique. A payout submission reserves the incentive before calling PayPal; uncertain failures remain locked from duplicate submission, and an existing batch can be queried for its current status.
 
 This slice is intentionally limited to one server-selected outlet, so callers cannot submit an arbitrary outlet ID. Order and capture browser requests require the configured same origin. Webhook verification occurs before provider-event persistence or financial mutation. Raw webhook payloads, access tokens, secrets, and payer personal data are not stored; the inbox retains a SHA-256 payload digest and the minimum normalized provider evidence.
 
@@ -146,7 +151,8 @@ This slice is intentionally limited to one server-selected outlet, so callers ca
 - Refund lifecycle handling is not implemented. Reconciled refunded states cannot count as verified sales, leaving room for a later complete refund workflow.
 - Authentication and multi-outlet authorization are intentionally deferred. The server pins all current operations to the seeded outlet.
 - Background retry processing is deferred. Valid webhook redelivery retries unfinished reconciliation; terminal unmatched events remain quarantined and are not automatically re-evaluated.
-- AI and the remaining FairShift closed loop are not implemented.
+- Authentication/RBAC is not implemented. The manager and worker actions remain a fixed demo workflow and must not be exposed as production financial authorization.
+- The inbound order/capture workflow has not been live-verified. The payout evidence is Sandbox-only and does not establish production payment capability. Use only an appropriate PayPal Sandbox recipient and configuration when deliberately exercising an actual transfer.
 
 ## Licence
 

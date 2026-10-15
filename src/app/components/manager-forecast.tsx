@@ -41,7 +41,7 @@ export function ManagerForecast({
             <h2>{result.outletName} · {result.targetDate}</h2>
             <p>{result.timezone} · {result.staffing.policy.tradingHours}-hour trading day · USD</p>
             <p className="method-note">{result.source === "DEMO_SEEDED"
-              ? "Fixed synthetic scenario for 15 October 2026. This is not a live forecast."
+              ? "Fixed synthetic scenario for 16 October 2026. This is not a live forecast."
               : "Uses completed, reconciled PayPal sandbox sales only. Seeded transactions are excluded."}</p>
           </section>
           <section className="status-grid forecast-grid" aria-label="Forecast and staffing">

@@ -8,3 +8,8 @@ export const DEMO_OUTLET = {
   name: "Rosebank Kitchen",
   timezone: "Africa/Johannesburg",
 } as const;
+
+export const DEMO_CASUAL_WORKER_ID = "30000000-0000-4000-8000-000000000001";
+export const DEMO_SHIFT_ID = "40000000-0000-4000-8000-000000000001";
+export const DEMO_SHIFT_OFFER_ID = "50000000-0000-4000-8000-000000000001";
+export const DEMO_INCENTIVE_ID = "70000000-0000-4000-8000-000000000001";

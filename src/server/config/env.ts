@@ -28,6 +28,15 @@ export type PayPalConfig = z.infer<typeof paypalSchema> & {
   apiBaseUrl: "https://api-m.sandbox.paypal.com";
 };
 
+const payoutSchema = z.object({
+  PAYPAL_ENVIRONMENT: z.literal("sandbox").default("sandbox"),
+  PAYPAL_CLIENT_ID: z.string().min(1),
+  PAYPAL_CLIENT_SECRET: z.string().min(1),
+});
+export type PayPalPayoutConfig = z.infer<typeof payoutSchema> & {
+  apiBaseUrl: "https://api-m.sandbox.paypal.com";
+};
+
 export function getDatabaseConfig(): DatabaseConfig {
   return databaseSchema.parse(process.env);
 }
@@ -44,14 +53,21 @@ export function getPayPalConfig(): PayPalConfig {
   };
 }
 
+export function getPayPalPayoutConfig(): PayPalPayoutConfig {
+  const parsed = payoutSchema.parse(process.env);
+  return { ...parsed, apiBaseUrl: "https://api-m.sandbox.paypal.com" };
+}
+
 export function getConfigurationStatus() {
   const database = databaseSchema.safeParse(process.env);
   const paypal = paypalSchema.safeParse(process.env);
+  const payout = payoutSchema.safeParse(process.env);
   const ai = aiSchema.safeParse(process.env);
 
   return {
     databaseConfigured: database.success,
     paypalConfigured: paypal.success,
+    paypalPayoutConfigured: payout.success,
     aiConfigured: ai.success,
     environment: process.env.PAYPAL_ENV === "sandbox" ? "SANDBOX" : "NOT CONFIGURED",
     currency: process.env.PAYPAL_SANDBOX_CURRENCY === "USD" ? "USD" : "USD",

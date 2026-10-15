@@ -33,8 +33,8 @@ try {
   assert.equal(result.status, "AVAILABLE");
   if (result.status !== "AVAILABLE") throw new Error("Missing persisted forecast inputs");
   assert.equal(result.source, "DEMO_SEEDED");
-  assert.equal(result.staffing.workers, 7);
-  assert.equal(result.staffing.workerDelta, 2);
+  assert.equal(result.staffing.workers, 8);
+  assert.equal(result.staffing.workerDelta, 3);
   const markup = renderToStaticMarkup(createElement(ManagerForecast, { result }));
   assert.ok(markup.includes("DEMO / SEEDED — NOT PAYPAL-VERIFIED"));
   const { readFile } = await import("node:fs/promises");

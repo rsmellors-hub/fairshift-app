@@ -27,7 +27,7 @@ describe("persisted commercial history to manager output", () => {
       const result = await getManagerForecast(testDb.db, DEMO_AS_OF);
       expect(result).toMatchObject({
         status: "AVAILABLE", source: "DEMO_SEEDED", eligibleDays: 56, eligibleTransactions: 3704,
-        staffing: { workers: 7, workerDelta: 2 },
+        staffing: { workers: 8, workerDelta: 3 },
       });
       const rows = await testDb.db.select().from(saleTransactions);
       expect(rows.every((row) => row.source === "DEMO_SEEDED" && row.verificationState === "PENDING" &&
@@ -36,16 +36,18 @@ describe("persisted commercial history to manager output", () => {
 
       vi.mocked(getDatabase).mockReturnValue(testDb.db);
       vi.mocked(getConfigurationStatus).mockReturnValue({
-        databaseConfigured: true, paypalConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
+        databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
       const html = renderToStaticMarkup(await ManagerPage());
       expect(html).toContain("DEMO / SEEDED — NOT PAYPAL-VERIFIED");
       expect(html).toContain("Recommended worker delta");
-      expect(html).toContain("+2");
+      expect(html).toContain("+3");
       expect(html).toContain("Historical evidence");
       expect(html).toContain("comparison assumption, not a saved plan");
       expect(html).toContain("comparable-days-recency-v1");
       expect(html).toContain("not a calibrated confidence interval");
+      expect(html).toContain("Shift result → earned incentive → approval → PayPal");
+      expect(html).toContain("Publish and accept the demo shift");
     } finally {
       vi.resetAllMocks();
       await testDb.close();
@@ -58,7 +60,9 @@ describe("persisted commercial history to manager output", () => {
       await seedDemoHistory(testDb.db);
       const otherOutlet = randomUUID();
       const [outlet] = await testDb.db.select().from(outlets).where(eq(outlets.id, DEMO_OUTLET_ID));
-      await testDb.db.insert(outlets).values({ ...outlet, id: otherOutlet, name: "Other outlet" });
+      await testDb.db.insert(outlets).values({
+        id: otherOutlet, organisationId: outlet.organisationId, name: "Other outlet", timezone: outlet.timezone,
+      });
       for (const [outletId, currencyCode, amount] of [
         [DEMO_OUTLET_ID, "USD", 160001], [DEMO_OUTLET_ID, "EUR", 900000], [otherOutlet, "USD", 900000],
       ] as const) {
@@ -108,7 +112,7 @@ describe("persisted commercial history to manager output", () => {
       expect(result.status).toBe("UNAVAILABLE");
       expect(renderToStaticMarkup(createElement(ManagerForecast, { result }))).toContain("No eligible completed sales");
       vi.mocked(getConfigurationStatus).mockReturnValue({
-        databaseConfigured: false, paypalConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
+        databaseConfigured: false, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
       expect(renderToStaticMarkup(await ManagerPage())).toContain("PostgreSQL is not configured");
       expect(getDatabase).not.toHaveBeenCalled();

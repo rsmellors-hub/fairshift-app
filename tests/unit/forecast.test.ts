@@ -12,8 +12,12 @@ function sale(date: string, amount = 400_000, overrides: Partial<Observation> = 
     paypalCaptureId: null, providerCreatedAt: null, createdAt: new Date(`${date}T10:00:00Z`), ...overrides,
   };
 }
-function forecast(sales: Observation[], source: "DEMO_SEEDED" | "PAYPAL_SANDBOX" = "DEMO_SEEDED") {
-  return forecastDemand({ sales, outlet: DEMO_OUTLET, source, targetDate: DEMO_TARGET_DATE, asOf: DEMO_AS_OF });
+function forecast(
+  sales: Observation[],
+  source: "DEMO_SEEDED" | "PAYPAL_SANDBOX" = "DEMO_SEEDED",
+  targetDate = DEMO_TARGET_DATE,
+) {
+  return forecastDemand({ sales, outlet: DEMO_OUTLET, source, targetDate, asOf: DEMO_AS_OF });
 }
 function thursdays(amounts: number[]) {
   return amounts.map((amount, i) => sale(shiftDate("2026-08-20", i * 7), amount));
@@ -21,7 +25,7 @@ function thursdays(amounts: number[]) {
 
 describe("deterministic demand forecast", () => {
   it("aggregates a normal same-weekday history with an explainable range and staffing result", () => {
-    const result = forecast([...thursdays(Array(8).fill(400_000)), sale("2026-10-12", 9_000_000)]);
+    const result = forecast([...thursdays(Array(8).fill(400_000)), sale("2026-10-12", 9_000_000)], "DEMO_SEEDED", "2026-10-22");
     expect(result).toMatchObject({
       status: "AVAILABLE", forecastSalesMinor: 400_000, lowerSalesMinor: 300_000, upperSalesMinor: 500_000,
       basis: "SAME_WEEKDAY", support: "MODERATE", eligibleDays: 9,
@@ -54,13 +58,13 @@ describe("deterministic demand forecast", () => {
 
   it("responds deterministically to rising and falling demand through recency weights", () => {
     const amounts = [100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000];
-    expect(forecast(thursdays(amounts))).toMatchObject({ forecastSalesMinor: 566667 });
-    expect(forecast(thursdays([...amounts].reverse()))).toMatchObject({ forecastSalesMinor: 333333 });
-    expect(forecast(thursdays(amounts))).toEqual(forecast(thursdays(amounts)));
+    expect(forecast(thursdays(amounts), "DEMO_SEEDED", "2026-10-22")).toMatchObject({ forecastSalesMinor: 566667 });
+    expect(forecast(thursdays([...amounts].reverse()), "DEMO_SEEDED", "2026-10-22")).toMatchObject({ forecastSalesMinor: 333333 });
+    expect(forecast(thursdays(amounts), "DEMO_SEEDED", "2026-10-22")).toEqual(forecast(thursdays(amounts), "DEMO_SEEDED", "2026-10-22"));
   });
 
   it("limits a high outlier while preserving the original historical evidence", () => {
-    const result = forecast(thursdays([100000, 100000, 100000, 100000, 100000, 100000, 100000, 10000000]));
+    const result = forecast(thursdays([100000, 100000, 100000, 100000, 100000, 100000, 100000, 10000000]), "DEMO_SEEDED", "2026-10-22");
     expect(result).toMatchObject({ forecastSalesMinor: 122222 });
     if (result.status !== "AVAILABLE") throw new Error("Expected forecast");
     expect(result.evidence[7]).toMatchObject({ salesMinor: 10000000, usedSalesMinor: 200000 });
@@ -71,8 +75,8 @@ describe("deterministic demand forecast", () => {
     expect(forecast([
       sale("2026-10-12", 1000, { currencyCode: "EUR" }),
       sale("2026-10-12", 1000, { outletId: "50000000-0000-4000-8000-000000000001" }),
-      sale("2026-08-18"), sale("2026-10-14"), sale("2026-10-15"),
-      sale("2026-10-13", 1000, { createdAt: new Date("2026-10-13T23:30:00Z") }),
+      sale("2026-08-19"), sale("2026-10-15"), sale("2026-10-16"),
+      sale("2026-10-14", 1000, { createdAt: new Date("2026-10-14T23:30:00Z") }),
     ])).toMatchObject({ status: "UNAVAILABLE" });
   });
 

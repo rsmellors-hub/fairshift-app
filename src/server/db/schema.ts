@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   check,
+  date,
   index,
   jsonb,
   pgTable,
@@ -142,6 +143,126 @@ export const providerEvents = pgTable(
   ],
 );
 
+export const workers = pgTable(
+  "workers",
+  {
+    id: uuid("id").primaryKey(),
+    organisationId: uuid("organisation_id")
+      .notNull()
+      .references(() => organisations.id, { onDelete: "restrict" }),
+    displayName: text("display_name").notNull(),
+    paypalPayoutEmail: text("paypal_payout_email"),
+    workerType: text("worker_type").notNull(),
+    status: text("status").notNull().default("ACTIVE"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("workers_organisation_idx").on(table.organisationId),
+    check("workers_type_check", sql`${table.workerType} in ('REGULAR', 'CASUAL')`),
+    check("workers_status_check", sql`${table.status} in ('ACTIVE', 'INACTIVE')`),
+  ],
+);
+
+export const shifts = pgTable(
+  "shifts",
+  {
+    id: uuid("id").primaryKey(),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "restrict" }),
+    shiftDate: date("shift_date", { mode: "string" }).notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    roleName: text("role_name").notNull(),
+    status: text("status").notNull().default("DRAFT"),
+    currencyCode: text("currency_code").notNull(),
+    guaranteedBasePayMinor: bigint("guaranteed_base_pay_minor", { mode: "number" }).notNull(),
+    gratuityPolicy: text("gratuity_policy").notNull(),
+    incentivePolicy: text("incentive_policy").notNull(),
+    incentiveTargetMinor: bigint("incentive_target_minor", { mode: "number" }).notNull().default(0),
+    incentiveAmountMinor: bigint("incentive_amount_minor", { mode: "number" }).notNull().default(0),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("shifts_outlet_date_idx").on(table.outletId, table.shiftDate),
+    check("shifts_status_check", sql`${table.status} in ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED')`),
+    check("shifts_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
+    check("shifts_base_pay_nonnegative", sql`${table.guaranteedBasePayMinor} >= 0`),
+    check("shifts_incentive_target_nonnegative", sql`${table.incentiveTargetMinor} >= 0`),
+    check("shifts_incentive_amount_nonnegative", sql`${table.incentiveAmountMinor} >= 0`),
+    check("shifts_time_order_check", sql`${table.endsAt} > ${table.startsAt}`),
+  ],
+);
+
+export const shiftOffers = pgTable(
+  "shift_offers",
+  {
+    id: uuid("id").primaryKey(),
+    shiftId: uuid("shift_id")
+      .notNull()
+      .references(() => shifts.id, { onDelete: "restrict" }),
+    workerId: uuid("worker_id")
+      .notNull()
+      .references(() => workers.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("OFFERED"),
+    offeredAt: timestamp("offered_at", { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shift_offers_shift_worker_unique").on(table.shiftId, table.workerId),
+    index("shift_offers_worker_status_idx").on(table.workerId, table.status),
+    check("shift_offers_status_check", sql`${table.status} in ('OFFERED', 'ACCEPTED', 'DECLINED', 'CANCELLED')`),
+    check(
+      "shift_offers_acceptance_check",
+      sql`(${table.status} = 'ACCEPTED' and ${table.acceptedAt} is not null and ${table.respondedAt} is not null)
+          or (${table.status} != 'ACCEPTED' and ${table.acceptedAt} is null)`,
+    ),
+  ],
+);
+
+export const shiftIncentives = pgTable(
+  "shift_incentives",
+  {
+    id: uuid("id").primaryKey(),
+    shiftId: uuid("shift_id").notNull().references(() => shifts.id, { onDelete: "restrict" }),
+    workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+    performanceSalesMinor: bigint("performance_sales_minor", { mode: "number" }).notNull(),
+    targetSalesMinor: bigint("target_sales_minor", { mode: "number" }).notNull(),
+    earnedAmountMinor: bigint("earned_amount_minor", { mode: "number" }).notNull(),
+    status: text("status").notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBy: text("approved_by"),
+    payoutRecipient: text("payout_recipient"),
+    paypalSenderBatchId: text("paypal_sender_batch_id").notNull(),
+    paypalSenderItemId: text("paypal_sender_item_id").notNull(),
+    paypalBatchId: text("paypal_batch_id"),
+    paypalItemId: text("paypal_item_id"),
+    paypalStatus: text("paypal_status"),
+    failureCode: text("failure_code"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shift_incentives_shift_worker_unique").on(table.shiftId, table.workerId),
+    uniqueIndex("shift_incentives_sender_batch_unique").on(table.paypalSenderBatchId),
+    uniqueIndex("shift_incentives_sender_item_unique").on(table.paypalSenderItemId),
+    uniqueIndex("shift_incentives_paypal_batch_unique").on(table.paypalBatchId),
+    index("shift_incentives_worker_status_idx").on(table.workerId, table.status),
+    check("shift_incentives_amounts_nonnegative", sql`${table.performanceSalesMinor} >= 0 and ${table.targetSalesMinor} >= 0 and ${table.earnedAmountMinor} >= 0`),
+    check("shift_incentives_status_check", sql`${table.status} in ('NOT_EARNED', 'EARNED', 'APPROVED', 'SUBMITTING', 'SUBMITTED', 'PROCESSING', 'PAID', 'FAILED')`),
+    check("shift_incentives_approval_check", sql`(${table.status} in ('APPROVED', 'SUBMITTING', 'SUBMITTED', 'PROCESSING', 'PAID', 'FAILED') and ${table.approvedAt} is not null and ${table.approvedBy} is not null) or (${table.status} in ('NOT_EARNED', 'EARNED') and ${table.approvedAt} is null and ${table.approvedBy} is null)`),
+    check("shift_incentives_payout_eligibility_check", sql`${table.status} not in ('SUBMITTING', 'SUBMITTED', 'PROCESSING', 'PAID') or (${table.earnedAmountMinor} > 0 and ${table.payoutRecipient} is not null and ${table.approvedAt} is not null)`),
+  ],
+);
+
 export const auditEvents = pgTable(
   "audit_events",
   {
@@ -168,5 +289,9 @@ export const schema = {
   paypalConnections,
   saleTransactions,
   providerEvents,
+  workers,
+  shifts,
+  shiftOffers,
+  shiftIncentives,
   auditEvents,
 };
