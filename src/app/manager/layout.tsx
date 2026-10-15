@@ -1,4 +1,9 @@
 import { ProductShell } from "@/app/components/product-shell";
+import "@bryntum/scheduler/fontawesome/css/fontawesome.css";
+import "@bryntum/scheduler/fontawesome/css/solid.css";
+import "@bryntum/scheduler/scheduler.css";
+import "@bryntum/scheduler/stockholm-light.css";
+import "./allocations.css";
 
 const navigation = [
   { label: "Overview", href: "/manager" },

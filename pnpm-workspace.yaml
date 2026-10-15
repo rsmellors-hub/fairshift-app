@@ -2,5 +2,7 @@ packages:
   - .
 
 allowBuilds:
+  '@bryntum/scheduler-trial': true
+  '@bryntum/scheduler-trial-lib': true
   esbuild: true
   unrs-resolver: true

@@ -1,0 +1,6 @@
+.allocation-schedule { min-width: 0; }
+.allocation-controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin-block: 18px; }
+.allocation-schedule label { display: grid; gap: 6px; }
+.allocation-schedule input, .allocation-schedule select { min-height: 44px; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); }
+.allocation-timeline { width: 100%; min-width: 0; overflow: hidden; }
+.allocation-schedule > label { margin-block: 18px; }

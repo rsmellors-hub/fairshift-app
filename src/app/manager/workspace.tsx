@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
-import { ActionFeedback, dateTime, money, PaymentBadge, ShiftTerms, TaskLink, WorkspaceUnavailable } from "@/app/components/workspace-ui";
+import { ActionFeedback, money, PaymentBadge, ShiftTerms, TaskLink, WorkspaceUnavailable } from "@/app/components/workspace-ui";
 import { approveDemoIncentiveAction, publishDemoShiftAction, recordDemoPerformanceAction, refreshDemoIncentivePayoutAction, submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -9,6 +9,8 @@ import { getAiOperationalAssessment } from "@/server/integrations/openai/operati
 import { getManagerForecast } from "@/server/intelligence/manager";
 import { getLocationWorkspace } from "@/server/product/workspace";
 import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
+import { getAllocationSchedule } from "@/server/scheduling/allocations";
+import { AllocationScheduler } from "./allocation-scheduler";
 
 export const managerAreas = ["forecast", "fill-shifts", "allocations", "workers", "performance", "payments"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
@@ -17,6 +19,15 @@ export async function ManagerWorkspace({ area, status }: { area: ManagerArea; st
   const configuration = getConfigurationStatus();
   if (!configuration.databaseConfigured) return <WorkspaceUnavailable />;
   const db = getDatabase();
+  if (area === "allocations") {
+    let schedule;
+    try { schedule = await getAllocationSchedule(db); } catch { return <WorkspaceUnavailable />; }
+    return <>
+      <PageHeader eyebrow="Rosebank Kitchen" title="Shift Allocations" description="Review offered shifts, accepted allocations and completed work for your location." />
+      {schedule.events.length ? <AllocationScheduler schedule={schedule} /> : <StatePanel title="No shift allocations"><p>No shift offers have been recorded for this location.</p><Link href="/manager/fill-shifts">Fill a shift</Link></StatePanel>}
+      <Link className="text-link" href="/manager/performance">Review completed shift performance →</Link>
+    </>;
+  }
   let data;
   try { data = await getLocationWorkspace(db); } catch { return <WorkspaceUnavailable />; }
   const { current, assignments, worker } = data;
@@ -57,12 +68,6 @@ export async function ManagerWorkspace({ area, status }: { area: ManagerArea; st
       <p>One casual place · optional {money(DEMO_SHIFT_TERMS.incentiveAmountMinor)} incentive when the team target of {money(DEMO_SHIFT_TERMS.incentiveTargetMinor)} is met.</p>
       <form action={publishDemoShiftAction} className="workspace-form"><label><input type="checkbox" name="workerSelected" value="yes" required /> Invite {worker?.displayName ?? "Alex Morgan"} · Rosebank Kitchen</label><button className="primary-button" type="submit">Publish shift and send offer</button></form>
     </section> : null}
-    {area === "allocations" ? assignments.length ? assignments.map((row) => <article className="panel" key={row.shift.id}>
-      <StatusBadge>{row.offer.status === "ACCEPTED" ? row.shift.status === "COMPLETED" ? "Completed work" : "Accepted allocation" : "Awaiting worker response"}</StatusBadge>
-      <h2>{row.shift.roleName} · {row.shift.shiftDate}</h2><p>{worker?.displayName ?? "Casual worker"} · {dateTime(row.shift.startsAt)}–{dateTime(row.shift.endsAt)} · Johannesburg time</p>
-      <p>{row.offer.status === "ACCEPTED" ? "1 of 1 casual place accepted" : "0 of 1 casual place accepted"}</p>
-      {row.shift.id === current?.shift.id && row.offer.status === "ACCEPTED" ? <Link className="text-link" href="/manager/performance">Review shift performance →</Link> : null}
-    </article>) : <StatePanel title="No shift allocations"><Link href="/manager/fill-shifts">Fill a shift</Link></StatePanel> : null}
     {area === "workers" ? <section className="panel"><h2>{worker?.displayName ?? "No worker profile yet"}</h2><p>{worker ? `${worker.status === "ACTIVE" ? "Active" : "Inactive"} casual worker · Rosebank Kitchen environment` : "A worker profile is created when payment details are saved or the first offer is published."}</p><p>Availability and matching preferences have not been collected. No availability or suitability score is inferred.</p><Link className="text-link" href="/manager/fill-shifts">Review shift invitation →</Link></section> : null}
     {area === "performance" ? <>
       {current?.offer.status === "ACCEPTED" && (!incentive || ["EARNED", "NOT_EARNED"].includes(incentive.status)) ? <section className="panel">

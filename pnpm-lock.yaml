@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      '@bryntum/scheduler':
+        specifier: npm:@bryntum/scheduler-trial@7.3.7
+        version: '@bryntum/scheduler-trial@7.3.7'
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.9)(@types/pg@8.23.1)(pg@8.23.1)
@@ -287,6 +290,13 @@ packages:
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
+
+  '@bryntum/scheduler-trial-lib@1.0.1':
+    resolution: {integrity: sha512-gTrNKz2O7JdNalEU9hma0fYyZ1mGhXXb6yCn/+E+SPjRyg/qFad1bQ7vfBUFitw3S3eB66IdtAZLD+QCtiIUKw==}
+
+  '@bryntum/scheduler-trial@7.3.7':
+    resolution: {integrity: sha512-O5qpP6cmdgUZ6OelP7IqmJ6ZqSN4h2aqqsUP4maoagvNl9xl8jMYdzT9W3VrIXaFHbNRsNbeFa9eDWTP2oNOFA==}
+    engines: {node: '>=0.10.0'}
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -3033,6 +3043,12 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@bryntum/scheduler-trial-lib@1.0.1': {}
+
+  '@bryntum/scheduler-trial@7.3.7':
+    dependencies:
+      '@bryntum/scheduler-trial-lib': 1.0.1
 
   '@cacheable/memory@2.2.0':
     dependencies:
