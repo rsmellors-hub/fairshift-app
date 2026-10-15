@@ -50,7 +50,7 @@ export function AllocationScheduler({ schedule }: { schedule: AllocationSchedule
     end.setDate(end.getDate() + days);
     const scheduler = instance.current;
     let cancelled = false;
-    scheduler.setTimeSpan(start, end).then(() => {
+    Promise.resolve().then(() => scheduler.setTimeSpan(start, end)).then(() => {
       if (!cancelled) scheduler.zoomToSpan({ startDate: start, endDate: end });
     }).catch(() => { if (!cancelled) setLoad("error"); });
     return () => { cancelled = true; };
