@@ -50,6 +50,11 @@ describe("shift incentive and PayPal payout workflow", () => {
       await expect(submitDemoIncentivePayout(testDb.db, adapter)).rejects.toThrow(/not eligible/);
 
       await setDemoPayoutDestination(testDb.db, "worker@example.test");
+      expect(await getDemoIncentive(testDb.db)).toMatchObject({
+        worker: { paypalPayoutEmail: "worker@example.test" },
+        incentive: { payoutRecipient: null, submittedAt: null },
+      });
+      expect(createPayout).not.toHaveBeenCalled();
       const submitted = await submitDemoIncentivePayout(testDb.db, adapter);
       expect(submitted).toMatchObject({ status: "SUBMITTED", paypalBatchId: "PAYPAL-BATCH-1", paypalItemId: "PAYPAL-ITEM-1", paypalStatus: "PENDING" });
       expect(createPayout).toHaveBeenCalledTimes(1);
@@ -62,6 +67,34 @@ describe("shift incentive and PayPal payout workflow", () => {
       const persisted = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, DEMO_INCENTIVE_ID));
       expect(persisted[0].status).toBe("PAID");
       expect(persisted[0].paidAt).toBeInstanceOf(Date);
+    } finally {
+      await testDb.close();
+    }
+  });
+
+  it("persists and reads back a valid payment destination without initiating a payout", async () => {
+    const testDb = await createTestDatabase();
+    try {
+      await completedAcceptedShift(testDb.db);
+      await recordDemoPerformance(testDb.db, 65_000);
+
+      const saved = await setDemoPayoutDestination(testDb.db, "worker@example.test");
+      expect(saved.paypalPayoutEmail).toBe("worker@example.test");
+      expect(await getDemoIncentive(testDb.db)).toMatchObject({
+        worker: { paypalPayoutEmail: "worker@example.test" },
+        incentive: {
+          status: "EARNED",
+          payoutRecipient: null,
+          submittedAt: null,
+          paypalBatchId: null,
+        },
+      });
+
+      await expect(setDemoPayoutDestination(testDb.db, "not-an-email")).rejects.toThrow();
+      expect(await getDemoIncentive(testDb.db)).toMatchObject({
+        worker: { paypalPayoutEmail: "worker@example.test" },
+        incentive: { status: "EARNED", payoutRecipient: null, submittedAt: null },
+      });
     } finally {
       await testDb.close();
     }

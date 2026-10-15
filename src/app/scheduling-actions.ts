@@ -68,7 +68,17 @@ export async function refreshDemoIncentivePayoutAction() {
 }
 
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
-  if (!getConfigurationStatus().databaseConfigured) throw new Error("PostgreSQL is not configured.");
-  await setDemoPayoutDestination(getDatabase(), String(formData.get("payoutEmail") ?? ""));
-  redirect("/worker");
+  if (!getConfigurationStatus().databaseConfigured) {
+    redirect("/worker?paymentDetails=error");
+  }
+
+  try {
+    await setDemoPayoutDestination(getDatabase(), String(formData.get("payoutEmail") ?? ""));
+  } catch {
+    redirect("/worker?paymentDetails=error");
+  }
+
+  redirect("/worker?paymentDetails=saved");
+
+  redirect("/worker?paymentDetails=saved");
 }

@@ -33,7 +33,12 @@ function paymentStatus(value: string | null) {
   return "Processing";
 }
 
-export default async function WorkerPage() {
+export default async function WorkerPage({
+  searchParams = Promise.resolve({}),
+}: {
+  searchParams?: Promise<{ paymentDetails?: string }>;
+} = {}) {
+  const paymentDetailsStatus = (await searchParams).paymentDetails;
   const configuration = getConfigurationStatus();
 
   if (!configuration.databaseConfigured) {
@@ -159,6 +164,11 @@ export default async function WorkerPage() {
           <label>Payment email <input name="payoutEmail" type="email" maxLength={254} defaultValue={worker.paypalPayoutEmail ?? ""} required /></label>
           <button className="secondary-button" type="submit">Save payment details</button>
         </form>
+        {paymentDetailsStatus === "saved" ? (
+          <p className="method-note" role="status">Payment details saved for future approved incentives.</p>
+        ) : paymentDetailsStatus === "error" ? (
+          <p className="method-note" role="alert">Payment details could not be saved. Check the email and try again.</p>
+        ) : null}
         <p className="method-note">This will move to Profile in the dedicated worker experience. It is used only after earnings are approved by a manager.</p>
       </section>
 
