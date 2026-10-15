@@ -58,7 +58,7 @@ export function AllocationScheduler({ schedule }: { schedule: AllocationSchedule
 
   return <section className="panel allocation-schedule" aria-label="Location shift schedule">
     <h2>Worker timeline</h2>
-    <p>Controlled demo records · Johannesburg time. Offered shifts are not accepted allocations. Select a shift to review its terms.</p>
+    <p>Johannesburg time. Offers, accepted responses and allocations are shown separately. Select a shift to review its terms.</p>
     <div className="allocation-controls">
       <label>Period starting<input type="date" value={date} onChange={(event) => { if (event.target.value) setDate(event.target.value); }} /></label>
       <label>View<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={1}>Day</option><option value={7}>Week</option></select></label>
@@ -73,7 +73,7 @@ export function AllocationScheduler({ schedule }: { schedule: AllocationSchedule
       <div><dt>Worker</dt><dd>{selected.workerName}</dd></div><div><dt>State</dt><dd>{selected.state}</dd></div>
       <div><dt>Starts · Johannesburg</dt><dd>{new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Johannesburg" }).format(new Date(selected.startDate))}</dd></div>
       <div><dt>Ends · Johannesburg</dt><dd>{new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Johannesburg" }).format(new Date(selected.endDate))}</dd></div>
-      <div><dt>Guaranteed base pay</dt><dd>{new Intl.NumberFormat("en-US", { style: "currency", currency: selected.currencyCode }).format(selected.guaranteedBasePayMinor / 100)}</dd></div>
+      <div><dt>{selected.earningsModel === "COMMISSION" ? "Commission · verified attributed sales" : "Expected work earnings"}</dt><dd>{selected.earningsModel === "COMMISSION" ? `${(selected.commissionBps ?? 0) / 100}%` : new Intl.NumberFormat("en-US", { style: "currency", currency: selected.currencyCode }).format(selected.guaranteedBasePayMinor / 100)}</dd></div>
     </dl></div> : null}
   </section>;
 }

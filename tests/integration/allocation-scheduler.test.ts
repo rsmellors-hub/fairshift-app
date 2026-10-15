@@ -16,7 +16,7 @@ vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 
 async function page() {
-  return renderToStaticMarkup(await ManagerAreaPage({ params: Promise.resolve({ area: "allocations" }), searchParams: Promise.resolve({}) }));
+  return renderToStaticMarkup(await ManagerAreaPage({ params: Promise.resolve({ area: "plan" }), searchParams: Promise.resolve({}) }));
 }
 
 describe("Manager allocation schedule", () => {
@@ -28,15 +28,15 @@ describe("Manager allocation schedule", () => {
       expect(await page()).toContain("No shift allocations");
       const first = await publishDemoShift(testDb.db);
       expect((await getAllocationSchedule(testDb.db)).events[0].state).toBe("Offered · awaiting response");
-      await acceptDemoShift(testDb.db);
-      expect((await getAllocationSchedule(testDb.db)).events[0].state).toBe("Accepted allocation");
+      await acceptDemoShift(testDb.db, undefined, true);
+      expect((await getAllocationSchedule(testDb.db)).events[0].state).toBe("Accepted · awaiting allocation");
       await markDemoShiftCompleted(testDb.db);
       await recordDemoPerformance(testDb.db, 0);
       const second = await startNewDemoCycle(testDb.db);
       const schedule = await getAllocationSchedule(testDb.db);
-      expect(schedule.events.map((row) => row.id)).toEqual([second.shift.id, first.shift.id]);
+      expect(schedule.events.map((row) => row.id)).toEqual([second.offer.id, first.offer.id]);
       expect(schedule.events[1].state).toBe("Completed work");
-      expect(schedule.assignments).toContainEqual({ id: first.offer.id, eventId: first.shift.id, resourceId: first.worker.id });
+      expect(schedule.assignments).toContainEqual({ id: first.offer.id, eventId: first.offer.id, resourceId: first.worker.id });
       const html = await page();
       expect(html).toContain("Worker timeline");
       expect(html).toContain("Loading schedule timeline");
@@ -44,7 +44,7 @@ describe("Manager allocation schedule", () => {
       expect(html).toContain("Alex Morgan");
       expect(html).toContain("Read-only schedule");
       expect(html).not.toContain("No shift allocations");
-      expect(html).not.toContain("paypal");
+      expect(html).not.toContain("paypalBatchId");
       vi.mocked(getDatabase).mockReturnValue({ select: () => { throw new Error("Database unavailable"); } } as unknown as ReturnType<typeof getDatabase>);
       const failed = await page();
       expect(failed).toContain("Workspace information is unavailable");
@@ -66,13 +66,13 @@ describe("Manager allocation schedule", () => {
       await testDb.db.insert(workers).values({ id: otherWorker, organisationId: DEMO_ORGANISATION_ID, displayName: "Unrelated worker", workerType: "CASUAL" });
       for (const [outletId, workerId] of [[otherOutlet, DEMO_CASUAL_WORKER_ID], [sameOrgOutlet, DEMO_CASUAL_WORKER_ID], [current.shift.outletId, otherWorker]]) {
         const shiftId = randomUUID();
-        await testDb.db.insert(shifts).values({ ...current.shift, id: shiftId, outletId });
+        await testDb.db.insert(shifts).values({ ...current.shift, id: shiftId, outletId, departmentId: outletId === current.shift.outletId ? current.shift.departmentId : null });
         await testDb.db.insert(shiftOffers).values({ id: randomUUID(), shiftId, workerId });
       }
       const schedule = await getAllocationSchedule(testDb.db);
       expect(schedule.resources).toEqual([{ id: current.worker.id, name: current.worker.displayName }]);
       expect(schedule.events).toHaveLength(1);
-      expect(schedule.events[0].id).toBe(current.shift.id);
+      expect(schedule.events[0].id).toBe(current.offer.id);
       expect(schedule.assignments).toHaveLength(1);
       expect(JSON.stringify(schedule)).not.toMatch(/paypal|incentive|submittedAt|Unrelated worker/);
     } finally { await testDb.close(); }

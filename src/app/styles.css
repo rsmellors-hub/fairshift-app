@@ -241,8 +241,8 @@ input:focus-visible {
 .product-page details { margin-block: 16px; overflow-wrap: anywhere; }
 .product-page summary { cursor: pointer; font-weight: 650; padding-block: 10px; }
 @media (max-width: 400px) {
-  .product-shell-worker .worker-bottom-nav { grid-template-columns: repeat(3, 1fr); }
-  .product-shell-worker .product-main .product-page { padding-bottom: 170px; }
+  .product-shell-worker .worker-bottom-nav { grid-template-columns: repeat(4, 1fr); }
+  .product-shell-worker .product-main .product-page { padding-bottom: 100px; }
 }
 .product-page { width: min(1160px, 100%); margin: 0 auto; padding: 38px 38px 72px; }
 .page-header {
@@ -408,7 +408,7 @@ input:focus-visible {
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 8px 6px max(8px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     background: #fff;
@@ -555,3 +555,18 @@ input:focus-visible {
   .manager-schedule-cta { margin-left: 14px; margin-right: 14px; }
   .worker-action-panel form { width: 100%; }
 }
+
+.table-scroll { overflow-x: auto; }
+.table-scroll table { width: 100%; border-collapse: collapse; text-align: left; }
+.table-scroll th, .table-scroll td { padding: .8rem; border-bottom: 1px solid var(--border, #ddd); vertical-align: top; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.requirement { border-top: 1px solid var(--border, #ddd); padding: 1rem 0; scroll-margin-top: 2rem; }
+.inline-form { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; margin: .8rem 0; }
+.inline-form label { display: grid; gap: .4rem; }
+.acceptance-check { display: flex; gap: .6rem; align-items: start; line-height: 1.5; }
+.acceptance-check input { flex: 0 0 auto; width: auto; margin-top: .3rem; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .record-row { flex-wrap: wrap; gap: .6rem; } }
+
+.product-shell-worker .panel p { overflow-wrap: anywhere; }
+.workspace-form select, .inline-form select, .inline-form input { max-width: 100%; padding: .6rem; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font: inherit; }

@@ -9,14 +9,14 @@ describe("Scheduler presentation contract", () => {
       shiftStatus: "PUBLISHED", offerStatus: "OFFERED", guaranteedBasePayMinor: 12000, currencyCode: "USD",
     }], { id: "worker", name: "Alex" });
     expect(schedule.resources).toEqual([{ id: "worker", name: "Alex" }]);
-    expect(schedule.events[0]).toMatchObject({ id: "shift", startDate: "2026-10-16T06:00:00.000Z", endDate: "2026-10-16T14:00:00.000Z", state: "Offered · awaiting response", guaranteedBasePayMinor: 12000 });
-    expect(schedule.assignments).toEqual([{ id: "offer", eventId: "shift", resourceId: "worker" }]);
+    expect(schedule.events[0]).toMatchObject({ id: "offer", startDate: "2026-10-16T06:00:00.000Z", endDate: "2026-10-16T14:00:00.000Z", state: "Offered · awaiting response", guaranteedBasePayMinor: 12000 });
+    expect(schedule.assignments).toEqual([{ id: "offer", eventId: "offer", resourceId: "worker" }]);
     expect(JSON.parse(JSON.stringify(schedule))).toEqual(schedule);
   });
 
   it("distinguishes offer, acceptance, completion, decline and cancellation", () => {
     expect(allocationState("PUBLISHED", "OFFERED")).toBe("Offered · awaiting response");
-    expect(allocationState("PUBLISHED", "ACCEPTED")).toBe("Accepted allocation");
+    expect(allocationState("PUBLISHED", "ACCEPTED")).toBe("Accepted · awaiting allocation");
     expect(allocationState("COMPLETED", "ACCEPTED")).toBe("Completed work");
     expect(allocationState("PUBLISHED", "DECLINED")).toBe("Declined");
     expect(allocationState("CANCELLED", "ACCEPTED")).toBe("Cancelled");

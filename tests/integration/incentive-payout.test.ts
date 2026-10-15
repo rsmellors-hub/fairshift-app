@@ -25,7 +25,7 @@ const successAdapter = (overrides: Partial<PayPalPayoutAdapter> = {}): PayPalPay
 
 async function completedAcceptedShift(db: Parameters<typeof publishDemoShift>[0]) {
   await publishDemoShift(db);
-  await acceptDemoShift(db);
+  await acceptDemoShift(db, undefined, true);
   await markDemoShiftCompleted(db);
 }
 
@@ -153,7 +153,7 @@ describe("shift incentive and PayPal payout workflow", () => {
       expect((await getDemoWorkerShift(testDb.db))?.shift.id).toBe(fresh.shift.id);
       expect(await getDemoIncentive(testDb.db)).toBeNull();
       await expect(acceptDemoShift(testDb.db, historical.shiftId)).rejects.toThrow(/unavailable/);
-      await acceptDemoShift(testDb.db);
+      await acceptDemoShift(testDb.db, undefined, true);
       await markDemoShiftCompleted(testDb.db);
       const current = await recordDemoPerformance(testDb.db, 72_000);
       expect(current.id).not.toBe(historical.id);

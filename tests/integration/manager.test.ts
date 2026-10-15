@@ -39,7 +39,7 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "forecast" }));
+      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
       expect(html).toContain("Demo / seeded · not PayPal verified");
       expect(html).toContain("Recommended worker delta");
       expect(html).toContain("+3");
@@ -47,7 +47,7 @@ describe("persisted commercial history to manager output", () => {
       expect(html).toContain("comparison assumption, not a saved plan");
       expect(html).toContain("comparable-days-recency-v1");
       expect(html).toContain("not a calibrated confidence interval");
-      expect(html).toContain('href="/manager/fill-shifts"');
+      expect(html).toContain("Coverage requirements");
       expect(html).not.toContain("Approve incentive");
     } finally {
       vi.resetAllMocks();

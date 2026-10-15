@@ -38,18 +38,18 @@ async function performAction(path: string, action: () => Promise<unknown>) {
 }
 
 export async function publishDemoShiftAction(formData: FormData) {
-  return performAction("/manager/fill-shifts", async () => {
+  return performAction("/manager/plan", async () => {
     if (formData.get("workerSelected") !== "yes") throw new Error("Select the invitation recipient.");
     await publishDemoShift(getDatabase());
   });
 }
 
 export async function acceptDemoShiftAction(formData: FormData) {
-  return performAction("/worker/shifts", async () => acceptDemoShift(getDatabase(), requiredDemoId(formData, "shiftId")));
+  return performAction("/worker/shifts", async () => acceptDemoShift(getDatabase(), requiredDemoId(formData, "shiftId"), formData.get("acknowledged") === "yes", Number(formData.get("termsVersion"))));
 }
 
 export async function recordDemoPerformanceAction(formData: FormData) {
-  return performAction("/manager/performance", async () => {
+  return performAction("/manager/review", async () => {
     if (formData.get("completed") !== "yes") throw new Error("Confirm completed work.");
     const value = String(formData.get("performanceSales") ?? "").trim();
     if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) throw new Error("Enter a valid USD sales amount.");
@@ -64,15 +64,15 @@ export async function recordDemoPerformanceAction(formData: FormData) {
 }
 
 export async function approveDemoIncentiveAction(formData: FormData) {
-  return performAction("/manager/payments", async () => approveDemoIncentive(getDatabase(), requiredDemoId(formData, "incentiveId")));
+  return performAction("/manager/review", async () => approveDemoIncentive(getDatabase(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function submitDemoIncentivePayoutAction(formData: FormData) {
-  return performAction("/manager/payments", async () => submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
+  return performAction("/manager/review", async () => submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function refreshDemoIncentivePayoutAction(formData: FormData) {
-  return performAction("/manager/payments", async () => refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
+  return performAction("/manager/review", async () => refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function saveDemoPayoutDestinationAction(formData: FormData) {

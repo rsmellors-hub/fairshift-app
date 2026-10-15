@@ -44,3 +44,34 @@ describe("commercial provenance migration", () => {
     }
   });
 });
+
+describe("operational work-term migrations", () => {
+  it("preserves historical offer and payment facts without inventing accepted-term evidence", async () => {
+    const client = new PGlite();
+    try {
+      const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+      async function apply(tag: string) {
+        const sql = await readFile(`drizzle/${tag}.sql`, "utf8");
+        for (const statement of sql.split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);
+      }
+      for (const entry of journal.entries.slice(0,4)) await apply(entry.tag);
+      await client.exec(`INSERT INTO workers(id, organisation_id, display_name, worker_type, paypal_payout_email)
+        VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','Historical worker','CASUAL','fixture@example.test');
+        INSERT INTO shifts(id,outlet_id,shift_date,starts_at,ends_at,role_name,status,currency_code,guaranteed_base_pay_minor,gratuity_policy,incentive_policy)
+        VALUES ('40000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','2026-01-01','2026-01-01T08:00Z','2026-01-01T14:00Z','Historical work','COMPLETED','USD',12000,'Original gratuity','Original incentive');
+        INSERT INTO shift_offers(id,shift_id,worker_id,status,accepted_at,responded_at)
+        VALUES ('50000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','ACCEPTED','2025-12-30T10:00Z','2025-12-30T10:00Z');
+        INSERT INTO shift_incentives(id,shift_id,worker_id,performance_sales_minor,target_sales_minor,earned_amount_minor,status,approved_at,approved_by,paypal_sender_batch_id,paypal_sender_item_id,failure_code,submitted_at)
+        VALUES ('70000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001',72000,65000,2500,'FAILED','2026-01-01T15:00Z','fixture-manager','fixture-batch','fixture-item','PAYOUT_REQUEST_FAILED','2026-01-01T16:00Z');`);
+      const beforeOffer = await client.query("SELECT * FROM shift_offers");
+      const beforePayment = await client.query("SELECT * FROM shift_incentives");
+      for (const entry of journal.entries.slice(4)) await apply(entry.tag);
+      expect((await client.query("SELECT * FROM shift_offers")).rows).toEqual(beforeOffer.rows);
+      expect((await client.query("SELECT * FROM shift_incentives")).rows).toEqual(beforePayment.rows);
+      expect((await client.query("SELECT * FROM work_acceptances")).rows).toEqual([]);
+      expect((await client.query("SELECT * FROM work_allocations")).rows).toEqual([]);
+      expect((await client.query("SELECT earnings_model, rate_minor, expected_earnings_minor, terms_version FROM shifts")).rows[0]).toMatchObject({earnings_model:"DAILY", rate_minor:12000, expected_earnings_minor:12000, terms_version:1});
+      expect((await client.query("SELECT paypal_payout_email, location_id, attribution_code FROM workers")).rows[0]).toMatchObject({paypal_payout_email:"fixture@example.test",location_id:"20000000-0000-4000-8000-000000000001",attribution_code:expect.stringMatching(/^FS-/)});
+    } finally {await client.close();}
+  });
+});

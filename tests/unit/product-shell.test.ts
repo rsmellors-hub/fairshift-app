@@ -19,8 +19,9 @@ describe("shared product shell", () => {
 
     expect(html).toContain('<nav class="product-nav" aria-label="Manager navigation">');
     expect(html).toContain('href="/manager"');
-    expect(html).toContain("Forecast &amp; Staffing");
-    for (const area of ["forecast", "fill-shifts", "allocations", "workers", "performance", "payments"]) expect(html).toContain(`href="/manager/${area}"`);
+    expect(html).toContain("Today");
+    expect(html).not.toContain("Worker Pool");
+    for (const area of ["plan", "team", "review"]) expect(html).toContain(`href="/manager/${area}"`);
     expect(html).not.toContain("Coming next");
     expect(html).not.toContain('href="/worker');
     expect(html).not.toContain('href="/operator');
@@ -33,7 +34,7 @@ describe("shared product shell", () => {
     expect(html).toContain('aria-label="Worker navigation"');
     expect(html).toContain('aria-label="Worker mobile navigation"');
     expect(html).toContain('href="/worker"');
-    for (const area of ["shifts", "schedule", "performance", "earnings", "profile"]) expect(html).toContain(`href="/worker/${area}"`);
+    for (const area of ["shifts", "earnings", "profile"]) expect(html).toContain(`href="/worker/${area}"`);
     expect(html).toContain('aria-current="page" href="/worker/earnings"');
     expect(html).not.toContain('aria-current="page" href="/worker"');
     expect(html).not.toContain('href="/manager');

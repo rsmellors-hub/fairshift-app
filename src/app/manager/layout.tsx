@@ -6,13 +6,10 @@ import "@bryntum/scheduler/stockholm-light.css";
 import "./allocations.css";
 
 const navigation = [
-  { label: "Overview", href: "/manager" },
-  { label: "Forecast & Staffing", href: "/manager/forecast" },
-  { label: "Fill Shifts", href: "/manager/fill-shifts" },
-  { label: "Shift Allocations", href: "/manager/allocations" },
-  { label: "Worker Pool", href: "/manager/workers" },
-  { label: "Performance", href: "/manager/performance" },
-  { label: "Payments & Approvals", href: "/manager/payments" },
+  { label: "Today", href: "/manager" },
+  { label: "Plan", href: "/manager/plan" },
+  { label: "Team", href: "/manager/team" },
+  { label: "Review", href: "/manager/review" },
 ];
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {

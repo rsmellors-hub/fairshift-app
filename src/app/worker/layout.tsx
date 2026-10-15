@@ -3,8 +3,6 @@ import { ProductShell } from "@/app/components/product-shell";
 const navigation = [
   { label: "Home", href: "/worker" },
   { label: "Shifts", href: "/worker/shifts" },
-  { label: "Schedule", href: "/worker/schedule" },
-  { label: "Performance", href: "/worker/performance" },
   { label: "Earnings", href: "/worker/earnings" },
   { label: "Profile", href: "/worker/profile" },
 ];

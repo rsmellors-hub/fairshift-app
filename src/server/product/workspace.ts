@@ -2,19 +2,19 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers } from "@/server/db/schema";
+import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 
 // These workspaces retain the existing server-pinned environment scope.
 // Client route parameters select presentation only, never an organisation or worker.
 export async function getLocationWorkspace(db: DatabaseSession) {
   const current = await getDemoWorkerShift(db);
-  const assignments = await db.select({ shift: shifts, offer: shiftOffers, incentive: shiftIncentives })
+  const assignments = await db.select({ shift: shifts, offer: shiftOffers, incentive: shiftIncentives, workerName: workers.displayName })
     .from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))
     .innerJoin(workers, eq(shiftOffers.workerId, workers.id))
     .leftJoin(shiftIncentives, and(eq(shiftIncentives.shiftId, shifts.id), eq(shiftIncentives.workerId, workers.id)))
-    .where(and(eq(shifts.outletId, DEMO_OUTLET_ID), eq(workers.organisationId, DEMO_ORGANISATION_ID), eq(workers.id, DEMO_CASUAL_WORKER_ID)))
+    .where(and(eq(shifts.outletId, DEMO_OUTLET_ID), eq(workers.organisationId, DEMO_ORGANISATION_ID), eq(workers.locationId, DEMO_OUTLET_ID)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const [worker] = await db.select().from(workers).where(and(
     eq(workers.id, DEMO_CASUAL_WORKER_ID), eq(workers.organisationId, DEMO_ORGANISATION_ID),
@@ -23,17 +23,19 @@ export async function getLocationWorkspace(db: DatabaseSession) {
 }
 
 export async function getWorkerWorkspace(db: DatabaseSession) {
-  const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail })
+  const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode })
     .from(workers).where(and(eq(workers.id, DEMO_CASUAL_WORKER_ID), eq(workers.organisationId, DEMO_ORGANISATION_ID))).limit(1);
   // Deliberately exclude team revenue, transaction data, provider IDs and other workers.
   const assignments = await db.select({
-    shift: shifts, offer: shiftOffers,
+    shift: shifts, offer: shiftOffers, allocation: workAllocations, departmentName: departments.name,
     incentive: {
       id: shiftIncentives.id, status: shiftIncentives.status, earnedAmountMinor: shiftIncentives.earnedAmountMinor,
       approvedAt: shiftIncentives.approvedAt, paidAt: shiftIncentives.paidAt,
     },
   }).from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))
+    .leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id))
+    .leftJoin(departments, eq(departments.id, shifts.departmentId))
     .innerJoin(workers, eq(shiftOffers.workerId, workers.id))
     .leftJoin(shiftIncentives, and(eq(shiftIncentives.shiftId, shifts.id), eq(shiftIncentives.workerId, workers.id)))
     .where(and(eq(workers.id, DEMO_CASUAL_WORKER_ID), eq(workers.organisationId, DEMO_ORGANISATION_ID), eq(shifts.outletId, DEMO_OUTLET_ID)))

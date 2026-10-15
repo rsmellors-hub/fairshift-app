@@ -101,7 +101,7 @@ describe("workforce scheduling persistence", () => {
     try {
       await publishDemoShift(testDb.db);
 
-      const accepted = await acceptDemoShift(testDb.db);
+      const accepted = await acceptDemoShift(testDb.db, undefined, true);
 
       expect(accepted.offer.status).toBe("ACCEPTED");
       expect(accepted.offer.respondedAt).toBeInstanceOf(Date);
@@ -134,8 +134,8 @@ describe("workforce scheduling persistence", () => {
     try {
       await publishDemoShift(testDb.db);
 
-      const first = await acceptDemoShift(testDb.db);
-      const second = await acceptDemoShift(testDb.db);
+      const first = await acceptDemoShift(testDb.db, undefined, true);
+      const second = await acceptDemoShift(testDb.db, undefined, true);
 
       expect(first.offer.status).toBe("ACCEPTED");
       expect(second.offer.status).toBe("ACCEPTED");
@@ -179,7 +179,7 @@ describe("workforce scheduling persistence", () => {
     const testDb = await createTestDatabase();
     try {
       const first = await publishDemoShift(testDb.db);
-      await acceptDemoShift(testDb.db);
+      await acceptDemoShift(testDb.db, undefined, true);
       await markDemoShiftCompleted(testDb.db);
       await recordDemoPerformance(testDb.db, 0);
 
@@ -190,7 +190,7 @@ describe("workforce scheduling persistence", () => {
       expect((await getDemoWorkerShift(testDb.db))?.shift.id).toBe(second.shift.id);
       await expect(startNewDemoCycle(testDb.db)).rejects.toThrow(/Finish the current/);
 
-      await acceptDemoShift(testDb.db);
+      await acceptDemoShift(testDb.db, undefined, true);
       const persistedShifts = await testDb.db.select().from(shifts);
       const persistedOffers = await testDb.db.select().from(shiftOffers);
       expect(persistedShifts.map((row) => row.id)).toContain(first.shift.id);

@@ -4,6 +4,7 @@ import {
   check,
   date,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -151,6 +152,12 @@ export const workers = pgTable(
       .notNull()
       .references(() => organisations.id, { onDelete: "restrict" }),
     displayName: text("display_name").notNull(),
+    firstName: text("first_name"),
+    surname: text("surname"),
+    telephone: text("telephone"),
+    email: text("email"),
+    locationId: uuid("location_id").references(() => outlets.id),
+    attributionCode: text("attribution_code").notNull().default(sql`'FS-' || upper(replace(gen_random_uuid()::text, '-', ''))`),
     paypalPayoutEmail: text("paypal_payout_email"),
     workerType: text("worker_type").notNull(),
     status: text("status").notNull().default("ACTIVE"),
@@ -158,11 +165,42 @@ export const workers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("workers_attribution_code_unique").on(table.attributionCode),
     index("workers_organisation_idx").on(table.organisationId),
     check("workers_type_check", sql`${table.workerType} in ('REGULAR', 'CASUAL')`),
     check("workers_status_check", sql`${table.status} in ('ACTIVE', 'INACTIVE')`),
   ],
 );
+
+export const departments = pgTable("departments", {
+  id: uuid("id").primaryKey(),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  name: text("name").notNull(),
+}, (t) => [uniqueIndex("departments_location_name_unique").on(t.outletId, t.name)]);
+
+export const workPolicies = pgTable("work_policies", {
+  id: uuid("id").primaryKey(),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  name: text("name").notNull(),
+  earningsModel: text("earnings_model").notNull(),
+  rateMinor: bigint("rate_minor", { mode: "number" }),
+  commissionBps: integer("commission_bps"),
+  commissionBasis: text("commission_basis"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("work_policy_terms_check", sql`(
+  ${t.earningsModel} in ('HOURLY', 'DAILY') and ${t.rateMinor} is not null and ${t.rateMinor} >= 0 and ${t.rateMinor} <= 9007199254740991 and ${t.commissionBps} is null and ${t.commissionBasis} is null
+) or (
+  ${t.earningsModel} = 'COMMISSION' and ${t.rateMinor} is null and ${t.commissionBps} is not null and ${t.commissionBasis} is not null and ${t.commissionBps} between 0 and 10000 and ${t.commissionBasis} = 'VERIFIED_ATTRIBUTED_SALES'
+)`)]);
+
+export const teamInvitations = pgTable("team_invitations", {
+  id: uuid("id").primaryKey(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id),
+  state: text("state").notNull().default("CREATED_NOT_SENT"),
+  token: text("token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("team_invitation_token_unique").on(t.token),
+  check("team_invitation_state_check", sql`${t.state} = 'CREATED_NOT_SENT'`)]);
 
 export const shifts = pgTable(
   "shifts",
@@ -171,6 +209,15 @@ export const shifts = pgTable(
     outletId: uuid("outlet_id")
       .notNull()
       .references(() => outlets.id, { onDelete: "restrict" }),
+    departmentId: uuid("department_id").references(() => departments.id),
+    requiredHeadcount: integer("required_headcount").notNull().default(1),
+    termsVersion: integer("terms_version").notNull().default(1),
+    policyId: uuid("policy_id").references(() => workPolicies.id),
+    earningsModel: text("earnings_model").notNull().default("DAILY"),
+    rateMinor: bigint("rate_minor", { mode: "number" }),
+    commissionBps: integer("commission_bps"),
+    commissionBasis: text("commission_basis"),
+    expectedEarningsMinor: bigint("expected_earnings_minor", { mode: "number" }),
     shiftDate: date("shift_date", { mode: "string" }).notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
@@ -187,6 +234,7 @@ export const shifts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check("shifts_headcount_check", sql`${table.requiredHeadcount} > 0 and ${table.termsVersion} > 0`),
     index("shifts_outlet_date_idx").on(table.outletId, table.shiftDate),
     check("shifts_status_check", sql`${table.status} in ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED')`),
     check("shifts_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
@@ -225,6 +273,41 @@ export const shiftOffers = pgTable(
     ),
   ],
 );
+
+export const workAcceptances = pgTable("work_acceptances", {
+  id: uuid("id").primaryKey(),
+  offerId: uuid("offer_id").notNull().references(() => shiftOffers.id),
+  workerId: uuid("worker_id").notNull().references(() => workers.id),
+  termsVersion: integer("terms_version").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("work_acceptances_offer_version_unique").on(t.offerId, t.termsVersion)]);
+
+export const workAllocations = pgTable("work_allocations", {
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  id: uuid("id").primaryKey(),
+  offerId: uuid("offer_id").notNull().references(() => shiftOffers.id),
+  acceptanceId: uuid("acceptance_id").notNull().references(() => workAcceptances.id),
+  state: text("state").notNull().default("ALLOCATED"),
+}, (t) => [uniqueIndex("work_allocations_offer_unique").on(t.offerId),
+  check("work_allocation_state_check", sql`${t.state} in ('ALLOCATED', 'REACCEPTANCE_REQUIRED')`)]);
+
+// A separate boundary from location sales. No ingestion or demo attribution is supplied.
+export const attributedSales = pgTable("attributed_sales", {
+  id: uuid("id").primaryKey(),
+  provider: text("provider").notNull(),
+  providerTransactionId: text("provider_transaction_id").notNull(),
+  attributionCode: text("attribution_code").notNull(),
+  workerId: uuid("worker_id").references(() => workers.id),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  source: text("source").notNull(),
+  verificationState: text("verification_state").notNull().default("UNVERIFIED"),
+}, (t) => [uniqueIndex("attributed_sales_provider_transaction_unique").on(t.provider, t.providerTransactionId),
+  check("attributed_sales_verification_check", sql`${t.verificationState} in ('UNVERIFIED', 'VERIFIED', 'FAILED')`),
+  check("attributed_sales_amount_check", sql`${t.amountMinor} >= 0 and ${t.amountMinor} <= 9007199254740991`)]);
 
 export const shiftIncentives = pgTable(
   "shift_incentives",
@@ -290,6 +373,7 @@ export const schema = {
   saleTransactions,
   providerEvents,
   workers,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, attributedSales,
   shifts,
   shiftOffers,
   shiftIncentives,

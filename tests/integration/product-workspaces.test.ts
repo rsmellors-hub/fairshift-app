@@ -19,6 +19,9 @@ import { getDemoWorkerShift } from "@/server/scheduling/demo";
 import { getDemoIncentive } from "@/server/incentives/demo";
 import { getOwnerWorkspace, getWorkerWorkspace } from "@/server/product/workspace";
 import { organisations, outlets, shiftIncentives, shifts, workers } from "@/server/db/schema";
+import { createTeamAction, createPolicyAction, createRequirementAction, respondAssignmentAction } from "@/app/operations-actions";
+import { getOperations, offerAssignment } from "@/server/scheduling/operations";
+import { publishDemoShift } from "@/server/scheduling/demo";
 import { createTestDatabase } from "../helpers/database";
 
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -76,25 +79,25 @@ describe("functional product workspaces", () => {
       expect(profileHtml).not.toContain("worker@example.test");
 
       await expect(publishDemoShiftAction(form({}))).rejects.toThrow("status=error");
-      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/fill-shifts?status=saved");
+      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/plan?status=saved");
       const current = (await getDemoWorkerShift(testDb.db))!;
       expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Accept shift");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "schedule" }))).toContain("No accepted shifts");
-      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id }))).rejects.toThrow("REDIRECT:/worker/shifts?status=saved");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "schedule" }))).toContain("Accepted shift");
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Awaiting your response");
+      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id, acknowledged: "yes", termsVersion: String(current.shift.termsVersion) }))).rejects.toThrow("REDIRECT:/worker/shifts?status=saved");
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Offer accepted");
 
       await expect(recordDemoPerformanceAction(form({ shiftId: randomUUID(), performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("status=error");
       expect(await getDemoIncentive(testDb.db)).toBeNull();
-      await expect(recordDemoPerformanceAction(form({ shiftId: current.shift.id, performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("REDIRECT:/manager/performance?status=saved");
+      await expect(recordDemoPerformanceAction(form({ shiftId: current.shift.id, performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
       const earned = (await getDemoIncentive(testDb.db))!.incentive;
       expect(earned).toMatchObject({ earnedAmountMinor: 2500, status: "EARNED", shiftId: current.shift.id });
-      let paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "payments" }));
+      let paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
       expect(paymentHtml).toContain("Approve incentive");
       expect(paymentHtml).not.toContain("Send approved incentive with PayPal");
       await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=error");
       expect(createPayout).not.toHaveBeenCalled();
-      await expect(approveDemoIncentiveAction(form({ incentiveId: earned.id }))).rejects.toThrow("REDIRECT:/manager/payments?status=saved");
-      paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "payments" }));
+      await expect(approveDemoIncentiveAction(form({ incentiveId: earned.id }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
+      paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
       expect(paymentHtml).toContain("Send approved incentive with PayPal");
       await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=saved");
       await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=error");
@@ -107,7 +110,7 @@ describe("functional product workspaces", () => {
       expect(earningsHtml).toContain("Paid");
       expect(earningsHtml).toContain("$25.00");
       expect(earningsHtml).not.toContain("MOCK-BATCH");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "performance" }))).not.toContain("720");
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }))).not.toContain("720");
       expect(JSON.stringify(await getWorkerWorkspace(testDb.db))).not.toContain("performanceSalesMinor");
       expect(renderToStaticMarkup(await OwnerWorkspace({ area: "payments" }))).toContain("Paid");
 
@@ -119,7 +122,7 @@ describe("functional product workspaces", () => {
       expect(next.worker.paypalPayoutEmail).toBe("worker@example.test");
       const [preserved] = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, historical.id));
       expect(preserved).toEqual(historical);
-      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id }))).rejects.toThrow("status=error");
+      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id, acknowledged: "yes", termsVersion: String(current.shift.termsVersion) }))).rejects.toThrow("status=error");
       await expect(submitDemoIncentivePayoutAction(form({ incentiveId: historical.id }))).rejects.toThrow("status=error");
       expect(createPayout).toHaveBeenCalledTimes(1);
       expect((await getDemoWorkerShift(testDb.db))?.offer.status).toBe("OFFERED");
@@ -139,4 +142,44 @@ describe("functional product workspaces", () => {
       expect((await getWorkerWorkspace(testDb.db)).assignments).toEqual([]);
     } finally { await testDb.close(); }
   });
+  it("uses real team/policy/requirement actions and shows commission terms with acknowledgement before acceptance", async () => {
+    const t = await createTestDatabase();
+    try {
+      configure(t.db);
+      await expect(createTeamAction(form({ firstName:"Sam", surname:"Taylor", telephone:"+27111234567", email:"sam@example.test" }))).rejects.toThrow("REDIRECT:/manager/team?status=saved");
+      let ops = await getOperations(t.db);
+      expect(ops.team[0]).toMatchObject({worker:{displayName:"Sam Taylor"},invitation:{state:"CREATED_NOT_SENT"}});
+      const teamHtml = renderToStaticMarkup(await ManagerWorkspace({area:"team"}));
+      expect(teamHtml).toContain("Sam Taylor");
+      expect(teamHtml).toContain("Prepared · not delivered");
+      expect(teamHtml).not.toContain('name="payoutEmail"');
+      expect(teamHtml).not.toContain("Worker Pool");
+      await expect(createPolicyAction(form({name:"Commission policy",earningsModel:"COMMISSION",rate:"5"}))).rejects.toThrow("REDIRECT:/owner/policies?status=saved");
+      const demo = await publishDemoShift(t.db);
+      ops = await getOperations(t.db);
+      const departmentId = ops.departments[0].id;
+      await expect(createRequirementAction(form({ departmentId, policyId:ops.policies[0].id, headcount:"2", startsAt:"2026-12-01T10:00", endsAt:"2026-12-01T16:00", planDate:"2026-12-01" }))).rejects.toThrow("REDIRECT:/manager/plan?date=2026-12-01&status=saved");
+      const requirement = (await getOperations(t.db)).requirements.find(r => r.policyId === ops.policies[0].id)!;
+      const offer = await offerAssignment(t.db, requirement.id, demo.worker.id);
+      const shiftsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"shifts"}));
+      const commissionArticle = shiftsHtml.split("<article").find(a => a.includes("Commission rate"))!;
+      expect(commissionArticle).toContain("Verified attributed sales");
+      expect(commissionArticle).toContain("5%");
+      expect(commissionArticle).not.toContain("Expected work earnings");
+      expect(commissionArticle).toContain("I have reviewed and accept the terms of this work assignment");
+      expect(commissionArticle).toContain('value="ACCEPTED" disabled=""');
+      await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED"}))).rejects.toThrow("status=error");
+      await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED",acknowledged:"yes"}))).rejects.toThrow("status=saved");
+      const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"earnings"}));
+      expect(earningsHtml).toContain("Commission awaiting verified attributed sales");
+      const filtered = renderToStaticMarkup(await ManagerWorkspace({area:"plan",date:"2026-12-01",department:departmentId}));
+      expect(filtered).toContain("2 required");
+      expect(filtered).toContain("1 accepted");
+      expect(filtered).toContain("Sam Taylor");
+      expect(filtered).toContain('name="planDate" value="2026-12-01"');
+      await expect(ManagerAreaPage({params:Promise.resolve({area:"workers"}),searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/manager/team");
+      await expect(WorkerAreaPage({params:Promise.resolve({area:"schedule"}),searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/worker/shifts");
+    } finally {await t.close();}
+  });
+
 });

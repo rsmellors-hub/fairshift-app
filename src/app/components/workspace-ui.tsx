@@ -26,12 +26,15 @@ export function PaymentBadge({ status }: { status?: string | null }) {
   return <StatusBadge tone={status === "PAID" ? "success" : status === "FAILED" ? "danger" : "neutral"}>{paymentLabel(status)}</StatusBadge>;
 }
 
-export function ShiftTerms({ shift }: { shift: Pick<typeof shifts.$inferSelect, "startsAt" | "endsAt" | "guaranteedBasePayMinor" | "incentiveAmountMinor" | "currencyCode"> }) {
+export function ShiftTerms({ shift }: { shift: Pick<typeof shifts.$inferSelect, "startsAt" | "endsAt" | "guaranteedBasePayMinor" | "incentiveAmountMinor" | "currencyCode"> & Partial<Pick<typeof shifts.$inferSelect, "earningsModel" | "rateMinor" | "commissionBps" | "expectedEarningsMinor">> }) {
+  const model = shift.earningsModel ?? "DAILY";
   return <dl className="shift-terms">
+    <div><dt>Location</dt><dd>Rosebank Kitchen</dd></div>
     <div><dt>Starts · Johannesburg time</dt><dd>{dateTime(shift.startsAt)}</dd></div>
     <div><dt>Ends · Johannesburg time</dt><dd>{dateTime(shift.endsAt)}</dd></div>
-    <div><dt>Guaranteed base pay</dt><dd>{money(shift.guaranteedBasePayMinor, shift.currencyCode)}</dd></div>
-    <div><dt>Optional incentive</dt><dd>{money(shift.incentiveAmountMinor, shift.currencyCode)}</dd></div>
+    <div><dt>Earnings model</dt><dd>{model === "COMMISSION" ? "Commission" : model === "HOURLY" ? "Hourly" : "Daily"}</dd></div>
+    {model === "COMMISSION" ? <><div><dt>Commission rate</dt><dd>{(shift.commissionBps ?? 0) / 100}%</dd></div><div><dt>Basis</dt><dd>Verified attributed sales</dd></div></> : <><div><dt>Rate</dt><dd>{money(shift.rateMinor ?? shift.guaranteedBasePayMinor, shift.currencyCode)}{model === "HOURLY" ? "/hour" : "/day"}</dd></div>{model === "HOURLY" ? <div><dt>Scheduled duration</dt><dd>{(shift.endsAt.getTime()-shift.startsAt.getTime()) / 3600000} hours</dd></div> : null}<div><dt>Expected work earnings</dt><dd>{money(shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor, shift.currencyCode)}</dd></div></>}
+    <div><dt>Potential incentive</dt><dd>{money(shift.incentiveAmountMinor, shift.currencyCode)}</dd></div>
   </dl>;
 }
 

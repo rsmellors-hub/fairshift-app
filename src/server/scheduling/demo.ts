@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import {
   DEMO_CASUAL_WORKER_ID,
@@ -8,6 +8,7 @@ import {
   DEMO_SHIFT_ID,
   DEMO_SHIFT_OFFER_ID,
 } from "@/server/constants";
+import { respondToAssignment } from "./operations";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import {
   auditEvents,
@@ -16,6 +17,7 @@ import {
   shiftIncentives,
   shifts,
   workers,
+  departments,
 } from "@/server/db/schema";
 
 export const DEMO_SHIFT_TERMS = {
@@ -28,7 +30,7 @@ export const DEMO_SHIFT_TERMS = {
   incentiveTargetMinor: 65_000,
   incentiveAmountMinor: 2_500,
   gratuityPolicy:
-    "Gratuity is separate from guaranteed base pay and is calculated from verified shift gratuities.",
+    "Gratuity is separate from work earnings; its settlement is not tracked here.",
   incentivePolicy:
     "Optional team incentive is earned only if the published team target is achieved and later verified.",
 } as const;
@@ -74,8 +76,10 @@ function nextDemoDate(previous: string) {
 async function createDemoShift(db: DatabaseSession, shiftId: string, offerId: string, shiftDate: string) {
   const worker = await ensureDemoCasualWorker(db);
   const now = new Date();
+  let [department] = await db.select().from(departments).where(and(eq(departments.outletId, DEMO_OUTLET_ID), eq(departments.name, "General")));
+  if (!department) [department] = await db.insert(departments).values({ id: randomUUID(), outletId: DEMO_OUTLET_ID, name: "General" }).onConflictDoUpdate({ target: [departments.outletId, departments.name], set: { name: "General" } }).returning();
   const [shift] = await db.insert(shifts).values({
-    id: shiftId, outletId: DEMO_OUTLET_ID, ...DEMO_SHIFT_TERMS,
+    id: shiftId, outletId: DEMO_OUTLET_ID, ...DEMO_SHIFT_TERMS, departmentId: department.id, earningsModel: "DAILY", rateMinor: DEMO_SHIFT_TERMS.guaranteedBasePayMinor, expectedEarningsMinor: DEMO_SHIFT_TERMS.guaranteedBasePayMinor,
     shiftDate,
     startsAt: new Date(`${shiftDate}T06:00:00.000Z`),
     endsAt: new Date(`${shiftDate}T14:00:00.000Z`),
@@ -100,6 +104,7 @@ export async function ensureDemoCasualWorker(db: DatabaseSession) {
       id: DEMO_CASUAL_WORKER_ID,
       organisationId: DEMO_ORGANISATION_ID,
       displayName: "Alex Morgan",
+      locationId: DEMO_OUTLET_ID,
       workerType: "CASUAL",
       status: "ACTIVE",
     })
@@ -168,6 +173,7 @@ export async function getDemoWorkerShift(db: DatabaseSession) {
         eq(workers.organisationId, DEMO_ORGANISATION_ID),
         eq(shifts.outletId, DEMO_OUTLET_ID),
         eq(shifts.roleName, DEMO_SHIFT_TERMS.roleName),
+        isNull(shifts.policyId),
       ),
     )
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt), desc(shifts.id))
@@ -176,75 +182,10 @@ export async function getDemoWorkerShift(db: DatabaseSession) {
   return row ?? null;
 }
 
-export async function acceptDemoShift(db: DatabaseSession, expectedShiftId?: string) {
+export async function acceptDemoShift(db: Database, expectedShiftId?: string, acknowledged = false, expectedTermsVersion?: number) {
   const current = await getDemoWorkerShift(db);
-
-  if (!current || (expectedShiftId && current.shift.id !== expectedShiftId)) {
-    throw new Error("Shift offer is unavailable.");
-  }
-
-  if (current.shift.status !== "PUBLISHED") {
-    throw new Error("Only published shifts can be accepted.");
-  }
-
-  if (current.worker.status !== "ACTIVE") {
-    throw new Error("Inactive workers cannot accept shifts.");
-  }
-
-  if (current.offer.status === "ACCEPTED") {
-    return current;
-  }
-
-  if (current.offer.status !== "OFFERED") {
-    throw new Error("Shift offer is no longer available for acceptance.");
-  }
-
-  const now = new Date();
-
-  const [accepted] = await db
-    .update(shiftOffers)
-    .set({
-      status: "ACCEPTED",
-      respondedAt: now,
-      acceptedAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(shiftOffers.id, current.offer.id),
-        eq(shiftOffers.shiftId, current.shift.id),
-        eq(shiftOffers.workerId, DEMO_CASUAL_WORKER_ID),
-        eq(shiftOffers.status, "OFFERED"),
-      ),
-    )
-    .returning();
-
-  if (!accepted) {
-    const recovered = await getDemoWorkerShift(db);
-
-    if (recovered?.offer.status === "ACCEPTED") {
-      return recovered;
-    }
-
-    throw new Error("Shift acceptance could not be persisted.");
-  }
-
-  await writeSchedulingAudit(db, {
-    action: "SHIFT_ACCEPTED",
-    entityType: "shift_offer",
-    entityId: accepted.id,
-    correlationId: `demo-cycle:${current.shift.id}`,
-    metadata: {
-      workerId: DEMO_CASUAL_WORKER_ID,
-      shiftId: current.shift.id,
-    },
-  });
-
-  const result = await getDemoWorkerShift(db);
-
-  if (!result || result.offer.status !== "ACCEPTED") {
-    throw new Error("Persisted shift acceptance could not be confirmed.");
-  }
-
-  return result;
+  if (!current || (expectedShiftId && current.shift.id !== expectedShiftId)) throw new Error("Shift offer is unavailable.");
+  if (expectedTermsVersion !== undefined && expectedTermsVersion !== current.shift.termsVersion) throw new Error("Assignment terms changed. Review the new version.");
+  await respondToAssignment(db, DEMO_CASUAL_WORKER_ID, current.offer.id, current.shift.termsVersion, "ACCEPTED", acknowledged);
+  return (await getDemoWorkerShift(db))!;
 }
