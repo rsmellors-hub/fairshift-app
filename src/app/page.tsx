@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { CreateSaleButton } from "@/app/components/create-sale-button";
+import { FairShiftBrand } from "@/app/components/product-shell";
+import { StatusBadge } from "@/app/components/product-ui";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import {
@@ -51,44 +53,78 @@ export default async function Home() {
         : "CONFIGURED — NOT VERIFIED";
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <span className="sandbox-banner">PAYPAL SANDBOX ONLY</span>
+    <main className="entry-shell">
+      <header className="entry-topbar">
+        <FairShiftBrand />
+        <span className="entry-status">Product preview · Sandbox environment</span>
       </header>
 
-      <section className="hero">
+      <section className="entry-hero">
         <div>
-          <span className="eyebrow">Inbound payment evidence</span>
-          <h1>From PayPal sandbox<br /><em>to persisted FairShift sale.</em></h1>
-          <p>This slice creates an order on the server, returns through buyer approval, captures it, and reconciles the capture before a sale can be verified.</p>
+          <span className="eyebrow">Workforce operating intelligence</span>
+          <h1>Turn demand into the right shift — and approved work into payment.</h1>
+          <p>FairShift connects commercial activity, demand forecasting, staffing decisions and transparent worker payments in one operating loop.</p>
+          <div className="entry-actions">
+            <Link className="primary-button button-link" href="/manager">Open manager workspace</Link>
+            <Link className="secondary-button button-link" href="/worker">Open worker workspace</Link>
+          </div>
+          <p className="entry-note">These links open current demo product contexts. Sign-in and role-based access are not yet implemented.</p>
         </div>
-        <div className="proof-card">
-          <span>Technical proof amount</span>
-          <strong>{configuration.currency} {configuration.amount}</strong>
-          <small>USD is listed for PayPal REST payments. ZAR is not assumed.</small>
+        <div className="operating-loop" aria-label="FairShift operating loop">
+          <span>01 · Understand demand</span>
+          <strong>Sales → forecast → staffing</strong>
+          <span>02 · Put the plan to work</span>
+          <strong>Shifts → workers → performance</strong>
+          <span>03 · Pay transparently</span>
+          <strong>Approval → PayPal → confirmation</strong>
         </div>
       </section>
 
-      <section className="status-grid">
-        <article><span>PayPal integration</span><strong className={paypalState === "CONNECTED" ? "good" : "neutral"}>{paypalState}</strong><small>{configuration.environment}</small></article>
-        <article><span>PostgreSQL</span><strong className={databaseState === "CONNECTED" ? "good" : "neutral"}>{databaseState}</strong><small>Authoritative application state</small></article>
-        <article><span>Webhook</span><strong className="neutral">IMPLEMENTED</strong><small>NOT YET LIVE-VERIFIED</small></article>
-        <article><span>Operational intelligence</span><strong className="good">IMPLEMENTED</strong><small>Local statistical forecast · <Link href="/manager">View demand &amp; staffing</Link></small></article>
-      </section>
-
-      <section className="panel outlet-panel">
-        <div>
-          <span className="eyebrow">Seeded outlet</span>
-          <h2>{outlet?.name ?? "Rosebank Kitchen"}</h2>
-          <p>{outlet?.timezone ?? "Africa/Johannesburg"} · one outlet only</p>
+      <section className="entry-contexts" aria-labelledby="available-workspaces">
+        <div className="section-heading">
+          <span className="eyebrow">Current product contexts</span>
+          <h2 id="available-workspaces">Explore the verified workflow</h2>
+          <p>These entry points support the current demonstration while leaving room for a future commercial sign-in and onboarding journey.</p>
         </div>
-        <CreateSaleButton enabled={ready} />
+        <div className="context-grid">
+          <Link href="/manager"><span>Manager</span><strong>Forecast, staff and approve</strong><small>Current operational workflow →</small></Link>
+          <Link href="/worker"><span>Worker</span><strong>Review shifts and earnings</strong><small>Current worker workflow →</small></Link>
+          <Link href="/owner"><span>Owner</span><strong>Company intelligence</strong><small>Structural preview →</small></Link>
+        </div>
       </section>
 
-      <section className="panel">
+      <section className="integration-summary" aria-labelledby="integration-state">
+        <div className="section-heading">
+          <span className="eyebrow">Truthful integration state</span>
+          <h2 id="integration-state">Connected where it counts</h2>
+        </div>
+        <div className="overview-strip">
+          <div><span>Worker payments</span><StatusBadge tone="success">PayPal Sandbox connected</StatusBadge></div>
+          <div><span>Demand input</span><StatusBadge tone="warning">Zettle planned · needs verification</StatusBadge></div>
+          <div><span>Current sales evidence</span><StatusBadge tone="fact">Demo seeded or verified Sandbox</StatusBadge></div>
+        </div>
+      </section>
+
+      <details className="evidence-lab">
+        <summary>PayPal inbound integration evidence</summary>
+        <div className="evidence-lab-content">
+          <div className="panel outlet-panel">
+            <div>
+              <span className="eyebrow">Sandbox test outlet</span>
+              <h2>{outlet?.name ?? "Rosebank Kitchen"}</h2>
+              <p>{outlet?.timezone ?? "Africa/Johannesburg"} · one demo outlet</p>
+            </div>
+            <CreateSaleButton enabled={ready} />
+          </div>
+          <div className="status-grid">
+            <article><span>PayPal inbound</span><strong className={paypalState === "CONNECTED" ? "good" : "neutral"}>{paypalState}</strong><small>{configuration.environment}</small></article>
+            <article><span>Application data</span><strong className={databaseState === "CONNECTED" ? "good" : "neutral"}>{databaseState}</strong><small>PostgreSQL</small></article>
+            <article><span>Webhook</span><strong className="neutral">Implemented</strong><small>Not live-verified</small></article>
+            <article><span>Forecasting</span><strong className="good">Implemented</strong><small><Link href="/manager">View manager evidence</Link></small></article>
+          </div>
+          <section className="panel">
         <div className="panel-head">
-          <div><span className="eyebrow">Persisted evidence</span><h2>Sandbox transactions</h2></div>
+          <div><span className="eyebrow">Technical evidence</span><h2>Sandbox transactions</h2></div>
           <span className="count">{transactions.length}</span>
         </div>
         {transactions.length === 0 ? (
@@ -113,7 +149,9 @@ export default async function Home() {
             ))}
           </div>
         )}
-      </section>
+          </section>
+        </div>
+      </details>
     </main>
   );
 }

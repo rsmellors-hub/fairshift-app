@@ -23,11 +23,13 @@ function money(value: number) {
 export default async function ManagerPage() {
   if (!getConfigurationStatus().databaseConfigured) {
     return (
-      <ManagerForecast
-        result={null}
-        aiResult={null}
-        error="PostgreSQL is not configured. Connect the database to read persisted commercial history."
-      />
+      <div className="product-page">
+        <ManagerForecast
+          result={null}
+          aiResult={null}
+          error="Commercial history is unavailable until the workspace data connection is configured."
+        />
+      </div>
     );
   }
 
@@ -36,11 +38,13 @@ export default async function ManagerPage() {
     result = await getManagerForecast(getDatabase());
   } catch {
     return (
-      <ManagerForecast
-        result={null}
-        aiResult={null}
-        error="Commercial history could not be loaded or validated. Check the database connection and migrations."
-      />
+      <div className="product-page">
+        <ManagerForecast
+          result={null}
+          aiResult={null}
+          error="Commercial history could not be loaded or validated. Try again after checking the workspace data connection."
+        />
+      </div>
     );
   }
 
@@ -53,7 +57,7 @@ export default async function ManagerPage() {
   const payoutConfigured = getConfigurationStatus().paypalPayoutConfigured;
 
   return (
-    <>
+    <div className="product-page">
       <ManagerForecast result={result} aiResult={aiResult} />
 
       {result.status === "AVAILABLE" ? (
@@ -103,6 +107,6 @@ export default async function ManagerPage() {
           <p className="method-note">Performance threshold and incentive amount are fixed demo shift terms. Earnings are deterministic; only a manager action approves payment. No real payout is sent unless PayPal Sandbox credentials and a recipient are configured.</p>
         </div>
       </section>
-    </>
+    </div>
   );
 }

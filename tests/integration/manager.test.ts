@@ -39,7 +39,7 @@ describe("persisted commercial history to manager output", () => {
         databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
       const html = renderToStaticMarkup(await ManagerPage());
-      expect(html).toContain("DEMO / SEEDED — NOT PAYPAL-VERIFIED");
+      expect(html).toContain("Demo / seeded · not PayPal verified");
       expect(html).toContain("Recommended worker delta");
       expect(html).toContain("+3");
       expect(html).toContain("Historical evidence");
@@ -77,7 +77,7 @@ describe("persisted commercial history to manager output", () => {
       const result = await getManagerForecast(testDb.db, DEMO_AS_OF);
       expect(result).toMatchObject({ source: "PAYPAL_SANDBOX", forecastSalesMinor: 160001, eligibleTransactions: 1, staffing: { workers: 3, workerDelta: -2 } });
       const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));
-      expect(html).toContain("PAYPAL SANDBOX — VERIFIED TRANSACTION INPUTS");
+      expect(html).toContain("Historical fact · verified PayPal Sandbox sales");
       expect(html).not.toContain("Fixed synthetic scenario");
       // These are test fixtures, not live PayPal evidence.
     } finally {
@@ -114,7 +114,7 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: false, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      expect(renderToStaticMarkup(await ManagerPage())).toContain("PostgreSQL is not configured");
+      expect(renderToStaticMarkup(await ManagerPage())).toContain("Commercial history is unavailable");
       expect(getDatabase).not.toHaveBeenCalled();
     } finally {
       vi.resetAllMocks();

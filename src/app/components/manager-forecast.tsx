@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import type { ForecastResult } from "@/server/intelligence/forecast";
 import type { AiAssessmentResult } from "@/server/integrations/openai/operational-intelligence";
 
@@ -17,27 +16,22 @@ export function ManagerForecast({
   error?: string;
 }) {
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <Link href="/">PayPal integration evidence</Link>
-      </header>
-      <section className="panel">
-        <span className="eyebrow">Manager · operational intelligence</span>
-        <h1>Demand → staffing decision</h1>
-        <p>FairShift — operational intelligence for hourly businesses.</p>
-        <p className="method-note">Deterministic demand and staffing baseline · separate AI-assisted operational interpretation.</p>
-      </section>
+    <>
+      <PageHeader
+        eyebrow="Operational overview"
+        title="Demand to staffing decision"
+        description="Review the factual sales history, demand forecast and staffing recommendation before taking action."
+      />
       {!result || result.status === "UNAVAILABLE" ? (
-        <section className="panel" role="status">
-          <h2>Forecast unavailable</h2>
+        <StatePanel title="Forecast unavailable" tone="warning">
           <p>{error ?? "No eligible completed sales in the 56-day lookback. No forecast or staffing recommendation has been invented."}</p>
-          <p className="method-note">After configuring PostgreSQL and applying migrations, optionally run <code>pnpm db:seed-demo</code> for clearly labelled synthetic history.</p>
-        </section>
+        </StatePanel>
       ) : (
         <>
           <section className="panel">
-            <strong className="sandbox-banner">{result.source === "DEMO_SEEDED" ? "DEMO / SEEDED — NOT PAYPAL-VERIFIED" : "PAYPAL SANDBOX — VERIFIED TRANSACTION INPUTS"}</strong>
+            <DataLabel kind={result.source === "DEMO_SEEDED" ? "demo" : "fact"}>
+              {result.source === "DEMO_SEEDED" ? "Demo / seeded · not PayPal verified" : "Historical fact · verified PayPal Sandbox sales"}
+            </DataLabel>
             <h2>{result.outletName} · {result.targetDate}</h2>
             <p>{result.timezone} · {result.staffing.policy.tradingHours}-hour trading day · USD</p>
             <p className="method-note">{result.source === "DEMO_SEEDED"
@@ -45,8 +39,8 @@ export function ManagerForecast({
               : "Uses completed, reconciled PayPal sandbox sales only. Seeded transactions are excluded."}</p>
           </section>
           <section className="status-grid forecast-grid" aria-label="Forecast and staffing">
-            <article><span>Expected sales</span><strong>{money(result.forecastSalesMinor)}</strong><small>Demand estimate; not a team sales target</small></article>
-            <article><span>Planning range</span><strong>{money(result.lowerSalesMinor)}–{money(result.upperSalesMinor)}</strong><small>{result.support} evidence support · not a calibrated confidence interval</small></article>
+            <article><DataLabel kind="predictive">Forecast</DataLabel><span>Expected sales</span><strong>{money(result.forecastSalesMinor)}</strong><small>Demand estimate; not a team sales target</small></article>
+            <article><DataLabel kind="predictive">Forecast range</DataLabel><span>Planning range</span><strong>{money(result.lowerSalesMinor)}–{money(result.upperSalesMinor)}</strong><small>{result.support} evidence support · not a calibrated confidence interval</small></article>
             <article><span>Recommended workers</span><strong>{result.staffing.workers}</strong><small>Minimum opening coverage: {result.staffing.policy.minimumWorkers}</small></article>
             <article><span>Recommended worker delta</span><strong>{result.staffing.workerDelta > 0 ? "+" : ""}{result.staffing.workerDelta}</strong><small>Versus {result.staffing.policy.comparisonWorkers} workers — comparison assumption, not a saved plan</small></article>
           </section>
@@ -58,7 +52,7 @@ export function ManagerForecast({
             <p>{result.action}</p>
           </section>
           <section className="panel" aria-label="AI operational assessment">
-            <span className="eyebrow">AI operational assessment</span>
+            <DataLabel kind="predictive">AI-assisted interpretation</DataLabel>
             <h2>Operational interpretation</h2>
             {aiResult?.status === "AVAILABLE" ? (
               <>
@@ -101,6 +95,7 @@ export function ManagerForecast({
             )}
           </section>
           <section className="panel">
+            <DataLabel kind="fact">Historical fact</DataLabel>
             <h2>Historical evidence</h2>
             <p>{result.eligibleTransactions} eligible transactions across {result.eligibleDays} observed days. {result.evidence.length} days selected using {result.basis === "SAME_WEEKDAY" ? "the same weekday" : "the sparse-history fallback"}.</p>
             <div className="history-scroll">
@@ -119,6 +114,6 @@ export function ManagerForecast({
           </section>
         </>
       )}
-    </main>
+    </>
   );
 }

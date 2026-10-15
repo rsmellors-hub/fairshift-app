@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
 import { acceptDemoShiftAction } from "@/app/scheduling-actions";
 import { saveDemoPayoutDestinationAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
@@ -25,20 +26,25 @@ function formatDateTime(value: Date) {
   }).format(value);
 }
 
+function paymentStatus(value: string | null) {
+  if (!value) return "Not submitted";
+  if (value === "SUCCESS" || value === "PAID") return "Paid";
+  if (value === "FAILED" || value === "DENIED" || value === "RETURNED") return "Needs attention";
+  return "Processing";
+}
+
 export default async function WorkerPage() {
   const configuration = getConfigurationStatus();
 
   if (!configuration.databaseConfigured) {
     return (
-      <main className="centered-shell">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <section className="result-card">
-          <span className="eyebrow">Worker shift</span>
-          <h2>Database not configured</h2>
-          <p>Connect PostgreSQL before loading persisted worker shift terms.</p>
+      <div className="product-page">
+        <PageHeader eyebrow="Worker home" title="Your work at a glance" />
+        <StatePanel title="Shift information is unavailable" tone="warning">
+          <p>Your shift details cannot be loaded right now. Try again after the workspace has been configured.</p>
           <Link className="text-link" href="/manager">Back to manager</Link>
-        </section>
-      </main>
+        </StatePanel>
+      </div>
     );
   }
 
@@ -50,29 +56,25 @@ export default async function WorkerPage() {
     incentive = await getDemoIncentive(getDatabase());
   } catch {
     return (
-      <main className="centered-shell">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <section className="result-card">
-          <span className="eyebrow">Worker shift</span>
-          <h2>Shift could not be loaded</h2>
-          <p>Check the database connection and workforce scheduling migration.</p>
+      <div className="product-page">
+        <PageHeader eyebrow="Worker home" title="Your work at a glance" />
+        <StatePanel title="Shift could not be loaded" tone="danger">
+          <p>We could not load your shift information. Try again in a moment.</p>
           <Link className="text-link" href="/manager">Back to manager</Link>
-        </section>
-      </main>
+        </StatePanel>
+      </div>
     );
   }
 
   if (!assignment) {
     return (
-      <main className="centered-shell">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <section className="result-card">
-          <span className="eyebrow">Worker shift</span>
-          <h2>No shift offered yet</h2>
+      <div className="product-page">
+        <PageHeader eyebrow="Worker home" title="Your work at a glance" />
+        <StatePanel title="No shift offers yet">
           <p>A manager must publish the demo casual shift before it appears here.</p>
           <Link className="text-link" href="/manager">Go to manager view</Link>
-        </section>
-      </main>
+        </StatePanel>
+      </div>
     );
   }
 
@@ -80,22 +82,19 @@ export default async function WorkerPage() {
   const accepted = offer.status === "ACCEPTED";
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="brand"><span>F</span><strong>FairShift</strong></div>
-        <span className={accepted ? "worker-state accepted" : "worker-state offered"}>
-          {offer.status}
-        </span>
-      </header>
+    <div className="product-page worker-page">
+      <PageHeader
+        eyebrow="Worker home"
+        title={`Welcome, ${worker.displayName}`}
+        description="Your next shift, earnings opportunity and payment progress."
+        actions={<StatusBadge tone={accepted ? "success" : "warning"}>{accepted ? "Offer accepted" : "Response needed"}</StatusBadge>}
+      />
 
-      <section className="worker-hero">
+      <section className="worker-next-shift">
         <div>
-          <span className="eyebrow">Casual worker portal</span>
-          <h1>{worker.displayName}</h1>
-          <p>
-            Review the exact published shift terms before accepting.
-            Acceptance does not alter the guaranteed base pay or published policies.
-          </p>
+          <span className="eyebrow">Next shift</span>
+          <h2>{shift.roleName}</h2>
+          <p>{formatDateTime(shift.startsAt)} · Rosebank Kitchen</p>
         </div>
         <div className="worker-pay-card">
           <span>Guaranteed base pay</span>
@@ -104,13 +103,13 @@ export default async function WorkerPage() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" aria-labelledby="shift-terms-heading">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Published shift</span>
-            <h2>{shift.roleName}</h2>
+            <span className="eyebrow">Your offer</span>
+            <h2 id="shift-terms-heading">Shift terms</h2>
           </div>
-          <span className="count">{shift.status}</span>
+          <StatusBadge tone={accepted ? "success" : "warning"}>{accepted ? "Accepted" : "Offered"}</StatusBadge>
         </div>
 
         <dl className="shift-terms">
@@ -128,7 +127,7 @@ export default async function WorkerPage() {
           </div>
           <div>
             <dt>Offer status</dt>
-            <dd>{offer.status}</dd>
+            <dd>{accepted ? "Accepted" : "Awaiting your response"}</dd>
           </div>
         </dl>
       </section>
@@ -148,19 +147,19 @@ export default async function WorkerPage() {
       </section>
 
       <section className="panel">
-        <span className="eyebrow">Shift incentive</span>
+        <span className="eyebrow">Incentive progress</span>
         {incentive ? (
           <>
-            <h2>{incentive.incentive.status.replaceAll("_", " ")}</h2>
+            <h2>{incentive.incentive.status === "EARNED" ? "Incentive earned" : incentive.incentive.status === "APPROVED" ? "Approved for payment" : incentive.incentive.status === "PAID" ? "Paid" : incentive.incentive.status.replaceAll("_", " ").toLowerCase()}</h2>
             <p>Team sales {formatMoney(incentive.incentive.performanceSalesMinor, shift.currencyCode)} / target {formatMoney(incentive.incentive.targetSalesMinor, shift.currencyCode)}. Earned incentive: {formatMoney(incentive.incentive.earnedAmountMinor, shift.currencyCode)}.</p>
-            <p>Manager approval: {incentive.incentive.approvedAt ? "APPROVED" : "PENDING"} · PayPal payout: {incentive.incentive.paypalStatus ?? "NOT SUBMITTED"}</p>
+            <p>Manager approval: {incentive.incentive.approvedAt ? "Approved" : "Awaiting approval"} · Payment: {paymentStatus(incentive.incentive.paypalStatus)}</p>
           </>
         ) : <p>No completed shift result has been recorded yet.</p>}
         <form action={saveDemoPayoutDestinationAction}>
-          <label>PayPal payout email <input name="payoutEmail" type="email" maxLength={254} defaultValue={worker.paypalPayoutEmail ?? ""} required /></label>
-          <button className="secondary-button" type="submit">Save payout destination</button>
+          <label>Payment email <input name="payoutEmail" type="email" maxLength={254} defaultValue={worker.paypalPayoutEmail ?? ""} required /></label>
+          <button className="secondary-button" type="submit">Save payment details</button>
         </form>
-        <p className="method-note">Payout destination is used only after the incentive is earned and approved by a manager.</p>
+        <p className="method-note">This will move to Profile in the dedicated worker experience. It is used only after earnings are approved by a manager.</p>
       </section>
 
       <section className="panel worker-action-panel">
@@ -169,13 +168,13 @@ export default async function WorkerPage() {
           <h2>{accepted ? "Shift accepted" : "Accept these terms?"}</h2>
           <p>
             {accepted
-              ? `Acceptance persisted${offer.acceptedAt ? ` at ${formatDateTime(offer.acceptedAt)}` : ""}.`
-              : "Accepting records your response against this exact published shift offer."}
+              ? `You accepted this offer${offer.acceptedAt ? ` on ${formatDateTime(offer.acceptedAt)}` : ""}.`
+              : "Accepting confirms these published shift terms."}
           </p>
         </div>
 
         {accepted ? (
-          <span className="accepted-proof">ACCEPTED · PERSISTED</span>
+          <StatusBadge tone="success">Accepted</StatusBadge>
         ) : (
           <form action={acceptDemoShiftAction}>
             <button className="primary-button" type="submit">Accept shift</button>
@@ -184,6 +183,6 @@ export default async function WorkerPage() {
       </section>
 
       <Link className="text-link" href="/manager">← Manager operational view</Link>
-    </main>
+    </div>
   );
 }
