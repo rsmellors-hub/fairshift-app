@@ -112,11 +112,38 @@ describe("Owner onboarding upgrade", () => {
    const before=await Promise.all(unchanged.map(table=>client.query(`SELECT * FROM ${table}`)));
    const userBefore=(await client.query<Record<string,unknown>>("SELECT * FROM auth_users")).rows[0];
    const orgBefore=(await client.query<Record<string,unknown>>("SELECT * FROM organisations")).rows[0];
-   for(const entry of journal.entries.slice(8)) await apply(entry.tag);
+   for(const entry of journal.entries.slice(8,9)) await apply(entry.tag);
    for(const [i,table] of unchanged.entries()) expect((await client.query(`SELECT * FROM ${table}`)).rows).toEqual(before[i].rows);
    expect((await client.query("SELECT * FROM auth_users")).rows[0]).toEqual({...userBefore,title:null,first_name:null,surname:null,position:null,telephone:null});
    expect((await client.query("SELECT * FROM organisations")).rows[0]).toEqual({...orgBefore,business_address:null,city:null,province:null,postal_code:null,country:null});
    await expect(client.exec("UPDATE auth_users SET title='Invalid'" )).rejects.toThrow();
   } finally {await client.close();}
+ });
+});
+
+describe("subscription-first 0008 to 0009 upgrade",()=>{
+ it("preserves legacy data, backfills only completed workplaces, and leaves commercial limits unassigned",async()=>{
+  const client=new PGlite();try {
+   const journal=JSON.parse(await readFile("drizzle/meta/_journal.json","utf8")) as {entries:{tag:string}[]};
+   async function apply(tag:string) {for(const statement of (await readFile(`drizzle/${tag}.sql`,"utf8")).split("--> statement-breakpoint")) if(statement.trim()) await client.exec(statement);}
+   for(const entry of journal.entries.slice(0,9)) await apply(entry.tag);
+   await client.exec(`INSERT INTO auth_users(id,email,name,password_hash,email_verified_at,title,first_name,surname,position,telephone) VALUES ('90000000-0000-4000-8000-000000000001','owner@example.test','Sam Taylor','fixture',now(),'Ms','Sam','Taylor','Owner','+27111234567');
+    UPDATE organisations SET name='FairShift Demo',business_address='1 Business Road',city='Johannesburg',province='Gauteng',postal_code='2000',country='South Africa';
+    INSERT INTO organisation_memberships(id,user_id,organisation_id,role) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','OWNER');
+    INSERT INTO organisation_subscriptions(id,organisation_id,request_id,status,provider_id,plan_id,verified_at) VALUES ('90000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','90000000-0000-4000-8000-000000000004','ACTIVE','I-LEGACY','P-LEGACY',now());
+    INSERT INTO organisations(id,name) VALUES ('90000000-0000-4000-8000-000000000005','Incomplete business');`);
+   const unchanged=["auth_users","organisation_memberships","shift_offers","shift_incentives","sale_transactions"];
+   const before=await Promise.all(unchanged.map(table=>client.query(`SELECT * FROM ${table}`)));
+   const orgBefore=(await client.query<Record<string,unknown>>("SELECT * FROM organisations WHERE name='FairShift Demo'")).rows[0];
+   const subBefore=(await client.query<Record<string,unknown>>("SELECT * FROM organisation_subscriptions")).rows[0];
+   const locationBefore=(await client.query<Record<string,unknown>>("SELECT * FROM outlets")).rows;
+   await apply(journal.entries[9].tag);
+   for(const [i,table] of unchanged.entries()) expect((await client.query(`SELECT * FROM ${table}`)).rows).toEqual(before[i].rows);
+   expect((await client.query("SELECT * FROM organisation_subscriptions")).rows[0]).toEqual({...subBefore,tier:null,billing_period:null,location_limit:null});
+   expect((await client.query("SELECT * FROM outlets")).rows).toEqual(locationBefore.map(row=>({...row,active:true})));
+   expect((await client.query("SELECT * FROM organisations WHERE name='FairShift Demo'")).rows[0]).toEqual({...orgBefore,setup_completed_at:orgBefore.updated_at});
+   expect((await client.query("SELECT setup_completed_at FROM organisations WHERE name='Incomplete business'")).rows[0]).toEqual({setup_completed_at:null});
+   for(const values of ["tier='SINGLE_OUTLET',billing_period='MONTHLY',location_limit=2","tier='MULTI_OUTLET',billing_period='ANNUAL',location_limit=6","tier='SINGLE_OUTLET',billing_period='MONTHLY',location_limit=null","tier='ENTERPRISE',location_limit=0","tier=null,location_limit=3","tier='MULTI_OUTLET',location_limit=5,billing_period=null"]) await expect(client.exec(`UPDATE organisation_subscriptions SET ${values}`)).rejects.toThrow();
+  }finally{await client.close();}
  });
 });

@@ -11,12 +11,12 @@ export interface SubscriptionAdapter {
 }
 export class PayPalSubscriptions extends PayPalClient implements SubscriptionAdapter {
  async create(input:{organisationId:string;requestId:string;planId:string}) {
-  return subscriptionDetails.parse(await this.authorizedRequest("/v1/billing/subscriptions",{method:"POST",headers:{"Content-Type":"application/json","PayPal-Request-Id":input.requestId,Prefer:"return=representation"},body:JSON.stringify({plan_id:input.planId,custom_id:input.organisationId,application_context:{brand_name:"FairShift",user_action:"SUBSCRIBE_NOW",shipping_preference:"NO_SHIPPING",return_url:`${applicationOrigin()}/billing/return`,cancel_url:`${applicationOrigin()}/onboarding?billing=cancelled`}})}));
+  return subscriptionDetails.parse(await this.authorizedRequest("/v1/billing/subscriptions",{method:"POST",headers:{"Content-Type":"application/json","PayPal-Request-Id":input.requestId,Prefer:"return=representation"},body:JSON.stringify({plan_id:input.planId,custom_id:input.organisationId,application_context:{brand_name:"FairShift",user_action:"SUBSCRIBE_NOW",shipping_preference:"NO_SHIPPING",return_url:`${applicationOrigin()}/billing/return`,cancel_url:`${applicationOrigin()}/subscribe?billing=cancelled`}})}));
  }
  async get(id:string) {return subscriptionDetails.parse(await this.authorizedRequest(`/v1/billing/subscriptions/${encodeURIComponent(id)}`,{method:"GET"}));}
 }
 export function getSubscriptionAdapter():SubscriptionAdapter|null {
- const parsed=z.object({PAYPAL_CLIENT_ID:z.string().min(1),PAYPAL_CLIENT_SECRET:z.string().min(1),PAYPAL_SUBSCRIPTION_PLAN_ID:z.string().regex(/^P-[A-Z0-9]+$/),PAYPAL_SUBSCRIPTION_WEBHOOK_ID:z.string().min(1),PAYPAL_ENVIRONMENT:z.literal("sandbox").default("sandbox")}).safeParse(process.env);
+ const parsed=z.object({PAYPAL_CLIENT_ID:z.string().min(1),PAYPAL_CLIENT_SECRET:z.string().min(1),PAYPAL_SUBSCRIPTION_WEBHOOK_ID:z.string().min(1),PAYPAL_ENVIRONMENT:z.literal("sandbox").default("sandbox")}).safeParse(process.env);
  if (!parsed.success) return null;
  return new PayPalSubscriptions({...parsed.data,PAYPAL_ENV:"sandbox",PAYPAL_WEBHOOK_ID:parsed.data.PAYPAL_SUBSCRIPTION_WEBHOOK_ID,APP_BASE_URL:applicationOrigin(),PAYPAL_SANDBOX_CURRENCY:"USD",PAYPAL_SANDBOX_AMOUNT:"5.00",apiBaseUrl:"https://api-m.sandbox.paypal.com"});
 }

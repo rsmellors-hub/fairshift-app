@@ -2,33 +2,33 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { personalDetails, businessDetails } from "@/server/auth/onboarding";
-import { users, organisations, memberships, subscriptions, subscriptionEvents } from "@/server/db/schema";
-import { assertRole, type Scope } from "@/server/auth/access";
+import { configuredPlan, planSelection, locationLimitFor, type PlanSelection } from "./plans";
+import { requireCustomerOwner as owner, type CustomerScope } from "./ownership";
+import { organisations, outlets, subscriptions, subscriptionEvents } from "@/server/db/schema";
 import { tokenHash } from "@/server/auth/identity";
 import { readPayPalTransmissionHeaders, WebhookError } from "@/server/integrations/paypal/webhook";
 import { approvalLink, subscriptionDetails, type SubscriptionAdapter } from "./paypal";
-async function owner(db:DatabaseSession,scope:Scope) {
- assertRole(scope,["OWNER"]);
- const [row]=await db.select().from(memberships).where(and(eq(memberships.userId,scope.userId),eq(memberships.organisationId,scope.organisationId),eq(memberships.role,"OWNER"),eq(memberships.state,"ACTIVE")));
- if (!row) throw new Error("Access denied.");
-}
-export async function subscriptionFor(db:DatabaseSession,scope:Scope) {
+export async function subscriptionFor(db:DatabaseSession,scope:CustomerScope) {
  await owner(db,scope);
  const [row]=await db.select().from(subscriptions).where(eq(subscriptions.organisationId,scope.organisationId));
  return row ?? null;
 }
-export async function startSubscription(db:Database,scope:Scope,adapter:SubscriptionAdapter|null,planId?:string) {
+export async function startSubscription(db:Database,scope:CustomerScope,adapter:SubscriptionAdapter|null,selection?:PlanSelection) {
  await owner(db,scope);
- if (!adapter || !planId) return subscriptionFor(db,scope);
- const [user]=await db.select().from(users).where(eq(users.id,scope.userId));
- const [business]=await db.select().from(organisations).where(eq(organisations.id,scope.organisationId));
- if (!user?.emailVerifiedAt || !personalDetails.safeParse(user).success || !businessDetails.safeParse(business).success) throw new Error("Complete your personal and business details first.");
- // Reserve a stable request ID before any provider call. Network failure leaves a retryable pending fact.
- await db.update(subscriptions).set({status:"PENDING",planId,requestId:randomUUID(),updatedAt:new Date()}).where(and(eq(subscriptions.organisationId,scope.organisationId),eq(subscriptions.status,"UNCONFIGURED")));
+ const choice=selection ? planSelection.parse(selection) : null;
+ const planId=choice ? configuredPlan(choice) : null;
+ if (!adapter || !planId || !choice) throw new Error("This subscription option is currently unavailable. No checkout was created.");
+ // Persist the chosen mapping before calling PayPal; retries cannot change its tier or period.
+ await db.transaction(async tx=>{
+  await tx.select().from(organisations).where(eq(organisations.id,scope.organisationId)).for("update");
+  const active=await tx.select({id:outlets.id}).from(outlets).where(and(eq(outlets.organisationId,scope.organisationId),eq(outlets.active,true)));
+  if (active.length > locationLimitFor(choice.tier)) throw new Error("This plan does not cover your existing active locations. Choose a suitable plan or contact FairShift.");
+  await tx.update(subscriptions).set({status:"PENDING",planId,tier:choice.tier,billingPeriod:choice.billingPeriod,locationLimit:locationLimitFor(choice.tier),requestId:randomUUID(),updatedAt:new Date()}).where(and(eq(subscriptions.organisationId,scope.organisationId),eq(subscriptions.status,"UNCONFIGURED")));
+ });
  return db.transaction(async tx => {
   const [row]=await tx.select().from(subscriptions).where(eq(subscriptions.organisationId,scope.organisationId)).for("update");
   if (!row) throw new Error("Subscription record unavailable.");
+  if (row.planId !== planId || row.tier !== choice.tier || row.billingPeriod !== choice.billingPeriod) throw new Error("An existing subscription uses a different plan. Contact FairShift before changing plans.");
   if (row.providerId) return row;
   if (!row.planId || row.status !== "PENDING") throw new Error("Subscription needs review.");
   // PayPal retains create request IDs for 72 hours. Do not recreate after that protection expires.
@@ -47,7 +47,7 @@ async function reconcile(db:DatabaseSession,adapter:SubscriptionAdapter,id:strin
  const [updated]=await db.update(subscriptions).set({status:details.status,verifiedAt:new Date(),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
  return updated;
 }
-export async function refreshSubscription(db:Database,scope:Scope,adapter:SubscriptionAdapter|null) {
+export async function refreshSubscription(db:Database,scope:CustomerScope,adapter:SubscriptionAdapter|null) {
  await owner(db,scope);
  const row=await subscriptionFor(db,scope);
  if (!adapter || !row?.providerId) return row;

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   date,
   index,
@@ -36,6 +37,7 @@ export const authLimits = pgTable("auth_limits", {
 export const organisations = pgTable("organisations", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
+  setupCompletedAt: timestamp("setup_completed_at", {withTimezone:true}),
   businessAddress: text("business_address"), city: text("city"), province: text("province"),
   postalCode: text("postal_code"), country: text("country"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -51,6 +53,7 @@ export const outlets = pgTable(
       .references(() => organisations.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -244,10 +247,14 @@ export const memberships = pgTable("organisation_memberships", {
   check("membership_scope_check", sql`(${t.role} = 'OWNER' and ${t.outletId} is null and ${t.workerId} is null and ${t.invitationId} is null) or (${t.role} = 'MANAGER' and ${t.outletId} is not null and ${t.workerId} is null and ${t.invitationId} is not null) or (${t.role} = 'TEAM_MEMBER' and ${t.outletId} is not null and ${t.workerId} is not null and ${t.invitationId} is not null)`)]);
 export const subscriptions = pgTable("organisation_subscriptions", {
   id: uuid("id").primaryKey(), organisationId: uuid("organisation_id").notNull().references(() => organisations.id),
+  tier: text("tier"), billingPeriod: text("billing_period"), locationLimit: integer("location_limit"),
   providerId: text("provider_id"), planId: text("plan_id"), status: text("status").notNull().default("UNCONFIGURED"),
   requestId: uuid("request_id").notNull(), approvalUrl: text("approval_url"), verifiedAt: timestamp("verified_at",{withTimezone:true}),
   updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
 }, t => [uniqueIndex("subscription_org_unique").on(t.organisationId),uniqueIndex("subscription_provider_unique").on(t.providerId), uniqueIndex("subscription_request_unique").on(t.requestId),
+  check("subscription_tier_check",sql`${t.tier} in ('SINGLE_OUTLET','MULTI_OUTLET','ENTERPRISE')`),
+  check("subscription_period_check",sql`${t.billingPeriod} in ('MONTHLY','ANNUAL')`),
+  check("subscription_location_limit_check",sql`case when ${t.tier} is null then ${t.locationLimit} is null and ${t.billingPeriod} is null when ${t.tier} = 'SINGLE_OUTLET' then coalesce(${t.locationLimit} = 1 and ${t.billingPeriod} is not null, false) when ${t.tier} = 'MULTI_OUTLET' then coalesce(${t.locationLimit} = 5 and ${t.billingPeriod} is not null, false) when ${t.tier} = 'ENTERPRISE' then coalesce(${t.locationLimit} > 0, false) else false end`),
   check("subscription_status_check",sql`${t.status} in ('UNCONFIGURED','PENDING','APPROVAL_PENDING','APPROVED','ACTIVE','SUSPENDED','CANCELLED','EXPIRED')`)]);
 export const subscriptionEvents = pgTable("subscription_events", {
   id: text("id").primaryKey(), payloadHash: text("payload_hash").notNull(), providerId: text("provider_id").notNull(),

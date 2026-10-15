@@ -1,3 +1,4 @@
+import { createOrganisation } from "../helpers/onboarding";
 import { personal, business, entitled } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { and,eq } from "drizzle-orm";
@@ -6,17 +7,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createTestDatabase } from "../helpers/database";
 import { getDatabase } from "@/server/db/client";
 import { registerIdentity,createIdentityToken,redeemIdentityToken,issueSession } from "@/server/auth/identity";
-import { createOrganisation,inviteMember,redeemInvitation } from "@/server/auth/tenancy";
+import { inviteMember,redeemInvitation } from "@/server/auth/tenancy";
 import { resolveScope } from "@/server/auth/access";
 import { requireScope,requireMembershipScope,requireOperator,selectMembership } from "@/server/auth/request";
 import { createPolicyAction,createRequirementAction,respondAssignmentAction } from "@/app/operations-actions";
 import { createDepartment,createWorkPolicy,createRequirement,offerAssignment } from "@/server/scheduling/operations";
-import { users,shiftOffers,memberships,subscriptions,outlets } from "@/server/db/schema";
-import { registerAction,redeemInvitationAction,signOutAction,createOrganisationAction } from "@/app/auth-actions";
+import { users,shiftOffers,memberships,subscriptions,outlets,organisations } from "@/server/db/schema";
+import { registerAction,redeemInvitationAction,signOutAction,completeWorkplaceAction,verifyEmailAction,signInAction,createLocationAction } from "@/app/auth-actions";
 import OwnerLayout from "@/app/owner/layout";
 import { OwnerWorkspace, ownerAreas } from "@/app/owner/workspace";
 import ManagerLayout from "@/app/manager/layout";
 import WorkerLayout from "@/app/worker/layout";
+import Subscribe from "@/app/subscribe/page";
+import Register from "@/app/register/page";
 import Onboarding from "@/app/onboarding/page";
 import Account from "@/app/account/page";
 import { POST as createOrder } from "@/app/api/paypal/orders/route";
@@ -34,7 +37,7 @@ vi.mock("@/server/notifications/email",async importOriginal=>({...await importOr
 const password="test-password-for-account";
 const form=(input:Record<string,string>)=>{const f=new FormData();for(const [key,value]of Object.entries(input))f.set(key,value);return f;};
 async function bootstrap(db:ReturnType<typeof getDatabase>) {
- const u=await registerIdentity(db,{email:"owner@example.test",...personal,password});
+ const u=await registerIdentity(db,{email:"owner@example.test",password});
  await redeemIdentityToken(db,await createIdentityToken(db,u.id,"VERIFY_EMAIL"),"VERIFY_EMAIL");
  const o=await createOrganisation(db,u.id,{...business,name:"One",locationName:"HQ"});
  await entitled(db,o.organisationId);
@@ -73,7 +76,7 @@ describe("authenticated HTTP action boundary",()=>{
    const joins=[];
    for(const email of ["a@example.test","b@example.test"]) {
     const i=await inviteMember(t.db,o.scope,{role:"TEAM_MEMBER",email,firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
-    const u=await registerIdentity(t.db,{email,...personal,password});const m=await redeemInvitation(t.db,u.id,{token:i.token});joins.push({u,m});
+    const u=await registerIdentity(t.db,{email,password});const m=await redeemInvitation(t.db,u.id,{token:i.token});joins.push({u,m});
    }
    const [d]=await createDepartment(t.db,"Sales",o.scope),[p]=await createWorkPolicy(t.db,{earningsModel:"DAILY",rateMinor:10000},"Daily",o.scope);
    const shift=await createRequirement(t.db,{departmentId:d.id,policyId:p.id,startsAt:new Date("2027-01-01T08:00Z"),endsAt:new Date("2027-01-01T14:00Z"),requiredHeadcount:2},o.scope);
@@ -93,13 +96,12 @@ describe("authenticated HTTP action boundary",()=>{
    await t.db.update(subscriptions).set({status:"APPROVAL_PENDING",providerId:"I-MOCK",planId:"P-MOCK"}).where(eq(subscriptions.organisationId,o.o.organisationId));
    expect(renderToStaticMarkup(await BillingReturn())).toContain("APPROVAL_PENDING");
    expect((await t.db.select().from(subscriptions).where(eq(subscriptions.organisationId,o.o.organisationId)))[0].status).toBe("APPROVAL_PENDING");
+   await expect(requireScope(["OWNER"])).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(completeWorkplaceAction(form({...personal,...business,name:"Second",locationName:"Second HQ"}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
+   expect(await t.db.select().from(memberships).where(eq(memberships.userId,o.u.id))).toHaveLength(1);
+   await entitled(t.db,o.o.organisationId);
    jar.set("fairshift_location",randomUUID());await expect(requireScope(["OWNER"])).rejects.toThrow(/denied/);
    jar.delete("fairshift_location");
-   jar.set("fairshift_location",o.o.locationId);
-   await expect(createOrganisationAction(form({...business,name:"Second",locationName:"Second HQ"}))).rejects.toThrow("REDIRECT:/onboarding");
-   const secondScope=await requireMembershipScope(["OWNER"]);expect(secondScope.organisationId).not.toBe(o.o.organisationId);
-   expect(secondScope.locationName).toBe("Second HQ");
-   await entitled(t.db,secondScope.organisationId);
    await expect(createRequirementAction(form({departmentId:randomUUID(),policyId:randomUUID(),headcount:"1",startsAt:"2027-01-01T10:00",endsAt:"2027-01-01T16:00"}))).rejects.toThrow("status=error");
    expect(await t.db.select().from(outlets).where(and(eq(outlets.id,o.o.locationId),eq(outlets.organisationId,o.o.organisationId)))).toHaveLength(1);
   }finally{await t.close();}
@@ -114,25 +116,19 @@ describe("subscription gate at real application boundaries",()=>{
    const o=await bootstrap(t.db);jar.set("fairshift_session",await issueSession(t.db,o.u.id));
    for (const status of ["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED","SUSPENDED","CANCELLED","EXPIRED"]) {
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
-    await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/onboarding");
-    for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/onboarding");
+    await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
+    for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
     for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction]) {
-     await expect(action(new FormData())).rejects.toThrow("REDIRECT:/onboarding");
+     await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
    }
-   const setup=renderToStaticMarkup(await Onboarding({searchParams:Promise.resolve({})}));
-   expect(setup).toContain("Choose your plan");
-   expect(setup).toContain("Your workplace is saved");
-   for(const area of ownerAreas) expect(setup).not.toContain(`href="/owner/${area}"`);
-   expect(setup).not.toContain("Owner navigation");
-   await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/onboarding?status=saved");
-   expect((await t.db.select().from(users).where(eq(users.id,o.u.id)))[0]).toMatchObject({firstName:"Changed",email:"owner@example.test"});
-   await expect(saveBusinessAction(form({...business,name:"One",organisationId:randomUUID(),locationName:"Injected"}))).rejects.toThrow("REDIRECT:/onboarding?status=saved");
-   expect((await t.db.select().from(outlets).where(eq(outlets.id,o.o.locationId)))[0].name).toBe("HQ");
+   await expect(Onboarding({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(saveBusinessAction(form({...business,name:"One",organisationId:randomUUID()}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
    const account=renderToStaticMarkup(await Account({searchParams:Promise.resolve({})}));
-   expect(account).toContain("Continue setup");expect(account).not.toContain("Open workspace");
-   await expect(refreshSubscriptionAction()).rejects.toThrow("REDIRECT:/onboarding");
-   await expect(selectMembershipAction(form({membershipId:o.o.membershipId}))).rejects.toThrow("REDIRECT:/onboarding");
+   expect(account).toContain("Choose subscription");expect(account).not.toContain("Open workspace");
+   await expect(refreshSubscriptionAction()).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(selectMembershipAction(form({membershipId:o.o.membershipId}))).rejects.toThrow("REDIRECT:/subscribe");
    const response=await createOrder(new Request("http://localhost/api/paypal/orders",{method:"POST"}));
    expect(response.status).toBe(403); // Platform-only API cannot be used as an Owner billing/payout bypass.
    await entitled(t.db,o.o.organisationId);
@@ -147,7 +143,7 @@ describe("subscription gate at real application boundaries",()=>{
    for(const role of ["MANAGER","TEAM_MEMBER"] as const) invites.push(await inviteMember(t.db,o.scope,{role,email:`${role.toLowerCase()}@example.test`,firstName:"Sam",surname:"Taylor",telephone:"+27111234567"}));
    await t.db.update(subscriptions).set({status:"SUSPENDED"}).where(eq(subscriptions.organisationId,o.o.organisationId));
    for(const i of invites) {
-    const u=await registerIdentity(t.db,{...personal,email:i.invitation.email,password});
+    const u=await registerIdentity(t.db,{email:i.invitation.email,password});
     jar.set("fairshift_session",await issueSession(t.db,u.id));
     await expect(redeemInvitationAction(form({token:i.token,role:"OWNER"}))).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const role=i.invitation.role as "MANAGER"|"TEAM_MEMBER";
@@ -155,6 +151,12 @@ describe("subscription gate at real application boundaries",()=>{
     await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const layout=role === "MANAGER" ? ManagerLayout:WorkerLayout;
     await expect(layout({children:"Protected"})).rejects.toThrow("REDIRECT:/account?status=subscription-required");
+    await t.db.update(subscriptions).set({status:"ACTIVE"}).where(eq(subscriptions.organisationId,o.o.organisationId));
+    await t.db.update(organisations).set({setupCompletedAt:null}).where(eq(organisations.id,o.o.organisationId));
+    await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=setup-required");
+    await expect(layout({children:"Protected"})).rejects.toThrow("REDIRECT:/account?status=setup-required");
+    await t.db.update(organisations).set({setupCompletedAt:new Date()}).where(eq(organisations.id,o.o.organisationId));
+    await t.db.update(subscriptions).set({status:"SUSPENDED"}).where(eq(subscriptions.organisationId,o.o.organisationId));
     if(role === "MANAGER") {
      await expect(createTeamAction(new FormData())).rejects.toThrow("subscription-required");
      await expect(inviteMember(t.db,scope,{role:"TEAM_MEMBER",email:"blocked@example.test",...personal})).rejects.toThrow(/active organisation subscription/);
@@ -169,6 +171,61 @@ describe("subscription gate at real application boundaries",()=>{
    await expect(inviteMember(t.db,o.scope,{role:"MANAGER",email:"blocked@example.test",...personal})).rejects.toThrow(/active organisation subscription/);
    await entitled(t.db,o.o.organisationId);
    expect(await requireScope(["OWNER"])).toMatchObject({role:"OWNER"});
+  }finally{await t.close();}
+ });
+});
+
+describe("subscription-first UI and verification continuation",()=>{
+ it("keeps email/password registration minimal and continues the same verified session without another login",async()=>{
+  const t=await createTestDatabase();try {
+   vi.mocked(getDatabase).mockReturnValue(t.db);
+   const page=renderToStaticMarkup(await Register({searchParams:Promise.resolve({})}));
+   expect(page).toContain('name="email"');expect(page).toContain('name="password"');
+   for(const name of ["title","firstName","surname","telephone","position","businessAddress","locationName"]) expect(page).not.toContain(`name="${name}"`);
+   const u=await registerIdentity(t.db,{email:"new-owner@example.test",password});
+   jar.set("fairshift_session",await issueSession(t.db,u.id));
+   const session=jar.get("fairshift_session");
+   await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/account?status=verify-email");
+   const token=await createIdentityToken(t.db,u.id,"VERIFY_EMAIL");
+   await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/subscribe");
+   expect(jar.get("fairshift_session")).toBe(session);
+   const plans=renderToStaticMarkup(await Subscribe({searchParams:Promise.resolve({period:"ANNUAL"})}));
+   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 active location","Up to 5 active locations","Annual billing","Checkout is currently unavailable"]) expect(plans).toContain(text);
+   for(const name of ["firstName","businessAddress","locationName"]) expect(plans).not.toContain(`name="${name}"`);
+   expect(plans).not.toContain('value="ENTERPRISE"');expect(plans).not.toContain("/owner/");
+   expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);
+   await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/verify-email?status=error");
+  }finally{await t.close();}
+ });
+ it("verifies links in another browser without creating/switching its login session",async()=>{
+  const t=await createTestDatabase();try {
+   vi.mocked(getDatabase).mockReturnValue(t.db);
+   const u=await registerIdentity(t.db,{email:"new-owner@example.test",password});
+   const token=await createIdentityToken(t.db,u.id,"VERIFY_EMAIL");
+   await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/sign-in?status=verified");
+   expect(jar.has("fairshift_session")).toBe(false);
+   await expect(signInAction(form({email:u.email,password}))).rejects.toThrow("REDIRECT:/subscribe");
+   const originalSession=jar.get("fairshift_session");
+   const another=await registerIdentity(t.db,{email:"different-owner@example.test",password});
+   const anotherToken=await createIdentityToken(t.db,another.id,"VERIFY_EMAIL");
+   await expect(verifyEmailAction(form({token:anotherToken}))).rejects.toThrow("REDIRECT:/sign-in?status=verified");
+   expect(jar.get("fairshift_session")).toBe(originalSession);
+  }finally{await t.close();}
+ });
+ it("routes authoritative ACTIVE but incomplete setup away from operations and reuses its existing workplace",async()=>{
+  const t=await createTestDatabase();try {
+   vi.mocked(getDatabase).mockReturnValue(t.db);const o=await bootstrap(t.db);
+   jar.set("fairshift_session",await issueSession(t.db,o.u.id));
+   await t.db.update(organisations).set({setupCompletedAt:null}).where(eq(organisations.id,o.o.organisationId));
+   await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/onboarding");
+   await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/onboarding");
+   await expect(createLocationAction(form({name:"Bypass"}))).rejects.toThrow("REDIRECT:/onboarding");
+   const setup=renderToStaticMarkup(await Onboarding({searchParams:Promise.resolve({})}));
+   expect(setup).toContain("Set up your workplace");expect(setup).toContain("HQ");expect(setup).not.toContain('name="locationName"');
+   await expect(completeWorkplaceAction(form({...personal,...business,name:"One",locationName:"Duplicate",organisationId:randomUUID(),email:"injected@example.test"}))).rejects.toThrow("REDIRECT:/owner");
+   expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,o.o.organisationId))).toHaveLength(1);
+   expect((await t.db.select().from(users).where(eq(users.id,o.u.id)))[0].email).toBe(o.u.email);
+   await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/owner");
   }finally{await t.close();}
  });
 });

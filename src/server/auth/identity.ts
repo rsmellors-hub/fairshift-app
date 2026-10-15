@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { authLimits, identityTokens, sessions, users } from "@/server/db/schema";
 
-import { personalDetails } from "./onboarding";
+
 
 export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 export const newToken = () => randomBytes(32).toString("base64url");
@@ -32,10 +32,10 @@ export async function consumeLimit(db: DatabaseSession, key: string, maximum = 1
   if (row.count > maximum) throw new Error("Too many attempts. Try again later.");
 }
 export async function registerIdentity(db: Database, input: unknown) {
-  const value = personalDetails.extend({email:emailSchema,password:passwordSchema}).strict().parse(input);
+  const value = z.object({email:emailSchema,password:passwordSchema}).strict().parse(input);
   await consumeLimit(db,`register:${value.email}`,5);
   const passwordHash = await hashPassword(value.password);
-  const [user] = await db.insert(users).values({...personalDetails.parse(value),email:value.email,id:randomUUID(),name:`${value.firstName} ${value.surname}`,passwordHash}).returning({id:users.id,email:users.email,name:users.name});
+  const [user] = await db.insert(users).values({email:value.email,id:randomUUID(),name:"",passwordHash}).returning({id:users.id,email:users.email,name:users.name});
   return user;
 }
 export async function signIn(db: Database, email: string, password: string) {

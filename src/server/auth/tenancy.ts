@@ -1,4 +1,3 @@
-import { businessDetails, personalDetails } from "./onboarding";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, inArray } from "drizzle-orm";
@@ -9,19 +8,20 @@ import { assertRole, resolveScope, type Scope } from "./access";
 import { newToken, tokenHash, consumeLimit } from "./identity";
 import { notify } from "@/server/notifications/service";
 
-export async function createOrganisation(db:Database,userId:string,input:unknown) {
-  const value = businessDetails.extend({locationName:z.string().trim().min(1).max(150)}).strict().parse(input);
+// Serialize acquisition per identity and reuse existing Owner membership (including legacy orgs).
+export async function ensureCustomerOrganisation(db:Database,userId:string,preferredMembershipId?:string|null) {
   return db.transaction(async tx => {
     const [user] = await tx.select().from(users).where(eq(users.id,userId)).for("update");
-    if (!user || !user.emailVerifiedAt) throw new Error("Verify your email before creating an organisation.");
-    personalDetails.parse(user);
-    const organisationId=randomUUID(), locationId=randomUUID(), membershipId=randomUUID();
-    const business=businessDetails.parse(value);
-    await tx.insert(organisations).values({id:organisationId,...business});
-    await tx.insert(outlets).values({id:locationId,organisationId,name:value.locationName,timezone:"Africa/Johannesburg"});
-    await tx.insert(memberships).values({id:membershipId,userId,organisationId,role:"OWNER"});
-    await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID(),status:"UNCONFIGURED"});
-    return {organisationId,locationId,membershipId};
+    if (!user?.emailVerifiedAt) throw new Error("Verify your email before choosing a subscription.");
+    const owned = await tx.select().from(memberships).where(and(eq(memberships.userId,userId),eq(memberships.role,"OWNER"),eq(memberships.state,"ACTIVE")));
+    const existing=owned.find(m=>m.id === preferredMembershipId) ?? owned[0];
+    if (existing) return existing;
+    const organisationId=randomUUID();
+    // Empty name denotes an internal customer shell, never fabricated trading details.
+    await tx.insert(organisations).values({id:organisationId,name:""});
+    const [membership]=await tx.insert(memberships).values({id:randomUUID(),userId,organisationId,role:"OWNER"}).returning();
+    await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID()});
+    return membership;
   });
 }
 export async function inviteMember(db:Database,scope:Scope,input:unknown) {

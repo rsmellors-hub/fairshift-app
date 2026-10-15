@@ -8,7 +8,7 @@ export async function resolveScope(db: DatabaseSession, userId: string, membersh
   const [membership] = await db.select().from(memberships).where(and(eq(memberships.id,membershipId),eq(memberships.userId,userId),eq(memberships.state,"ACTIVE")));
   if (!membership || !roles.includes(membership.role as Role)) throw new AccessError();
   const candidates = await db.select({location:outlets,organisation:organisations}).from(outlets).innerJoin(organisations,eq(organisations.id,outlets.organisationId))
-    .where(eq(outlets.organisationId,membership.organisationId));
+    .where(and(eq(outlets.organisationId,membership.organisationId),eq(outlets.active,true)));
   const selected = candidates.find(r => r.location.id === (membership.outletId ?? locationId)) ?? (membership.role === "OWNER" && !locationId ? candidates[0] : undefined);
   if (!selected || (locationId && selected.location.id !== locationId)) throw new AccessError();
   if (membership.workerId) {

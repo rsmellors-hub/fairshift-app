@@ -1,10 +1,11 @@
+import { createOrganisation } from "../helpers/onboarding";
 import { personal, business, entitled } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { and,eq } from "drizzle-orm";
 import { describe,expect,it } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { registerIdentity, createIdentityToken, redeemIdentityToken, signIn, resolveSession, revokeSession, tokenHash } from "@/server/auth/identity";
-import { createOrganisation, inviteMember, redeemInvitation, revokeInvitation, resendInvitation } from "@/server/auth/tenancy";
+import {  inviteMember, redeemInvitation, revokeInvitation, resendInvitation } from "@/server/auth/tenancy";
 import { resolveScope } from "@/server/auth/access";
 import { workerWorkspace,workerRespond,savePayoutDestination } from "@/server/auth/operations";
 import { users,memberships,workers,teamInvitations,notifications,notificationDeliveries,identityTokens,shifts,outlets } from "@/server/db/schema";
@@ -15,7 +16,7 @@ import { ResendEmail } from "@/server/notifications/email";
 type DB=Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const password="a-long-test-password-42";
 async function identity(db:DB,email:string,verify=true) {
- const user=await registerIdentity(db,{email,...personal,password});
+ const user=await registerIdentity(db,{email,password});
  if (verify) await redeemIdentityToken(db,await createIdentityToken(db,user.id,"VERIFY_EMAIL"),"VERIFY_EMAIL");
  return user;
 }
