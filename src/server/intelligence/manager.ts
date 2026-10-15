@@ -1,3 +1,4 @@
+import type { Scope } from "@/server/auth/access";
 import { and, eq } from "drizzle-orm";
 
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
@@ -8,9 +9,9 @@ import { forecastDemand, localDate, shiftDate } from "@/server/intelligence/fore
 
 // Scope is pinned on the server. A URL/body cannot select another organisation,
 // outlet, policy or source. Verified history always takes precedence over demo.
-export async function getManagerForecast(db: DatabaseSession, now = new Date()) {
+export async function getManagerForecast(db: DatabaseSession, now = new Date(), scope:Pick<Scope,"organisationId"|"locationId"> = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID}) {
   const [outlet] = await db.select().from(outlets).where(and(
-    eq(outlets.id, DEMO_OUTLET_ID), eq(outlets.organisationId, DEMO_ORGANISATION_ID),
+    eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId),
   ));
   if (!outlet) throw new Error("Manager outlet is unavailable.");
   const sales = await db.select().from(saleTransactions).where(and(

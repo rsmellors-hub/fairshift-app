@@ -1,5 +1,8 @@
 "use server";
 
+import { requireScope } from "@/server/auth/request";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
+import { savePayoutDestination } from "@/server/auth/operations";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -11,12 +14,10 @@ import {
   markDemoShiftCompleted,
   recordDemoPerformance,
   refreshDemoIncentivePayout,
-  setDemoPayoutDestination,
   submitDemoIncentivePayout,
 } from "@/server/incentives/demo";
 import {
   acceptDemoShift,
-  ensureDemoCasualWorker,
   publishDemoShift,
 } from "@/server/scheduling/demo";
 
@@ -38,6 +39,7 @@ async function performAction(path: string, action: () => Promise<unknown>) {
 }
 
 export async function publishDemoShiftAction(formData: FormData) {
+  await demoAuthority();
   return performAction("/manager/plan", async () => {
     if (formData.get("workerSelected") !== "yes") throw new Error("Select the invitation recipient.");
     await publishDemoShift(getDatabase());
@@ -45,10 +47,12 @@ export async function publishDemoShiftAction(formData: FormData) {
 }
 
 export async function acceptDemoShiftAction(formData: FormData) {
+  await demoAuthority(true);
   return performAction("/worker/shifts", async () => acceptDemoShift(getDatabase(), requiredDemoId(formData, "shiftId"), formData.get("acknowledged") === "yes", Number(formData.get("termsVersion"))));
 }
 
 export async function recordDemoPerformanceAction(formData: FormData) {
+  await demoAuthority();
   return performAction("/manager/review", async () => {
     if (formData.get("completed") !== "yes") throw new Error("Confirm completed work.");
     const value = String(formData.get("performanceSales") ?? "").trim();
@@ -64,21 +68,26 @@ export async function recordDemoPerformanceAction(formData: FormData) {
 }
 
 export async function approveDemoIncentiveAction(formData: FormData) {
+  await demoAuthority();
   return performAction("/manager/review", async () => approveDemoIncentive(getDatabase(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function submitDemoIncentivePayoutAction(formData: FormData) {
+  await demoAuthority();
   return performAction("/manager/review", async () => submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function refreshDemoIncentivePayoutAction(formData: FormData) {
+  await demoAuthority();
   return performAction("/manager/review", async () => refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
 }
 
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
-  return performAction("/worker/profile", async () => {
-    const db = getDatabase();
-    await ensureDemoCasualWorker(db);
-    await setDemoPayoutDestination(db, String(formData.get("payoutEmail") ?? ""));
-  });
+  const scope=await requireScope(["TEAM_MEMBER"]);
+  return performAction("/worker/profile", () => savePayoutDestination(getDatabase(),scope,String(formData.get("payoutEmail") ?? "")));
+}
+async function demoAuthority(worker=false) {
+  const scope=await requireScope(worker ? ["TEAM_MEMBER"] : ["OWNER","MANAGER"]);
+  if (scope.organisationId !== DEMO_ORGANISATION_ID || scope.locationId !== DEMO_OUTLET_ID || (worker && scope.workerId !== DEMO_CASUAL_WORKER_ID)) throw new Error("Access denied.");
+  return scope;
 }

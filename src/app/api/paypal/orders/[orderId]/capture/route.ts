@@ -1,3 +1,4 @@
+import { currentIdentity, operatorAllowed } from "@/server/auth/request";
 import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 
@@ -20,6 +21,9 @@ export async function POST(
   context: { params: Promise<{ orderId: string }> },
 ) {
   try {
+    const identity=await currentIdentity();
+    if (!identity) return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
+    if (!operatorAllowed(identity.user)) return NextResponse.json({error:"FORBIDDEN"},{status:403});
     assertSameOrigin(request);
     const { orderId: rawOrderId } = await context.params;
     const orderId = orderIdSchema.parse(rawOrderId);

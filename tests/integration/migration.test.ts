@@ -75,3 +75,24 @@ describe("operational work-term migrations", () => {
     } finally {await client.close();}
   });
 });
+
+describe("authenticated tenancy upgrade",()=>{
+ it("hashes prepared invitation tokens, retains workforce attribution and grants no historical authority",async()=>{
+  const client=new PGlite();try {
+   const journal=JSON.parse(await readFile("drizzle/meta/_journal.json","utf8")) as {entries:{tag:string}[]};
+   async function apply(tag:string) {for(const statement of (await readFile(`drizzle/${tag}.sql`,"utf8")).split("--> statement-breakpoint")) if(statement.trim()) await client.exec(statement);}
+   for(const entry of journal.entries.slice(0,6)) await apply(entry.tag);
+   await client.exec(`INSERT INTO workers(id,organisation_id,location_id,display_name,worker_type,email) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','Existing team','CASUAL','team@example.test');
+    INSERT INTO team_invitations(id,worker_id,token) VALUES ('80000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','legacy-prepared-token');`);
+   const before=(await client.query("SELECT attribution_code FROM workers")).rows;
+   for(const entry of journal.entries.slice(6)) await apply(entry.tag);
+   const [invitation]=(await client.query<{token:string}>("SELECT * FROM team_invitations")).rows;
+   expect(invitation).toMatchObject({role:"TEAM_MEMBER",state:"CREATED_NOT_SENT",organisation_id:"10000000-0000-4000-8000-000000000001",email:"team@example.test",token:expect.stringMatching(/^[0-9a-f]{64}$/)});
+   expect(invitation.token).not.toBe("legacy-prepared-token");
+   expect((await client.query("SELECT attribution_code FROM workers")).rows).toEqual(before);
+   expect((await client.query("SELECT * FROM organisation_memberships")).rows).toEqual([]);
+   expect((await client.query("SELECT * FROM auth_users")).rows).toEqual([]);
+   await expect(client.exec("UPDATE team_invitations SET token='plaintext'" )).rejects.toThrow();
+  }finally{await client.close();}
+ });
+});

@@ -1,3 +1,4 @@
+import { requireScope } from "@/server/auth/request";
 import { ProductShell } from "@/app/components/product-shell";
 
 const navigation = [
@@ -11,6 +12,7 @@ const navigation = [
   { label: "Settings / Integrations", href: "/owner/settings" },
 ];
 
-export default function OwnerLayout({ children }: { children: React.ReactNode }) {
-  return <ProductShell role="Owner" context="FairShift demo company" navigation={navigation}>{children}</ProductShell>;
+export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
+  const scope=await requireScope(["OWNER"]);
+  return <ProductShell role="Owner" context={scope.organisationName} navigation={navigation}>{children}</ProductShell>;
 }

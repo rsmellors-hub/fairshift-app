@@ -18,12 +18,18 @@ import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 import { getDemoIncentive } from "@/server/incentives/demo";
 import { getOwnerWorkspace, getWorkerWorkspace } from "@/server/product/workspace";
-import { organisations, outlets, shiftIncentives, shifts, workers } from "@/server/db/schema";
+import { organisations, outlets, shiftIncentives, shifts, workers, users, memberships, subscriptions } from "@/server/db/schema";
 import { createTeamAction, createPolicyAction, createRequirementAction, respondAssignmentAction } from "@/app/operations-actions";
 import { getOperations, offerAssignment } from "@/server/scheduling/operations";
 import { publishDemoShift } from "@/server/scheduling/demo";
+import { ensureDemoCasualWorker } from "@/server/scheduling/demo";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
 import { createTestDatabase } from "../helpers/database";
 
+vi.mock("@/server/auth/request", () => ({
+ requireScope:vi.fn(async (roles:string[])=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",workerId:roles.includes("TEAM_MEMBER") ? "30000000-0000-4000-8000-000000000001":undefined,role:roles.includes("TEAM_MEMBER") ? "TEAM_MEMBER":"OWNER",organisationName:"Demo",locationName:"Rosebank Kitchen"})),
+ requireOperator:vi.fn(async()=>({id:"90000000-0000-4000-8000-000000000001"})),
+}));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
@@ -36,7 +42,12 @@ function form(values: Record<string, string>) {
   for (const [key, value] of Object.entries(values)) result.set(key, value);
   return result;
 }
-function configure(db: Awaited<ReturnType<typeof createTestDatabase>>["db"]) {
+async function configure(db: Awaited<ReturnType<typeof createTestDatabase>>["db"]) {
+  await db.insert(users).values({id:"90000000-0000-4000-8000-000000000001",email:"owner@example.test",name:"Owner",passwordHash:"test",emailVerifiedAt:new Date()});
+  await db.insert(memberships).values({id:randomUUID(),userId:"90000000-0000-4000-8000-000000000001",organisationId:DEMO_ORGANISATION_ID,role:"OWNER"});
+  await db.insert(subscriptions).values({id:randomUUID(),organisationId:DEMO_ORGANISATION_ID,requestId:randomUUID()});
+  await ensureDemoCasualWorker(db);
+  await db.update(workers).set({userId:"90000000-0000-4000-8000-000000000001",locationId:DEMO_OUTLET_ID}).where(eq(workers.id,DEMO_CASUAL_WORKER_ID));
   vi.mocked(getDatabase).mockReturnValue(db);
   vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: true, aiConfigured: false, environment: "SANDBOX", currency: "USD", amount: "5.00" });
 }
@@ -46,7 +57,7 @@ describe("functional product workspaces", () => {
   it("renders every canonical destination and rejects unknown destinations", async () => {
     const testDb = await createTestDatabase();
     try {
-      configure(testDb.db);
+      await configure(testDb.db);
       for (const [page, areas] of [[ManagerAreaPage, managerAreas], [WorkerAreaPage, workerAreas], [OwnerAreaPage, ownerAreas], [OperatorAreaPage, operatorAreas]] as const) {
         for (const area of areas) {
           const html = renderToStaticMarkup(await page({ params: Promise.resolve({ area }), searchParams: Promise.resolve({}) }));
@@ -65,7 +76,7 @@ describe("functional product workspaces", () => {
   it("runs the golden path through its functional actions, profile and operator cycle control", async () => {
     const testDb = await createTestDatabase();
     try {
-      configure(testDb.db);
+      await configure(testDb.db);
       const createPayout = vi.fn(async () => ({ batchId: "MOCK-BATCH", itemId: "MOCK-ITEM", status: "PENDING" }));
       const getPayout = vi.fn(async () => ({ batchId: "MOCK-BATCH", itemId: "MOCK-ITEM", status: "SUCCESS" }));
       vi.mocked(getPayPalPayoutClient).mockReturnValue({ createPayout, getPayout } as unknown as ReturnType<typeof getPayPalPayoutClient>);
@@ -145,13 +156,13 @@ describe("functional product workspaces", () => {
   it("uses real team/policy/requirement actions and shows commission terms with acknowledgement before acceptance", async () => {
     const t = await createTestDatabase();
     try {
-      configure(t.db);
+      await configure(t.db);
       await expect(createTeamAction(form({ firstName:"Sam", surname:"Taylor", telephone:"+27111234567", email:"sam@example.test" }))).rejects.toThrow("REDIRECT:/manager/team?status=saved");
       let ops = await getOperations(t.db);
-      expect(ops.team[0]).toMatchObject({worker:{displayName:"Sam Taylor"},invitation:{state:"CREATED_NOT_SENT"}});
+      expect(ops.team.find(row=>row.worker.displayName === "Sam Taylor")).toMatchObject({worker:{displayName:"Sam Taylor"},invitation:{state:"CREATED_NOT_SENT"}});
       const teamHtml = renderToStaticMarkup(await ManagerWorkspace({area:"team"}));
       expect(teamHtml).toContain("Sam Taylor");
-      expect(teamHtml).toContain("Prepared · not delivered");
+      expect(teamHtml).toContain("Prepared · not sent");
       expect(teamHtml).not.toContain('name="payoutEmail"');
       expect(teamHtml).not.toContain("Worker Pool");
       await expect(createPolicyAction(form({name:"Commission policy",earningsModel:"COMMISSION",rate:"5"}))).rejects.toThrow("REDIRECT:/owner/policies?status=saved");

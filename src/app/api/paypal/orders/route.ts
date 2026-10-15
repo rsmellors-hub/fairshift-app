@@ -1,3 +1,4 @@
+import { currentIdentity, operatorAllowed } from "@/server/auth/request";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -12,6 +13,9 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const identity=await currentIdentity();
+    if (!identity) return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
+    if (!operatorAllowed(identity.user)) return NextResponse.json({error:"FORBIDDEN"},{status:403});
     assertSameOrigin(request);
     const result = await createSandboxOrder(getDatabase(), getPayPalClient(), getPayPalConfig());
     return NextResponse.json(

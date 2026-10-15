@@ -1,3 +1,4 @@
+import { requireScope } from "@/server/auth/request";
 import { ProductShell } from "@/app/components/product-shell";
 import "@bryntum/scheduler/fontawesome/css/fontawesome.css";
 import "@bryntum/scheduler/fontawesome/css/solid.css";
@@ -12,6 +13,7 @@ const navigation = [
   { label: "Review", href: "/manager/review" },
 ];
 
-export default function ManagerLayout({ children }: { children: React.ReactNode }) {
-  return <ProductShell role="Manager" context="Rosebank Kitchen" navigation={navigation}>{children}</ProductShell>;
+export default async function ManagerLayout({ children }: { children: React.ReactNode }) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  return <ProductShell role="Manager" context={scope.locationName} navigation={navigation}>{children}</ProductShell>;
 }

@@ -36,7 +36,7 @@ export function ProductShell({
           <strong>{context}</strong>
         </div>
         <ProductNavigation navigation={navigation} label={`${role} navigation`} />
-        <p className="demo-context">Sandbox environment</p>
+        <p className="demo-context"><Link href="/account">Account & notifications</Link></p>
       </aside>
       <div className="product-workspace">
         <header className="workspace-bar">

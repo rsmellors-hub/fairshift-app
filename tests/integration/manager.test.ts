@@ -16,6 +16,7 @@ import { getManagerForecast } from "@/server/intelligence/manager";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { createTestDatabase } from "../helpers/database";
 
+vi.mock("@/server/auth/request",()=>({requireScope:async()=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",role:"MANAGER",organisationName:"Demo",locationName:"Rosebank Kitchen"})}));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 

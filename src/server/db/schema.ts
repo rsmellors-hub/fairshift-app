@@ -13,6 +13,24 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+export const users = pgTable("auth_users", {
+  id: uuid("id").primaryKey(), email: text("email").notNull(), name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(), emailVerifiedAt: timestamp("email_verified_at", {withTimezone:true}),
+  createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("auth_users_email_unique").on(t.email), check("auth_users_email_normalized", sql`${t.email} = lower(trim(${t.email}))`)]);
+export const sessions = pgTable("auth_sessions", {
+  id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id),
+  tokenHash: text("token_hash").notNull(), expiresAt: timestamp("expires_at", {withTimezone:true}).notNull(),
+  membershipId: uuid("membership_id"), createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("auth_sessions_token_unique").on(t.tokenHash), index("auth_sessions_user_idx").on(t.userId)]);
+export const identityTokens = pgTable("identity_tokens", {
+  id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id), tokenHash: text("token_hash").notNull(),
+  purpose: text("purpose").notNull(), expiresAt: timestamp("expires_at", {withTimezone:true}).notNull(), usedAt: timestamp("used_at", {withTimezone:true}),
+}, t => [uniqueIndex("identity_tokens_hash_unique").on(t.tokenHash), check("identity_token_purpose", sql`${t.purpose} in ('VERIFY_EMAIL','RESET_PASSWORD')`)]);
+export const authLimits = pgTable("auth_limits", {
+  key: text("key").primaryKey(), count: integer("count").notNull(), resetsAt: timestamp("resets_at", {withTimezone:true}).notNull(),
+});
+
 export const organisations = pgTable("organisations", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
@@ -152,6 +170,7 @@ export const workers = pgTable(
       .notNull()
       .references(() => organisations.id, { onDelete: "restrict" }),
     displayName: text("display_name").notNull(),
+    userId: uuid("user_id").references(() => users.id),
     firstName: text("first_name"),
     surname: text("surname"),
     telephone: text("telephone"),
@@ -165,6 +184,7 @@ export const workers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("workers_org_user_unique").on(table.organisationId, table.userId),
     uniqueIndex("workers_attribution_code_unique").on(table.attributionCode),
     index("workers_organisation_idx").on(table.organisationId),
     check("workers_type_check", sql`${table.workerType} in ('REGULAR', 'CASUAL')`),
@@ -193,14 +213,56 @@ export const workPolicies = pgTable("work_policies", {
   ${t.earningsModel} = 'COMMISSION' and ${t.rateMinor} is null and ${t.commissionBps} is not null and ${t.commissionBasis} is not null and ${t.commissionBps} between 0 and 10000 and ${t.commissionBasis} = 'VERIFIED_ATTRIBUTED_SALES'
 )`)]);
 
+// Extended from the original prepared Team invitation; token now stores only SHA-256.
 export const teamInvitations = pgTable("team_invitations", {
-  id: uuid("id").primaryKey(),
-  workerId: uuid("worker_id").notNull().references(() => workers.id),
-  state: text("state").notNull().default("CREATED_NOT_SENT"),
-  token: text("token").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex("team_invitation_token_unique").on(t.token),
-  check("team_invitation_state_check", sql`${t.state} = 'CREATED_NOT_SENT'`)]);
+  id: uuid("id").primaryKey(), workerId: uuid("worker_id").references(() => workers.id),
+  organisationId: uuid("organisation_id").references(() => organisations.id), outletId: uuid("outlet_id").references(() => outlets.id),
+  email: text("email"), role: text("role").notNull().default("TEAM_MEMBER"),
+  state: text("state").notNull().default("CREATED_NOT_SENT"), token: text("token").notNull(),
+  expiresAt: timestamp("expires_at", {withTimezone:true}).notNull().default(sql`now() + interval '7 days'`),
+  redeemedBy: uuid("redeemed_by").references(() => users.id), redeemedAt: timestamp("redeemed_at", {withTimezone:true}),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("team_invitation_token_unique").on(t.token),
+  check("invitation_hashed_token_check",sql`${t.token} ~ '^[0-9a-f]{64}$'`),
+  check("team_invitation_role_check", sql`${t.role} in ('MANAGER','TEAM_MEMBER')`),
+  check("team_invitation_state_check", sql`${t.state} in ('CREATED_NOT_SENT','SENT','DELIVERY_FAILED','REDEEMED','EXPIRED','REVOKED')`)]);
+export const memberships = pgTable("organisation_memberships", {
+  id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id),
+  outletId: uuid("outlet_id").references(() => outlets.id), workerId: uuid("worker_id").references(() => workers.id),
+  role: text("role").notNull(), invitationId: uuid("invitation_id").references(() => teamInvitations.id),
+  state: text("state").notNull().default("ACTIVE"), createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("membership_invitation_unique").on(t.invitationId), uniqueIndex("membership_worker_unique").on(t.workerId),
+  index("membership_user_org_idx").on(t.userId,t.organisationId),
+  check("membership_role_check",sql`${t.role} in ('OWNER','MANAGER','TEAM_MEMBER')`),
+  check("membership_state_check",sql`${t.state} in ('ACTIVE','REVOKED')`),
+  check("membership_scope_check", sql`(${t.role} = 'OWNER' and ${t.outletId} is null and ${t.workerId} is null and ${t.invitationId} is null) or (${t.role} = 'MANAGER' and ${t.outletId} is not null and ${t.workerId} is null and ${t.invitationId} is not null) or (${t.role} = 'TEAM_MEMBER' and ${t.outletId} is not null and ${t.workerId} is not null and ${t.invitationId} is not null)`)]);
+export const subscriptions = pgTable("organisation_subscriptions", {
+  id: uuid("id").primaryKey(), organisationId: uuid("organisation_id").notNull().references(() => organisations.id),
+  providerId: text("provider_id"), planId: text("plan_id"), status: text("status").notNull().default("UNCONFIGURED"),
+  requestId: uuid("request_id").notNull(), approvalUrl: text("approval_url"), verifiedAt: timestamp("verified_at",{withTimezone:true}),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("subscription_org_unique").on(t.organisationId),uniqueIndex("subscription_provider_unique").on(t.providerId), uniqueIndex("subscription_request_unique").on(t.requestId),
+  check("subscription_status_check",sql`${t.status} in ('UNCONFIGURED','PENDING','APPROVAL_PENDING','APPROVED','ACTIVE','SUSPENDED','CANCELLED','EXPIRED')`)]);
+export const subscriptionEvents = pgTable("subscription_events", {
+  id: text("id").primaryKey(), payloadHash: text("payload_hash").notNull(), providerId: text("provider_id").notNull(),
+  eventType: text("event_type").notNull(), processedAt: timestamp("processed_at",{withTimezone:true}).notNull().defaultNow(),
+});
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey(), organisationId: uuid("organisation_id").references(() => organisations.id),
+  userId: uuid("user_id").references(() => users.id), workerId: uuid("worker_id").references(() => workers.id),
+  recipientEmail: text("recipient_email").notNull(), eventKey: text("event_key").notNull(), kind: text("kind").notNull(),
+  entityId: text("entity_id").notNull(), title: text("title").notNull(), body: text("body").notNull(), href: text("href").notNull(),
+  readAt: timestamp("read_at",{withTimezone:true}), createdAt: timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+}, t => [uniqueIndex("notification_event_unique").on(t.eventKey),index("notification_recipient_idx").on(t.userId,t.createdAt)]);
+export const notificationDeliveries = pgTable("notification_deliveries", {
+  id: uuid("id").primaryKey(), notificationId: uuid("notification_id").notNull().references(() => notifications.id),
+  channel: text("channel").notNull().default("EMAIL"), destination: text("destination").notNull(), provider: text("provider").notNull().default("RESEND"),
+  providerMessageId: text("provider_message_id"), status: text("status").notNull().default("PENDING"),
+  attemptedAt: timestamp("attempted_at",{withTimezone:true}), acceptedAt: timestamp("accepted_at",{withTimezone:true}), deliveredAt: timestamp("delivered_at",{withTimezone:true}), failureCode: text("failure_code"),
+}, t => [uniqueIndex("notification_delivery_channel_unique").on(t.notificationId,t.channel),
+ check("delivery_status_check",sql`${t.status} in ('PENDING','UNCONFIGURED','SENDING','ACCEPTED','FAILED','UNKNOWN','DELIVERED')`)]);
 
 export const shifts = pgTable(
   "shifts",
@@ -367,6 +429,7 @@ export const auditEvents = pgTable(
 );
 
 export const schema = {
+  users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
   organisations,
   outlets,
   paypalConnections,

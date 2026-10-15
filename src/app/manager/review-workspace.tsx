@@ -1,3 +1,5 @@
+import { requireScope } from "@/server/auth/request";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import Link from "next/link";
 import { StatePanel } from "@/app/components/product-ui";
 import { money, PaymentBadge } from "@/app/components/workspace-ui";
@@ -6,6 +8,8 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getLocationWorkspace } from "@/server/product/workspace";
 export async function DemoReview() {
+ const scope=await requireScope(["OWNER","MANAGER"]);
+ if (scope.organisationId !== DEMO_ORGANISATION_ID || scope.locationId !== DEMO_OUTLET_ID) throw new Error("Access denied.");
  const configuration = getConfigurationStatus();
  const { current, assignments, worker } = await getLocationWorkspace(getDatabase());
  const active = assignments.find(row => row.shift.id === current?.shift.id && row.incentive?.workerId === worker?.id);

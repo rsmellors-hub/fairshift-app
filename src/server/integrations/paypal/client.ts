@@ -200,7 +200,7 @@ export class PayPalClient implements PayPalAdapter {
     return this.accessToken.value;
   }
 
-  private async authorizedRequest(path: string, init: RequestInit) {
+  protected async authorizedRequest(path: string, init: RequestInit) {
     const accessToken = await this.getAccessToken();
     return this.performFetch(path, {
       ...init,

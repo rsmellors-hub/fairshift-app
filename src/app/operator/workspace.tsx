@@ -1,3 +1,4 @@
+import { requireOperator } from "@/server/auth/request";
 import Link from "next/link";
 import { CreateSaleButton } from "@/app/components/create-sale-button";
 import { PageHeader, StatePanel } from "@/app/components/product-ui";
@@ -12,6 +13,7 @@ export const operatorAreas = ["environment", "integrations"] as const;
 export type OperatorArea = "overview" | typeof operatorAreas[number];
 
 export async function OperatorWorkspace({ area, status }: { area: OperatorArea; status?: string }) {
+  await requireOperator();
   const config = getConfigurationStatus();
   let system: "Not configured" | "Reachable" | "Unavailable" = "Not configured";
   let location: Awaited<ReturnType<typeof getLocationWorkspace>> | null = null;

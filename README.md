@@ -135,7 +135,7 @@ All calls target `https://api-m.sandbox.paypal.com`. Production configuration ca
 | Verified, deduplicated webhook inbox | IMPLEMENTED — NOT LIVE-VERIFIED | Endpoint behavior is tested; no public PayPal delivery has reached this environment. |
 | Real PayPal sandbox order and capture evidence | IMPLEMENTED — NOT LIVE-VERIFIED | Sandbox credentials are not available in this environment. |
 | AI integration | NOT IMPLEMENTED | Deliberately deferred to a later package. |
-| Authentication/RBAC UI | NOT IMPLEMENTED | Deliberately out of scope for this package. |
+| Authenticated tenancy | REPOSITORY EVIDENCE | Database sessions, Owner onboarding and invitation-derived scoped memberships; hosted verification pending. |
 | Demo shift incentive, manager approval, and PayPal Sandbox payout/status path | SANDBOX-CONNECTED | One controlled $25 Sandbox payout reached `SUCCESS`; FairShift persisted `PAID`, prevented duplicate submission, and refreshed the status. |
 
 ## Data and security boundaries
@@ -149,11 +149,22 @@ This slice is intentionally limited to one server-selected outlet, so callers ca
 - No real sandbox order, capture, or webhook delivery has been executed without credentials and a public webhook URL.
 - The checkout flow is fixed to one seeded outlet and one configured USD proof amount.
 - Refund lifecycle handling is not implemented. Reconciled refunded states cannot count as verified sales, leaving room for a later complete refund workflow.
-- Authentication and multi-outlet authorization are intentionally deferred. The server pins all current operations to the seeded outlet.
+- Operational HTTP paths require authenticated memberships and organisation/location scope. Internal demo fixtures remain separate and gain no automatic account ownership.
 - Background retry processing is deferred. Valid webhook redelivery retries unfinished reconciliation; terminal unmatched events remain quarantined and are not automatically re-evaluated.
-- Authentication/RBAC is not implemented. The manager and worker actions remain a fixed demo workflow and must not be exposed as production financial authorization.
+- Hosted authentication, email delivery and organisation subscriptions require separate verification. Existing incentive payout authority remains restricted to the controlled demo; this package adds no production payment authority.
 - The inbound order/capture workflow has not been live-verified. The payout evidence is Sandbox-only and does not establish production payment capability. Use only an appropriate PayPal Sandbox recipient and configuration when deliberately exercising an actual transfer.
 
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+## Authenticated onboarding and transactional infrastructure
+
+See [authenticated tenancy evidence](docs/AUTHENTICATED_TENANCY_EVIDENCE.md) for the
+Owner → organisation → invitation → membership trust chain, Sandbox subscription
+boundary, notification outbox, configuration and manual verification checklist.
+Start at `/register` or `/sign-in`; invitations never self-assign roles. Email is
+UNCONFIGURED until a Resend sender/key is supplied. Subscription billing requires
+its own Sandbox plan/webhook configuration and never activates from browser return.
+Apply reviewed local migrations before starting the new application paths. Existing
+hosted databases must not be migrated without approval.

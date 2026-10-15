@@ -1,0 +1,1 @@
+ALTER TABLE "team_invitations" ADD CONSTRAINT "invitation_hashed_token_check" CHECK ("team_invitations"."token" ~ '^[0-9a-f]{64}$');

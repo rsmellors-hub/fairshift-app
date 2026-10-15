@@ -1,3 +1,4 @@
+import { requireOperator } from "@/server/auth/request";
 import Link from "next/link";
 
 import { CaptureOrder } from "@/app/components/capture-order";
@@ -7,6 +8,7 @@ export default async function CheckoutReturn({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
+  await requireOperator();
   const { token } = await searchParams;
   return (
     <main className="centered-shell">
