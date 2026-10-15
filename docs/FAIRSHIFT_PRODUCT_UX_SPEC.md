@@ -187,7 +187,17 @@ This surface is bounded and deferred for the competition golden path. Full subsc
 
 ### Commercial entry and FairShift viability
 
-FairShift's current commercial direction is **B2B SaaS**. A potential model combines a base subscription with location-based pricing and may later add tiering, usage, or workforce-scale components. This is direction rather than approved pricing. Do not invent subscription prices, margins, acquisition costs, payment fees, ROI, or break-even claims.
+FairShift's approved **B2B SaaS** catalogue is based on the organisation's active location footprint, not worker count:
+
+| Plan | Monthly | Annual | Active locations |
+| --- | --- | --- | --- |
+| Single Outlet | GBP £29 | GBP £290 | Maximum 1 |
+| Multi Outlet | GBP £69 | GBP £690 | Commercial tier for 2–5; maximum 5 |
+| Enterprise | Custom/contact | Custom/contact | 6+; explicitly configured entitlement |
+
+Annual pricing provides 12 months for the equivalent of 10 monthly payments. There are no approved trials, setup fees, per-worker fees or other charges. Enterprise has no self-service checkout. Upgrade, downgrade and proration workflows remain deferred.
+
+Acquisition is email/password → mandatory verification → plan selection → PayPal Sandbox approval → authoritative server verification of ACTIVE → personal/business/workplace setup → operational access. Organisation-owned subscription entitlement and workplace completion are separate. Browser return and subscription creation responses do not grant entitlement. Each self-service selection maps to its own server-configured PayPal Plan ID; provider price/cadence must match this catalogue. Worker payouts remain separate.
 
 The product and final presentation should make the relationship between **customer value created** and **FairShift cost** credible and understandable. This business case strengthens Potential Impact, Design, Presentation, and overall credibility, but it must remain evidence-based.
 

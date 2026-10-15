@@ -1,3 +1,4 @@
+import { planFixture } from "../helpers/subscription-plans";
 import { organisationEntitled } from "@/server/billing/entitlement";
 import { personal, business } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
@@ -17,7 +18,7 @@ async function setup(db:Awaited<ReturnType<typeof createTestDatabase>>["db"]) {
  await db.update(subscriptions).set({status:"UNCONFIGURED",verifiedAt:null,providerId:null,planId:null,tier:null,billingPeriod:null,locationLimit:null}).where(eq(subscriptions.organisationId,org.organisationId));
  let status:"ACTIVE"|"APPROVAL_PENDING"|"SUSPENDED"|"CANCELLED"|"EXPIRED"="APPROVAL_PENDING";
  const details=()=>({id:"I-EXAMPLE123",custom_id:scope.organisationId,plan_id:"P-EXAMPLE",status,links:[{rel:"approve",href:"https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=example"}]});
- const adapter:SubscriptionAdapter={create:vi.fn(async()=>details()),get:vi.fn(async()=>details()),verifyWebhookSignature:vi.fn(async()=>true)};
+ const adapter:SubscriptionAdapter={getPlan:async id=>planFixture(id),create:vi.fn(async()=>details()),get:vi.fn(async()=>details()),verifyWebhookSignature:vi.fn(async()=>true)};
  return {scope,adapter,setStatus:(s:typeof status)=>{status=s;}};
 }
 const event=(id="WH-SUB-1")=>JSON.stringify({id,event_type:"BILLING.SUBSCRIPTION.ACTIVATED",resource:{id:"I-EXAMPLE123",status:"ACTIVE"}});
@@ -33,7 +34,7 @@ describe("organisation PayPal subscription authority",()=>{
   const t=await createTestDatabase();try {
    const {scope}=await setup(t.db);vi.stubEnv(key,"P-CHOICE");
    const details={id:"I-CHOICE",plan_id:"P-CHOICE",custom_id:scope.organisationId,status:"ACTIVE" as const};
-   const adapter:SubscriptionAdapter={create:vi.fn(async()=>details),get:async()=>details,verifyWebhookSignature:async()=>true};
+   const adapter:SubscriptionAdapter={getPlan:async id=>planFixture(id,{tier,billingPeriod}),create:vi.fn(async()=>details),get:async()=>details,verifyWebhookSignature:async()=>true};
    expect(await startSubscription(t.db,scope,adapter,{tier,billingPeriod})).toMatchObject({tier,billingPeriod,locationLimit:limit,planId:"P-CHOICE",status:"APPROVAL_PENDING",verifiedAt:null});
    expect(adapter.create).toHaveBeenCalledWith(expect.objectContaining({planId:"P-CHOICE",organisationId:scope.organisationId}));
    expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
@@ -116,6 +117,21 @@ describe("organisation PayPal subscription authority",()=>{
     expect((await subscriptionFor(t.db,scope))?.status).toBe(status);
     expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
    }
+  }finally{await t.close();}
+ });
+
+ it("blocks incorrect provider commercial terms and subscription overrides before entitlement",async()=>{
+  const t=await createTestDatabase();try {
+   const {scope,adapter}=await setup(t.db);
+   const wrong=planFixture();wrong.billing_cycles[0].pricing_scheme.fixed_price.value="1.00";
+   await expect(startSubscription(t.db,scope,{...adapter,getPlan:async()=>wrong},{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"})).rejects.toThrow(/catalogue/);
+   expect(adapter.create).not.toHaveBeenCalled();
+   await startSubscription(t.db,scope,adapter,{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"});
+   const details=await adapter.get("I-EXAMPLE123");
+   await expect(refreshSubscription(t.db,scope,{...adapter,get:async()=>({...details,status:"ACTIVE",plan_overridden:true})})).rejects.toThrow(/mismatch/);
+   await expect(refreshSubscription(t.db,scope,{...adapter,get:async()=>({...details,status:"ACTIVE"}),getPlan:async()=>wrong})).rejects.toThrow(/catalogue/);
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
+   expect((await subscriptionFor(t.db,scope))?.status).toBe("APPROVAL_PENDING");
   }finally{await t.close();}
  });
 

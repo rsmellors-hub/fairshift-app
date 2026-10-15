@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { configuredPlan, planSelection, locationLimitFor, type PlanSelection } from "./plans";
+import { assertCommercialPlan, configuredPlan, planSelection, locationLimitFor, type PlanSelection } from "./plans";
 import { requireCustomerOwner as owner, type CustomerScope } from "./ownership";
 import { organisations, outlets, subscriptions, subscriptionEvents } from "@/server/db/schema";
 import { tokenHash } from "@/server/auth/identity";
@@ -33,8 +33,9 @@ export async function startSubscription(db:Database,scope:CustomerScope,adapter:
   if (!row.planId || row.status !== "PENDING") throw new Error("Subscription needs review.");
   // PayPal retains create request IDs for 72 hours. Do not recreate after that protection expires.
   if (Date.now()-row.updatedAt.getTime()>48*3600_000) throw new Error("Pending subscription requires provider reconciliation before retry.");
+  assertCommercialPlan(await adapter.getPlan(row.planId),choice,row.planId);
   const details=subscriptionDetails.parse(await adapter.create({organisationId:scope.organisationId,requestId:row.requestId,planId:row.planId}));
-  if (details.custom_id !== scope.organisationId || details.plan_id !== row.planId) throw new Error("Subscription identity mismatch.");
+  if (details.custom_id !== scope.organisationId || details.plan_id !== row.planId || details.plan_overridden || (details.quantity && details.quantity !== "1")) throw new Error("Subscription identity mismatch.");
   const [updated]=await tx.update(subscriptions).set({providerId:details.id,status:"APPROVAL_PENDING",approvalUrl:approvalLink(details),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
   return updated;
  });
@@ -43,7 +44,16 @@ async function reconcile(db:DatabaseSession,adapter:SubscriptionAdapter,id:strin
  const [row]=await db.select().from(subscriptions).where(eq(subscriptions.providerId,id)).for("update");
  if (!row) throw new Error("Unknown subscription.");
  const details=subscriptionDetails.parse(await adapter.get(id));
- if (details.id !== row.providerId || details.custom_id !== row.organisationId || details.plan_id !== row.planId) throw new Error("Subscription identity mismatch.");
+ const overridden=details.plan_overridden || (details.quantity && details.quantity !== "1");
+ if (details.id !== row.providerId || details.custom_id !== row.organisationId || details.plan_id !== row.planId || (details.status === "ACTIVE" && overridden)) throw new Error("Subscription identity mismatch.");
+ // Legacy subscriptions without a tier retain their existing identity binding. New catalogue
+ // subscriptions also verify price/cadence; cancellation must still withdraw entitlement
+ // if a provider plan has since become inactive or its commercial configuration changed.
+ if (details.status === "ACTIVE" && row.tier && row.tier !== "ENTERPRISE") {
+  const choice=planSelection.parse({tier:row.tier,billingPeriod:row.billingPeriod});
+  if (row.locationLimit !== locationLimitFor(choice.tier)) throw new Error("Subscription entitlement mismatch.");
+  assertCommercialPlan(await adapter.getPlan(row.planId!),choice,row.planId!,false);
+ }
  const [updated]=await db.update(subscriptions).set({status:details.status,verifiedAt:new Date(),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
  return updated;
 }

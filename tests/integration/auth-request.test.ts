@@ -190,7 +190,7 @@ describe("subscription-first UI and verification continuation",()=>{
    await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/subscribe");
    expect(jar.get("fairshift_session")).toBe(session);
    const plans=renderToStaticMarkup(await Subscribe({searchParams:Promise.resolve({period:"ANNUAL"})}));
-   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 active location","Up to 5 active locations","Annual billing","Checkout is currently unavailable"]) expect(plans).toContain(text);
+   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 active location","Up to 5 active locations","Annual billing","GBP £290/year","GBP £690/year","6+ active locations","Checkout is currently unavailable"]) expect(plans).toContain(text);
    for(const name of ["firstName","businessAddress","locationName"]) expect(plans).not.toContain(`name="${name}"`);
    expect(plans).not.toContain('value="ENTERPRISE"');expect(plans).not.toContain("/owner/");
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);

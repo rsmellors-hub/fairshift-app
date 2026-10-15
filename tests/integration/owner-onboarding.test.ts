@@ -1,3 +1,4 @@
+import { planFixture } from "../helpers/subscription-plans";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +24,7 @@ async function activate(db:Awaited<ReturnType<typeof createTestDatabase>>["db"],
  const planId=tier === "SINGLE_OUTLET" ? "P-SINGLE" : "P-MULTI";
  vi.stubEnv(tier === "SINGLE_OUTLET" ? "PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID" : "PAYPAL_MULTI_OUTLET_MONTHLY_PLAN_ID",planId);
  const details={id:"I-EXAMPLE",custom_id:scope.organisationId,plan_id:planId,status:"ACTIVE" as const};
- const adapter:SubscriptionAdapter={create:vi.fn(async()=>details),get:vi.fn(async()=>details),verifyWebhookSignature:async()=>true};
+ const adapter:SubscriptionAdapter={getPlan:async id=>planFixture(id,{tier,billingPeriod:"MONTHLY"}),create:vi.fn(async()=>details),get:vi.fn(async()=>details),verifyWebhookSignature:async()=>true};
  await startSubscription(db,scope,adapter,{tier,billingPeriod:"MONTHLY"});
  expect(await organisationEntitled(db,scope.organisationId)).toBe(false);
  await refreshSubscription(db,scope,adapter);
@@ -85,6 +86,7 @@ describe("subscription-first acquisition",()=>{
    const {scope,m}=await customer(t.db);await activate(t.db,scope,tier);await completeWorkplace(t.db,scope,workplace);
    for(let i=1;i<limit;i++) await createLocation(t.db,scope,{name:`Location ${i+1}`});
    await expect(createLocation(t.db,scope,{name:"Too many"})).rejects.toThrow(new RegExp(`allows ${limit}`));
+   if(tier === "MULTI_OUTLET") await expect(createLocation(t.db,scope,{name:"Sixth location"})).rejects.toThrow(/6\+ locations.*Enterprise/);
    expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,m.organisationId))).toHaveLength(limit);
    await expect(createLocation(t.db,{...scope,role:"MANAGER"},{name:"Escalation"})).rejects.toThrow(/denied/);
    await expect(createLocation(t.db,{...scope,organisationId:randomUUID()},{name:"Other organisation"})).rejects.toThrow(/denied/);
@@ -116,7 +118,7 @@ describe("subscription-first acquisition",()=>{
   const t=await createTestDatabase();try {
    const {scope,m}=await customer(t.db);
    await expect(startSubscription(t.db,scope,null,{tier:"ENTERPRISE",billingPeriod:"MONTHLY"} as never)).rejects.toThrow();
-   const adapter:SubscriptionAdapter={create:vi.fn(async()=>({id:"I-OTHER",custom_id:m.organisationId,plan_id:"P-WRONG",status:"ACTIVE" as const})),get:vi.fn(),verifyWebhookSignature:async()=>true};
+   const adapter:SubscriptionAdapter={getPlan:async id=>planFixture(id),create:vi.fn(async()=>({id:"I-OTHER",custom_id:m.organisationId,plan_id:"P-WRONG",status:"ACTIVE" as const})),get:vi.fn(),verifyWebhookSignature:async()=>true};
    await expect(startSubscription(t.db,scope,adapter,{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"})).rejects.toThrow(/unavailable/);
    expect(adapter.create).not.toHaveBeenCalled();
    vi.stubEnv("PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID","P-SINGLE");
@@ -133,7 +135,7 @@ describe("subscription-first acquisition",()=>{
    const {scope,m}=await customer(t.db);
    await t.db.insert(outlets).values(["One","Two"].map(name=>({id:randomUUID(),organisationId:m.organisationId,name,timezone:"UTC"})));
    vi.stubEnv("PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID","P-SINGLE");
-   const adapter:SubscriptionAdapter={create:vi.fn(),get:vi.fn(),verifyWebhookSignature:async()=>true};
+   const adapter:SubscriptionAdapter={getPlan:async id=>planFixture(id),create:vi.fn(),get:vi.fn(),verifyWebhookSignature:async()=>true};
    await expect(startSubscription(t.db,scope,adapter,{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"})).rejects.toThrow(/existing active locations/);
    expect(adapter.create).not.toHaveBeenCalled();
    expect((await t.db.select().from(subscriptions).where(eq(subscriptions.organisationId,m.organisationId)))[0]).toMatchObject({status:"UNCONFIGURED",tier:null,planId:null});
@@ -142,7 +144,10 @@ describe("subscription-first acquisition",()=>{
  it("keeps the Sandbox reconciliation adapter available independently of checkout mapping",()=>{
   vi.stubEnv("PAYPAL_CLIENT_ID","fixture");vi.stubEnv("PAYPAL_CLIENT_SECRET","fixture");vi.stubEnv("PAYPAL_SUBSCRIPTION_WEBHOOK_ID","fixture");
   expect(getSubscriptionAdapter()).not.toBeNull();
+  vi.stubEnv("PAYPAL_WEBHOOK_ID","fixture");expect(getSubscriptionAdapter()).toBeNull();
+  vi.stubEnv("PAYPAL_WEBHOOK_ID","payout-only");
   vi.stubEnv("PAYPAL_ENVIRONMENT","production");expect(getSubscriptionAdapter()).toBeNull();
+  vi.stubEnv("PAYPAL_ENVIRONMENT","sandbox");vi.stubEnv("PAYPAL_ENV","live");expect(getSubscriptionAdapter()).toBeNull();
  });
 });
 describe("subscription entitlement decision",()=>{
