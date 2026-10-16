@@ -53,6 +53,8 @@ export const outlets = pgTable(
       .references(() => organisations.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
+    address: text("address"), city: text("city"), province: text("province"),
+    postalCode: text("postal_code"), country: text("country"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

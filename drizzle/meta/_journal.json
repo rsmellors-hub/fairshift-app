@@ -71,6 +71,13 @@
       "when": 1792101596480,
       "tag": "0009_subscription_first_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792124677866,
+      "tag": "0010_lowly_red_ghost",
+      "breakpoints": true
     }
   ]
 }

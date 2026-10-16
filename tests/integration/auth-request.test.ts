@@ -1,5 +1,5 @@
 import { createOrganisation } from "../helpers/onboarding";
-import { personal, business, entitled } from "../helpers/onboarding";
+import { personal, business, entitled, setupFields } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { and,eq } from "drizzle-orm";
 import { afterEach,describe,expect,it,vi } from "vitest";
@@ -29,7 +29,7 @@ import { submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import BillingReturn from "@/app/billing/return/page";
 const jar=vi.hoisted(()=>new Map<string,string>());
 vi.mock("next/headers",()=>({cookies:async()=>({get:(key:string)=>jar.has(key) ? {value:jar.get(key)!}:undefined,set:(key:string,value:string)=>jar.set(key,value),delete:(key:string)=>jar.delete(key)})}));
-vi.mock("next/navigation",()=>({redirect:(path:string)=>{throw new Error(`REDIRECT:${path}`);},usePathname:()=>"/owner"}));
+vi.mock("next/navigation",()=>({redirect:(path:string)=>{throw new Error(`REDIRECT:${path}`);},usePathname:()=>"/owner",useRouter:()=>({replace:vi.fn()})}));
 vi.mock("next/cache",()=>({revalidatePath:vi.fn()}));
 vi.mock("@/server/db/client",()=>({getDatabase:vi.fn()}));
 vi.mock("@/server/billing/paypal",async importOriginal=>({...await importOriginal<typeof import("@/server/billing/paypal")>(),getSubscriptionAdapter:()=>null}));
@@ -94,10 +94,10 @@ describe("authenticated HTTP action boundary",()=>{
    vi.mocked(getDatabase).mockReturnValue(t.db);const o=await bootstrap(t.db);
    jar.set("fairshift_session",await issueSession(t.db,o.u.id));
    await t.db.update(subscriptions).set({status:"APPROVAL_PENDING",providerId:"I-MOCK",planId:"P-MOCK"}).where(eq(subscriptions.organisationId,o.o.organisationId));
-   expect(renderToStaticMarkup(await BillingReturn())).toContain("APPROVAL_PENDING");
+   expect(renderToStaticMarkup(await BillingReturn())).toContain("Setting up your FairShift account");
    expect((await t.db.select().from(subscriptions).where(eq(subscriptions.organisationId,o.o.organisationId)))[0].status).toBe("APPROVAL_PENDING");
    await expect(requireScope(["OWNER"])).rejects.toThrow("REDIRECT:/subscribe");
-   await expect(completeWorkplaceAction(form({...personal,...business,name:"Second",locationName:"Second HQ"}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
+   await expect(completeWorkplaceAction({},form({...setupFields,name:"Second",locationName:"Second HQ"}))).resolves.toMatchObject({message:expect.stringContaining("couldn’t save")});
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,o.u.id))).toHaveLength(1);
    await entitled(t.db,o.o.organisationId);
    jar.set("fairshift_location",randomUUID());await expect(requireScope(["OWNER"])).rejects.toThrow(/denied/);
@@ -122,7 +122,7 @@ describe("subscription gate at real application boundaries",()=>{
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
    }
-   await expect(Onboarding({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(Onboarding()).rejects.toThrow("REDIRECT:/subscribe");
    await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");
    await expect(saveBusinessAction(form({...business,name:"One",organisationId:randomUUID()}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
    const account=renderToStaticMarkup(await Account({searchParams:Promise.resolve({})}));
@@ -220,9 +220,9 @@ describe("subscription-first UI and verification continuation",()=>{
    await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/onboarding");
    await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/onboarding");
    await expect(createLocationAction(form({name:"Bypass"}))).rejects.toThrow("REDIRECT:/onboarding");
-   const setup=renderToStaticMarkup(await Onboarding({searchParams:Promise.resolve({})}));
-   expect(setup).toContain("Set up your workplace");expect(setup).toContain("HQ");expect(setup).not.toContain('name="locationName"');
-   await expect(completeWorkplaceAction(form({...personal,...business,name:"One",locationName:"Duplicate",organisationId:randomUUID(),email:"injected@example.test"}))).rejects.toThrow("REDIRECT:/owner");
+   const setup=renderToStaticMarkup(await Onboarding());
+   expect(setup).toContain("Set up your workplace");expect(setup).toContain("HQ");expect(setup).toContain('name="locationName"');
+   await expect(completeWorkplaceAction({},form({...setupFields,name:"One",locationName:"HQ",organisationId:randomUUID(),email:"injected@example.test"}))).rejects.toThrow("REDIRECT:/owner");
    expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,o.o.organisationId))).toHaveLength(1);
    expect((await t.db.select().from(users).where(eq(users.id,o.u.id)))[0].email).toBe(o.u.email);
    await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/owner");

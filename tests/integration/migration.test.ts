@@ -147,3 +147,20 @@ describe("subscription-first 0008 to 0009 upgrade",()=>{
   }finally{await client.close();}
  });
 });
+
+describe("location address upgrade",()=>{
+ it("adds only nullable address columns and preserves existing locations without backfill",async()=>{
+  const client=new PGlite();try {
+   const journal=JSON.parse(await readFile("drizzle/meta/_journal.json","utf8")) as {entries:{tag:string}[]};
+   async function apply(tag:string) {for(const statement of (await readFile(`drizzle/${tag}.sql`,"utf8")).split("--> statement-breakpoint")) if(statement.trim()) await client.exec(statement);}
+   for(const entry of journal.entries.slice(0,10)) await apply(entry.tag);
+   const before=(await client.query<Record<string,unknown>>("SELECT * FROM outlets ORDER BY id")).rows;
+   expect(before.length).toBeGreaterThan(0);
+   await apply(journal.entries[10].tag);
+   expect((await client.query("SELECT * FROM outlets ORDER BY id")).rows).toEqual(before.map(row=>({...row,address:null,city:null,province:null,postal_code:null,country:null})));
+   const columns=await client.query<{column_name:string;is_nullable:string;column_default:string|null}>("SELECT column_name,is_nullable,column_default FROM information_schema.columns WHERE table_name='outlets' AND column_name IN ('address','city','province','postal_code','country')");
+   expect(columns.rows).toHaveLength(5);
+   for(const column of columns.rows) expect(column).toMatchObject({is_nullable:"YES",column_default:null});
+  }finally{await client.close();}
+ });
+});

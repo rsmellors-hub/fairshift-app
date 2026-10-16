@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
-import { personal, business } from "../helpers/onboarding";
+import { personal, business, locationAddress } from "../helpers/onboarding";
 import { registerIdentity, createIdentityToken, redeemIdentityToken } from "@/server/auth/identity";
 import { ensureCustomerOrganisation } from "@/server/auth/tenancy";
 import { completeWorkplace, personalDetails } from "@/server/auth/onboarding";
@@ -30,12 +30,12 @@ async function activate(db:Awaited<ReturnType<typeof createTestDatabase>>["db"],
  await refreshSubscription(db,scope,adapter);
  return adapter;
 }
-const workplace={...personal,...business,name:"FairShift Demo",locationName:"Johannesburg store"};
+const workplace={...personal,...business,...locationAddress,sameAddress:true,name:"FairShift Demo",locationName:"Johannesburg store"};
 afterEach(()=>vi.unstubAllEnvs());
 describe("subscription-first acquisition",()=>{
  it("migrates a blank database through 0009 and retains nullable profile fields",async()=>{
   const t=await createTestDatabase();try {
-   expect((await t.db.execute(sql`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations`)).rows[0]).toMatchObject({count:10});
+   expect((await t.db.execute(sql`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations`)).rows[0]).toMatchObject({count:11});
    const user=await registerIdentity(t.db,{email:" OWNER@EXAMPLE.TEST ",password:"long-test-password-42"});
    expect((await t.db.select().from(users).where(eq(users.id,user.id)))[0]).toMatchObject({email:"owner@example.test",name:"",firstName:null,telephone:null});
    expect(await t.db.select().from(memberships)).toHaveLength(0);
@@ -71,7 +71,7 @@ describe("subscription-first acquisition",()=>{
  it("validates post-payment fields and rolls back setup if first location cannot persist",async()=>{
   const t=await createTestDatabase();try {
    const {u,m,scope}=await customer(t.db);await activate(t.db,scope);
-   for (const key of Object.keys(personal)) await expect(completeWorkplace(t.db,scope,{...workplace,[key]:""})).rejects.toThrow();
+   for (const key of Object.keys(personal).filter(key=>key !== "title")) await expect(completeWorkplace(t.db,scope,{...workplace,[key]:""})).rejects.toThrow();
    expect(personalDetails.safeParse({...personal,title:"Invalid"}).success).toBe(false);
    await t.db.execute(sql`CREATE FUNCTION fail_location_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'controlled location failure'; END $$`);
    await t.db.execute(sql`CREATE TRIGGER fail_location_fixture BEFORE INSERT ON outlets FOR EACH ROW EXECUTE FUNCTION fail_location_fixture()`);
@@ -157,5 +157,40 @@ describe("subscription entitlement decision",()=>{
   expect(isEntitled({...verified,status:"ACTIVE"})).toBe(true);
   for(const key of ["verifiedAt","providerId","planId"]) expect(isEntitled({...verified,status:"ACTIVE",[key]:null})).toBe(false);
   expect(isEntitled(null)).toBe(false);
+ });
+});
+
+describe("first-location address completion",()=>{
+ it.each([true,false])("persists same-address=%s without requiring honorific or region",async sameAddress=>{
+  const t=await createTestDatabase();try {
+   const {u,m,scope}=await customer(t.db);await activate(t.db,scope);
+   const loc=await completeWorkplace(t.db,scope,{...workplace,title:undefined,province:undefined,locationProvince:undefined,sameAddress,
+    locationAddress:"42 Location Street",locationCity:"London",locationPostalCode:"SW1A 1AA",locationCountry:"United Kingdom"});
+   expect(loc).toMatchObject({address:"42 Location Street",city:"London",postalCode:"SW1A 1AA",country:"United Kingdom",province:null});
+   const [org]=await t.db.select().from(organisations).where(eq(organisations.id,m.organisationId));
+   expect(org).toMatchObject({businessAddress:sameAddress ? "42 Location Street":business.businessAddress,city:sameAddress ? "London":business.city,
+    postalCode:sameAddress ? "SW1A 1AA":business.postalCode,country:sameAddress ? "United Kingdom":business.country,province:null,setupCompletedAt:expect.any(Date)});
+   expect((await t.db.select().from(users).where(eq(users.id,u.id)))[0]).toMatchObject({title:null,email:"owner@example.test"});
+   await expect(createLocation(t.db,scope,{name:"Over the Single Outlet limit"})).rejects.toThrow(/allows 1/);
+  }finally{await t.close();}
+ });
+ it("requires an independent business address when copying is disabled",async()=>{
+  const t=await createTestDatabase();try {
+   const {scope,m}=await customer(t.db);await activate(t.db,scope);
+   await expect(completeWorkplace(t.db,scope,{...workplace,sameAddress:false,businessAddress:""})).rejects.toThrow();
+   expect((await t.db.select().from(organisations).where(eq(organisations.id,m.organisationId)))[0].setupCompletedAt).toBeNull();
+   expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,m.organisationId))).toHaveLength(0);
+  }finally{await t.close();}
+ });
+ it("rolls back location and profile when the final organisation write fails",async()=>{
+  const t=await createTestDatabase();try {
+   const {scope,m,u}=await customer(t.db);await activate(t.db,scope);
+   await t.db.execute(sql`CREATE FUNCTION fail_setup_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'controlled setup failure'; END $$`);
+   await t.db.execute(sql`CREATE TRIGGER fail_setup_fixture BEFORE UPDATE ON organisations FOR EACH ROW EXECUTE FUNCTION fail_setup_fixture()`);
+   await expect(completeWorkplace(t.db,scope,workplace)).rejects.toThrow();
+   expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,m.organisationId))).toHaveLength(0);
+   expect((await t.db.select().from(users).where(eq(users.id,u.id)))[0].firstName).toBeNull();
+   expect((await t.db.select().from(organisations).where(eq(organisations.id,m.organisationId)))[0]).toMatchObject({name:"",setupCompletedAt:null,businessAddress:null});
+  }finally{await t.close();}
  });
 });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AcquisitionProgress } from "@/app/components/acquisition-progress";
 import { redirect } from "next/navigation";
 import { and,eq } from "drizzle-orm";
 import { requireIdentity, requireOwnerCustomer } from "@/server/auth/request";
@@ -20,10 +21,10 @@ export default async function Subscribe({searchParams}:{searchParams:Promise<{pe
  const {period,status,billing}=await searchParams;
  const billingPeriod=period === "ANNUAL" ? "ANNUAL" : "MONTHLY";
  const configured=!!getSubscriptionAdapter(),contact=enterpriseContact();
- return <main className="product-page onboarding-page"><header><Link href="/account">Account & notifications</Link><h1>Choose your subscription</h1><ol className="onboarding-progress" aria-label="Setup progress"><li>Account ✓</li><li>Plan</li><li>Workplace</li><li>Team</li></ol></header>
+ return <main className="product-page onboarding-page"><header><Link href="/account">Account & notifications</Link><h1>Choose your subscription</h1><AcquisitionProgress current="Plan"/></header>
  {status ? <p role="alert">{status === "unavailable" ? "This checkout is unavailable or a different subscription is already in progress. Your account is saved. Review its status below." : "Subscription verification could not be completed. Please try again later."}</p> : null}
- {billing === "cancelled" ? <p>PayPal approval was cancelled. This browser return has not activated access.</p> : null}
- {sub ? <section className="panel"><h2>Subscription status</h2><p>{sub.status} {sub.tier ? `· ${sub.tier.replaceAll("_"," ")} · ${sub.billingPeriod ?? "Custom"}` : ""}</p><p>{sub.verifiedAt ? `Last checked with PayPal: ${sub.verifiedAt.toISOString()}` : "Not yet verified with PayPal."}</p>{sub.approvalUrl && ["APPROVAL_PENDING","APPROVED"].includes(sub.status) && safeApproval(sub.approvalUrl) ? <a className="primary-button" href={sub.approvalUrl}>Continue PayPal approval</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check subscription with PayPal</button></form>{!["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status) ? <p>Contact FairShift to review your subscription before starting another checkout.</p> : null}</section> : null}
+ {billing === "cancelled" ? <p>PayPal approval was cancelled. You can continue when you’re ready.</p> : null}
+ {sub ? <section className="panel"><h2>Subscription status</h2><p>{["UNCONFIGURED","PENDING"].includes(sub.status) ? "Choose your plan to continue." : ["APPROVAL_PENDING","APPROVED"].includes(sub.status) ? "Your subscription is awaiting confirmation." : "Your subscription needs attention. Contact FairShift for help."}</p>{sub.approvalUrl && ["APPROVAL_PENDING","APPROVED"].includes(sub.status) && safeApproval(sub.approvalUrl) ? <a className="primary-button" href={sub.approvalUrl}>Continue PayPal approval</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form>{!["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status) ? <p>Contact FairShift to review your subscription before starting another checkout.</p> : null}</section> : null}
  <nav className="inline-form" aria-label="Billing period"><Link aria-current={billingPeriod === "MONTHLY" ? "page" : undefined} href="/subscribe?period=MONTHLY">Monthly</Link><Link aria-current={billingPeriod === "ANNUAL" ? "page" : undefined} href="/subscribe?period=ANNUAL">Annual</Link></nav>
  <div className="plan-options">{(["SINGLE_OUTLET","MULTI_OUTLET"] as const).map(tier=>{
   const terms=commercialPlan({tier,billingPeriod});

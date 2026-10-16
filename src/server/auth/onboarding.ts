@@ -7,21 +7,11 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { DatabaseSession } from "@/server/db/client";
 import { memberships, organisations, users } from "@/server/db/schema";
+import { personalDetails, addressDetails, workplaceDetails } from "@/lib/workplace";
+export { personalDetails } from "@/lib/workplace";
 
-export const personalDetails = z.object({
-  title: z.enum(["Mr", "Mrs", "Ms", "Dr", "Other"]),
-  firstName: z.string().trim().min(1).max(100),
-  surname: z.string().trim().min(1).max(100),
-  position: z.string().trim().min(1).max(150),
-  telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/),
-});
-export const businessDetails = z.object({
+export const businessDetails = addressDetails.extend({
   name: z.string().trim().min(1).max(150),
-  businessAddress: z.string().trim().min(1).max(300),
-  city: z.string().trim().min(1).max(100),
-  province: z.string().trim().min(1).max(100),
-  postalCode: z.string().trim().min(1).max(30),
-  country: z.string().trim().min(1).max(100),
 });
 export async function savePersonalDetails(db: DatabaseSession, userId: string, input: unknown) {
   const value = personalDetails.strict().parse(input);
@@ -43,20 +33,26 @@ export async function saveBusinessDetails(db: DatabaseSession, userId: string, o
 
 // Entitlement and setup are separate: setup may finish only after authoritative activation.
 export async function completeWorkplace(db: import("@/server/db/client").Database, scope: import("@/server/billing/ownership").CustomerScope, input: unknown) {
-  const value=personalDetails.merge(businessDetails).extend({locationName:z.string().trim().max(150).optional()}).strict().parse(input);
+  const value=workplaceDetails.parse(input);
   return db.transaction(async tx=>{
     await requireCustomerOwner(tx,scope);
     const [org]=await tx.select().from(organisations).where(eq(organisations.id,scope.organisationId)).for("update");
     if (!org || !await organisationEntitled(tx,scope.organisationId)) throw new Error("An active organisation subscription is required before workplace setup.");
     const existing=await tx.select().from(outlets).where(eq(outlets.organisationId,org.id));
     let location=existing.find(row=>row.active);
+    if (org.setupCompletedAt && location) return location;
+    const locationValues={name:value.locationName,address:value.locationAddress,city:value.locationCity,
+      province:value.locationProvince ?? null,postalCode:value.locationPostalCode,country:value.locationCountry,updatedAt:new Date()};
     if (!location) {
-      if (!value.locationName) throw new Error("Enter your first operating location.");
       await assertLocationCapacity(tx,org.id);
-      [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:org.id,name:value.locationName,timezone:"Africa/Johannesburg"}).returning();
+      [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:org.id,...locationValues,timezone:"Africa/Johannesburg"}).returning();
+    } else {
+      [location]=await tx.update(outlets).set(locationValues).where(eq(outlets.id,location.id)).returning();
     }
     await savePersonalDetails(tx,scope.userId,personalDetails.parse(value));
-    await tx.update(organisations).set({...businessDetails.parse(value),setupCompletedAt:org.setupCompletedAt ?? new Date(),updatedAt:new Date()}).where(eq(organisations.id,org.id));
+    const address=value.sameAddress ? {businessAddress:value.locationAddress,city:value.locationCity,province:value.locationProvince,
+      postalCode:value.locationPostalCode,country:value.locationCountry} : addressDetails.parse(value);
+    await tx.update(organisations).set({...address,province:address.province ?? null,name:value.name,setupCompletedAt:org.setupCompletedAt ?? new Date(),updatedAt:new Date()}).where(eq(organisations.id,org.id));
     return location;
   });
 }

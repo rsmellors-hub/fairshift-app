@@ -16,6 +16,7 @@ import { createLocation } from "@/server/billing/locations";
 import { getSubscriptionAdapter } from "@/server/billing/paypal";
 import { completeWorkplace, savePersonalDetails, saveBusinessDetails } from "@/server/auth/onboarding";
 import { organisationEntitled, ownerDestination, workplaceComplete } from "@/server/billing/entitlement";
+import { workplaceDetails, workplaceErrors, type WorkplaceFormState } from "@/lib/workplace";
 const personalKeys=["title","firstName","surname","position","telephone"];
 const businessKeys=["name","businessAddress","city","province","postalCode","country"];
 const field=(form:FormData,name:string) => String(form.get(name) ?? "");
@@ -80,10 +81,26 @@ export async function resetPasswordAction(form:FormData) {
  try {await redeemIdentityToken(getDatabase(),field(form,"token"),"RESET_PASSWORD",field(form,"password"));} catch {redirect("/reset-password?status=error");}
  redirect("/sign-in?status=password-reset");
 }
-export async function completeWorkplaceAction(form:FormData) {
+export async function completeWorkplaceAction(_previous:WorkplaceFormState,form:FormData):Promise<WorkplaceFormState> {
  const scope=await requireOwnerCustomer();
- try {await completeWorkplace(getDatabase(),scope,{...Object.fromEntries([...personalKeys,...businessKeys].map(key=>[key,field(form,key)])),locationName:field(form,"locationName")});} catch {redirect("/onboarding?status=error");}
+ const keys=["firstName","surname","position","telephone","name","locationName","locationAddress","locationCity","locationPostalCode","locationCountry",...businessKeys.filter(key=>key !== "name")];
+ const input={...Object.fromEntries(keys.filter(key=>form.has(key)).map(key=>[key,field(form,key)])),sameAddress:form.get("sameAddress") === "on"};
+ const parsed=workplaceDetails.safeParse(input);
+ if (!parsed.success) return {errors:workplaceErrors(input),message:"Check the highlighted details and try again."};
+ try {await completeWorkplace(getDatabase(),scope,parsed.data);} catch {return {message:"We couldn’t save your workplace. Your details are still here. Please try again shortly."};}
  (await cookies()).delete("fairshift_location");redirect("/owner");
+}
+// A status check only reads/reconciles the existing subscription; it never starts checkout.
+export async function checkSubscriptionStatusAction():Promise<{destination:string|null;message?:string}> {
+ const scope=await requireOwnerCustomer(),db=getDatabase();
+ let destination=await ownerDestination(db,scope.organisationId);
+ if (destination !== "/subscribe") return {destination};
+ try {await refreshSubscription(db,scope,getSubscriptionAdapter());} catch {
+  destination=await ownerDestination(db,scope.organisationId);
+  return destination !== "/subscribe" ? {destination} : {destination:null,message:"We couldn’t confirm your subscription yet. Check the payment status or try again shortly."};
+ }
+ destination=await ownerDestination(db,scope.organisationId);
+ return {destination:destination === "/subscribe" ? null : destination};
 }
 export async function createLocationAction(form:FormData) {
  const scope=await requireScope(["OWNER"]);
