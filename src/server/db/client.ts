@@ -27,10 +27,11 @@ export function getDatabase(): Database {
 
   const database = drizzle(pool, { schema });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForDatabase.fairshiftPool = pool;
-    globalForDatabase.fairshiftDatabase = database;
-  }
+  // One pool per process in every environment. Creating a pool per call exhausts
+  // PostgreSQL connections under normal navigation; the global also survives
+  // development hot reloads.
+  globalForDatabase.fairshiftPool = pool;
+  globalForDatabase.fairshiftDatabase = database;
 
   return database;
 }
