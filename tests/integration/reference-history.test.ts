@@ -133,6 +133,9 @@ describe("reference sales history provisioning", () => {
       expect(html).toContain("Reference sales history");
       expect(html).toContain("not Zettle, PayPal or other provider sales");
       expect(html).toContain("Data through 28 Dec 2025");
+      // Dated wording, never "recent", for history that ended long ago.
+      expect(html).toContain("Latest recorded sales");
+      expect(html).not.toMatch(/Recent (recorded )?sales/);
       expect(html).toContain("£");
       expect(html).not.toContain("$");
       expect(html).not.toMatch(/Zettle sales|live sales|verified sales/i);

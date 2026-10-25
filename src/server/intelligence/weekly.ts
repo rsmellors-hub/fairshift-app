@@ -97,7 +97,9 @@ export async function getWeeklyForecast(db: DatabaseSession, scope: Scope, now =
     .where(and(eq(outlets.organisationId, scope.organisationId), eq(outlets.active, true),
       scope.role === "OWNER" ? undefined : eq(outlets.id, scope.locationId)))
     .orderBy(outlets.name);
-  const daily = await loadDailySales(db, scope.organisationId, rows.map(row => row.id));
+  // Owners share the organisation-wide totals already loaded for Overview; managers load only their location.
+  // (Same argument list as Overview's call, so the per-request memo applies.)
+  const daily = await (scope.role === "OWNER" ? loadDailySales(db, scope.organisationId) : loadDailySales(db, scope.organisationId, rows.map(row => row.id)));
   const result: OutletWeeklyForecast[] = rows.map(outlet => {
     const today = localDate(now, outlet.timezone);
     const selection = selectForecastSource(daily.filter(row => row.outletId === outlet.id), today);

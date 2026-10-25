@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets, saleTransactions } from "@/server/db/schema";
@@ -24,7 +25,9 @@ export type DailySalesRow = { outletId: string; source: SalesSource; currency: s
 
 // Eligible daily totals per outlet, source and currency for one organisation,
 // aggregated in the database so long histories are never loaded row by row.
-export async function loadDailySales(db: DatabaseSession, organisationId: string, outletIds?: string[]): Promise<DailySalesRow[]> {
+// Memoised per server request: Overview needs the same organisation-wide totals
+// for recorded sales and for the weekly forecast. Outside a request it simply runs.
+export const loadDailySales = cache(async function loadDailySales(db: DatabaseSession, organisationId: string, outletIds?: string[]): Promise<DailySalesRow[]> {
   if (outletIds && !outletIds.length) return [];
   const rows = await db.select({
     outletId: outlets.id, source: saleTransactions.source, currency: saleTransactions.currencyCode, date: saleDate,
@@ -34,4 +37,4 @@ export async function loadDailySales(db: DatabaseSession, organisationId: string
     .where(and(eq(outlets.organisationId, organisationId), outletIds ? inArray(outlets.id, outletIds) : undefined, eligibleSale))
     .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleDate);
   return rows.map(row => ({ ...row, source: row.source as SalesSource }));
-}
+});
