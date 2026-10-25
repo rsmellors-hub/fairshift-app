@@ -8,7 +8,8 @@ import { createDepartmentAction, createPolicyAction } from "@/app/operations-act
 import { getOperations } from "@/server/scheduling/operations";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
-import { ActionFeedback, money, PaymentBadge, TaskLink, WorkspaceUnavailable } from "@/app/components/workspace-ui";
+import { ActionFeedback, money, PaymentBadge, WorkspaceUnavailable } from "@/app/components/workspace-ui";
+import OwnerPage from "@/app/owner/page";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getManagerForecast } from "@/server/intelligence/manager";
@@ -20,6 +21,7 @@ export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "p
 export type OwnerArea = "overview" | typeof ownerAreas[number];
 
 export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status?: string }) {
+  if (area === "overview") return OwnerPage();
   const configuration = getConfigurationStatus();
   if (!configuration.databaseConfigured) return <WorkspaceUnavailable />;
   const scope=await requireScope(["OWNER"]);
@@ -38,14 +40,10 @@ export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status
     return <><ManagerForecast result={result} aiResult={aiResult} /><p className="method-note">Forecast scope: {scope.locationName}. Seven-day and additional-location forecasts are not available. Shift operations belong to the location manager.</p></>;
   }
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
-  const title = { overview: "Company overview", locations: "Locations", forecast: "Forecast & Staffing", reporting: "Reporting & Analytics", workforce: "Workforce & Managers", policies: "Work Terms & Incentive Policies", payments: "Payments", settings: "Settings & Integrations" }[area];
+  const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Reporting & Analytics", workforce: "Workforce & Managers", policies: "Work Terms & Incentive Policies", payments: "Payments", settings: "Settings & Integrations" }[area];
   return <>
     <PageHeader eyebrow="Owner / Admin" title={title} description="Business visibility across the locations currently configured for this organisation." />
     <ActionFeedback status={status} />{status?.startsWith("Your ") ? <p role="alert">{status}</p> : null}<form action={selectLocationAction} className="inline-form"><label>Operating location<select name="locationId" defaultValue={scope.locationId}>{locations.filter(l=>l.active).map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Select location</button></form>
-    {area === "overview" ? <>
-      <section className="overview-strip"><div><span>Configured locations</span><strong>{locations.length}</strong></div><div><span>Worker records</span><strong>{workforce.length}</strong></div><div><span>Payment exceptions</span><strong>{payments.filter((row) => row.status === "FAILED").length}</strong></div></section>
-      <div className="task-grid"><TaskLink href="/owner/locations" title="Location visibility">Review configured locations and their sales provenance.</TaskLink><TaskLink href="/owner/forecast" title="Demand & staffing outlook">Inspect the supported forecast and staffing assumptions.</TaskLink><TaskLink href="/owner/payments" title="Payment governance">Review calculated incentives, approval and payment outcomes.</TaskLink><TaskLink href="/owner/policies" title="Work terms">Inspect the current environment policy.</TaskLink></div>
-    </> : null}
     {area === "locations" ? <>
       {locations.map((location) => <article className="panel" key={location.id}><h2>{location.name}</h2><p>{location.timezone}</p><p>{sales.filter((sale) => sale.outletId === location.id).length} recorded commercial entries · {payments.filter((payment) => payment.outletId === location.id).length} incentive results</p><Link className="text-link" href="/owner/reporting">Inspect commercial evidence →</Link></article>)}
       <form action={createLocationAction} className="inline-form"><label>Location name<input name="name" required maxLength={150}/></label><button className="primary-button">Add location</button></form><p className="method-note">Only persisted locations are shown. Additional locations and their operating data have not been configured.</p>

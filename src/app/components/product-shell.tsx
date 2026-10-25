@@ -3,7 +3,7 @@ import { ProductNavigation } from "@/app/components/product-navigation";
 
 export type ProductNavItem = {
   label: string;
-  href: string;
+  href?: string;
 };
 
 export function FairShiftBrand({ compact = false, href = "/" }: { compact?: boolean; href?: string }) {
@@ -28,7 +28,8 @@ export function ProductShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`product-shell${mobile ? " product-shell-worker" : ""}`}>
+    <div className={`product-shell${mobile ? " product-shell-worker" : ""}${role === "Owner" ? " product-shell-owner" : ""}`}>
+      {role === "Owner" ? <a className="owner-skip" href="#owner-main">Skip to content</a> : null}
       <aside className="product-sidebar">
         <FairShiftBrand href={`/${role.toLowerCase()}`} />
         <div className="role-context">
@@ -41,12 +42,14 @@ export function ProductShell({
       <div className="product-workspace">
         <header className="workspace-bar">
           <FairShiftBrand compact href={`/${role.toLowerCase()}`} />
+          {role === "Owner" ? <details className="owner-mobile-menu"><summary>Menu</summary><ProductNavigation navigation={navigation} label="Owner mobile navigation" /></details> : null}
           <div>
             <span>{role}</span>
             <strong>{context}</strong>
           </div>
+          {role === "Owner" ? <Link className="owner-account" href="/account">Account</Link> : null}
         </header>
-        <main className="product-main">{children}</main>
+        <main className="product-main" id={role === "Owner" ? "owner-main" : undefined} tabIndex={role === "Owner" ? -1 : undefined}>{children}</main>
       </div>
       {mobile ? (
         <ProductNavigation navigation={navigation} label="Worker mobile navigation" mobile />

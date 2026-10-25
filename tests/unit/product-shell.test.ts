@@ -44,6 +44,11 @@ describe("shared product shell", () => {
   it("renders a truthful minimum owner context", async () => {
     const html = renderToStaticMarkup(await OwnerLayout({children:"Owner content"}));
     for (const area of ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"]) expect(html).toContain(`href="/owner/${area}"`);
+    expect(html).toContain("Owner mobile navigation");
+    expect(html).toContain("Skip to content");
+    expect(html).toContain("Incentives<small>Not available</small>");
+    expect(html).not.toContain('href="/owner/incentives"');
+    expect(html).toContain('href="/account"');
     expect(html).not.toContain('href="/manager');
   });
 

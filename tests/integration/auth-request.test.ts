@@ -15,6 +15,7 @@ import { createDepartment,createWorkPolicy,createRequirement,offerAssignment } f
 import { users,shiftOffers,memberships,subscriptions,outlets,organisations } from "@/server/db/schema";
 import { registerAction,redeemInvitationAction,signOutAction,completeWorkplaceAction,verifyEmailAction,signInAction,createLocationAction } from "@/app/auth-actions";
 import OwnerLayout from "@/app/owner/layout";
+import OwnerPage from "@/app/owner/page";
 import { OwnerWorkspace, ownerAreas } from "@/app/owner/workspace";
 import ManagerLayout from "@/app/manager/layout";
 import WorkerLayout from "@/app/worker/layout";
@@ -148,6 +149,8 @@ describe("subscription gate at real application boundaries",()=>{
     await expect(redeemInvitationAction(form({token:i.token,role:"OWNER"}))).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const role=i.invitation.role as "MANAGER"|"TEAM_MEMBER";
     const scope=await requireMembershipScope([role]);expect(scope.organisationId).toBe(o.o.organisationId);
+    await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/account");
+    await expect(OwnerPage()).rejects.toThrow("REDIRECT:/account");
     await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const layout=role === "MANAGER" ? ManagerLayout:WorkerLayout;
     await expect(layout({children:"Protected"})).rejects.toThrow("REDIRECT:/account?status=subscription-required");

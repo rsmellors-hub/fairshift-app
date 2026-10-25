@@ -1,15 +1,17 @@
 import { requireScope } from "@/server/auth/request";
 import { ProductShell } from "@/app/components/product-shell";
+import "./owner.css";
 
 const navigation = [
   { label: "Overview", href: "/owner" },
+  { label: "Sales", href: "/owner/reporting" },
+  { label: "Forecast", href: "/owner/forecast" },
   { label: "Locations", href: "/owner/locations" },
-  { label: "Forecast & Staffing", href: "/owner/forecast" },
-  { label: "Reporting & Analytics", href: "/owner/reporting" },
-  { label: "Workforce / Managers", href: "/owner/workforce" },
-  { label: "Policies", href: "/owner/policies" },
-  { label: "Payments", href: "/owner/payments" },
-  { label: "Settings / Integrations", href: "/owner/settings" },
+  { label: "Managers", href: "/owner/workforce" },
+  { label: "Compensation", href: "/owner/policies" },
+  { label: "Incentives" },
+  { label: "Payments / PayPal", href: "/owner/payments" },
+  { label: "Settings", href: "/owner/settings" },
 ];
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
