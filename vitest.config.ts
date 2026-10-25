@@ -11,6 +11,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Each integration test boots and migrates an in-process PGlite (WASM Postgres).
+    // Running files concurrently starves those instances of CPU and produces timeouts,
+    // so files run one at a time; tests inside a file are already sequential.
+    fileParallelism: false,
     coverage: {
       reporter: ["text", "json", "html"],
     },
