@@ -67,7 +67,6 @@ export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
   });
   return { locations, series, salesUnavailable: salesResult.status === "rejected",
     attention: attentionResult.status === "fulfilled" ? attentionResult.value : null,
-    forecastLocationName: scope.locationName,
   };
 }
 

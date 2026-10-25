@@ -12,10 +12,12 @@ import OwnerPage from "@/app/owner/page";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { loadDailySales } from "@/server/intelligence/sales-history";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { getOwnerWorkspace } from "@/server/product/workspace";
 import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 
+const REPORTING_SOURCE = { REFERENCE: "Reference sales history · synthetic", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Verified PayPal Sandbox sales" } as const;
 export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"] as const;
 export type OwnerArea = "overview" | typeof ownerAreas[number];
 
@@ -35,22 +37,25 @@ export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status
   let data;
   try { data = await getOwnerWorkspace(getDatabase(),scope.organisationId); } catch { return <WorkspaceUnavailable />; }
   const { locations, sales, payments, workforce } = data;
+  let history: Awaited<ReturnType<typeof loadDailySales>> = [], historyUnavailable = false;
+  if (area === "reporting") { try { history = await loadDailySales(getDatabase(), scope.organisationId); } catch { historyUnavailable = true; } }
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
   const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Reporting & Analytics", workforce: "Workforce & Managers", policies: "Work Terms & Incentive Policies", payments: "Payments", settings: "Settings & Integrations" }[area];
   return <>
     <PageHeader eyebrow="Owner / Admin" title={title} description="Business visibility across the locations currently configured for this organisation." />
     <ActionFeedback status={status} />{status?.startsWith("Your ") ? <p role="alert">{status}</p> : null}<form action={selectLocationAction} className="inline-form"><label>Operating location<select name="locationId" defaultValue={scope.locationId}>{locations.filter(l=>l.active).map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Select location</button></form>
     {area === "locations" ? <>
-      {locations.map((location) => <article className="panel" key={location.id}><h2>{location.name}</h2><p>{location.timezone}</p><p>{sales.filter((sale) => sale.outletId === location.id).length} recorded commercial entries · {payments.filter((payment) => payment.outletId === location.id).length} incentive results</p><Link className="text-link" href="/owner/reporting">Inspect commercial evidence →</Link></article>)}
+      {locations.map((location) => <article className="panel" key={location.id}><h2>{location.name}</h2><p>{location.timezone}</p><p>{sales.filter((sale) => sale.outletId === location.id).reduce((sum, sale) => sum + sale.records, 0)} recorded commercial entries · {payments.filter((payment) => payment.outletId === location.id).length} incentive results</p><Link className="text-link" href="/owner/reporting">Inspect commercial evidence →</Link></article>)}
       <form action={createLocationAction} className="inline-form"><label>Location name<input name="name" required maxLength={150}/></label><button className="primary-button">Add location</button></form><p className="method-note">Only persisted locations are shown. Additional locations and their operating data have not been configured.</p>
     </> : null}
     {area === "reporting" ? <>
-      <p className="method-note">All recorded history, grouped by location, source and currency. Seeded records and verified Sandbox sales are reported separately.</p>
-      {locations.flatMap((location) => ["DEMO_SEEDED", "PAYPAL_SANDBOX"].flatMap((source) => [...new Set(sales.filter((sale) => sale.outletId === location.id && sale.source === source).map((sale) => sale.currency))].map((currency) => {
-        const entries = sales.filter((sale) => sale.outletId === location.id && sale.source === source && sale.currency === currency && (source === "DEMO_SEEDED" || (sale.verification === "VERIFIED" && sale.reconciliation === "RECONCILED")));
-        return <article className="panel" key={`${location.id}-${source}-${currency}`}><DataLabel kind={source === "DEMO_SEEDED" ? "demo" : "fact"}>{source === "DEMO_SEEDED" ? "Demo / seeded history" : "Verified PayPal Sandbox sales"}</DataLabel><h2>{location.name}</h2><p>{money(entries.reduce((sum, sale) => sum + sale.amount, 0), currency)} · {entries.length} eligible records</p></article>;
+      <p className="method-note">Eligible sales history, grouped by location, source and currency. Reference, demo and verified Sandbox sales are reported separately and never combined.</p>
+      {locations.flatMap((location) => (["REFERENCE", "DEMO_SEEDED", "PAYPAL_SANDBOX"] as const).flatMap((source) => [...new Set(history.filter((day) => day.outletId === location.id && day.source === source).map((day) => day.currency))].map((currency) => {
+        const days = history.filter((day) => day.outletId === location.id && day.source === source && day.currency === currency);
+        const dates = days.map((day) => day.date).sort();
+        return <article className="panel" key={`${location.id}-${source}-${currency}`}><DataLabel kind={source === "PAYPAL_SANDBOX" ? "fact" : "demo"}>{REPORTING_SOURCE[source]}</DataLabel><h2>{location.name}</h2><p>{money(days.reduce((sum, day) => sum + day.salesMinor, 0), currency)} · {days.reduce((sum, day) => sum + day.transactions, 0)} eligible records · {days.length} trading days, {dates[0]} to {dates.at(-1)}</p></article>;
       })))}
-      {!sales.length ? <StatePanel title="No commercial history available" /> : null}
+      {historyUnavailable ? <StatePanel title="Sales history could not be loaded" tone="warning"><p>No sales have been assumed. Reload to try again.</p></StatePanel> : !history.length ? <StatePanel title="No commercial history available" /> : null}
     </> : null}
     {area === "workforce" ? <section className="panel"><h2>Organisation workforce</h2>{workforce.length ? workforce.map((person) => <div className="record-row" key={person.name}><strong>{person.name}</strong><span>{person.type === "CASUAL" ? "Casual worker" : "Regular staff record"} · {person.status === "ACTIVE" ? "Active" : "Inactive"}</span></div>) : <p>No worker profiles have been created.</p>}<h3>Invite to {scope.locationName}</h3><form action={inviteAction} className="workspace-form form-grid"><label>Role<select name="role"><option value="MANAGER">Manager</option><option value="TEAM_MEMBER">Team Member</option></select></label><label>First name<input name="firstName" required /></label><label>Surname<input name="surname" required /></label><label>Telephone<input name="telephone" type="tel" required /></label><label>Email<input name="email" type="email" required /></label><button className="primary-button">Create & send FairShift invite</button></form><h3>Invitations</h3>{invitations.map(i=><div className="record-row" key={i.id}><span>{i.email} · {i.role.replaceAll("_"," ")} · {i.state.replaceAll("_"," ")}</span>{!["REDEEMED","REVOKED"].includes(i.state) ? <div><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={i.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={i.id}/><button className="secondary-button">Revoke</button></form></div>:null}</div>)}</section> : null}
     {area === "policies" && operations ? <>

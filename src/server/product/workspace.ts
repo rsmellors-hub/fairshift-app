@@ -1,5 +1,5 @@
 import type { Scope } from "@/server/auth/access";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
@@ -47,10 +47,14 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
 
 export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DEMO_ORGANISATION_ID) {
   const locations = await db.select().from(outlets).where(eq(outlets.organisationId, organisationId));
+  // Record counts by provenance, aggregated in the database: reference histories hold
+  // hundreds of thousands of rows that need not be loaded to be counted.
   const sales = await db.select({ outletId: outlets.id, source: saleTransactions.source, currency: saleTransactions.currencyCode,
-    amount: saleTransactions.grossAmountMinor, verification: saleTransactions.verificationState, reconciliation: saleTransactions.reconciliationState,
+    verification: saleTransactions.verificationState, reconciliation: saleTransactions.reconciliationState,
+    records: sql<number>`count(*)`.mapWith(Number),
   }).from(saleTransactions).innerJoin(outlets, eq(saleTransactions.outletId, outlets.id))
-    .where(eq(outlets.organisationId, organisationId));
+    .where(eq(outlets.organisationId, organisationId))
+    .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleTransactions.verificationState, saleTransactions.reconciliationState);
   const payments = await db.select({ shiftDate: shifts.shiftDate, outletId: outlets.id, currency: shifts.currencyCode, status: shiftIncentives.status, amount: shiftIncentives.earnedAmountMinor })
     .from(shiftIncentives).innerJoin(shifts, eq(shiftIncentives.shiftId, shifts.id))
     .innerJoin(outlets, eq(shifts.outletId, outlets.id)).where(eq(outlets.organisationId, organisationId))

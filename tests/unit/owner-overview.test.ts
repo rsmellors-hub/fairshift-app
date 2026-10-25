@@ -14,7 +14,7 @@ vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: () => ({}) }));
 vi.mock("@/server/product/owner-overview", () => ({ getOwnerOverview: vi.fn(), ownerForecastSummary: vi.fn() }));
 vi.mock("@/server/intelligence/weekly", () => ({ getWeeklyForecast: vi.fn() }));
-const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], salesUnavailable: false, forecastLocationName: "One location" };
+const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], salesUnavailable: false };
 afterEach(() => vi.resetAllMocks());
 
 describe("Owner Overview route and states", () => {
