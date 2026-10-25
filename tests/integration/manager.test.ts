@@ -27,9 +27,11 @@ describe("persisted commercial history to manager output", () => {
       expect(await seedDemoHistory(testDb.db)).toMatchObject({ inserted: 3704, expected: 3704 });
       expect(await seedDemoHistory(testDb.db)).toMatchObject({ inserted: 0 });
       const result = await getManagerForecast(testDb.db, DEMO_AS_OF);
+      // Historical evidence forecasts the first day after its own data-through date.
       expect(result).toMatchObject({
         status: "AVAILABLE", source: "DEMO_SEEDED", eligibleDays: 56, eligibleTransactions: 3704,
-        staffing: { workers: 8, workerDelta: 3 },
+        targetDate: "2026-10-15", dataAsOf: "2026-10-14T22:00:00.000Z",
+        staffing: { workers: 7, workerDelta: 2 },
       });
       const rows = await testDb.db.select().from(saleTransactions);
       expect(rows.every((row) => row.source === "DEMO_SEEDED" && row.verificationState === "PENDING" &&
@@ -43,7 +45,8 @@ describe("persisted commercial history to manager output", () => {
       const html = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
       expect(html).toContain("Demo / seeded · not PayPal verified");
       expect(html).toContain("Recommended worker delta");
-      expect(html).toContain("+3");
+      expect(html).toContain("+2");
+      expect(html).toContain("forecast for 2026-10-15");
       expect(html).toContain("Historical evidence");
       expect(html).toContain("comparison assumption, not a saved plan");
       expect(html).toContain("comparable-days-recency-v1");
@@ -56,7 +59,7 @@ describe("persisted commercial history to manager output", () => {
     }
   });
 
-  it("prefers eligible verified PayPal sales without mixing demo, other currencies or other outlets", async () => {
+  it("prefers verified PayPal sales only once eligible, without mixing demo, other currencies or other outlets", async () => {
     const testDb = await createTestDatabase();
     try {
       await seedDemoHistory(testDb.db);
@@ -65,22 +68,30 @@ describe("persisted commercial history to manager output", () => {
       await testDb.db.insert(outlets).values({
         id: otherOutlet, organisationId: outlet.organisationId, name: "Other outlet", timezone: outlet.timezone,
       });
-      for (const [outletId, currencyCode, amount] of [
-        [DEMO_OUTLET_ID, "USD", 160001], [DEMO_OUTLET_ID, "EUR", 900000], [otherOutlet, "USD", 900000],
-      ] as const) {
+      const verified = async (outletId: string, currencyCode: string, amount: number, date: string) => {
         const id = randomUUID();
         await testDb.db.insert(saleTransactions).values({
           id, internalReference: id, paypalCustomId: id, outletId, currencyCode,
           source: "PAYPAL_SANDBOX", grossAmountMinor: amount, paypalCaptureId: `TEST-${id}`,
-          paypalOrderId: `ORDER-${id}`, providerCreatedAt: new Date("2026-10-13T10:00:00Z"),
+          paypalOrderId: `ORDER-${id}`, providerCreatedAt: new Date(`${date}T10:00:00Z`),
           providerStatus: "COMPLETED", verificationState: "VERIFIED", reconciliationState: "RECONCILED",
         });
+      };
+      // One verified capture must never replace a complete history.
+      await verified(DEMO_OUTLET_ID, "USD", 160001, "2026-10-13");
+      expect(await getManagerForecast(testDb.db, DEMO_AS_OF)).toMatchObject({ source: "DEMO_SEEDED", eligibleTransactions: 3704 });
+      // 44 consecutive fresh days (every weekday at least six times) make the provider eligible.
+      for (let day = 0; day < 44; day++) {
+        const date = new Date(Date.UTC(2026, 8, 1 + day)).toISOString().slice(0, 10);
+        if (date !== "2026-10-13") await verified(DEMO_OUTLET_ID, "USD", 160001, date);
+        await verified(DEMO_OUTLET_ID, "EUR", 900000, date);
+        await verified(otherOutlet, "USD", 900000, date);
       }
       const result = await getManagerForecast(testDb.db, DEMO_AS_OF);
-      expect(result).toMatchObject({ source: "PAYPAL_SANDBOX", forecastSalesMinor: 160001, eligibleTransactions: 1, staffing: { workers: 3, workerDelta: -2 } });
+      expect(result).toMatchObject({ source: "PAYPAL_SANDBOX", currency: "USD", targetDate: "2026-10-16", forecastSalesMinor: 160001, eligibleDays: 44, eligibleTransactions: 44, staffing: { workers: 3, workerDelta: -2 } });
       const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));
       expect(html).toContain("Historical fact · verified PayPal Sandbox sales");
-      expect(html).not.toContain("Fixed synthetic scenario");
+      expect(html).not.toContain("Synthetic history");
       // These are test fixtures, not live PayPal evidence.
     } finally {
       await testDb.close();

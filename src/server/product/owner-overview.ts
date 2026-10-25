@@ -1,12 +1,14 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shifts, workers } from "@/server/db/schema";
-import { shiftDate } from "@/server/intelligence/forecast";
+import { outlets, shiftIncentives, shifts, workers } from "@/server/db/schema";
+import { shiftDate, type SalesSource } from "@/server/intelligence/forecast";
+import { loadDailySales } from "@/server/intelligence/sales-history";
+import type { WeeklyForecast } from "@/server/intelligence/weekly";
 
 export type SalesSeries = {
   key: string;
-  source: "PAYPAL_SANDBOX" | "DEMO_SEEDED" | "REFERENCE";
+  source: SalesSource;
   currency: string;
   start: string;
   end: string;
@@ -14,20 +16,6 @@ export type SalesSeries = {
   days: { date: string; amountMinor: number | null }[];
   locations: { id: string; amountMinor: number | null; observedDays: number }[];
 };
-
-// Commercial sale time: explicit for reference history, provider time for PayPal, else record time.
-const saleTime = sql`coalesce(${saleTransactions.occurredAt}, ${saleTransactions.providerCreatedAt}, ${saleTransactions.createdAt})`;
-const saleDate = sql<string>`to_char(${saleTime} at time zone ${outlets.timezone}, 'YYYY-MM-DD')`;
-const syntheticUnverified = sql`${saleTransactions.verificationState} = 'PENDING' and ${saleTransactions.reconciliationState} = 'NOT_RECONCILED'
-  and ${saleTransactions.paypalCaptureId} is null and ${saleTransactions.providerCreatedAt} is null`;
-const eligibleSale = sql`(
-  (${saleTransactions.source} = 'PAYPAL_SANDBOX' and ${saleTransactions.verificationState} = 'VERIFIED'
-    and ${saleTransactions.reconciliationState} = 'RECONCILED' and ${saleTransactions.providerStatus} = 'COMPLETED'
-    and ${saleTransactions.paypalCaptureId} is not null and ${saleTransactions.providerCreatedAt} is not null)
-  or (${saleTransactions.source} = 'DEMO_SEEDED' and ${saleTransactions.providerStatus} = 'DEMO_SEEDED' and ${syntheticUnverified})
-  or (${saleTransactions.source} = 'REFERENCE' and ${saleTransactions.providerStatus} = 'REFERENCE'
-    and ${saleTransactions.occurredAt} is not null and ${syntheticUnverified})
-)`;
 
 // Default series order. Series are never merged; every other series stays selectable.
 // A complete labelled reference history leads; a few provider records do not displace it.
@@ -40,16 +28,7 @@ export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
 
   // Each independently scoped source can fail without erasing the other section.
   const [salesResult, attentionResult] = await Promise.allSettled([
-    // Daily totals per outlet, source and currency, aggregated in the database so
-    // long reference histories are never loaded row by row. Only rows whose full
-    // provenance matches their source count: verified PayPal captures, or labelled
-    // synthetic history that carries no provider identifiers or verification claims.
-    db.select({ outletId: outlets.id, source: saleTransactions.source, currency: saleTransactions.currencyCode,
-      date: saleDate,
-      amount: sql<number>`sum(${saleTransactions.grossAmountMinor})`.mapWith(Number),
-    }).from(saleTransactions).innerJoin(outlets, eq(saleTransactions.outletId, outlets.id))
-      .where(and(eq(outlets.organisationId, scope.organisationId), eligibleSale))
-      .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleDate),
+    loadDailySales(db, scope.organisationId),
     db.select({ id: shiftIncentives.id, locationId: outlets.id, locationName: outlets.name,
       date: shifts.shiftDate, status: shiftIncentives.status,
     }).from(shiftIncentives).innerJoin(shifts, eq(shiftIncentives.shiftId, shifts.id))
@@ -61,10 +40,10 @@ export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
 
   const groups = new Map<string, { source: SalesSeries["source"]; currency: string; entries: { locationId: string; date: string; amount: number }[] }>();
   if (salesResult.status === "fulfilled") for (const sale of salesResult.value) {
-    const source = sale.source as SalesSeries["source"];
+    const source = sale.source;
     const key = `${source}:${sale.currency}`;
     const group = groups.get(key) ?? { source, currency: sale.currency, entries: [] };
-    group.entries.push({ locationId: sale.outletId, date: sale.date, amount: sale.amount });
+    group.entries.push({ locationId: sale.outletId, date: sale.date, amount: sale.salesMinor });
     groups.set(key, group);
   }
   const series: SalesSeries[] = [...groups].sort(([a, x], [b, y]) => SOURCE_ORDER[x.source] - SOURCE_ORDER[y.source] || a.localeCompare(b)).map(([key, group]) => {
@@ -93,3 +72,15 @@ export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
 }
 
 export type OwnerOverviewData = Awaited<ReturnType<typeof getOwnerOverview>>;
+
+// Serialisable weekly forecast summary for the Overview client component.
+export function ownerForecastSummary(weekly: WeeklyForecast) {
+  return {
+    consolidated: weekly.consolidated && { source: weekly.consolidated.source, currency: weekly.consolidated.currency, dataThrough: weekly.consolidated.dataThrough,
+      firstTarget: weekly.consolidated.firstTarget, lastTarget: weekly.consolidated.days.at(-1)!.targetDate, totalMinor: weekly.consolidated.totalMinor },
+    outlets: weekly.outlets.map(outlet => ({ id: outlet.outletId, weeklyTotalMinor: outlet.weeklyTotalMinor,
+      currency: outlet.selection.status === "SELECTED" ? outlet.selection.currency : null,
+      firstTarget: outlet.selection.status === "SELECTED" ? outlet.selection.firstTarget : null })),
+  };
+}
+export type OwnerForecastSummary = ReturnType<typeof ownerForecastSummary>;

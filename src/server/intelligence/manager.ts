@@ -3,28 +3,33 @@ import { and, eq } from "drizzle-orm";
 
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions } from "@/server/db/schema";
-import { DEMO_AS_OF, DEMO_TARGET_DATE } from "@/server/intelligence/demo";
-import { forecastDemand, localDate, shiftDate } from "@/server/intelligence/forecast";
+import { outlets } from "@/server/db/schema";
+import { forecastResultSchema, localDate, METHOD_VERSION, shiftDate, staffedForecast, startOfLocalDay, STAFFING_POLICY_CURRENCY } from "@/server/intelligence/forecast";
+import { loadDailySales } from "@/server/intelligence/sales-history";
+import { selectForecastSource } from "@/server/intelligence/weekly";
 
 // Scope is pinned on the server. A URL/body cannot select another organisation,
-// outlet, policy or source. Verified history always takes precedence over demo.
+// outlet, policy or source. The history is chosen by the same deterministic
+// eligibility rule as the weekly forecast, so a handful of provider records never
+// replaces a complete history; the target is the first day of that planning week.
 export async function getManagerForecast(db: DatabaseSession, now = new Date(), scope:Pick<Scope,"organisationId"|"locationId"> = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID}) {
   const [outlet] = await db.select().from(outlets).where(and(
     eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId),
   ));
   if (!outlet) throw new Error("Manager outlet is unavailable.");
-  const sales = await db.select().from(saleTransactions).where(and(
-    eq(saleTransactions.outletId, outlet.id), eq(saleTransactions.currencyCode, "USD"),
-  ));
-  const verified = forecastDemand({
-    sales, outlet, source: "PAYPAL_SANDBOX", asOf: now,
-    targetDate: shiftDate(localDate(now, outlet.timezone), 1),
+  const today = localDate(now, outlet.timezone);
+  const selection = selectForecastSource(await loadDailySales(db, scope.organisationId, [outlet.id]), today);
+  if (selection.status === "NONE") {
+    return forecastResultSchema.parse({
+      methodVersion: METHOD_VERSION, organisationId: outlet.organisationId, outletId: outlet.id, outletName: outlet.name,
+      timezone: outlet.timezone, targetDate: shiftDate(today, 1), currency: STAFFING_POLICY_CURRENCY, source: "PAYPAL_SANDBOX",
+      dataAsOf: startOfLocalDay(today, outlet.timezone).toISOString(), generatedAt: now.toISOString(),
+      status: "UNAVAILABLE", reason: "NO_ELIGIBLE_HISTORY",
+    });
+  }
+  return staffedForecast({
+    days: selection.days, outlet, source: selection.source, currency: selection.currency,
+    dataThrough: selection.dataThrough, targetDate: selection.firstTarget,
+    asOf: startOfLocalDay(shiftDate(selection.dataThrough, 1), outlet.timezone), generatedAt: now,
   });
-  if (verified.status === "AVAILABLE") return verified;
-  const demo = forecastDemand({
-    sales, outlet, source: "DEMO_SEEDED", asOf: DEMO_AS_OF,
-    targetDate: DEMO_TARGET_DATE, generatedAt: now,
-  });
-  return demo.status === "AVAILABLE" ? demo : verified;
 }

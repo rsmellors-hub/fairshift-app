@@ -64,7 +64,7 @@ describe("Owner Overview scoped evidence", () => {
       const html = renderToStaticMarkup(createElement(OwnerOverview, { data }));
       expect(html).toContain("Actual · PayPal Sandbox");
       expect(html).toContain("Forecast sales");
-      expect(html).toContain("Company weekly forecast is not available yet");
+      expect(html).toContain("The weekly forecast is not available.");
     } finally { await t.close(); }
   });
 

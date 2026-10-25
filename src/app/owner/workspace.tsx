@@ -6,14 +6,13 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { createDepartmentAction, createPolicyAction } from "@/app/operations-actions";
 import { getOperations } from "@/server/scheduling/operations";
-import { ManagerForecast } from "@/app/components/manager-forecast";
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import { ActionFeedback, money, PaymentBadge, WorkspaceUnavailable } from "@/app/components/workspace-ui";
 import OwnerPage from "@/app/owner/page";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { getManagerForecast } from "@/server/intelligence/manager";
-import { getAiOperationalAssessment } from "@/server/integrations/openai/operational-intelligence";
+import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { getOwnerWorkspace } from "@/server/product/workspace";
 import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 
@@ -25,20 +24,17 @@ export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status
   const configuration = getConfigurationStatus();
   if (!configuration.databaseConfigured) return <WorkspaceUnavailable />;
   const scope=await requireScope(["OWNER"]);
+  // The forecast needs only its own aggregated evidence, not the workspace record set.
+  if (area === "forecast") {
+    let weekly = null;
+    try { weekly = await getWeeklyForecast(getDatabase(), scope); } catch { weekly = null; }
+    return <OwnerWeeklyForecast weekly={weekly} />;
+  }
   const subscription=await subscriptionFor(getDatabase(),scope);
   const invitations=await getDatabase().select().from(teamInvitations).where(eq(teamInvitations.organisationId,scope.organisationId));
   let data;
   try { data = await getOwnerWorkspace(getDatabase(),scope.organisationId); } catch { return <WorkspaceUnavailable />; }
   const { locations, sales, payments, workforce } = data;
-  if (area === "forecast") {
-    let result;
-    let aiResult;
-    try {
-      result = await getManagerForecast(getDatabase(),new Date(),scope);
-      aiResult = await getAiOperationalAssessment(result);
-    } catch { return <ManagerForecast result={null} error="Forecast evidence could not be loaded." />; }
-    return <><ManagerForecast result={result} aiResult={aiResult} /><p className="method-note">Forecast scope: {scope.locationName}. Seven-day and additional-location forecasts are not available. Shift operations belong to the location manager.</p></>;
-  }
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
   const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Reporting & Analytics", workforce: "Workforce & Managers", policies: "Work Terms & Incentive Policies", payments: "Payments", settings: "Settings & Integrations" }[area];
   return <>

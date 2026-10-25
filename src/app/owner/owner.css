@@ -102,6 +102,27 @@
 .owner-loading-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-block: 24px 32px; }
 .owner-loading-strip > div, .owner-loading-chart { min-height: 164px; border-radius: 12px; background: #e8ede8; }
 .owner-loading-chart { height: 340px; }
+.owner-forecast-summary { margin-bottom: 24px; }
+.owner-overview .owner-forecast-notice { display: grid; gap: 4px; margin: 0 0 32px; padding: 16px 20px; border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 0 12px 12px 0; background: #fbf8f2; font-size: 13px; }
+.owner-forecast-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.owner-forecast-scroll:focus-visible { outline: 3px solid var(--indigo); }
+.owner-forecast-table { min-width: 980px; }
+.owner-forecast-table th:first-child { position: sticky; left: 0; background: inherit; min-width: 200px; z-index: 1; }
+.owner-forecast-table tbody th:first-child, .owner-forecast-table tfoot th:first-child { background: white; }
+.owner-forecast-table td { white-space: nowrap; text-align: right; }
+.owner-forecast-table thead th:not(:first-child) { text-align: right; white-space: nowrap; }
+.owner-forecast-table td[colspan] { white-space: normal; text-align: left; color: var(--muted); }
+.owner-forecast-table tfoot th, .owner-forecast-table tfoot td { font-weight: 650; background: #f0f3ef; border-bottom: 0; }
+.owner-forecast-table tfoot th:first-child { background: #f0f3ef; }
+.owner-forecast-detail { border-bottom: 1px solid var(--line); background: white; padding: 0 16px; }
+.owner-forecast-detail:first-of-type { border-top: 1px solid var(--line); }
+.owner-forecast-detail summary { cursor: pointer; padding: 14px 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.owner-forecast-detail summary small { color: var(--muted); font-size: 12px; }
+.owner-forecast-detail p { font-size: 13px; margin-bottom: 12px; }
+.owner-forecast-detail table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+.owner-forecast-detail th, .owner-forecast-detail td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); font-weight: 400; }
+.owner-forecast-detail thead th { color: var(--muted); font-weight: 600; }
+.owner-forecast .owner-note { margin-top: 16px; }
 @media (min-width: 1024px) and (max-width: 1279px) {
   .product-shell-owner { grid-template-columns: 224px minmax(0, 1fr); }
   .product-shell-owner .product-page { padding-inline: 24px; }
@@ -154,7 +175,15 @@
   .owner-mobile-bar { display: block; height: 12px; background: var(--canvas); }
   .owner-mobile-bar > span { display: block; height: 100%; background: var(--indigo); border-radius: 0 2px 2px 0; }
   .owner-attention li a { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .owner-location-table, .owner-location-table tbody, .owner-location-table tr { display: block; }
+  .owner-location-table, .owner-location-table tbody, .owner-location-table tfoot, .owner-location-table tr { display: block; }
+  .owner-forecast-scroll { overflow-x: visible; border: 0; background: transparent; }
+  .owner-forecast-table { min-width: 0; }
+  .owner-forecast-table th:first-child { position: static; min-width: 0; }
+  .owner-forecast-table td, .owner-forecast-table td[colspan] { white-space: normal; text-align: left; }
+  .owner-forecast-table tfoot tr { background: #f0f3ef; }
+  .owner-forecast-detail table thead { display: none; }
+  .owner-forecast-detail table tr { display: grid; grid-template-columns: 1fr 1fr; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .owner-forecast-detail table th, .owner-forecast-detail table td { border: 0; padding: 2px 0; }
   .owner-location-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .owner-location-table tr { border-top: 1px solid var(--line); margin-bottom: 16px; padding: 16px; }
   .owner-location-table th, .owner-location-table td { border: 0; padding: 6px 0; }
