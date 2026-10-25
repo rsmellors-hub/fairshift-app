@@ -7,6 +7,8 @@ import { organisations, outlets, saleTransactions } from "@/server/db/schema";
 import { seedDemoHistory } from "@/server/intelligence/demo";
 import { forecastFromHistory } from "@/server/intelligence/forecast";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { getManagerForecast } from "@/server/intelligence/manager";
+import { ManagerForecast } from "@/app/components/manager-forecast";
 import { provisionReferenceHistory } from "@/server/reference/provision";
 import { REFERENCE_STORE_CODES, referenceDates, referenceTradingDay } from "@/server/reference/uk-retail";
 import { createElement } from "react";
@@ -152,6 +154,18 @@ describe("weekly demand forecast", () => {
       html = renderToStaticMarkup(createElement(OwnerWeeklyForecast, { weekly: null }));
       expect(html).toContain('role="alert"');
       expect(html).toContain("No demand has been assumed");
+    } finally { await t.close(); }
+  }, 180_000);
+
+  it("gives a manager of a reference location no staffing figure from a USD-only policy", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await referenceCompany(t.db, "2025-12-15");
+      const result = await getManagerForecast(t.db, NOW, { organisationId: c.organisationId, locationId: c.mapping.UK02 });
+      expect(result).toMatchObject({ status: "UNAVAILABLE", reason: "NO_STAFFING_POLICY_FOR_CURRENCY", source: "REFERENCE", currency: "GBP", targetDate: "2025-12-29" });
+      const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));
+      expect(html).toContain("demonstration staffing policy is defined in USD");
+      expect(html).not.toContain("Recommended workers");
     } finally { await t.close(); }
   }, 180_000);
 });
