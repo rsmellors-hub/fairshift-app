@@ -83,6 +83,11 @@ describe("weekly demand forecast", () => {
       const missing = weekly.outlets.find(outlet => outlet.outletId === empty)!;
       expect(missing).toMatchObject({ selection: { status: "NONE" }, days: [], weeklyTotalMinor: null });
       expect(weekly.consolidated).toBeNull();
+      const none = await getWeeklyForecast(t.db, { ...c.owner, role: "MANAGER", locationId: empty }, NOW);
+      const html = renderToStaticMarkup(createElement(OwnerWeeklyForecast, { weekly: none }));
+      expect(html).toContain("No location has eligible sales history yet.");
+      expect(html).not.toContain("Varies by location");
+      expect(html).not.toContain("Not combined");
     } finally { await t.close(); }
   }, 180_000);
 
