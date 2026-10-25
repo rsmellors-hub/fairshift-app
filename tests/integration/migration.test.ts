@@ -164,3 +164,25 @@ describe("location address upgrade",()=>{
   }finally{await client.close();}
  });
 });
+
+describe("reference sales history upgrade",()=>{
+ it("keeps existing PayPal and demo sales unchanged and admits only well-formed reference rows",async()=>{
+  const client=new PGlite();try {
+   const journal=JSON.parse(await readFile("drizzle/meta/_journal.json","utf8")) as {entries:{tag:string}[]};
+   async function apply(tag:string) {for(const statement of (await readFile(`drizzle/${tag}.sql`,"utf8")).split("--> statement-breakpoint")) if(statement.trim()) await client.exec(statement);}
+   for(const entry of journal.entries.slice(0,11)) await apply(entry.tag);
+   await client.exec(`INSERT INTO sale_transactions (id,internal_reference,outlet_id,paypal_order_id,paypal_capture_id,paypal_custom_id,currency_code,gross_amount_minor,provider_status,reconciliation_state,verification_state,provider_created_at,reconciled_at,source)
+     VALUES ('40000000-0000-4000-8000-000000000011','FS-PAYPAL','20000000-0000-4000-8000-000000000001','ORDER-1','CAPTURE-1','FS-PAYPAL','USD',500,'COMPLETED','RECONCILED','VERIFIED',now(),now(),'PAYPAL_SANDBOX'),
+     ('40000000-0000-4000-8000-000000000012','DEMO-1','20000000-0000-4000-8000-000000000001',null,null,null,'USD',700,'DEMO_SEEDED','NOT_RECONCILED','PENDING',null,null,'DEMO_SEEDED')`);
+   const before=(await client.query<Record<string,unknown>>("SELECT * FROM sale_transactions ORDER BY id")).rows;
+   expect(journal.entries[11].tag).toBe("0011_reference_sales_history");
+   await apply(journal.entries[11].tag);
+   expect((await client.query("SELECT * FROM sale_transactions ORDER BY id")).rows).toEqual(before.map(row=>({...row,occurred_at:null})));
+   const reference=`INSERT INTO sale_transactions (id,internal_reference,outlet_id,currency_code,gross_amount_minor,provider_status,source,occurred_at) VALUES`;
+   await expect(client.exec(`${reference} ('40000000-0000-4000-8000-000000000013','REF-1','20000000-0000-4000-8000-000000000001','GBP',900,'REFERENCE','REFERENCE',null)`)).rejects.toThrow();
+   await expect(client.exec(`${reference} ('40000000-0000-4000-8000-000000000013','REF-1','20000000-0000-4000-8000-000000000001','GBP',900,'COMPLETED','REFERENCE',now())`)).rejects.toThrow();
+   await expect(client.exec(`${reference} ('40000000-0000-4000-8000-000000000013','REF-1','20000000-0000-4000-8000-000000000001','GBP',900,'REFERENCE','ZETTLE',now())`)).rejects.toThrow();
+   await client.exec(`${reference} ('40000000-0000-4000-8000-000000000013','REF-1','20000000-0000-4000-8000-000000000001','GBP',900,'REFERENCE','REFERENCE',now())`);
+  }finally{await client.close();}
+ });
+});

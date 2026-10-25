@@ -107,6 +107,9 @@ export const saleTransactions = pgTable(
     providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true }),
     reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
     failureCode: text("failure_code"),
+    // Commercial sale time. Required for REFERENCE history, whose rows are loaded
+    // long after the sales they describe; other sources fall back to provider/created time.
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -115,7 +118,8 @@ export const saleTransactions = pgTable(
     uniqueIndex("sale_transactions_paypal_order_unique").on(table.paypalOrderId),
     uniqueIndex("sale_transactions_paypal_capture_unique").on(table.paypalCaptureId),
     index("sale_transactions_outlet_created_idx").on(table.outletId, table.createdAt),
-    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED')`),
+    index("sale_transactions_outlet_occurred_idx").on(table.outletId, table.occurredAt),
+    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE')`),
     check("sale_transactions_paypal_reference_check", sql`${table.source} != 'PAYPAL_SANDBOX' or ${table.paypalCustomId} is not null`),
     check("sale_transactions_demo_provenance_check", sql`${table.source} != 'DEMO_SEEDED' or (
       ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
@@ -123,6 +127,14 @@ export const saleTransactions = pgTable(
       ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
       ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
       ${table.providerStatus} = 'DEMO_SEEDED'
+    )`),
+    // Labelled synthetic reference history: never provider-backed, verified or reconciled.
+    check("sale_transactions_reference_provenance_check", sql`${table.source} != 'REFERENCE' or (
+      ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
+      ${table.paypalCustomId} is null and ${table.providerCreatedAt} is null and
+      ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
+      ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
+      ${table.providerStatus} = 'REFERENCE' and ${table.occurredAt} is not null
     )`),
     check("sale_transactions_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
     check("sale_transactions_amount_nonnegative", sql`${table.grossAmountMinor} >= 0`),
