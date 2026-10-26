@@ -28,8 +28,10 @@ const weekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
 // mixed. A provider series supersedes historical evidence only when it is complete
 // enough for a weekly forecast: in the 56 days to yesterday it needs 28 distinct
 // days, three of every weekday, recent data, and the outlet's planning currency.
-// Otherwise labelled historical evidence (reference, then legacy demo) is used,
-// forecasting the seven days after its own data-through date.
+// Otherwise labelled historical evidence (reference, then legacy demo) is used.
+// Every source plans the same horizon: the next seven local days from tomorrow.
+// Historical evidence keeps its own data-through date and is never re-dated; its
+// comparable weekdays are mapped onto the planning dates by the forecast method.
 export function selectForecastSource(rows: readonly DailySalesRow[], today: string): SourceSelection {
   const yesterday = shiftDate(today, -1);
   const series = new Map<string, { source: SalesSource; currency: string; days: DailySales[] }>();
@@ -76,7 +78,7 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
     const [entry] = candidates;
     const dataThrough = entry.days.at(-1)!.date;
     return { status: "SELECTED", source, currency: entry.currency, kind: "HISTORICAL",
-      dataThrough, firstTarget: shiftDate(dataThrough, 1), days: entry.days, rejected };
+      dataThrough, firstTarget: shiftDate(today, 1), days: entry.days, rejected };
   }
   return { status: "NONE", rejected };
 }

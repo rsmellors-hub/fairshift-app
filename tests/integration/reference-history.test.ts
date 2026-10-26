@@ -86,14 +86,19 @@ describe("reference sales history provisioning", () => {
     } finally { await t.close(); }
   }, 120_000);
 
-  it("requires explicit time-zone confirmation and never mixes two reference stores in one outlet", async () => {
+  it("refuses non-London outlets without changing their time zone, and never mixes two reference stores in one outlet", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await company(t.db, "Africa/Johannesburg");
+      const sa = await company(t.db, "Africa/Johannesburg");
+      await expect(provisionReferenceHistory(t.db, { organisationId: sa.organisationId, outlets: sa.mapping, from: "2025-12-27", through: "2025-12-28" }))
+        .rejects.toThrow("UK01: outlet time zone is Africa/Johannesburg");
+      // The loader has no time-zone override; the SA location keeps its own time zone and gets nothing.
+      await expect(provisionReferenceHistory(t.db, { organisationId: sa.organisationId, outlets: sa.mapping, setLondonTimezone: true } as never)).rejects.toThrow();
+      expect(new Set((await t.db.select().from(outlets).where(eq(outlets.organisationId, sa.organisationId))).map(row => row.timezone))).toEqual(new Set(["Africa/Johannesburg"]));
+      expect((await t.db.select().from(saleTransactions)).length).toBe(0);
+      const c = await company(t.db);
       const run = (overrides: object = {}) => provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: c.mapping, from: "2025-12-27", through: "2025-12-28", ...overrides });
-      await expect(run()).rejects.toThrow("UK01: outlet time zone is Africa/Johannesburg");
-      await run({ setLondonTimezone: true });
-      expect(new Set((await t.db.select().from(outlets).where(eq(outlets.organisationId, c.organisationId))).map(row => row.timezone))).toEqual(new Set(["Europe/London"]));
+      await run();
       const swapped = { ...c.mapping, UK01: c.mapping.UK02, UK02: c.mapping.UK01 };
       await expect(run({ outlets: swapped })).rejects.toThrow("already holds a different reference history");
     } finally { await t.close(); }

@@ -29,19 +29,27 @@ type ReferenceStore = {
   weekday: readonly [number, number, number, number, number, number, number]; // Mon..Sun
   season: readonly number[]; // Jan..Dec, multiplies the shared retail season
   bankHoliday: number;
+  // Standing regular-staff rota, planned labour hours Mon..Sun. Hand-set staffing
+  // input (larger weekday teams, thinner weekend cover); staffing gaps are derived.
+  regularCoverageHours: readonly [number, number, number, number, number, number, number];
 };
 
 export const REFERENCE_STORES: readonly ReferenceStore[] = [
   { code: "UK01", city: "Leeds", context: "Central retail (Briggate)", baseDailyMinor: 820_000, meanBasketMinor: 11_500,
-    weekday: [0.83, 0.84, 0.89, 0.97, 1.12, 1.46, 0.90], season: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], bankHoliday: 1.0 },
+    weekday: [0.83, 0.84, 0.89, 0.97, 1.12, 1.46, 0.90], season: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], bankHoliday: 1.0,
+    regularCoverageHours: [104, 104, 104, 112, 136, 144, 72] },
   { code: "UK02", city: "Manchester", context: "City-centre retail", baseDailyMinor: 940_000, meanBasketMinor: 12_000,
-    weekday: [0.84, 0.85, 0.90, 0.99, 1.15, 1.45, 0.88], season: [1, 1, 1, 1, 1, 1, 1, 1, 1.04, 1, 1, 1], bankHoliday: 1.0 },
+    weekday: [0.84, 0.85, 0.90, 0.99, 1.15, 1.45, 0.88], season: [1, 1, 1, 1, 1, 1, 1, 1, 1.04, 1, 1, 1], bankHoliday: 1.0,
+    regularCoverageHours: [128, 120, 120, 128, 168, 200, 120] },
   { code: "UK03", city: "Birmingham", context: "City-centre retail", baseDailyMinor: 860_000, meanBasketMinor: 11_200,
-    weekday: [0.83, 0.84, 0.89, 0.97, 1.12, 1.48, 0.90], season: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.03], bankHoliday: 1.0 },
+    weekday: [0.83, 0.84, 0.89, 0.97, 1.12, 1.48, 0.90], season: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.03], bankHoliday: 1.0,
+    regularCoverageHours: [96, 96, 104, 104, 144, 160, 96] },
   { code: "UK04", city: "Brighton", context: "Central retail and visitor economy", baseDailyMinor: 630_000, meanBasketMinor: 9_500,
-    weekday: [0.74, 0.76, 0.82, 0.90, 1.10, 1.62, 1.20], season: [0.94, 0.94, 0.97, 1.02, 1.06, 1.10, 1.22, 1.26, 1.04, 0.98, 0.92, 0.94], bankHoliday: 1.3 },
+    weekday: [0.74, 0.76, 0.82, 0.90, 1.10, 1.62, 1.20], season: [0.94, 0.94, 0.97, 1.02, 1.06, 1.10, 1.22, 1.26, 1.04, 0.98, 0.92, 0.94], bankHoliday: 1.3,
+    regularCoverageHours: [72, 72, 72, 72, 96, 112, 64] },
   { code: "UK05", city: "London Stratford", context: "Metropolitan retail", baseDailyMinor: 1_120_000, meanBasketMinor: 12_800,
-    weekday: [0.86, 0.86, 0.92, 1.04, 1.18, 1.48, 1.04], season: [1.04, 1.04, 1, 1, 1, 1, 0.98, 0.98, 1, 1, 0.98, 0.96], bankHoliday: 1.1 },
+    weekday: [0.86, 0.86, 0.92, 1.04, 1.18, 1.48, 1.04], season: [1.04, 1.04, 1, 1, 1, 1, 0.98, 0.98, 1, 1, 0.98, 0.96], bankHoliday: 1.1,
+    regularCoverageHours: [152, 152, 152, 160, 232, 256, 176] },
 ];
 
 // Shared specialty-retail season (Jan..Dec), before store-specific adjustment.

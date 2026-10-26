@@ -39,7 +39,8 @@ describe("Owner Overview scoped evidence", () => {
       const html = renderToStaticMarkup(createElement(OwnerOverview, { data }));
       expect(html).toContain("Synthetic demo sales, not provider-verified commerce");
       expect(html).not.toContain("All Locations");
-      expect(html).toContain("Not calculated");
+      // The USD demo location has no forecast here and no staffing input, so no gap is claimed.
+      expect(html).toContain("<h2>Casual labour gap</h2><strong class=\"owner-metric-empty\">Not available</strong>");
       expect(html).not.toContain("Covered");
     } finally { await t.close(); }
   });

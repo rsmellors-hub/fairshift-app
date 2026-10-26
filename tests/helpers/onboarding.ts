@@ -17,6 +17,6 @@ import { completeWorkplace } from "@/server/auth/onboarding";
 export async function createOrganisation(db:Database,userId:string,input:Record<string,unknown>) {
  const member=await ensureCustomerOrganisation(db,userId);
  await entitled(db,member.organisationId);
- const location=await completeWorkplace(db,{userId,organisationId:member.organisationId,role:"OWNER"},{...personal,...input,...locationAddress,sameAddress:true});
+ const location=await completeWorkplace(db,{userId,organisationId:member.organisationId,role:"OWNER"},{...personal,...locationAddress,...input,sameAddress:true});
  return {organisationId:member.organisationId,membershipId:member.id,locationId:location.id};
 }

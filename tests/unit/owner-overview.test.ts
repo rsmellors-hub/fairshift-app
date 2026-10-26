@@ -6,14 +6,16 @@ import OwnerLoading from "@/app/owner/loading";
 import { OwnerOverview } from "@/app/owner/overview";
 import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
-import { getOwnerOverview, ownerForecastSummary, type OwnerOverviewData } from "@/server/product/owner-overview";
+import { getOwnerOverview, ownerForecastSummary, ownerStaffingSummary, type OwnerOverviewData } from "@/server/product/owner-overview";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: () => ({}) }));
-vi.mock("@/server/product/owner-overview", () => ({ getOwnerOverview: vi.fn(), ownerForecastSummary: vi.fn() }));
+vi.mock("@/server/product/owner-overview", () => ({ getOwnerOverview: vi.fn(), ownerForecastSummary: vi.fn(), ownerStaffingSummary: vi.fn() }));
 vi.mock("@/server/intelligence/weekly", () => ({ getWeeklyForecast: vi.fn() }));
+vi.mock("@/server/intelligence/staffing", () => ({ getWeeklyStaffing: vi.fn() }));
 const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], salesUnavailable: false };
 afterEach(() => vi.resetAllMocks());
 
@@ -52,13 +54,25 @@ describe("Owner Overview route and states", () => {
     expect(html).not.toContain("forecast store offline");
     expect(ownerForecastSummary).not.toHaveBeenCalled();
   });
+  it("keeps the factual Overview when staffing coverage fails, without showing a zero gap", async () => {
+    vi.mocked(requireScope).mockResolvedValue({ organisationId: "tenant", role: "OWNER" } as Awaited<ReturnType<typeof requireScope>>);
+    vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+    vi.mocked(getOwnerOverview).mockResolvedValue(empty);
+    vi.mocked(getWeeklyStaffing).mockRejectedValue(new Error("coverage store offline"));
+    const html = renderToStaticMarkup(await OwnerPage());
+    expect(html).toContain("One location");
+    expect(html).toContain("Coverage could not be loaded. No gap has been assumed.");
+    expect(html).not.toContain("coverage store offline");
+    expect(html).not.toMatch(/>0 h</);
+    expect(ownerStaffingSummary).not.toHaveBeenCalled();
+  });
   it("does not represent missing sales, forecast, or staffing as zero", () => {
     const html = renderToStaticMarkup(createElement(OwnerOverview, { data: empty }));
     expect(html).toContain("No sales history available");
     expect(html).not.toContain("$0.00");
     expect(html).not.toContain("Covered");
     expect(html).toContain("Not available");
-    expect(html).toContain("Not calculated");
+    expect(html).not.toMatch(/>0 h</);
     expect(html).toContain("No incentive approvals or failed payments recorded");
     expect(html).not.toContain('href="/owner/locations/one');
     for (const route of ["reporting", "forecast", "payments"]) expect(html).toContain(`href="/owner/${route}"`);

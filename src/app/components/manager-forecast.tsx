@@ -12,7 +12,7 @@ const SOURCE = {
 } as const;
 const UNAVAILABLE = {
   NO_ELIGIBLE_HISTORY: "No eligible completed sales in the 56-day lookback. No forecast or staffing recommendation has been invented.",
-  NO_STAFFING_POLICY_FOR_CURRENCY: "This location’s sales history is not in USD, and the demonstration staffing policy is defined in USD, so no staffing recommendation has been calculated.",
+  NO_STAFFING_POLICY_FOR_CURRENCY: "This single-day demonstration worker estimate is defined in USD and this location’s sales history is not, so it is not calculated. Labour hours for the planning week are shown under Planning week staffing.",
 } as const;
 
 export function ManagerForecast({
@@ -43,7 +43,7 @@ export function ManagerForecast({
             <p>{result.timezone} · {result.staffing.policy.tradingHours}-hour trading day · {result.currency}</p>
             <p className="method-note">{result.source === "PAYPAL_SANDBOX"
               ? "Uses completed, reconciled PayPal sandbox sales only. Seeded transactions are excluded."
-              : `Synthetic history; forecast for ${result.targetDate}, the first day after its latest data. This is not a live forecast.`}</p>
+              : `Synthetic history; forecast for ${result.targetDate} from comparable weekdays in that history. This is not a live forecast.`}</p>
           </section>
           <section className="status-grid forecast-grid" aria-label="Forecast and staffing">
             <article><DataLabel kind="predictive">Forecast</DataLabel><span>Expected sales</span><strong>{money(result.forecastSalesMinor, result.currency)}</strong><small>Demand estimate; not a team sales target</small></article>

@@ -27,11 +27,11 @@ describe("persisted commercial history to manager output", () => {
       expect(await seedDemoHistory(testDb.db)).toMatchObject({ inserted: 3704, expected: 3704 });
       expect(await seedDemoHistory(testDb.db)).toMatchObject({ inserted: 0 });
       const result = await getManagerForecast(testDb.db, DEMO_AS_OF);
-      // Historical evidence forecasts the first day after its own data-through date.
+      // Historical evidence plans the next local day (tomorrow), keeping its own data-through date.
       expect(result).toMatchObject({
         status: "AVAILABLE", source: "DEMO_SEEDED", eligibleDays: 56, eligibleTransactions: 3704,
-        targetDate: "2026-10-15", dataAsOf: "2026-10-14T22:00:00.000Z",
-        staffing: { workers: 7, workerDelta: 2 },
+        targetDate: "2026-10-16", dataAsOf: "2026-10-14T22:00:00.000Z",
+        staffing: { workers: 8, workerDelta: 3 },
       });
       const rows = await testDb.db.select().from(saleTransactions);
       expect(rows.every((row) => row.source === "DEMO_SEEDED" && row.verificationState === "PENDING" &&
@@ -42,11 +42,19 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: true, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
+      // The page plans from the current date; pin only Date so the rendered week is deterministic.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(DEMO_AS_OF);
+      let html: string;
+      try { html = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" })); } finally { vi.useRealTimers(); }
       expect(html).toContain("Demo / seeded · not PayPal verified");
       expect(html).toContain("Recommended worker delta");
-      expect(html).toContain("+2");
-      expect(html).toContain("forecast for 2026-10-15");
+      expect(html).toContain("+3");
+      expect(html).toContain("forecast for 2026-10-16");
+      // Planning-week staffing for the USD demo location: labour assumption is GBP-only, so no gap is invented.
+      expect(html).toContain("Planning week Fri, 16 Oct 2026 – Thu, 22 Oct 2026");
+      expect(html).toContain("No staffing assumption for this currency");
+      expect(html).not.toMatch(/Casual labour gap<\/span><strong>/);
       expect(html).toContain("Historical evidence");
       expect(html).toContain("comparison assumption, not a saved plan");
       expect(html).toContain("comparable-days-recency-v1");

@@ -193,3 +193,13 @@
   .owner-location-table td > small { grid-column: 2; margin-top: 0; }
   .owner-loading-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.owner-staffing { margin-bottom: 32px; }
+.owner-staffing-detail { margin-top: 16px; }
+.owner-staffing-detail .owner-forecast-detail th small { display: block; color: var(--muted); font-size: 12px; }
+.owner-staffing-detail .owner-forecast-detail td:nth-child(n+2), .owner-staffing-detail .owner-forecast-detail thead th:nth-child(n+2) { text-align: right; }
+.owner-staffing-detail .owner-forecast-scroll-inner { overflow-x: auto; }
+@media (max-width: 767px) {
+  .owner-staffing-detail .owner-forecast-detail table tr { grid-template-columns: 1fr; }
+  .owner-staffing-detail .owner-forecast-detail td { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; text-align: right; }
+  .owner-staffing-detail .owner-forecast-detail td::before { content: attr(data-label); color: var(--muted); text-align: left; }
+}

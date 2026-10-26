@@ -50,7 +50,7 @@ and nothing in this work calls Zettle or PayPal.
 pnpm reference:load --organisation <uuid> \
   --outlet UK01=<uuid> --outlet UK02=<uuid> --outlet UK03=<uuid> \
   --outlet UK04=<uuid> --outlet UK05=<uuid> \
-  [--from YYYY-MM-DD] [--through YYYY-MM-DD] [--set-london-timezone]
+  [--from YYYY-MM-DD] [--through YYYY-MM-DD]
 ```
 
 The operator requires one organisation and an explicit, distinct outlet for
@@ -60,8 +60,9 @@ every store. It refuses:
 - inactive outlets;
 - an outlet that already holds a different store's history;
 - dates outside the reference range;
-- a non-London outlet time zone, unless explicitly confirmed with
-  `--set-london-timezone`.
+- an outlet whose time zone is not `Europe/London`. The loader never changes a
+  location's time zone; since FS-STAFF-001 it comes from the location's country
+  (see `docs/STAFFING_INTELLIGENCE_EVIDENCE.md`).
 
 Validation runs before any write, and the load is one transaction. Deterministic
 references make reruns insert nothing. A later `--through` date extends the
@@ -78,9 +79,11 @@ Local run, against a disposable PostgreSQL database: the full load inserted
   days when there are fewer than three), and caps isolated high days at twice
   the median. The planning range is not a calibrated interval. No AI is
   involved.
-- **Historical evidence** (reference, or legacy demo history) forecasts the
-  seven days after its own data-through date. For the reference history that
-  is Monday 29 December 2025 to Sunday 4 January 2026. These forecasts do not
+- **Historical evidence** (reference, or legacy demo history) keeps its own
+  data-through date (28 December 2025 for the reference history) and, since
+  FS-STAFF-001, plans the next seven real local days from tomorrow, like
+  provider sales. Comparable weekdays from the 56-day lookback are mapped onto
+  the planning dates; dates are never rewritten. These forecasts do not
   describe current trading, and the UI says so.
 - **Provider sales** (verified PayPal Sandbox) use completed days up to
   yesterday, and plan from tomorrow.
@@ -96,9 +99,10 @@ Local run, against a disposable PostgreSQL database: the full load inserted
   source is reported with its reason.
 - A company total is shown only when every location forecasts the same dates
   from the same source and currency.
-- The manager's single-day forecast uses the same rule. The demonstration
-  staffing policy is USD-denominated, so non-USD history gets no staffing
-  figure.
+- The manager's single-day forecast uses the same rule. Its single-day
+  demonstration worker estimate is USD-denominated, so non-USD history gets no
+  worker figure there. Planning-week labour hours are described in
+  `docs/STAFFING_INTELLIGENCE_EVIDENCE.md`.
 
 ## 4. Verification
 

@@ -19,7 +19,8 @@ import { getOwnerOverview, ownerForecastSummary } from "@/server/product/owner-o
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const NOW = new Date("2026-10-25T10:00:00Z");
-const WEEK = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"];
+// NOW is Sunday 25 Oct 2026 in London (the day BST ends); planning starts tomorrow.
+const WEEK = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"];
 
 async function referenceCompany(db: Db, from = "2025-11-03") {
   const organisationId = randomUUID();
@@ -40,7 +41,7 @@ describe("weekly demand forecast", () => {
       const weekly = await getWeeklyForecast(t.db, c.owner, NOW);
       expect(weekly.outlets).toHaveLength(5);
       for (const [i, outlet] of weekly.outlets.entries()) {
-        expect(outlet.selection).toMatchObject({ status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL", dataThrough: "2025-12-28", firstTarget: "2025-12-29" });
+        expect(outlet.selection).toMatchObject({ status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL", dataThrough: "2025-12-28", firstTarget: "2026-10-26" });
         expect(outlet.days.map(day => day.targetDate)).toEqual(WEEK);
         expect(outlet.days.every(day => day.forecast && day.forecast.lowerSalesMinor <= day.forecast.forecastSalesMinor && day.forecast.forecastSalesMinor <= day.forecast.upperSalesMinor)).toBe(true);
         expect(outlet.weeklyTotalMinor).toBe(outlet.days.reduce((sum, day) => sum + day.forecast!.forecastSalesMinor, 0));
@@ -48,14 +49,14 @@ describe("weekly demand forecast", () => {
         const code = REFERENCE_STORE_CODES[i];
         const days = referenceDates("2025-11-03", "2025-12-28").map(date => referenceTradingDay(code, date)).filter(day => day.open)
           .map(day => ({ date: day.date, salesMinor: day.open ? day.salesMinor : 0, transactions: day.open ? day.transactions : 0 }));
-        expect(outlet.days[0].forecast).toEqual(forecastFromHistory({ days, dataThrough: "2025-12-28", targetDate: "2025-12-29" }));
+        expect(outlet.days[0].forecast).toEqual(forecastFromHistory({ days, dataThrough: "2025-12-28", targetDate: WEEK[0] }));
       }
       expect(new Set(weekly.outlets.map(outlet => outlet.weeklyTotalMinor)).size).toBe(5);
-      expect(weekly.consolidated).toMatchObject({ source: "REFERENCE", currency: "GBP", dataThrough: "2025-12-28", firstTarget: "2025-12-29", dataThroughConsistent: true });
+      expect(weekly.consolidated).toMatchObject({ source: "REFERENCE", currency: "GBP", dataThrough: "2025-12-28", firstTarget: "2026-10-26", dataThroughConsistent: true });
       expect(weekly.consolidated!.totalMinor).toBe(weekly.outlets.reduce((sum, outlet) => sum + outlet.weeklyTotalMinor!, 0));
       expect(await getWeeklyForecast(t.db, c.owner, NOW)).toEqual(weekly);
-      // The forecast week is fixed by the evidence, not by today's date.
-      expect((await getWeeklyForecast(t.db, c.owner, new Date("2027-03-01T10:00:00Z"))).consolidated?.firstTarget).toBe("2025-12-29");
+      // The planning week follows the injected clock; the evidence keeps its own date.
+      expect((await getWeeklyForecast(t.db, c.owner, new Date("2027-03-01T10:00:00Z"))).consolidated).toMatchObject({ firstTarget: "2027-03-02", dataThrough: "2025-12-28" });
     } finally { await t.close(); }
   }, 180_000);
 
@@ -108,32 +109,34 @@ describe("weekly demand forecast", () => {
     } finally { await t.close(); }
   }, 180_000);
 
-  it("derives the legacy demo week from its data rather than fixed dates", async () => {
+  it("plans the legacy demo history for the real next seven days, keeping its data-through date", async () => {
     const t = await createTestDatabase();
     try {
       await seedDemoHistory(t.db);
       const weekly = await getWeeklyForecast(t.db, { userId: randomUUID(), organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID, role: "OWNER", organisationName: "Demo", locationName: "Rosebank Kitchen" }, NOW);
-      expect(weekly.outlets[0].selection).toMatchObject({ source: "DEMO_SEEDED", currency: "USD", dataThrough: "2026-10-14", firstTarget: "2026-10-15" });
+      expect(weekly.outlets[0].selection).toMatchObject({ source: "DEMO_SEEDED", currency: "USD", dataThrough: "2026-10-14", firstTarget: "2026-10-26" });
       expect(weekly.outlets[0].days).toHaveLength(7);
     } finally { await t.close(); }
   }, 180_000);
 
-  it("renders the weekly forecast and overview summary with provenance, GBP and no staffing or AI claims", async () => {
+  it("renders the weekly forecast and overview summary with provenance, GBP and no AI claims", async () => {
     const t = await createTestDatabase();
     try {
       const c = await referenceCompany(t.db, "2025-12-01");
       const empty = randomUUID();
       const weekly = await getWeeklyForecast(t.db, c.owner, NOW);
       let html = renderToStaticMarkup(createElement(OwnerWeeklyForecast, { weekly }));
-      for (const header of ["Mon 29 Dec", "Tue 30 Dec", "Wed 31 Dec", "Thu 1 Jan", "Fri 2 Jan", "Sat 3 Jan", "Sun 4 Jan"]) expect(html).toContain(`>${header}</th>`);
+      for (const header of ["Mon 26 Oct", "Tue 27 Oct", "Wed 28 Oct", "Thu 29 Oct", "Fri 30 Oct", "Sat 31 Oct", "Sun 1 Nov"]) expect(html).toContain(`>${header}</th>`);
       for (const row of c.rows) expect(html).toContain(`<strong>${row.name}</strong>`);
       expect(html).toContain("Reference sales history · GBP · data through Sun, 28 Dec 2025");
       expect(html).toContain("Forecast from historical evidence");
-      expect(html).toContain("Reference sales history is labelled synthetic input.");
-      expect(html).toContain("Mon, 29 Dec 2025 – Sun, 4 Jan 2026");
+      expect(html).toContain("Reference sales history is labelled synthetic input, through Sun, 28 Dec 2025.");
+      expect(html).toContain("Historical evidence through Sun, 28 Dec 2025");
+      expect(html).toContain("Mon, 26 Oct 2026 – Sun, 1 Nov 2026");
       expect(html).toContain("does not describe current trading");
       expect(html).toContain("All locations");
-      expect(html).toContain(">Not calculated<");
+      // Staffing not supplied to the component: no staffing section and no zero gap.
+      expect(html).not.toContain("Staffing by location");
       expect(html).toContain("No AI is used in this forecast");
       expect(html).toContain("£");
       expect(html).not.toContain("$");
@@ -141,9 +144,8 @@ describe("weekly demand forecast", () => {
 
       const data = await getOwnerOverview(t.db, c.owner);
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: ownerForecastSummary(weekly) }));
-      expect(html).toContain("Forecast · 29 Dec – 4 Jan 2026 · from reference history through 28 Dec 2025");
-      expect(html).toContain("Forecast · week from 29 Dec");
-      expect(html).toContain("Not calculated");
+      expect(html).toContain("Forecast · 26 Oct – 1 Nov 2026 · from reference history through 28 Dec 2025");
+      expect(html).toContain("Forecast · week from 26 Oct");
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: null }));
       expect(html).toContain("The weekly forecast could not be loaded. No demand has been assumed.");
       expect(html).not.toContain("Forecast · week from");
@@ -162,14 +164,14 @@ describe("weekly demand forecast", () => {
     } finally { await t.close(); }
   }, 180_000);
 
-  it("gives a manager of a reference location no staffing figure from a USD-only policy", async () => {
+  it("gives a manager of a reference location no single-day worker figure from the USD-only demonstration policy", async () => {
     const t = await createTestDatabase();
     try {
       const c = await referenceCompany(t.db, "2025-12-15");
       const result = await getManagerForecast(t.db, NOW, { organisationId: c.organisationId, locationId: c.mapping.UK02 });
-      expect(result).toMatchObject({ status: "UNAVAILABLE", reason: "NO_STAFFING_POLICY_FOR_CURRENCY", source: "REFERENCE", currency: "GBP", targetDate: "2025-12-29" });
+      expect(result).toMatchObject({ status: "UNAVAILABLE", reason: "NO_STAFFING_POLICY_FOR_CURRENCY", source: "REFERENCE", currency: "GBP", targetDate: "2026-10-26" });
       const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));
-      expect(html).toContain("demonstration staffing policy is defined in USD");
+      expect(html).toContain("demonstration worker estimate is defined in USD");
       expect(html).not.toContain("Recommended workers");
     } finally { await t.close(); }
   }, 180_000);

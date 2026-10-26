@@ -3,7 +3,7 @@ import { requireScope } from "@/server/auth/request";
 import type { Scope } from "@/server/auth/access";
 import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import Link from "next/link";
-import { PageHeader, StatePanel } from "@/app/components/product-ui";
+import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import { ActionFeedback, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction } from "@/app/operations-actions";
@@ -13,6 +13,8 @@ import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
 import { getManagerForecast } from "@/server/intelligence/manager";
+import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { labourHours, longDate, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
 import { getAiOperationalAssessment } from "@/server/integrations/openai/operational-intelligence";
 import { AllocationScheduler } from "./allocation-scheduler";
 import { DemoReview } from "./review-workspace";
@@ -46,7 +48,8 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
       <section className="panel"><h2>Add team member</h2><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p>Location: {scope.locationName}. Email is sent only when configured; invitation state is tracked separately.</p><button className="primary-button">Create & send FairShift invite</button></form></section>
     </> : null}
     {area === "plan" ? <>
-      <details className="panel"><summary>Demand forecast & staffing recommendation</summary>{await Forecast(scope)}</details>
+      {await Staffing(scope)}
+      <details className="panel"><summary>Single-day demand forecast & AI interpretation</summary>{await Forecast(scope)}</details>
       <section className="panel"><h2>Coverage requirements</h2><p>{scope.locationName} · Johannesburg time</p>
       <form method="get" action="/manager/plan" className="inline-form"><label>Trading day<input type="date" name="date" defaultValue={date} /></label><label>Department<select name="department" defaultValue={department ?? ""}><option value="">All departments</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label><button className="secondary-button">Apply</button><Link href="/manager/plan">All dates</Link></form>
         {visibleRequirements.length ? visibleRequirements.sort((a,b) => a.shiftDate.localeCompare(b.shiftDate)).map(r => {
@@ -60,7 +63,7 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
           </article>;
         }) : <StatePanel title="No coverage requirements" />}
       <p className="method-note">Invitations beyond the requested headcount are unavailable pending a capacity-policy decision.</p></section>
-      <details className="panel"><summary>Add a department coverage requirement</summary>{departments.length && policies.length ? <form action={createRequirementAction} className="workspace-form form-grid"><PlanContext date={date} department={department} /><label>Department<select name="departmentId" defaultValue={department}>{departments.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>Owner-defined work terms<select name="policyId">{policies.map(p => <option key={p.id} value={p.id}>{p.name} · {p.earningsModel.toLowerCase()}</option>)}</select></label><label>Starts · Johannesburg<input name="startsAt" type="datetime-local" required /></label><label>Ends · Johannesburg<input name="endsAt" type="datetime-local" required /></label><label>Required headcount<input name="headcount" type="number" min="1" max="1000" defaultValue="1" required /></label><button className="primary-button">Create requirement</button></form> : <p>Owner/Admin must configure a department and work policy first.</p>}</details>
+      <details className="panel" id="add-requirement"><summary>Add a department coverage requirement</summary>{departments.length && policies.length ? <form action={createRequirementAction} className="workspace-form form-grid"><PlanContext date={date} department={department} /><label>Department<select name="departmentId" defaultValue={department}>{departments.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>Owner-defined work terms<select name="policyId">{policies.map(p => <option key={p.id} value={p.id}>{p.name} · {p.earningsModel.toLowerCase()}</option>)}</select></label><label>Starts · Johannesburg<input name="startsAt" type="datetime-local" required /></label><label>Ends · Johannesburg<input name="endsAt" type="datetime-local" required /></label><label>Required headcount<input name="headcount" type="number" min="1" max="1000" defaultValue="1" required /></label><button className="primary-button">Create requirement</button></form> : <p>Owner/Admin must configure a department and work policy first.</p>}</details>
       {await Roster(scope)}
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
@@ -78,6 +81,30 @@ async function Forecast(scope:Scope) {
   try { result = await getManagerForecast(getDatabase(),new Date(),scope); aiResult = await getAiOperationalAssessment(result); }
   catch { return <ManagerForecast result={null} error="Demand evidence is unavailable. Prior requirements remain available." />; }
   return <ManagerForecast result={result} aiResult={aiResult} />;
+}
+// Planning-week staffing evidence for the manager's own location; managers are
+// scoped to one location, so no location selector is shown.
+async function Staffing(scope:Scope) {
+  let staffing;
+  try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); }
+  catch { return <StatePanel title="Staffing unavailable" tone="warning"><p>Forecast or coverage could not be loaded, so no labour gap is shown. Existing requirements remain available below.</p></StatePanel>; }
+  const outlet = staffing.outlets.find(row => row.outletId === scope.locationId);
+  if (!outlet) return <StatePanel title="Staffing unavailable" tone="warning"><p>This location is not available for planning.</p></StatePanel>;
+  const evidence = outlet.evidence;
+  return <section className="panel staffing-week" aria-labelledby="staffing-week-title">
+    <h2 id="staffing-week-title">Planning week staffing</h2>
+    <p>{scope.locationName} · Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</p>
+    {evidence ? <DataLabel kind={evidence.source === "PAYPAL_SANDBOX" ? "fact" : "demo"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
+    <p className="method-note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
+    {outlet.totals ? <div className="status-grid forecast-grid" aria-label="Planning week totals">
+      <article><span>Required labour</span><strong>{labourHours(outlet.totals.requiredMinutes)}</strong><small>From forecast demand</small></article>
+      <article><span>Existing coverage</span><strong>{labourHours(outlet.totals.coverageMinutes)}</strong><small>Regular {labourHours(outlet.totals.regularMinutes)} · allocated casual {labourHours(outlet.totals.allocatedCasualMinutes)}</small></article>
+      <article><span>Casual labour gap</span><strong>{labourHours(outlet.totals.casualGapMinutes)}</strong><small>Approx. {outlet.totals.indicativeShifts} shifts to fill · none created</small></article>
+    </div> : null}
+    <div className="history-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="history-table" /></div>
+    <p className="method-note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>
+    {outlet.totals?.casualGapMinutes ? <p><Link href="#add-requirement">Plan shifts for the casual labour gap ↓</Link></p> : null}
+  </section>;
 }
 async function Roster(scope:Scope) {
   let schedule;

@@ -213,6 +213,26 @@ export const workers = pgTable(
   ],
 );
 
+// Planned regular-staff labour per location and local weekday: a standing weekly
+// rota applied to each planning date. Lightweight staffing input, not user
+// accounts, shifts, timesheets or payroll. Only labelled reference input exists so far.
+export const regularStaffCoverage = pgTable("regular_staff_coverage", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  isoWeekday: integer("iso_weekday").notNull(), // 1 = Monday … 7 = Sunday
+  plannedMinutes: integer("planned_minutes").notNull(),
+  source: text("source").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("regular_staff_coverage_outlet_weekday_unique").on(t.outletId, t.isoWeekday),
+  index("regular_staff_coverage_organisation_idx").on(t.organisationId),
+  check("regular_staff_coverage_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
+  check("regular_staff_coverage_minutes_check", sql`${t.plannedMinutes} between 0 and 1440000`),
+  check("regular_staff_coverage_source_check", sql`${t.source} in ('REFERENCE')`),
+]);
+
 export const departments = pgTable("departments", {
   id: uuid("id").primaryKey(),
   outletId: uuid("outlet_id").notNull().references(() => outlets.id),
@@ -460,7 +480,7 @@ export const schema = {
   paypalConnections,
   saleTransactions,
   providerEvents,
-  workers,
+  workers, regularStaffCoverage,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, attributedSales,
   shifts,
   shiftOffers,

@@ -25,13 +25,15 @@ describe("Owner pages with reference sales history", () => {
     try {
       const user = await registerIdentity(t.db, { email: "reference-owner@example.test", password: "long-test-password-42" });
       await t.db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, user.id));
-      const { organisationId, locationId } = await createOrganisation(t.db, user.id, { name: "Reference pages company", locationName: "Reference store 1" });
+      const { organisationId, locationId } = await createOrganisation(t.db, user.id, { name: "Reference pages company", locationName: "Reference store 1", locationCity: "Leeds", locationProvince: "", locationPostalCode: "LS1 6AZ", locationCountry: "United Kingdom" });
       const extra = REFERENCE_STORE_CODES.slice(1).map((code, i) => ({ id: randomUUID(), organisationId, name: `Reference store ${i + 2}`, timezone: "Europe/London" }));
       await t.db.insert(outlets).values(extra);
       const [first] = await t.db.select().from(outlets).where(eq(outlets.id, locationId));
+      // A United Kingdom location gets its time zone from its country, not from the loader.
+      expect(first.timezone).toBe("Europe/London");
       const rows = [first, ...extra];
       const loaded = await provisionReferenceHistory(t.db, { organisationId, from: "2025-12-22", through: "2025-12-28",
-        outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>, setLondonTimezone: true });
+        outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string> });
 
       const workspace = await getOwnerWorkspace(t.db, organisationId);
       expect(workspace.sales.length).toBeLessThanOrEqual(5);

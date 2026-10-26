@@ -6,6 +6,7 @@ import type { Database, DatabaseSession } from "@/server/db/client";
 import { departments, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, auditEvents, shiftIncentives } from "@/server/db/schema";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
+import { localDate } from "@/server/intelligence/forecast";
 
 import type { Scope } from "@/server/auth/access";
 
@@ -57,13 +58,13 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
 export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope=demoScope) {
   z.object({ departmentId: z.uuid(), policyId: z.uuid(), startsAt: z.date(), endsAt: z.date(), requiredHeadcount: z.number().int().min(1).max(1000) }).parse(input);
   return db.transaction(async (tx) => {
-    await location(tx, scope);
+    const outlet = await location(tx, scope);
     const [department] = await tx.select().from(departments).where(and(eq(departments.id, input.departmentId), eq(departments.outletId, scope.locationId)));
     const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.id, input.policyId), eq(workPolicies.outletId, scope.locationId)));
     if (!department || !policy) throw new Error("Department or work policy unavailable.");
     const expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt);
     const [row] = await tx.insert(shifts).values({ id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
-      startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(input.startsAt),
+      startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: "USD", earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,
       guaranteedBasePayMinor: expected ?? 0, gratuityPolicy: "No gratuity terms apply.", incentivePolicy: "No incentive applies to this assignment.",
@@ -162,7 +163,7 @@ export async function changeAssignment(db:Database,scope:OperatingScope,id:strin
   } else {
    const terms=policyInput.parse(shift.earningsModel === "COMMISSION" ? shift : {...shift,rateMinor:shift.rateMinor ?? shift.guaranteedBasePayMinor});
    const expected=expectedWorkEarnings(terms,input.startsAt,input.endsAt);
-   await tx.update(shifts).set({...input,shiftDate:new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Johannesburg",year:"numeric",month:"2-digit",day:"2-digit"}).format(input.startsAt),expectedEarningsMinor:expected,guaranteedBasePayMinor:expected ?? 0,updatedAt:new Date()}).where(eq(shifts.id,id));
+   await tx.update(shifts).set({...input,shiftDate:localDate(input.startsAt,(await location(tx,scope)).timezone),expectedEarningsMinor:expected,guaranteedBasePayMinor:expected ?? 0,updatedAt:new Date()}).where(eq(shifts.id,id));
   }
  });
 }

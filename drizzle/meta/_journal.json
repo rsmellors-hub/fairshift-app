@@ -85,6 +85,13 @@
       "when": 1792956054961,
       "tag": "0011_reference_sales_history",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792987258008,
+      "tag": "0012_staffing_coverage",
+      "breakpoints": true
     }
   ]
 }

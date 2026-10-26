@@ -12,6 +12,7 @@ import OwnerPage from "@/app/owner/page";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { loadDailySales } from "@/server/intelligence/sales-history";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { getOwnerWorkspace } from "@/server/product/workspace";
@@ -28,9 +29,12 @@ export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status
   const scope=await requireScope(["OWNER"]);
   // The forecast needs only its own aggregated evidence, not the workspace record set.
   if (area === "forecast") {
-    let weekly = null;
-    try { weekly = await getWeeklyForecast(getDatabase(), scope); } catch { weekly = null; }
-    return <OwnerWeeklyForecast weekly={weekly} />;
+    // One clock for both reads; a staffing failure leaves the forecast intact and vice versa.
+    const now = new Date();
+    let weekly = null, staffing = null;
+    try { weekly = await getWeeklyForecast(getDatabase(), scope, now); } catch { weekly = null; }
+    try { staffing = await getWeeklyStaffing(getDatabase(), scope, now); } catch { staffing = null; }
+    return <OwnerWeeklyForecast weekly={weekly} staffing={staffing} />;
   }
   const subscription=await subscriptionFor(getDatabase(),scope);
   const invitations=await getDatabase().select().from(teamInvitations).where(eq(teamInvitations.organisationId,scope.organisationId));

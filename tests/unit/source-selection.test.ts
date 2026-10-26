@@ -14,11 +14,13 @@ const reference = range("REFERENCE", "2025-12-28", 120);
 const notSunday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() !== 0;
 
 describe("forecast source eligibility", () => {
-  it("uses reference history and its own calendar when there is no provider history", () => {
+  it("uses reference history, keeping its own data-through date, for the real planning week", () => {
     expect(selectForecastSource(reference, TODAY)).toMatchObject({
       status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL",
-      dataThrough: "2025-12-28", firstTarget: "2025-12-29", rejected: [],
+      dataThrough: "2025-12-28", firstTarget: "2026-10-27", rejected: [],
     });
+    // The planning week follows the clock; the evidence is never re-dated.
+    expect(selectForecastSource(reference, "2027-03-01")).toMatchObject({ dataThrough: "2025-12-28", firstTarget: "2027-03-02" });
   });
 
   it("never lets one provider day replace a complete reference history", () => {
@@ -67,7 +69,7 @@ describe("forecast source eligibility", () => {
 
   it("falls back to legacy demo history, then to no forecast at all", () => {
     expect(selectForecastSource(range("DEMO_SEEDED", "2026-10-14", 56, "USD"), TODAY))
-      .toMatchObject({ source: "DEMO_SEEDED", currency: "USD", dataThrough: "2026-10-14", firstTarget: "2026-10-15" });
+      .toMatchObject({ source: "DEMO_SEEDED", currency: "USD", dataThrough: "2026-10-14", firstTarget: "2026-10-27" });
     expect(selectForecastSource([], TODAY)).toEqual({ status: "NONE", rejected: [] });
     expect(selectForecastSource([row("PAYPAL_SANDBOX", YESTERDAY)], TODAY)).toMatchObject({ status: "NONE", rejected: [{ reason: "INSUFFICIENT_DAYS" }] });
   });

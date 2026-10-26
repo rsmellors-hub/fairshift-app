@@ -5,6 +5,7 @@ import { outlets, shiftIncentives, shifts, workers } from "@/server/db/schema";
 import { shiftDate, type SalesSource } from "@/server/intelligence/forecast";
 import { loadDailySales } from "@/server/intelligence/sales-history";
 import type { WeeklyForecast } from "@/server/intelligence/weekly";
+import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 
 export type SalesSeries = {
   key: string;
@@ -83,3 +84,15 @@ export function ownerForecastSummary(weekly: WeeklyForecast) {
   };
 }
 export type OwnerForecastSummary = ReturnType<typeof ownerForecastSummary>;
+
+// Serialisable staffing summary for the Overview client component.
+export function ownerStaffingSummary(staffing: WeeklyStaffing) {
+  const c = staffing.consolidated;
+  return {
+    consolidated: c && { firstDate: c.firstDate, lastDate: c.lastDate, requiredMinutes: c.totals.requiredMinutes,
+      coverageMinutes: c.totals.coverageMinutes, casualGapMinutes: c.totals.casualGapMinutes, indicativeShifts: c.totals.indicativeShifts },
+    outlets: staffing.outlets.map(outlet => ({ id: outlet.outletId, casualGapMinutes: outlet.totals?.casualGapMinutes ?? null,
+      indicativeShifts: outlet.totals?.indicativeShifts ?? null })),
+  };
+}
+export type OwnerStaffingSummary = ReturnType<typeof ownerStaffingSummary>;

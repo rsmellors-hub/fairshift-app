@@ -12,15 +12,17 @@ const usage = `Load labelled synthetic REFERENCE sales history into one organisa
   pnpm reference:load --organisation <uuid> \\
     --outlet UK01=<outlet uuid> --outlet UK02=<outlet uuid> --outlet UK03=<outlet uuid> \\
     --outlet UK04=<outlet uuid> --outlet UK05=<outlet uuid> \\
-    [--from YYYY-MM-DD] [--through YYYY-MM-DD] [--set-london-timezone]
+    [--from YYYY-MM-DD] [--through YYYY-MM-DD]
 
 Stores: ${REFERENCE_STORES.map(store => `${store.code} ${store.city}`).join(", ")}.
 Range: ${REFERENCE_DATASET.firstDate} to ${REFERENCE_DATASET.lastDate} (${REFERENCE_DATASET.currency}).
+Also sets each store's standing regular-staff rota (planned labour hours per weekday).
+Outlets must already be ${REFERENCE_DATASET.timezone} locations.
 This is fictional reference data, never provider (Zettle/PayPal) sales.`;
 
 const { values } = parseArgs({ options: {
   organisation: { type: "string" }, outlet: { type: "string", multiple: true },
-  from: { type: "string" }, through: { type: "string" }, "set-london-timezone": { type: "boolean" }, help: { type: "boolean" },
+  from: { type: "string" }, through: { type: "string" }, help: { type: "boolean" },
 } });
 const mapping = Object.fromEntries((values.outlet ?? []).map(pair => pair.split("=", 2)));
 if (values.help || !values.organisation || REFERENCE_STORE_CODES.some(code => !mapping[code]) || Object.keys(mapping).length !== REFERENCE_STORE_CODES.length) {
@@ -32,9 +34,8 @@ const pool = new Pool({ connectionString: getDatabaseConfig().DATABASE_URL, appl
 try {
   const result = await provisionReferenceHistory(drizzle(pool, { schema }), {
     organisationId: values.organisation, outlets: mapping, from: values.from, through: values.through,
-    setLondonTimezone: values["set-london-timezone"] ?? false,
   });
-  console.log(`REFERENCE (${result.dataset}, ${result.currency}): ${result.inserted} of ${result.expected} synthetic transactions inserted; existing rows were kept.`);
+  console.log(`REFERENCE (${result.dataset}, ${result.currency}): ${result.inserted} of ${result.expected} synthetic transactions inserted; existing rows were kept. Regular coverage rota set for ${result.regularCoverageRows / 7} stores.`);
   for (const store of result.stores) console.log(`  ${store.code} → outlet ${store.outletId}: ${store.transactions ?? 0} reference transactions, data through ${store.dataThrough ?? "none"}`);
 } catch (error) {
   // Validation refusals happen before any write; the load itself is one transaction.

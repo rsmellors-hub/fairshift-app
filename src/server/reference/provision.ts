@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, like, not, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
-import { organisations, outlets, saleTransactions } from "@/server/db/schema";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceDates, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-retail";
+import { organisations, outlets, regularStaffCoverage, saleTransactions } from "@/server/db/schema";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceDates, referenceStore, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-retail";
 
 const inputSchema = z.object({
   organisationId: z.string().uuid(),
@@ -11,7 +11,6 @@ const inputSchema = z.object({
   outlets: z.object(Object.fromEntries(REFERENCE_STORE_CODES.map(code => [code, z.string().uuid()])) as Record<ReferenceStoreCode, z.ZodString>).strict(),
   from: z.iso.date().default(REFERENCE_DATASET.firstDate),
   through: z.iso.date().default(REFERENCE_DATASET.lastDate),
-  setLondonTimezone: z.boolean().default(false),
 }).strict();
 export type ReferenceProvisionInput = z.input<typeof inputSchema>;
 
@@ -51,8 +50,9 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
       const outlet = rows.find(row => row.id === outletId);
       if (!outlet) throw new Error(`${code}: outlet is not part of this organisation.`);
       if (!outlet.active) throw new Error(`${code}: outlet is inactive.`);
-      if (outlet.timezone !== REFERENCE_DATASET.timezone && !input.setLondonTimezone) {
-        throw new Error(`${code}: outlet time zone is ${outlet.timezone}; reference sales are ${REFERENCE_DATASET.timezone} trading. Re-run with explicit time-zone confirmation.`);
+      // Time zone is location data (set from the location's country); the loader never changes it.
+      if (outlet.timezone !== REFERENCE_DATASET.timezone) {
+        throw new Error(`${code}: outlet time zone is ${outlet.timezone}; reference sales are ${REFERENCE_DATASET.timezone} trading. Map a United Kingdom location.`);
       }
       // Never mix two reference stores (or dataset versions) into one outlet history.
       const [foreign] = await tx.select({ id: saleTransactions.id }).from(saleTransactions).where(and(
@@ -61,11 +61,6 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
       )).limit(1);
       if (foreign) throw new Error(`${code}: outlet already holds a different reference history.`);
     }
-    if (input.setLondonTimezone) {
-      await tx.update(outlets).set({ timezone: REFERENCE_DATASET.timezone, updatedAt: new Date() })
-        .where(inArray(outlets.id, mapping.map(row => row.outletId)));
-    }
-
     let inserted = 0, expected = 0;
     for (const { code, outletId } of mapping) {
       let batch: (typeof saleTransactions.$inferInsert)[] = [];
@@ -87,7 +82,17 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
       }
       await flush();
     }
-    return { inserted, expected };
+    // Staffing input only (planned regular labour per weekday). Required labour,
+    // coverage gaps and shift counts are derived by the application, never stored.
+    const coverage = mapping.flatMap(({ code, outletId }) => referenceStore(code).regularCoverageHours.map((hours, i) => ({
+      id: deterministicId(`REFCOV:${REFERENCE_DATASET.version}:${code}:${outletId}:${i + 1}`), organisationId: input.organisationId,
+      outletId, isoWeekday: i + 1, plannedMinutes: hours * 60, source: "REFERENCE" })));
+    await tx.insert(regularStaffCoverage).values(coverage).onConflictDoUpdate({
+      target: [regularStaffCoverage.outletId, regularStaffCoverage.isoWeekday],
+      set: { plannedMinutes: sql`excluded.planned_minutes`, updatedAt: new Date() },
+      setWhere: sql`${regularStaffCoverage.source} = 'REFERENCE'`,
+    });
+    return { inserted, expected, regularCoverageRows: coverage.length };
   });
   const through = await referenceDataThrough(db, mapping.map(row => row.outletId));
   return {

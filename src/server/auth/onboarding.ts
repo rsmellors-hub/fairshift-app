@@ -3,6 +3,7 @@ import { outlets } from "@/server/db/schema";
 import { organisationEntitled } from "@/server/billing/entitlement";
 import { requireCustomerOwner } from "@/server/billing/ownership";
 import { assertLocationCapacity } from "@/server/billing/locations";
+import { resolveLocationTimezone } from "@/server/domain/timezone";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { DatabaseSession } from "@/server/db/client";
@@ -45,7 +46,8 @@ export async function completeWorkplace(db: import("@/server/db/client").Databas
       province:value.locationProvince ?? null,postalCode:value.locationPostalCode,country:value.locationCountry,updatedAt:new Date()};
     if (!location) {
       await assertLocationCapacity(tx,org.id);
-      [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:org.id,...locationValues,timezone:"Africa/Johannesburg"}).returning();
+      const timezone=resolveLocationTimezone({locationCountry:value.locationCountry,organisationCountry:value.sameAddress ? value.locationCountry : value.country});
+      [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:org.id,...locationValues,timezone}).returning();
     } else {
       [location]=await tx.update(outlets).set(locationValues).where(eq(outlets.id,location.id)).returning();
     }
