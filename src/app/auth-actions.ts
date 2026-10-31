@@ -1,4 +1,5 @@
 "use server";
+import { UserFacingError } from "@/server/domain/errors";
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -87,7 +88,7 @@ export async function completeWorkplaceAction(_previous:WorkplaceFormState,form:
  const input={...Object.fromEntries(keys.filter(key=>form.has(key)).map(key=>[key,field(form,key)])),sameAddress:form.get("sameAddress") === "on"};
  const parsed=workplaceDetails.safeParse(input);
  if (!parsed.success) return {errors:workplaceErrors(input),message:"Check the highlighted details and try again."};
- try {await completeWorkplace(getDatabase(),scope,parsed.data);} catch {return {message:"We couldn’t save your workplace. Your details are still here. Please try again shortly."};}
+ try {await completeWorkplace(getDatabase(),scope,parsed.data);} catch (error) {return {message:error instanceof UserFacingError ? `${error.message} Your details are still here. Check the country, or contact FairShift.` : "We couldn’t save your workplace. Your details are still here. Please try again shortly."};}
  (await cookies()).delete("fairshift_location");redirect("/owner");
 }
 // A status check only reads/reconciles the existing subscription; it never starts checkout.
@@ -105,7 +106,7 @@ export async function checkSubscriptionStatusAction():Promise<{destination:strin
 export async function createLocationAction(form:FormData) {
  const scope=await requireScope(["OWNER"]);
  try {await createLocation(getDatabase(),scope,{name:field(form,"name")});} catch (error) {
-   const message=error instanceof Error && /plan allows|entitlement needs configuration/.test(error.message) ? error.message : "The location could not be added.";
+   const message=error instanceof UserFacingError || error instanceof Error && /plan allows|entitlement needs configuration/.test(error.message) ? (error as Error).message : "The location could not be added.";
    redirect(`/owner/locations?status=${encodeURIComponent(message)}`);
  }
  redirect("/owner/locations?status=saved");

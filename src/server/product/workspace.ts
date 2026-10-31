@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, departments } from "@/server/db/schema";
+import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workerAvailability, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 
 // These workspaces retain the existing server-pinned environment scope.
@@ -56,8 +56,9 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;
+  const availability = scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
   const [location] = await db.select({ timezone: outlets.timezone }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
-  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, timezone: location?.timezone ?? null };
+  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, availability, timezone: location?.timezone ?? null };
 }
 
 export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DEMO_ORGANISATION_ID) {

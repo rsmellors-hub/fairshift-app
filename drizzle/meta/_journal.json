@@ -120,6 +120,13 @@
       "when": 1793462932315,
       "tag": "0016_business_labour_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793468577845,
+      "tag": "0017_worker_availability",
+      "breakpoints": true
     }
   ]
 }

@@ -10,7 +10,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { auditEvents, memberships, organisations, outlets, shiftIncentives, shiftOffers, shifts, subscriptions, users, workAcceptances, workAllocations, workPayables, workPolicies, workers } from "@/server/db/schema";
-import { allocateAssignment, changeAssignment, confirmWork, createDepartment, createRequirement, createTeamMember, createWorkPolicy, getOperations, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, changeAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, getOperations, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
 import { BasePayableUnavailableError } from "@/server/domain/work-payable";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
@@ -18,6 +18,7 @@ import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { confirmWorkAction } from "@/app/operations-actions";
+import { createActivatedTeamMember } from "../helpers/workers";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -59,7 +60,7 @@ async function terms(db: Db, scope: Scope, policy: Policy = HOURLY_12, startsAt 
   return { policy: created, shift };
 }
 const member = async (db: Db, scope: Scope) =>
-  (await createTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, scope)).worker;
+  (await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, scope)).worker;
 async function allocated(db: Db, scope: Scope, shiftId: string) {
   const worker = await member(db, scope);
   const offer = await offerAssignment(db, shiftId, worker.id, scope);
@@ -349,13 +350,13 @@ describe("confirmed work and authoritative base payables", () => {
 
       // Before work is confirmed: GBP terms and expected earnings only.
       const shiftsHtml = await render(workerScope, () => WorkerWorkspace({ area: "shifts" }));
-      expect(shiftsHtml).toContain("£12.00/hour");
+      expect(shiftsHtml).toContain("£12.00 an hour × 6 hours");
       expect(shiftsHtml).toContain("£72.00");
       noDollars(shiftsHtml);
       let earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      expect(earnings).toContain("£72.00 expected work earnings");
+      expect(earnings).toContain("£72.00 expected");
       expect(earnings).toContain("Awaiting work confirmation");
-      expect(earnings).not.toContain("base payable ·");
+      expect(earnings).not.toContain("£72.00 earned");
       noDollars(earnings);
       noDollars(await render(workerScope, () => WorkerWorkspace({ area: "home" })));
       // Allocated, unconfirmed work is visible as allocated and offered for confirmation.
@@ -384,7 +385,7 @@ describe("confirmed work and authoritative base payables", () => {
       noDollars(review);
       noPayment(review);
       earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["£72.00 base payable", "£12.00/hour × 6 hours scheduled", "Confirmed · awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms the payment"]) expect(earnings).toContain(text);
+      for (const text of ["£72.00 earned", "£12.00/hour × 6 hours scheduled", "Confirmed · awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms the payment"]) expect(earnings).toContain(text);
       noDollars(earnings);
       noPayment(earnings);
       expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£72.00 confirmed · awaiting approval");

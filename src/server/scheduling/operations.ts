@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, getTableColumns, inArray, lt, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { departments, organisations, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
+import { departments, organisations, outlets, workers, workerAvailability, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
 import { resolveLocationCurrency } from "@/server/domain/currency";
@@ -11,6 +11,8 @@ import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAccept
 import { localDate } from "@/server/intelligence/forecast";
 
 import type { Scope } from "@/server/auth/access";
+import { UserFacingError } from "@/server/domain/errors";
+import { availabilityForShift, isOfferable, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
 
 // Internal demo compatibility only; HTTP entrypoints always supply authenticated scope.
 const demoScope = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID};
@@ -76,7 +78,13 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
     .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))
     .where(and(eq(workPayables.organisationId, scope.organisationId), eq(workPayables.outletId, scope.locationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(workPayables.confirmedAt));
-  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, currency: await locationCurrency(db, outlet), timezone: outlet.timezone };
+  const workerIds = team.map(row => row.worker.id);
+  const availability = workerIds.length ? await db.select({ workerId: workerAvailability.workerId, isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(inArray(workerAvailability.workerId, workerIds)) : [];
+  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone };
+}
+// The planning location's time zone: the only basis for reading a Manager's local times.
+export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {
+  return (await location(db, scope)).timezone;
 }
 export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope=demoScope) {
   z.object({ departmentId: z.uuid(), policyId: z.uuid(), startsAt: z.date(), endsAt: z.date(), requiredHeadcount: z.number().int().min(1).max(1000) }).parse(input);
@@ -85,7 +93,12 @@ export async function createRequirement(db: Database, input: { departmentId: str
     const [department] = await tx.select().from(departments).where(and(eq(departments.id, input.departmentId), eq(departments.outletId, scope.locationId)));
     const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.id, input.policyId), eq(workPolicies.outletId, scope.locationId)));
     if (!department || !policy) throw new Error("Department or work policy unavailable.");
-    const expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt);
+    if (policy.currencyCode !== await locationCurrency(tx, outlet)) throw new UserFacingError("policy-currency", "This work policy is not in this location's currency.");
+    if (policy.earningsModel !== "COMMISSION" && !(policy.rateMinor && policy.rateMinor > 0)) throw new UserFacingError("policy-rate", "This work policy has no pay rate.");
+    if (input.endsAt <= input.startsAt) throw new UserFacingError("invalid-duration", "The end must be after the start.");
+    let expected: number | null;
+    try { expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt); }
+    catch (error) { throw new UserFacingError("earnings-not-whole", error instanceof Error ? error.message : "These terms cannot be calculated."); }
     const [row] = await tx.insert(shifts).values({ id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
@@ -101,21 +114,29 @@ async function scopedShift(db: DatabaseSession, id: string, scope:OperatingScope
   if (!shift || shift.status !== "PUBLISHED") throw new Error("Assignment unavailable.");
   return shift;
 }
-async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts = true, scope:OperatingScope=demoScope) {
+async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts = true, scope:OperatingScope=demoScope, options: { requireActivation?: boolean } = {}) {
   const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"))).for("update");
   if (!worker) throw new Error("Team member unavailable at this location.");
-  const conflicts = checkConflicts ? await db.select({ id: shifts.id }).from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))
-    .where(and(eq(shiftOffers.workerId, workerId), eq(shiftOffers.status, "ACCEPTED"), inArray(shifts.status, ["PUBLISHED", "COMPLETED"]), lt(shifts.startsAt, shift.endsAt), gt(shifts.endsAt, shift.startsAt))) : [];
-  if (conflicts.some((row) => row.id !== shift.id)) throw new Error("This assignment overlaps accepted work.");
+  if (!checkConflicts) return worker;
+  const conflicts = await db.select({ id: shifts.id }).from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))
+    .where(and(eq(shiftOffers.workerId, workerId), eq(shiftOffers.status, "ACCEPTED"), inArray(shifts.status, ["PUBLISHED", "COMPLETED"]), lt(shifts.startsAt, shift.endsAt), gt(shifts.endsAt, shift.startsAt)));
+  const outlet = await location(db, scope);
+  const stated = await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, workerId));
+  const state = workerOpportunityState({ active: true, activated: !options.requireActivation || !!worker.userId, conflict: conflicts.some(row => row.id !== shift.id),
+    availability: availabilityForShift(new Map(stated.map(row => [row.isoWeekday, row.state])), shiftWeekdays(shift, outlet.timezone)) });
+  if (state === "ALREADY_WORKING") throw new UserFacingError("worker-working", "This assignment overlaps accepted work.");
+  if (state === "UNAVAILABLE") throw new UserFacingError("worker-unavailable", "This worker has marked themselves unavailable for this shift.");
+  if (state === "AWAITING_ACTIVATION") throw new UserFacingError("worker-not-activated", "This worker has not activated their FairShift account yet, so they cannot see an offer.");
+  if (!isOfferable(state)) throw new Error("Team member unavailable at this location.");
   return worker;
 }
 export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope=demoScope) {
   return db.transaction(async (tx) => {
     const shift = await scopedShift(tx, shiftId, scope);
-    await eligible(tx, workerId, shift, true, scope);
+    await eligible(tx, workerId, shift, true, scope, { requireActivation: true });
     // Capacity / over-invitation policy is unresolved: do not create offers beyond headcount.
     const existing = await tx.select().from(shiftOffers).where(eq(shiftOffers.shiftId, shift.id));
-    if (existing.some((o) => o.workerId === workerId)) throw new Error("An offer already exists for this member.");
+    if (existing.some((o) => o.workerId === workerId)) throw new UserFacingError("already-offered", "An offer already exists for this member.");
     if (existing.filter((o) => ["OFFERED", "ACCEPTED"].includes(o.status)).length >= shift.requiredHeadcount) throw new Error("Requirement has no unoffered places. Capacity policy requires review.");
     const [offer] = await tx.insert(shiftOffers).values({ id: randomUUID(), shiftId, workerId }).returning();
     return offer;
@@ -129,7 +150,7 @@ export async function respondToAssignment(db: Database, workerId: string, offerI
     const shift = await scopedShift(tx, initial.shiftId, scope);
     const worker = await eligible(tx, workerId, shift, response === "ACCEPTED", scope);
     const [offer] = await tx.select().from(shiftOffers).where(eq(shiftOffers.id, offerId)).for("update");
-    if (version !== shift.termsVersion) throw new Error("Assignment terms changed. Review the new version.");
+    if (version !== shift.termsVersion) throw new UserFacingError("terms-changed", "Assignment terms changed. Review the new version.");
     if (offer.status === response) return offer;
     if (offer.status !== "OFFERED") throw new Error("Offer is closed.");
     const now = new Date();

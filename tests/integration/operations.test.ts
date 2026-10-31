@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createTestDatabase } from "../helpers/database";
-import { createTeamMember, createDepartment, createWorkPolicy, createRequirement, offerAssignment, respondToAssignment, allocateAssignment, getOperations, confirmWork } from "@/server/scheduling/operations";
+import { createDepartment, createWorkPolicy, createRequirement, offerAssignment, respondToAssignment, allocateAssignment, getOperations, confirmWork } from "@/server/scheduling/operations";
 import { workAcceptances, shiftOffers, shifts, workAllocations, workers, attributedSales, shiftIncentives } from "@/server/db/schema";
 import { DEMO_OUTLET_ID } from "@/server/constants";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
 import { publishDemoShift, getDemoWorkerShift, DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
+import { activateWorker, createActivatedTeamMember } from "../helpers/workers";
 
 const member = { firstName: "Sam", surname: "Taylor", telephone: "+27111234567", email: "sam@example.test" };
 async function setup(db: Awaited<ReturnType<typeof createTestDatabase>>["db"], model: "HOURLY" | "DAILY" | "COMMISSION" = "HOURLY", headcount = 2) {
@@ -20,8 +21,8 @@ describe("operating workflows and audited work terms", () => {
   it("creates location team members with unique stable attribution and honest invitations", async () => {
     const t = await createTestDatabase();
     try {
-      await expect(createTeamMember(t.db, {...member, surname: ""})).rejects.toThrow();
-      const first = await createTeamMember(t.db, member), second = await createTeamMember(t.db, {...member, firstName: "Robin"});
+      await expect(createActivatedTeamMember(t.db, {...member, surname: ""})).rejects.toThrow();
+      const first = await createActivatedTeamMember(t.db, member), second = await createActivatedTeamMember(t.db, {...member, firstName: "Robin"});
       expect(first.worker).toMatchObject({...member, locationId: DEMO_OUTLET_ID, paypalPayoutEmail: null});
       expect(first.worker.attributionCode).not.toBe(second.worker.attributionCode);
       expect(first.invitation).toMatchObject({workerId: first.worker.id, state: "CREATED_NOT_SENT"});
@@ -36,7 +37,7 @@ describe("operating workflows and audited work terms", () => {
     const t = await createTestDatabase();
     try {
       const {requirement, department} = await setup(t.db);
-      const a = await createTeamMember(t.db, member), b = await createTeamMember(t.db, {...member, firstName: "Robin"});
+      const a = await createActivatedTeamMember(t.db, member), b = await createActivatedTeamMember(t.db, {...member, firstName: "Robin"});
       const oa = await offerAssignment(t.db, requirement.id, a.worker.id), ob = await offerAssignment(t.db, requirement.id, b.worker.id);
       expect(requirement).toMatchObject({departmentId: department.id, earningsModel: "HOURLY", expectedEarningsMinor: 12000});
       await expect(allocateAssignment(t.db, oa.id)).rejects.toThrow(/Accept/);
@@ -59,7 +60,7 @@ describe("operating workflows and audited work terms", () => {
     const t = await createTestDatabase();
     try {
       const {requirement} = await setup(t.db);
-      const {worker} = await createTeamMember(t.db, member);
+      const {worker} = await createActivatedTeamMember(t.db, member);
       const offer = await offerAssignment(t.db, requirement.id, worker.id);
       await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true);
       await allocateAssignment(t.db, offer.id);
@@ -83,7 +84,7 @@ describe("operating workflows and audited work terms", () => {
       const t = await createTestDatabase();
       try {
         const {requirement} = await setup(t.db, model);
-        const {worker} = await createTeamMember(t.db, member);
+        const {worker} = await createActivatedTeamMember(t.db, member);
         const offer = await offerAssignment(t.db, requirement.id, worker.id);
         await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true);
         expect(requirement.expectedEarningsMinor).toBe(model === "DAILY" ? 15000 : null);
@@ -98,7 +99,7 @@ describe("operating workflows and audited work terms", () => {
     const t = await createTestDatabase();
     try {
       const {requirement, policy, department} = await setup(t.db);
-      const a = await createTeamMember(t.db, member), b = await createTeamMember(t.db, {...member, firstName:"Robin"});
+      const a = await createActivatedTeamMember(t.db, member), b = await createActivatedTeamMember(t.db, {...member, firstName:"Robin"});
       const oa = await offerAssignment(t.db, requirement.id, a.worker.id), ob = await offerAssignment(t.db, requirement.id, b.worker.id);
       await expect(respondToAssignment(t.db, b.worker.id, oa.id, 1, "ACCEPTED", true)).rejects.toThrow(/unavailable/);
       await respondToAssignment(t.db, b.worker.id, ob.id, 1, "DECLINED", false);
@@ -117,16 +118,17 @@ describe("operating workflows and audited work terms", () => {
     const t = await createTestDatabase();
     try {
       const {requirement, policy} = await setup(t.db);
-      const {worker} = await createTeamMember(t.db, member);
+      const {worker} = await createActivatedTeamMember(t.db, member);
       await t.db.update(workers).set({locationId:null}).where(eq(workers.id,worker.id));
       await expect(offerAssignment(t.db,requirement.id,worker.id)).rejects.toThrow(/unavailable/);
       expect((await getOperations(t.db)).team).toHaveLength(0);
       const demo = await publishDemoShift(t.db);
+      await activateWorker(t.db, demo.worker.id);
       const [sameNameDepartment] = await createDepartment(t.db, DEMO_SHIFT_TERMS.roleName);
       const sameNameRequirement = await createRequirement(t.db, { departmentId:sameNameDepartment.id, policyId:policy.id, startsAt:new Date("2027-01-10T08:00:00Z"),endsAt:new Date("2027-01-10T14:00:00Z"),requiredHeadcount:1 });
       await offerAssignment(t.db, sameNameRequirement.id, demo.worker.id);
       expect((await getDemoWorkerShift(t.db))?.shift.id).toBe(demo.shift.id);
-      const privateWorker = await createTeamMember(t.db, member);
+      const privateWorker = await createActivatedTeamMember(t.db, member);
       await offerAssignment(t.db,requirement.id,privateWorker.worker.id);
       const view = await getWorkerWorkspace(t.db);
       expect(view.assignments.every(row => row.offer.workerId === demo.worker.id)).toBe(true);
@@ -139,7 +141,7 @@ describe("operating workflows and audited work terms", () => {
     const t = await createTestDatabase();
     try {
       const {requirement} = await setup(t.db, "COMMISSION");
-      const {worker} = await createTeamMember(t.db, member);
+      const {worker} = await createActivatedTeamMember(t.db, member);
       const offer = await offerAssignment(t.db, requirement.id, worker.id);
       await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true);
       await t.db.update(shifts).set({updatedAt:new Date()}).where(eq(shifts.id, requirement.id));

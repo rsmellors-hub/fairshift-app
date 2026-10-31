@@ -15,10 +15,11 @@ import { generateStaffingAssessment, getStaffingAssessmentView, NoPlanningEviden
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { provisionReferenceHistory } from "@/server/reference/provision";
 import { REFERENCE_STORE_CODES } from "@/server/reference/uk-retail";
-import { allocateAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { generateLocationAssessmentAction, generateOwnerAssessmentAction } from "@/app/intelligence-actions";
+import { createActivatedTeamMember } from "../helpers/workers";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -141,7 +142,7 @@ describe("AI staffing intelligence", () => {
       const [department] = await createDepartment(t.db, "Sales floor", manager);
       const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual hourly", manager);
       const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-10-31T09:00:00Z"), endsAt: new Date("2026-10-31T17:00:00Z"), requiredHeadcount: 1 }, manager);
-      const { worker } = await createTeamMember(t.db, { firstName: "Casual", surname: "Worker", telephone: "+441132000000", email: "casual@example.test" }, manager);
+      const { worker } = await createActivatedTeamMember(t.db, { firstName: "Casual", surname: "Worker", telephone: "+441132000000", email: "casual@example.test" }, manager);
       const offer = await offerAssignment(t.db, shift.id, worker.id, manager);
       await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true, manager);
       await allocateAssignment(t.db, offer.id, manager);

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LABOUR_PLANNING, type LabourPolicy, type OutletStaffing, type StaffingDay, type StaffingUnavailableReason } from "@/server/intelligence/staffing";
 
 const locale = (currency: string) => currency === "GBP" ? "en-GB" : "en-US";
@@ -33,7 +34,8 @@ export function StaffingMethodNote({ policy, varied = false }: { policy: LabourP
 const cell = (day: StaffingDay, value: number | null, render: (value: number) => string) => value === null ? (day.unavailable ? "Unavailable" : "—") : render(value);
 
 // Demand → coverage → gap for one location's planning week.
-export function StaffingDayTable({ outlet, className }: { outlet: OutletStaffing; className?: string }) {
+// planHref: where this viewer can act on a day's casual gap, if anywhere.
+export function StaffingDayTable({ outlet, className, planHref }: { outlet: OutletStaffing; className?: string; planHref?: (date: string) => string }) {
   return <table className={className}>
     <caption className="owner-sr-only">{outlet.outletName}: forecast demand, required labour, existing coverage and casual labour gap by planning day</caption>
     <thead><tr><th scope="col">Planning day</th><th scope="col">Forecast demand</th><th scope="col">Required labour</th><th scope="col">Regular coverage</th><th scope="col">Allocated casual coverage</th><th scope="col">Casual labour gap</th><th scope="col">Indicative shifts</th></tr></thead>
@@ -43,7 +45,7 @@ export function StaffingDayTable({ outlet, className }: { outlet: OutletStaffing
       <td data-label="Required labour">{cell(day, day.requiredMinutes, labourHours)}</td>
       <td data-label="Regular coverage">{day.regularMinutes === null ? "Not set" : labourHours(day.regularMinutes)}</td>
       <td data-label="Allocated casual coverage">{labourHours(day.allocatedCasualMinutes)}</td>
-      <td data-label="Casual labour gap"><strong>{cell(day, day.casualGapMinutes, labourHours)}</strong></td>
+      <td data-label="Casual labour gap"><strong>{cell(day, day.casualGapMinutes, labourHours)}</strong>{planHref && (day.casualGapMinutes ?? 0) > 0 ? <Link className="staffing-fill-link" href={planHref(day.planningDate)}>Fill shifts</Link> : null}</td>
       <td data-label="Indicative shifts">{cell(day, day.indicativeShifts, String)}</td>
     </tr>)}</tbody>
   </table>;

@@ -13,13 +13,14 @@ import { forecastFromHistory, shiftDate } from "@/server/intelligence/forecast";
 import { calculateStaffing, getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { provisionReferenceHistory } from "@/server/reference/provision";
 import { REFERENCE_STORE_CODES, referenceDates, referenceStore, referenceTradingDay } from "@/server/reference/uk-retail";
-import { allocateAssignment, changeAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, changeAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { OwnerOverview } from "@/app/owner/overview";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { getOwnerOverview, ownerStaffingSummary } from "@/server/product/owner-overview";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
+import { createActivatedTeamMember } from "../helpers/workers";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -50,7 +51,7 @@ async function casualShift(db: Db, scope: { organisationId: string; locationId: 
 }
 let n = 0;
 const casualWorker = async (db: Db, scope: { organisationId: string; locationId: string }) =>
-  (await createTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, scope)).worker;
+  (await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, scope)).worker;
 async function allocated(db: Db, scope: { organisationId: string; locationId: string }, shiftId: string) {
   const worker = await casualWorker(db, scope);
   const offer = await offerAssignment(db, shiftId, worker.id, scope);
@@ -235,7 +236,7 @@ describe("coverage-aware weekly staffing", () => {
       expect(html).toContain("Planning week Mon, 26 Oct 2026 – Sun, 1 Nov 2026");
       expect(html).toContain("Historical evidence through Sun, 28 Dec 2025 (302 days before the planning week)");
       expect(html).toContain(`Approx. ${uk04.totals!.indicativeShifts} shifts to fill · none created`);
-      expect(html).toContain("Plan shifts for the casual labour gap");
+      expect(html).toContain("Create work for the casual labour gap");
       expect(html).not.toContain('name="locationId"'); // one authorised location: no selector
       for (const other of c.rows.filter(row => row.id !== c.mapping.UK04)) expect(html).not.toContain(other.name);
     } finally { await t.close(); }

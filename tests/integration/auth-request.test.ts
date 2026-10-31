@@ -10,7 +10,7 @@ import { registerIdentity,createIdentityToken,redeemIdentityToken,issueSession }
 import { inviteMember,redeemInvitation } from "@/server/auth/tenancy";
 import { resolveScope } from "@/server/auth/access";
 import { requireScope,requireMembershipScope,requireOperator,selectMembership } from "@/server/auth/request";
-import { createPolicyAction,createRequirementAction,respondAssignmentAction } from "@/app/operations-actions";
+import { createPolicyAction,createRequirementAction,respondAssignmentAction,saveAvailabilityAction } from "@/app/operations-actions";
 import { createDepartment,createWorkPolicy,createRequirement,offerAssignment } from "@/server/scheduling/operations";
 import { users,shiftOffers,memberships,subscriptions,outlets,organisations } from "@/server/db/schema";
 import { registerAction,redeemInvitationAction,signOutAction,completeWorkplaceAction,verifyEmailAction,signInAction,createLocationAction } from "@/app/auth-actions";
@@ -165,6 +165,7 @@ describe("subscription gate at real application boundaries",()=>{
      await expect(inviteMember(t.db,scope,{role:"TEAM_MEMBER",email:"blocked@example.test",...personal})).rejects.toThrow(/active organisation subscription/);
     } else {
      await expect(respondAssignmentAction(new FormData())).rejects.toThrow("subscription-required");
+     await expect(saveAvailabilityAction(new FormData())).rejects.toThrow("subscription-required");
     }
     const html=renderToStaticMarkup(await Account({searchParams:Promise.resolve({status:"subscription-required"})}));
     expect(html).toContain("Contact your Owner");expect(html).not.toContain("Open workspace");

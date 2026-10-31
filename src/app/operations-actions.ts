@@ -4,10 +4,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
-import { createDepartment, createWorkPolicy, createRequirement, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
+import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
+import { UserFacingError } from "@/server/domain/errors";
+import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
 import { requireScope } from "@/server/auth/request";
 import { inviteMember } from "@/server/auth/tenancy";
-import { workerRespond } from "@/server/auth/operations";
+import { saveWorkerAvailability, workerRespond } from "@/server/auth/operations";
 import { dispatchNotification, dispatchWorkerEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
@@ -18,7 +20,11 @@ import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/serve
 
 async function perform(path: string, fn: () => Promise<unknown>) {
   if (!getConfigurationStatus().databaseConfigured) redirect(`${path}${path.includes("?") ? "&" : "?"}status=error`);
-  try { await fn(); } catch { redirect(`${path}${path.includes("?") ? "&" : "?"}status=error`); }
+  try { await fn(); } catch (error) {
+    // A refusal the person can act on keeps its own message; anything else stays generic.
+    const status = error instanceof UserFacingError ? error.feedback : error instanceof LocalTimeError ? `time-${error.problem.toLowerCase()}` : "error";
+    redirect(`${path}${path.includes("?") ? "&" : "?"}status=${status}`);
+  }
   for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
   redirect(`${path}${path.includes("?") ? "&" : "?"}status=saved`);
 }
@@ -54,7 +60,12 @@ export async function createPolicyAction(form: FormData) {
 }
 export async function createRequirementAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform(planPath(form), () => createRequirement(getDatabase(), { departmentId: field(form, "departmentId"), policyId: field(form, "policyId"), requiredHeadcount: Number(field(form, "headcount")), startsAt: new Date(`${field(form, "startsAt")}:00+02:00`), endsAt: new Date(`${field(form, "endsAt")}:00+02:00`) },scope));
+  return perform(planPath(form), async () => {
+    // Times are wall-clock at the work location; the session decides the location.
+    const timeZone = await locationTimezone(getDatabase(), scope);
+    return createRequirement(getDatabase(), { departmentId: field(form, "departmentId"), policyId: field(form, "policyId"), requiredHeadcount: Number(field(form, "headcount")),
+      startsAt: localDateTimeToInstant(field(form, "startsAt"), timeZone), endsAt: localDateTimeToInstant(field(form, "endsAt"), timeZone) }, scope);
+  });
 }
 export async function offerAssignmentAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
@@ -75,6 +86,16 @@ export async function respondAssignmentAction(form: FormData) {
     if (response !== "ACCEPTED" && response !== "DECLINED") throw new Error("Invalid response.");
     return workerRespond(getDatabase(), scope, field(form, "offerId"), Number(field(form, "termsVersion")), response, field(form, "acknowledged") === "yes");
   });
+}
+// Worker's own weekly availability; blank clears a day to not provided.
+export async function saveAvailabilityAction(form: FormData) {
+  const scope=await requireScope(["TEAM_MEMBER"]);
+  return perform("/worker/availability", () => saveWorkerAvailability(getDatabase(), scope, [1,2,3,4,5,6,7].map(day => {
+    const value = field(form, `day${day}`);
+    if (!value) return null;
+    if (value !== "AVAILABLE" && value !== "UNAVAILABLE") throw new Error("Invalid availability.");
+    return value;
+  })));
 }
 export async function confirmWorkAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
@@ -136,7 +157,8 @@ export async function changeAssignmentAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);
  return perform(planPath(form),async ()=>{
   const {changeAssignment}=await import("@/server/scheduling/operations");
-  await changeAssignment(getDatabase(),scope,field(form,"shiftId"),field(form,"cancel") === "yes" ? {cancel:true}:{startsAt:new Date(`${field(form,"startsAt")}:00+02:00`),endsAt:new Date(`${field(form,"endsAt")}:00+02:00`)});
+  const timeZone = await locationTimezone(getDatabase(), scope);
+  await changeAssignment(getDatabase(),scope,field(form,"shiftId"),field(form,"cancel") === "yes" ? {cancel:true}:{startsAt:localDateTimeToInstant(field(form,"startsAt"),timeZone),endsAt:localDateTimeToInstant(field(form,"endsAt"),timeZone)});
   const members=await getDatabase().select().from(workers).where(eq(workers.locationId,scope.locationId));
   for (const member of members) await dispatchWorkerEmails(getDatabase(),getEmailAdapter(),member.id);
  });

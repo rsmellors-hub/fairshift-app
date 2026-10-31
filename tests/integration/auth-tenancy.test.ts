@@ -2,7 +2,7 @@ import { createOrganisation } from "../helpers/onboarding";
 import { personal, business, entitled } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
 import { and,eq } from "drizzle-orm";
-import { describe,expect,it } from "vitest";
+import { describe,expect,it,vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { registerIdentity, createIdentityToken, redeemIdentityToken, signIn, resolveSession, revokeSession, tokenHash } from "@/server/auth/identity";
 import {  inviteMember, redeemInvitation, revokeInvitation, resendInvitation } from "@/server/auth/tenancy";
@@ -123,6 +123,8 @@ describe("authenticated Owner-originated tenancy",()=>{
    const shift=await requirement(t.db,o.scope),oa=await offerAssignment(t.db,shift.id,a.scope.workerId!,o.scope),ob=await offerAssignment(t.db,shift.id,b.scope.workerId!,o.scope);
    expect((await workerWorkspace(t.db,a.scope)).assignments.map(r=>r.offer.id)).toEqual([oa.id]);
    await expect(workerRespond(t.db,a.scope,ob.id,1,"ACCEPTED",true)).rejects.toThrow(/unavailable/);
+   // Workers answer before the work ends; confirmation comes after it.
+   vi.useFakeTimers({now:new Date("2026-01-09T12:00:00Z"),toFake:["Date"]});
    await expect(workerRespond(t.db,a.scope,oa.id,1,"ACCEPTED",false)).rejects.toThrow(/acknowledge/);
    await workerRespond(t.db,a.scope,oa.id,1,"ACCEPTED",true);await allocateAssignment(t.db,oa.id,o.scope);
    await expect(offerAssignment(t.db,shift.id,a.scope.workerId!,foreign.scope)).rejects.toThrow();
@@ -130,7 +132,9 @@ describe("authenticated Owner-originated tenancy",()=>{
    expect((await workerWorkspace(t.db,b.scope)).profile?.paypalPayoutEmail).toBeNull();
    await changeAssignment(t.db,o.scope,shift.id,{startsAt:new Date("2026-01-11T08:00:00Z"),endsAt:new Date("2026-01-11T14:00:00Z")});
    await expect(workerRespond(t.db,a.scope,oa.id,1,"ACCEPTED",true)).rejects.toThrow(/changed/);
-   await workerRespond(t.db,a.scope,oa.id,2,"ACCEPTED",true);await allocateAssignment(t.db,oa.id,o.scope);await confirmWork(t.db,oa.id,o.scope);
+   await workerRespond(t.db,a.scope,oa.id,2,"ACCEPTED",true);await allocateAssignment(t.db,oa.id,o.scope);
+   vi.useRealTimers();
+   await confirmWork(t.db,oa.id,o.scope);
    await expect(changeAssignment(t.db,o.scope,shift.id,{cancel:true})).rejects.toThrow(/Reviewed/);
    expect((await workerWorkspace(t.db,a.scope)).profile?.paypalPayoutEmail).toBe("mine@example.test");
   }finally{await t.close();}

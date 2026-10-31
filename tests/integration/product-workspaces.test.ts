@@ -93,10 +93,15 @@ describe("functional product workspaces", () => {
       await expect(publishDemoShiftAction(form({}))).rejects.toThrow("status=error");
       await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/plan?status=saved");
       const current = (await getDemoWorkerShift(testDb.db))!;
+      // The seeded shift has a fixed date, so what the Worker sees is checked at a fixed clock.
+      vi.useFakeTimers({ now: new Date("2026-10-15T12:00:00Z"), toFake: ["Date"] });
       expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Accept shift");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Awaiting your response");
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("New offer");
       await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id, acknowledged: "yes", termsVersion: String(current.shift.termsVersion) }))).rejects.toThrow("REDIRECT:/worker/shifts?status=saved");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Offer accepted");
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Waiting for your manager");
+      vi.setSystemTime(new Date("2026-10-16T14:00:00Z"));
+      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Finished");
+      vi.useRealTimers();
 
       await expect(recordDemoPerformanceAction(form({ shiftId: randomUUID(), performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("status=error");
       expect(await getDemoIncentive(testDb.db)).toBeNull();
@@ -174,18 +179,18 @@ describe("functional product workspaces", () => {
       const requirement = (await getOperations(t.db)).requirements.find(r => r.policyId === ops.policies[0].id)!;
       const offer = await offerAssignment(t.db, requirement.id, demo.worker.id);
       const shiftsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"shifts"}));
-      const commissionArticle = shiftsHtml.split("<article").find(a => a.includes("Commission rate"))!;
-      expect(commissionArticle).toContain("Verified attributed sales");
-      expect(commissionArticle).toContain("5%");
-      expect(commissionArticle).not.toContain("Expected work earnings");
-      expect(commissionArticle).toContain("I have reviewed and accept the terms of this work assignment");
+      const commissionArticle = shiftsHtml.split("<article").find(a => a.includes("% commission"))!;
+      expect(commissionArticle).toContain("of sales recorded to you");
+      expect(commissionArticle).toContain("5% commission");
+      expect(commissionArticle).not.toContain("You’ll earn this");
+      expect(commissionArticle).toContain("I’ve read the details above and agree to this work and pay.");
       expect(commissionArticle).toContain('value="ACCEPTED" disabled=""');
       await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED"}))).rejects.toThrow("status=error");
       await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED",acknowledged:"yes"}))).rejects.toThrow("status=saved");
       const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"earnings"}));
       expect(earningsHtml).toContain("Commission awaiting verified attributed sales");
       const filtered = renderToStaticMarkup(await ManagerWorkspace({area:"plan",date:"2026-12-01",department:departmentId}));
-      expect(filtered).toContain("2 required");
+      expect(filtered).toContain("2 needed");
       expect(filtered).toContain("1 accepted");
       expect(filtered).toContain("Sam Taylor");
       expect(filtered).toContain('name="planDate" value="2026-12-01"');

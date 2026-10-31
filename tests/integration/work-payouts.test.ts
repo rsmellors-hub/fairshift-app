@@ -12,13 +12,14 @@ import { getDatabase } from "@/server/db/client";
 import { auditEvents, organisations, outlets, subscriptions, users, workPayables, workPayouts, workPolicies, workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { PayPalPayoutError, type PayPalPayoutAdapter, type PayoutResult } from "@/server/integrations/paypal/payout-client";
-import { allocateAssignment, confirmWork, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
 import { approveWorkPayable, PaymentDetailsRequiredError, payoutAmount, PayoutCurrencyUnsupportedError, payoutSenderIds, payoutStatusFromProvider, refreshWorkPayout, STALE_SUBMISSION_MS, submitWorkPayout } from "@/server/payments/work-payouts";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { approvePayableAction, refreshPayoutAction, sendPayoutAction } from "@/app/operations-actions";
+import { createActivatedTeamMember } from "../helpers/workers";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -54,7 +55,7 @@ async function confirmedPayable(db: Db, manager: Scope, { paymentEmail = "casual
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, manager);
   const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual terms", manager);
   const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, manager);
-  const { worker } = await createTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, manager);
+  const { worker } = await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, manager);
   const workerScope: Scope = { ...manager, userId: await user(db), workerId: worker.id, role: "TEAM_MEMBER" };
   await db.update(workers).set({ userId: workerScope.userId }).where(eq(workers.id, worker.id));
   // Payment details arrive through the worker's own payment-settings path.

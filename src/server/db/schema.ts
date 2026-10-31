@@ -227,6 +227,21 @@ export const workers = pgTable(
   ],
 );
 
+// A casual worker's own weekly availability, one row per local weekday they have
+// stated. No row means not provided, which is not the same as available or unavailable.
+// No reason is ever recorded.
+export const workerAvailability = pgTable("worker_availability", {
+  id: uuid("id").primaryKey(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  isoWeekday: integer("iso_weekday").notNull(), // 1 = Monday … 7 = Sunday
+  state: text("state").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("worker_availability_worker_weekday_unique").on(t.workerId, t.isoWeekday),
+  check("worker_availability_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
+  check("worker_availability_state_check", sql`${t.state} in ('AVAILABLE', 'UNAVAILABLE')`),
+]);
+
 // Planned regular-staff labour per location and local weekday: a standing weekly
 // rota applied to each planning date. Lightweight staffing input, not user
 // accounts, shifts, timesheets or payroll. A weekday with no row is not set; a row
@@ -666,7 +681,7 @@ export const schema = {
   paypalConnections,
   saleTransactions,
   providerEvents,
-  workers, regularStaffCoverage, labourPolicies,
+  workers, workerAvailability, regularStaffCoverage, labourPolicies,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales,
   shifts,
   shiftOffers,

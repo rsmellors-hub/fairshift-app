@@ -5,6 +5,7 @@ const navigation = [
   { label: "Home", href: "/worker" },
   { label: "Shifts", href: "/worker/shifts" },
   { label: "Earnings", href: "/worker/earnings" },
+  { label: "Availability", href: "/worker/availability" },
   { label: "Profile", href: "/worker/profile" },
 ];
 

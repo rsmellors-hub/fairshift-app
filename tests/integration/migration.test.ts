@@ -321,4 +321,27 @@ describe("work payable upgrade", () => {
    await expect(client.exec(`UPDATE regular_staff_coverage SET source = 'GUESSED'`)).rejects.toThrow();
   } finally { await client.close(); }
  });
+
+ it("adds worker availability without changing existing records or inventing availability", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 17)) await apply(entry.tag);
+   await client.exec(`INSERT INTO organisations (id, name, country) VALUES ('10000000-0000-4000-8000-0000000004c1', 'UK company', 'United Kingdom');
+    INSERT INTO workers (id, organisation_id, display_name, worker_type) VALUES ('30000000-0000-4000-8000-0000000004d1', '10000000-0000-4000-8000-0000000004c1', 'Casual', 'CASUAL');`);
+   const tables = async () => Object.fromEntries(await Promise.all(["workers", "shifts", "shift_offers", "work_acceptances", "work_allocations", "work_payables", "work_payouts", "sale_transactions", "organisation_subscriptions"].map(async table => [table, (await client.query(`SELECT * FROM ${table} ORDER BY 1`)).rows])));
+   const before = await tables();
+   expect(journal.entries[17].tag).toBe("0017_worker_availability");
+   await apply(journal.entries[17].tag);
+   expect(await tables()).toEqual(before);
+   expect((await client.query("SELECT count(*)::int AS count FROM worker_availability")).rows[0]).toEqual({ count: 0 });
+   const row = (id: string, weekday: number, state: string) => client.exec(`INSERT INTO worker_availability (id, worker_id, iso_weekday, state) VALUES ('${id}', '30000000-0000-4000-8000-0000000004d1', ${weekday}, '${state}')`);
+   await expect(row("40000000-0000-4000-8000-0000000004e1", 0, "AVAILABLE")).rejects.toThrow();
+   await expect(row("40000000-0000-4000-8000-0000000004e1", 8, "AVAILABLE")).rejects.toThrow();
+   await expect(row("40000000-0000-4000-8000-0000000004e1", 1, "MAYBE")).rejects.toThrow();
+   await row("40000000-0000-4000-8000-0000000004e1", 1, "AVAILABLE");
+   await expect(row("40000000-0000-4000-8000-0000000004e2", 1, "UNAVAILABLE")).rejects.toThrow();
+  } finally { await client.close(); }
+ });
 });

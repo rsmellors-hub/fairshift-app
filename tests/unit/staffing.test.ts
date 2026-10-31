@@ -3,7 +3,7 @@ import { shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 import { calculateStaffing, LABOUR_PLANNING, minutesWithin, outletStaffing, requiredLabourMinutes, resolveLabourPolicy, type LabourPolicy } from "@/server/intelligence/staffing";
 import type { OutletWeeklyForecast } from "@/server/intelligence/weekly";
 import type { SalesForecast } from "@/server/intelligence/forecast";
-import { DEFAULT_LOCATION_TIMEZONE, resolveLocationTimezone, timezoneForCountry } from "@/server/domain/timezone";
+import { resolveLocationTimezone, timezoneForCountry } from "@/server/domain/timezone";
 
 const policy: LabourPolicy = { version: "organisation-v1", level: "ORGANISATION", source: "CONFIGURED", currency: "GBP", salesMinorPerLabourHour: 10_000, ...LABOUR_PLANNING };
 const organisationGbp = { outletId: null, version: 1, currencyCode: "GBP", salesMinorPerLabourHour: 10_000, source: "CONFIGURED" };
@@ -183,15 +183,17 @@ describe("outlet planning week", () => {
 });
 
 describe("location time zones", () => {
-  it("resolves from location country, then organisation country, then existing locations, then the default", () => {
+  it("resolves from location country, then organisation country, then existing locations, and never guesses", () => {
     expect(timezoneForCountry(" United Kingdom ")).toBe("Europe/London");
     expect(timezoneForCountry("South Africa")).toBe("Africa/Johannesburg");
     expect(timezoneForCountry("United States")).toBeNull();
     expect(resolveLocationTimezone({ locationCountry: "United Kingdom", organisationCountry: "South Africa" })).toBe("Europe/London");
     expect(resolveLocationTimezone({ organisationCountry: "GB" })).toBe("Europe/London");
     expect(resolveLocationTimezone({ existingTimezones: ["Europe/London", "Europe/London"] })).toBe("Europe/London");
-    expect(resolveLocationTimezone({ existingTimezones: ["Europe/London", "Africa/Johannesburg"] })).toBe(DEFAULT_LOCATION_TIMEZONE);
     expect(resolveLocationTimezone({ locationCountry: "South Africa" })).toBe("Africa/Johannesburg");
-    expect(resolveLocationTimezone({})).toBe("Africa/Johannesburg");
+    // No zone is ever guessed: the location is refused instead.
+    for (const unknown of [{}, { locationCountry: "Germany" }, { organisationCountry: "Germany" }, { existingTimezones: ["Europe/London", "Africa/Johannesburg"] }]) {
+      expect(() => resolveLocationTimezone(unknown)).toThrow(expect.objectContaining({ feedback: "location-timezone-unknown" }));
+    }
   });
 });

@@ -23,8 +23,10 @@ button, a { font: inherit; }
 button:focus-visible,
 a:focus-visible,
 summary:focus-visible,
-input:focus-visible {
-  outline: 3px solid rgba(89, 101, 232, .35);
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--indigo);
   outline-offset: 3px;
 }
 
@@ -241,7 +243,7 @@ input:focus-visible {
 .product-page details { margin-block: 16px; overflow-wrap: anywhere; }
 .product-page summary { cursor: pointer; font-weight: 650; padding-block: 10px; }
 @media (max-width: 400px) {
-  .product-shell-worker .worker-bottom-nav { grid-template-columns: repeat(4, 1fr); }
+  .product-shell-worker .worker-bottom-nav { grid-template-columns: repeat(5, 1fr); }
   .product-shell-worker .product-main .product-page { padding-bottom: 100px; }
 }
 .product-page { width: min(1160px, 100%); margin: 0 auto; padding: 38px 38px 72px; }
@@ -646,3 +648,29 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .ai-evidence dt { color: var(--muted); font-size: 0.75rem; }
 .ai-evidence dd { margin: 0; font-weight: 700; }
 .ai-constraints { padding-left: 20px; overflow-wrap: anywhere; }
+
+/* Fill Shifts context and the worker's offer cards. */
+.staffing-handoff { margin: 12px 0 16px; padding: 12px 14px; border-left: 4px solid var(--indigo); background: var(--canvas); border-radius: 8px; }
+.form-span { grid-column: 1 / -1; }
+.requirement h4 { margin: 14px 0 4px; }
+.requirement h3 { overflow-wrap: anywhere; }
+.record-row { flex-wrap: wrap; }
+.worker-shift { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); overflow-wrap: anywhere; }
+.worker-shift + .worker-shift { margin-top: 12px; }
+.worker-shift h3 { margin: 0; font-size: 1.15rem; }
+.worker-shift p { margin: 0; }
+.worker-shift-earn { margin: 4px 0; font-size: 1.75rem; font-weight: 800; line-height: 1.1; }
+.worker-shift-earn small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
+.worker-shift .acceptance-check { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; }
+.worker-shift .acceptance-check input { width: 22px; height: 22px; flex: none; margin: 2px 0 0; }
+.worker-shift-actions { display: grid; gap: 8px; width: 100%; justify-self: stretch; }
+.worker-shift-actions button, .worker-shift-actions a { min-height: 48px; width: 100%; }
+.worker-section { margin-top: 20px; }
+.worker-section > h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.availability-day { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); }
+.availability-day legend { padding: 0; font-weight: 700; }
+.availability-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.availability-options label { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.85rem; text-align: center; }
+.worker-section > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 700; }
+.product-shell-worker .panel p > a, .product-shell-worker .state-panel p > a, .worker-section p > a { display: inline-flex; align-items: center; min-height: 44px; }
+.staffing-fill-link { display: block; padding: 6px 0; font-size: .8rem; font-weight: 700; white-space: nowrap; }
