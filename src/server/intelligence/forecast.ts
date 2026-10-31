@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const METHOD_VERSION = "comparable-days-recency-v1";
-export const sourceSchema = z.enum(["PAYPAL_SANDBOX", "DEMO_SEEDED", "REFERENCE", "IMPORTED"]);
+export const sourceSchema = z.enum(["PAYPAL_SANDBOX", "DEMO_SEEDED", "REFERENCE", "IMPORTED", "ZETTLE"]);
 export type SalesSource = z.infer<typeof sourceSchema>;
-// Reference and demo history are generated; imported and PayPal history are genuine.
+// Reference and demo history are generated; imported, Zettle and PayPal history are genuine.
 export const isSyntheticSource = (source: SalesSource) => source === "REFERENCE" || source === "DEMO_SEEDED";
 const minor = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
@@ -121,6 +121,7 @@ export function eligibleObservation(sale: Observation, source: SalesSource) {
   const synthetic = sale.verificationState === "PENDING" && sale.reconciliationState === "NOT_RECONCILED" &&
     !sale.paypalCaptureId && !sale.providerCreatedAt;
   if (source === "IMPORTED") return synthetic && sale.providerStatus === "IMPORTED" && !!sale.occurredAt;
+  if (source === "ZETTLE") return synthetic && sale.providerStatus === "ZETTLE" && !!sale.occurredAt;
   return source === "REFERENCE" ? synthetic && sale.providerStatus === "REFERENCE" && !!sale.occurredAt
     : synthetic && sale.providerStatus === "DEMO_SEEDED";
 }

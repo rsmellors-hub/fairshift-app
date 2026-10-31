@@ -13,7 +13,9 @@ import { isMinorUnitCurrency } from "@/server/domain/currency";
 // nothing is stored. Repeating an identical observation changes nothing. Values are
 // stored as given: no currency conversion, no date correction, no rounding.
 // PayPal captures keep their own verified path (they carry provider evidence), and
-// the legacy demo seed is not an import.
+// the legacy demo seed is not an import. Zettle provenance cannot be claimed by a
+// caller: it is reachable only through ingestConnectedObservations, used by the sync of
+// an authenticated connection.
 
 export const INGESTIBLE_SOURCES = ["IMPORTED", "REFERENCE"] as const;
 export const MAX_BATCH_OBSERVATIONS = 10_000;
@@ -36,7 +38,7 @@ const observationSchema = z.object({
 export type CommerceObservation = z.input<typeof observationSchema>;
 const batchHeader = z.object({ organisationId: z.uuid(), sourceSystem: z.string().trim().min(1).max(100) });
 
-export type CanonicalRow = { internalReference: string; outletId: string; source: "IMPORTED" | "REFERENCE"; sourceSystem: string; sourceTransactionId: string; occurredAt: Date; currencyCode: string; grossAmountMinor: number };
+export type CanonicalRow = { internalReference: string; outletId: string; source: "IMPORTED" | "REFERENCE" | "ZETTLE"; sourceSystem: string; sourceTransactionId: string; occurredAt: Date; currencyCode: string; grossAmountMinor: number };
 
 function deterministicId(reference: string) {
   const hash = createHash("sha256").update(reference).digest("hex");
@@ -67,9 +69,21 @@ export async function persistCanonicalRows(tx: DatabaseSession, rows: readonly C
   return { inserted, duplicates: rows.length - inserted };
 }
 
-export async function ingestCommerceObservations(db: Database, input: { organisationId: string; source: string; sourceSystem: string; observations: readonly unknown[]; now?: Date }) {
+type IngestionInput = { organisationId: string; source: string; sourceSystem: string; observations: readonly unknown[]; now?: Date };
+const REFERENCE_PREFIX = { IMPORTED: "IMP", REFERENCE: "REF", ZETTLE: "ZET" } as const;
+
+export async function ingestCommerceObservations(db: Database, input: IngestionInput) {
   const source = INGESTIBLE_SOURCES.find(value => value === input.source);
   if (!source) throw new CommerceIngestionError("UNSUPPORTED_SOURCE", `${input.source} cannot be ingested here.`);
+  return ingest(db, input, source);
+}
+
+// The same boundary for observations retrieved through an authenticated connection.
+export async function ingestConnectedObservations(db: Database, input: Omit<IngestionInput, "source">) {
+  return ingest(db, input, "ZETTLE");
+}
+
+async function ingest(db: Database, input: IngestionInput | Omit<IngestionInput, "source">, source: CanonicalRow["source"]) {
   const header = batchHeader.safeParse(input);
   if (!header.success) throw new CommerceIngestionError("INVALID_OBSERVATION", "Organisation or source system is invalid.");
   const { organisationId, sourceSystem } = header.data;
@@ -85,8 +99,7 @@ export async function ingestCommerceObservations(db: Database, input: { organisa
     if (!isMinorUnitCurrency(value.currencyCode)) throw new CommerceIngestionError("UNSUPPORTED_CURRENCY", `Observation ${index}: ${value.currencyCode}.`);
     const occurredAt = new Date(value.occurredAt);
     if (occurredAt > now) throw new CommerceIngestionError("FUTURE_DATED", `Observation ${index} is dated after now.`);
-    const prefix = source === "IMPORTED" ? "IMP" : "REF";
-    const row: CanonicalRow = { internalReference: `${prefix}:${sourceSystem}:${value.outletId}:${value.sourceTransactionId}`, outletId: value.outletId, source, sourceSystem,
+    const row: CanonicalRow = { internalReference: `${REFERENCE_PREFIX[source]}:${sourceSystem}:${value.outletId}:${value.sourceTransactionId}`, outletId: value.outletId, source, sourceSystem,
       sourceTransactionId: value.sourceTransactionId, occurredAt, currencyCode: value.currencyCode, grossAmountMinor: value.grossAmountMinor };
     const earlier = rows.get(row.internalReference);
     if (earlier && !sameFacts(row, earlier)) throw new CommerceIngestionError("CONFLICTING_DUPLICATE", `${value.sourceTransactionId} appears twice with different facts.`);

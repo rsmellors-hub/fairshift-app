@@ -2,7 +2,8 @@ import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
-import { labourPolicies, outlets, regularStaffCoverage, shiftOffers, shifts, workAllocations, workers } from "@/server/db/schema";
+import { labourPolicies, outlets, regularStaffCoverage, shiftOffers, shifts, workAllocations, workers, workPolicies } from "@/server/db/schema";
+import { commercialContext, consolidateCommercial, type CommercialContext, type WorkRate } from "@/server/intelligence/commerce-labour";
 import { shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
 import { getWeeklyForecast, type OutletWeeklyForecast } from "@/server/intelligence/weekly";
 
@@ -84,6 +85,7 @@ export type OutletStaffing = {
   regularCoverage: "REFERENCE" | "CONFIGURED" | null;
   days: StaffingDay[];
   totals: Totals | null;
+  commercial?: CommercialContext;
 };
 
 // Allocated casual shift minutes falling inside one local planning day. Shifts are
@@ -103,7 +105,7 @@ const sumTotals = (rows: readonly Totals[]): Totals => rows.reduce((sum, row) =>
 
 // Pure assembly of one outlet's planning week from its forecast and coverage inputs.
 export function outletStaffing(forecast: OutletWeeklyForecast, regular: ReadonlyMap<number, { plannedMinutes: number; source: string }>,
-  allocated: readonly { startsAt: Date; endsAt: Date }[], policies: readonly LabourPolicyRecord[]): OutletStaffing {
+  allocated: readonly { startsAt: Date; endsAt: Date }[], policies: readonly LabourPolicyRecord[], rates?: readonly WorkRate[]): OutletStaffing {
   const selected = forecast.selection.status === "SELECTED" ? forecast.selection : null;
   const resolution = selected ? resolveLabourPolicy(policies, forecast.outletId, selected.currency) : null;
   const policy = resolution?.policy ?? null;
@@ -132,6 +134,7 @@ export function outletStaffing(forecast: OutletWeeklyForecast, regular: Readonly
     regularCoverage: !regular.size ? null : [...regular.values()].some(row => row.source === "CONFIGURED") ? "CONFIGURED" : "REFERENCE",
     days,
     totals: complete ? sumTotals(days as unknown as Totals[]) : null,
+    ...(rates ? { commercial: commercialContext(forecast, days, rates, selected?.currency ?? null) } : {}),
   };
 }
 
@@ -143,10 +146,10 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
   assertRole(scope, ["OWNER", "MANAGER"]);
   const weekly = await getWeeklyForecast(db, scope, now);
   const outletIds = weekly.outlets.map(outlet => outlet.outletId);
-  if (!outletIds.length) return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: [], consolidated: null };
+  if (!outletIds.length) return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: [], consolidated: null, commercial: null };
   const windows = weekly.outlets.map(outlet => ({ start: startOfLocalDay(shiftDate(outlet.today, 1), outlet.timezone), end: startOfLocalDay(shiftDate(outlet.today, 8), outlet.timezone) }));
   const from = new Date(Math.min(...windows.map(w => w.start.getTime()))), to = new Date(Math.max(...windows.map(w => w.end.getTime())));
-  const [policyRows, regularRows, allocatedRows] = await Promise.all([
+  const [policyRows, regularRows, allocatedRows, rateRows] = await Promise.all([
     db.select({ outletId: labourPolicies.outletId, version: labourPolicies.version, currencyCode: labourPolicies.currencyCode, salesMinorPerLabourHour: labourPolicies.salesMinorPerLabourHour, source: labourPolicies.source })
       .from(labourPolicies).where(and(eq(labourPolicies.organisationId, scope.organisationId), eq(labourPolicies.status, "ACTIVE"))),
     db.select({ outletId: regularStaffCoverage.outletId, isoWeekday: regularStaffCoverage.isoWeekday, plannedMinutes: regularStaffCoverage.plannedMinutes, source: regularStaffCoverage.source })
@@ -163,11 +166,14 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
         eq(workers.organisationId, scope.organisationId), eq(workers.locationId, shifts.outletId), eq(workers.workerType, "CASUAL"),
         eq(workAllocations.state, "ALLOCATED"), eq(shiftOffers.status, "ACCEPTED"), inArray(shifts.status, ["PUBLISHED", "COMPLETED"]),
         lt(shifts.startsAt, to), gt(shifts.endsAt, from))),
+    // The location's own terms price its gap; there is no default rate.
+    db.select({ outletId: workPolicies.outletId, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor, currencyCode: workPolicies.currencyCode })
+      .from(workPolicies).where(inArray(workPolicies.outletId, outletIds)),
   ]);
   const result = weekly.outlets.map(outlet => outletStaffing(outlet,
     new Map(regularRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, row])),
-    allocatedRows.filter(row => row.outletId === outlet.outletId), policyRows));
-  return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result) };
+    allocatedRows.filter(row => row.outletId === outlet.outletId), policyRows, rateRows.filter(row => row.outletId === outlet.outletId)));
+  return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result), commercial: consolidateCommercial(result) };
 }
 
 // Company totals only when every outlet has a complete week on the same dates,

@@ -5,9 +5,10 @@ import { outlets } from "@/server/db/schema";
 import { forecastFromHistory, localDate, LOOKBACK_DAYS, METHOD_VERSION, shiftDate, type DailySales, type SalesForecast, type SalesSource } from "@/server/intelligence/forecast";
 import { loadDailySales, type DailySalesRow } from "@/server/intelligence/sales-history";
 
-export const SOURCE_RULE_VERSION = "source-eligibility-v2";
+export const SOURCE_RULE_VERSION = "source-eligibility-v3";
 export const PROVIDER_RULE = { minimumDays: 28, minimumPerWeekday: 3, maximumAgeDays: 2 } as const;
-const PROVIDER_SOURCES: readonly SalesSource[] = ["PAYPAL_SANDBOX"];
+// In precedence order: a merchant's connected trading comes before Sandbox test captures.
+const PROVIDER_SOURCES: readonly SalesSource[] = ["ZETTLE", "PAYPAL_SANDBOX"];
 // Labelled synthetic evidence sources in precedence order. They never describe current trading.
 const HISTORICAL_SOURCES: readonly SalesSource[] = ["REFERENCE", "DEMO_SEEDED"];
 
@@ -74,13 +75,16 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
     if (thin.length) return reject("INCOMPLETE_WEEKDAYS", `${thin.length} weekday(s) have fewer than ${PROVIDER_RULE.minimumPerWeekday} observations.`);
     return true;
   });
-  if (eligibleProviders.length === 1) {
-    const [entry] = eligibleProviders;
-    // Live evidence runs through yesterday; today is still trading, so planning starts tomorrow.
-    return { status: "SELECTED", source: entry.source, currency: entry.currency, kind: "PROVIDER",
-      dataThrough: yesterday, firstTarget: shiftDate(today, 1), days: entry.days, rejected };
+  for (const source of PROVIDER_SOURCES) {
+    const candidates = eligibleProviders.filter(entry => entry.source === source);
+    if (candidates.length === 1) {
+      const [entry] = candidates;
+      // Live evidence runs through yesterday; today is still trading, so planning starts tomorrow.
+      return { status: "SELECTED", source: entry.source, currency: entry.currency, kind: "PROVIDER",
+        dataThrough: yesterday, firstTarget: shiftDate(today, 1), days: entry.days, rejected };
+    }
+    for (const entry of candidates) rejected.push({ source: entry.source, currency: entry.currency, reason: "AMBIGUOUS", detail: "More than one eligible provider currency; none was chosen." });
   }
-  for (const entry of eligibleProviders) rejected.push({ source: entry.source, currency: entry.currency, reason: "AMBIGUOUS", detail: "More than one eligible provider currency; none was chosen." });
 
   if (imported) {
     return { status: "SELECTED", source: imported.source, currency: imported.currency, kind: "HISTORICAL",
@@ -108,6 +112,8 @@ export type OutletWeeklyForecast = {
   selection: Omit<Extract<SourceSelection, { status: "SELECTED" }>, "days"> | Extract<SourceSelection, { status: "NONE" }>;
   days: WeeklyDay[];
   weeklyTotalMinor: number | null;
+  // The chosen history behind the forecast, for the figures derived from it. Server only.
+  evidenceDays: DailySales[];
 };
 
 // Seven-day demand forecast per authorised outlet. No staffing, AI or schedule
@@ -124,14 +130,14 @@ export async function getWeeklyForecast(db: DatabaseSession, scope: Scope, now =
   const result: OutletWeeklyForecast[] = rows.map(outlet => {
     const today = localDate(now, outlet.timezone);
     const selection = selectForecastSource(daily.filter(row => row.outletId === outlet.id), today);
-    if (selection.status === "NONE") return { outletId: outlet.id, outletName: outlet.name, timezone: outlet.timezone, today, selection, days: [], weeklyTotalMinor: null };
+    if (selection.status === "NONE") return { outletId: outlet.id, outletName: outlet.name, timezone: outlet.timezone, today, selection, days: [], weeklyTotalMinor: null, evidenceDays: [] };
     const { days: history, ...summary } = selection;
     const days = Array.from({ length: 7 }, (_, i) => {
       const targetDate = shiftDate(selection.firstTarget, i);
       return { targetDate, forecast: forecastFromHistory({ days: history, dataThrough: selection.dataThrough, targetDate }) };
     });
     const weeklyTotalMinor = days.every(day => day.forecast) ? days.reduce((sum, day) => sum + day.forecast!.forecastSalesMinor, 0) : null;
-    return { outletId: outlet.id, outletName: outlet.name, timezone: outlet.timezone, today, selection: summary, days, weeklyTotalMinor };
+    return { outletId: outlet.id, outletName: outlet.name, timezone: outlet.timezone, today, selection: summary, days, weeklyTotalMinor, evidenceDays: history };
   });
   return { methodVersion: METHOD_VERSION, ruleVersion: SOURCE_RULE_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result) };
 }

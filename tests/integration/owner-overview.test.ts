@@ -86,7 +86,7 @@ describe("Owner Overview scoped evidence", () => {
       expect(html).toContain("All Locations");
       for (const location of locations) expect(html).toContain(`<strong>${location.name}</strong>`);
       expect(html).not.toContain("Rosebank Kitchen");
-      expect(html).not.toContain('href="/owner/locations/');
+      expect(html).toContain('href="/owner/locations/');
     } finally { await t.close(); }
   });
 

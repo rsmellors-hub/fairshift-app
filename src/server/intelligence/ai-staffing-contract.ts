@@ -11,19 +11,22 @@ import { PROVIDER_RULE } from "@/server/intelligence/weekly";
 // text, so nothing in the input can act as an instruction. Its output is accepted
 // only if every reference and every number it cites matches this input exactly.
 
-export const AI_INPUT_VERSION = "fs-staffing-ai-input-v1";
-export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v1";
+export const AI_INPUT_VERSION = "fs-staffing-ai-input-v2";
+export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v2";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 export const LOCATION_FLAGS = ["SYNTHETIC_REFERENCE_DATA", "HISTORICAL_EVIDENCE_STALE", "REGULAR_COVERAGE_MISSING", "FORECAST_UNAVAILABLE", "NO_LABOUR_ASSUMPTION", "LOW_SUPPORT_DAYS"] as const;
 export const DAY_METRICS = ["forecastSalesMinor", "requiredMinutes", "regularMinutes", "allocatedCasualMinutes", "coverageMinutes", "casualGapMinutes", "indicativeShifts"] as const;
-export const EVIDENCE_METRICS = [...DAY_METRICS, "evidenceAgeDays"] as const;
+// Week-level commercial figures for a location, whichever date a priority names.
+export const COMMERCIAL_METRICS = ["recentSalesMinor", "recentTransactions", "comparableSalesMinor", "forecastDeltaMinor", "forecastLowerMinor", "forecastUpperMinor", "casualCostLowMinor", "casualCostHighMinor", "casualCostHighBpsOfForecast", "backtestErrorBps"] as const;
+export const EVIDENCE_METRICS = [...DAY_METRICS, ...COMMERCIAL_METRICS, "evidenceAgeDays"] as const;
 export const PRIORITY_CATEGORIES = ["CASUAL_GAP", "CONCENTRATED_DEMAND", "MISSING_REGULAR_COVERAGE", "STALE_EVIDENCE", "LOW_SIGNAL", "ADEQUATELY_COVERED"] as const;
 export const PRIORITY_ACTIONS = ["FILL_SHIFTS", "REVIEW_REGULAR_COVERAGE", "REVIEW_FORECAST_EVIDENCE", "MONITOR", "NO_ACTION"] as const;
 export const CONSTRAINT_TYPES = ["STALE_EVIDENCE", "SYNTHETIC_REFERENCE_DATA", "MISSING_REGULAR_COVERAGE", "HIGH_CASUAL_REQUIREMENT", "CONCENTRATED_DEMAND", "ADEQUATELY_COVERED", "FORECAST_UNAVAILABLE"] as const;
 export const SEVERITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 
 type DayMetric = typeof DAY_METRICS[number];
+type CommercialMetric = typeof COMMERCIAL_METRICS[number];
 export type EvidenceMetric = typeof EVIDENCE_METRICS[number];
 type Flag = typeof LOCATION_FLAGS[number];
 
@@ -36,6 +39,8 @@ export type AssessmentLocation = {
   regularCoverageSet: boolean;
   flags: Flag[];
   week: { [K in DayMetric]: number } | null;
+  // Null where FairShift cannot support the figure; a null cannot be cited.
+  commercial: { [K in CommercialMetric]: number | null } | null;
   days: AssessmentDay[];
 };
 export type AssessmentInput = {
@@ -50,6 +55,17 @@ export type AssessmentInput = {
 export type PreparedInput = { input: AssessmentInput; locationKeys: Record<string, string>; fingerprint: string; evidenceThrough: string | null; hasEvidence: boolean };
 
 const weekday = (date: string) => WEEKDAYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7];
+
+function commercialInput(context: OutletStaffing["commercial"]): AssessmentLocation["commercial"] {
+  if (!context) return null;
+  return {
+    recentSalesMinor: context.recent?.salesMinor ?? null, recentTransactions: context.recent?.transactions ?? null,
+    comparableSalesMinor: context.comparable?.salesMinor ?? null, forecastDeltaMinor: context.comparable?.deltaMinor ?? null,
+    forecastLowerMinor: context.forecast?.lowerMinor ?? null, forecastUpperMinor: context.forecast?.upperMinor ?? null,
+    casualCostLowMinor: context.cost?.lowMinor ?? null, casualCostHighMinor: context.cost?.highMinor ?? null,
+    casualCostHighBpsOfForecast: context.cost?.highBpsOfForecast ?? null, backtestErrorBps: context.backtest?.errorBps ?? null,
+  };
+}
 
 function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation {
   const evidence = outlet.evidence && {
@@ -70,7 +86,7 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
   if (days.some(day => day.unavailable === "NO_FORECAST")) flags.push("FORECAST_UNAVAILABLE");
   if (days.some(day => day.unavailable === "NO_LABOUR_POLICY" || day.unavailable === "LABOUR_POLICY_CURRENCY_MISMATCH")) flags.push("NO_LABOUR_ASSUMPTION");
   if (days.some(day => day.support === "LOW")) flags.push("LOW_SUPPORT_DAYS");
-  return { key, currency: outlet.currency, labourPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week: outlet.totals ? { ...outlet.totals } : null, days };
+  return { key, currency: outlet.currency, labourPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week: outlet.totals ? { ...outlet.totals } : null, commercial: commercialInput(outlet.commercial), days };
 }
 
 // JSON with object keys sorted, so equal evidence always hashes equally.
@@ -126,6 +142,7 @@ export const assessmentOutputSchema = z.object({
     note: prose(240),
   }).strict()).max(10),
   signalCommentary: prose(500),
+  commercialImplication: prose(700),
 }).strict();
 export type StaffingAssessment = z.infer<typeof assessmentOutputSchema>;
 
@@ -138,7 +155,7 @@ export function assessmentJsonSchema(input: AssessmentInput) {
   const nullableEnum = (values: string[]) => ({ anyOf: [{ type: "string", enum: values }, { type: "null" }] });
   return {
     type: "object", additionalProperties: false,
-    required: ["schemaVersion", "summary", "priorities", "constraints", "signalCommentary"],
+    required: ["schemaVersion", "summary", "priorities", "constraints", "signalCommentary", "commercialImplication"],
     properties: {
       schemaVersion: { type: "string", enum: [AI_OUTPUT_SCHEMA_VERSION] },
       summary: { type: "string" },
@@ -162,6 +179,7 @@ export function assessmentJsonSchema(input: AssessmentInput) {
         properties: { type: { type: "string", enum: [...CONSTRAINT_TYPES] }, locationKey: nullableEnum(keys), note: { type: "string" } },
       } },
       signalCommentary: { type: "string" },
+      commercialImplication: { type: "string" },
     },
   };
 }
@@ -173,8 +191,9 @@ export type ValidationResult = { ok: true; assessment: StaffingAssessment } | { 
 // totals when no date is given, or the age of its evidence.
 export function evidenceValue(location: AssessmentLocation, date: string | null, metric: EvidenceMetric): number | null {
   if (metric === "evidenceAgeDays") return location.evidence?.ageDays ?? null;
-  if (date === null) return location.week?.[metric] ?? null;
-  return location.days.find(day => day.date === date)?.[metric] ?? null;
+  if ((COMMERCIAL_METRICS as readonly string[]).includes(metric)) return location.commercial?.[metric as CommercialMetric] ?? null;
+  if (date === null) return location.week?.[metric as DayMetric] ?? null;
+  return location.days.find(day => day.date === date)?.[metric as DayMetric] ?? null;
 }
 const gapOf = (location: AssessmentLocation, date: string | null) => evidenceValue(location, date, "casualGapMinutes");
 
@@ -188,10 +207,12 @@ export function validateAssessment(raw: unknown, input: AssessmentInput): Valida
   const locations = new Map(input.locations.map(location => [location.key, location]));
   const fail = (code: ValidationFailure, detail: string): ValidationResult => ({ ok: false, code, detail });
 
-  const texts = [assessment.summary, assessment.signalCommentary, ...assessment.priorities.flatMap(p => [p.reason, p.actionNote]), ...assessment.constraints.map(c => c.note)];
+  const texts = [assessment.summary, assessment.signalCommentary, assessment.commercialImplication, ...assessment.priorities.flatMap(p => [p.reason, p.actionNote]), ...assessment.constraints.map(c => c.note)];
   for (const text of texts) {
     // Location tokens such as [[L2]] are references, not figures.
     if (/\d/.test(text.replace(/\[\[L\d+\]\]/g, ""))) return fail("NUMBER_IN_TEXT", "prose contains a number");
+    // A figure spelled out would escape the evidence check just as digits would.
+    if (/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|percent|per cent)\b/i.test(text)) return fail("NUMBER_IN_TEXT", "prose spells out a figure");
     for (const [, key] of text.matchAll(/\[\[([^\]]*)\]\]/g)) if (!locations.has(key)) return fail("UNKNOWN_REFERENCE", `text location ${key}`);
   }
   if (assessment.priorities.some((p, i) => p.rank !== i + 1)) return fail("SCHEMA", "ranks must be 1..n in order");
@@ -267,16 +288,28 @@ Explain what deserves staffing attention in the planning week and why:
   missing regular coverage, unusually high casual requirement, concentrated demand,
   or days already adequately covered. State each once: use a null locationKey when it
   applies to every location rather than repeating it per location;
-- signalCommentary: how far the evidence can be relied on.
+- signalCommentary: how far the evidence can be relied on. If backtestErrorBps is
+  present, use it to temper your confidence; it is a backtest on this evidence, not
+  proven accuracy;
+- commercialImplication: in at most three short sentences and under four hundred
+  characters, what this week's demand means for the business commercially:
+  how expected sales compare with the comparable recent days, whether casual cost is
+  small or large against expected sales, and where sales would be most exposed if a gap
+  stayed open. Describe exposure, never a loss, saving or return as if it were measured.
+  casualCost figures price only the remaining casual gap; regular staff wages are unknown
+  to FairShift, so never call them total labour cost.
 
 Rules:
-- Write no digits anywhere in text fields. Put numbers only in evidence items, each
+- Write no digits anywhere in text fields, and do not spell figures out in words or
+  write percentages. Describe size in words such as modest or substantial. Put numbers only in evidence items, each
   copied exactly from the input: for a date, the field of that day; for a null date,
   the location's "week" totals; "evidenceAgeDays" is the location's evidence ageDays.
   Minutes are labour minutes; amounts ending in Minor are minor currency units.
 - Every priority cites one to four evidence items, and at most ten constraints are
   given. A null or missing figure cannot be cited. If a location has no "week" totals,
   use a planning date and cite that day's non-null figures, or cite evidenceAgeDays.
+  Metrics from a location's "commercial" block are week-level, whichever date is given.
+  Bps are basis points (one hundredth of one percent).
 - Refer to a location in text only as its key in double brackets, for example [[L1]],
   and to days by weekday name.
 - Only use a category or action the evidence supports: CASUAL_GAP and FILL_SHIFTS
@@ -285,7 +318,9 @@ Rules:
   evidence.stale true; LOW_SIGNAL needs LOW support.
 - If evidence is synthetic (SYNTHETIC_REFERENCE_DATA), say it is synthetic reference
   history and never describe it as live, current, Zettle or PayPal sales. If it is
-  stale, say the planning week is mapped from older history.
+  stale, say the planning week is mapped from older history. If evidence.source is
+  ZETTLE, it was retrieved from the merchant's connected account; do not call it
+  reconciled or audited. If it is IMPORTED, it is not provider-verified.
 - Recommend manager actions only. You cannot create shifts, choose or allocate
   workers, set or approve pay, or make payments, and must not say you have.
 - Do not mention individual workers, wages, incentives or payouts. Do not invent

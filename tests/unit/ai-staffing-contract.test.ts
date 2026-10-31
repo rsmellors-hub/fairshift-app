@@ -41,7 +41,7 @@ function valid(input: AssessmentInput): StaffingAssessment {
       { type: "SYNTHETIC_REFERENCE_DATA", locationKey: null, note: "Forecasts come from synthetic reference history, not live sales." },
       { type: "MISSING_REGULAR_COVERAGE", locationKey: input.locations.find(location => !location.regularCoverageSet)!.key, note: "No regular rota is set, so no gap is calculated." },
     ],
-    signalCommentary: "The planning week is mapped from older synthetic history; treat it as directional.",
+    signalCommentary: "The planning week is mapped from older synthetic history; treat it as directional.", commercialImplication: "Demand and cost are in proportion.",
   };
 }
 
@@ -145,5 +145,41 @@ describe("AI staffing output validation", () => {
     expect(check(o => { o.constraints[1].locationKey = "L2"; return o; })).toMatchObject({ ok: false, code: "INCONSISTENT" });
     // Covered days are accepted as covered, with no action to fill.
     expect(check(o => { o.priorities[1] = { ...o.priorities[1], date: "2026-10-26", category: "ADEQUATELY_COVERED", action: "NO_ACTION", severity: "LOW", evidence: [{ metric: "casualGapMinutes", value: 0 }] }; return o; })).toMatchObject({ ok: true });
+  });
+});
+
+describe("AI commercial reasoning", () => {
+  const commercial = { recentSalesMinor: 500_000, recentTransactions: 400, comparableSalesMinor: 480_000, forecastDeltaMinor: -20_000, forecastLowerMinor: 300_000, forecastUpperMinor: 600_000, casualCostLowMinor: 10_000, casualCostHighMinor: 12_000, casualCostHighBpsOfForecast: 250, backtestErrorBps: null };
+  const withCommercial = () => { const { input } = prepareAssessmentInput(week(), "ORGANISATION"); return { ...input, locations: input.locations.map(location => ({ ...location, commercial })) }; };
+  const citing = (input: AssessmentInput, evidence: { metric: string; value: number }[]) => { const base = valid(input); return { ...base, priorities: [{ ...base.priorities[0], evidence: [...base.priorities[0].evidence, ...evidence] }] }; };
+
+  it("sends commercial figures as data, null where they cannot be supported, and old fixtures as null", () => {
+    expect(prepareAssessmentInput(week(), "ORGANISATION").input.locations[0].commercial).toBeNull();
+    const c = { recent: null, forecast: null, comparable: null, casual: null, cost: null, costUnavailable: "NO_WORK_POLICY" as const, plannedSalesPerHourMinor: null, backtest: null };
+    const rows = week(); rows.outlets[0].commercial = c;
+    expect(prepareAssessmentInput(rows, "ORGANISATION").input.locations.find(location => location.commercial)?.commercial).toMatchObject({ casualCostHighMinor: null, recentSalesMinor: null });
+  });
+  it("accepts commercial figures only when cited exactly, including a negative delta", () => {
+    const input = withCommercial();
+    expect(validateAssessment(citing(input, [{ metric: "forecastDeltaMinor", value: -20_000 }]), input).ok).toBe(true);
+    expect(validateAssessment(citing(input, [{ metric: "casualCostHighMinor", value: 12_001 }]), input)).toMatchObject({ ok: false, code: "NUMBER_MISMATCH" });
+  });
+  it("rejects citing a commercial figure FairShift does not have", () => {
+    const input = withCommercial();
+    expect(validateAssessment(citing(input, [{ metric: "backtestErrorBps", value: 1 }]), input)).toMatchObject({ ok: false, code: "NUMBER_MISMATCH" });
+  });
+  it("requires a commercial implication with no figures of its own", () => {
+    const input = withCommercial();
+    expect(validateAssessment({ ...valid(input), commercialImplication: "This could save £5000." }, input)).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
+    expect(validateAssessment({ ...valid(input), signalCommentary: "Backtest error is roughly twenty percent." }, input)).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
+    const missing: Partial<StaffingAssessment> = valid(input);
+    delete missing.commercialImplication;
+    expect(validateAssessment(missing, input)).toMatchObject({ ok: false, code: "SCHEMA" });
+  });
+  it("a changed commercial figure makes an older assessment stale", () => {
+    const base = week(), changed = week();
+    const c = { recent: { start: "2025-12-22", end: "2025-12-28", salesMinor: 1, transactions: 1, observedDays: 1, averageTransactionMinor: 1 }, forecast: null, comparable: null, casual: null, cost: null, costUnavailable: "NO_WORK_POLICY" as const, plannedSalesPerHourMinor: null, backtest: null };
+    changed.outlets[0].commercial = c;
+    expect(prepareAssessmentInput(changed, "ORGANISATION").fingerprint).not.toBe(prepareAssessmentInput(base, "ORGANISATION").fingerprint);
   });
 });

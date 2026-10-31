@@ -18,6 +18,8 @@ const CONSTRAINT: Record<string, string> = {
 const METRIC: Record<EvidenceMetric, string> = {
   forecastSalesMinor: "Forecast sales", requiredMinutes: "Required labour", regularMinutes: "Regular coverage", allocatedCasualMinutes: "Allocated casual",
   coverageMinutes: "Existing coverage", casualGapMinutes: "Casual labour gap", indicativeShifts: "Indicative shifts", evidenceAgeDays: "Evidence age",
+  recentSalesMinor: "Latest seven days’ sales", recentTransactions: "Latest seven days’ transactions", comparableSalesMinor: "Comparable sales", forecastDeltaMinor: "Forecast against comparable", forecastLowerMinor: "Forecast range low", forecastUpperMinor: "Forecast range high",
+  casualCostLowMinor: "Estimated casual cost, low", casualCostHighMinor: "Estimated casual cost, high", casualCostHighBpsOfForecast: "Casual cost against forecast sales", backtestErrorBps: "Backtest error",
 };
 const FAILURE: Record<string, string> = {
   TIMEOUT: "the AI service did not respond in time", NETWORK_ERROR: "the AI service could not be reached", REFUSAL: "the AI service declined the request",
@@ -71,7 +73,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   const listed = new Set(a.priorities.map(p => `${p.locationKey}:${p.date}`));
   const unlisted = view.prepared.input.locations.reduce((sum, location) => sum + location.days.filter(day => (day.casualGapMinutes ?? 0) > 0 && !listed.has(`${location.key}:${day.date}`)).length, 0);
   const format = (metric: EvidenceMetric, value: number, currency: string | null) =>
-    metric === "forecastSalesMinor" ? (currency ? wholeMoney(value, currency) : "Not available") : metric === "indicativeShifts" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
+    metric.endsWith("Minor") ? (currency ? `${value < 0 ? "−" : ""}${wholeMoney(Math.abs(value), currency)}` : "Not available") : metric.endsWith("Bps") || metric.endsWith("BpsOfForecast") ? `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(value / 100)}%` : metric === "indicativeShifts" || metric === "recentTransactions" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
   return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">
     {header}{banner}
     <p className="method-note">Generated {generated(view.record!.createdAt, timeZone)} ({timeZone}) by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>
@@ -87,6 +89,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
       </li>;
     })}</ol> : <p>The assessment identified no staffing priorities.</p>}
     {a.constraints.length ? <><h3>Evidence limits</h3><ul className="ai-constraints">{a.constraints.map((c, i) => <li key={i}><strong>{CONSTRAINT[c.type]}{c.locationKey ? ` · ${keyNames[c.locationKey]}` : ""}:</strong> <Prose text={c.note} names={keyNames} /></li>)}</ul></> : null}
+    <h3>Commercial implication</h3><p><Prose text={a.commercialImplication} names={keyNames} /></p>
     <h3>Signal quality</h3><p><Prose text={a.signalCommentary} names={keyNames} /></p>
     {unlisted ? <p className="method-note">{unlisted} other planning {unlisted === 1 ? "day also has" : "days also have"} a casual labour gap not listed above. See the calculated staffing figures.</p> : null}
     <p className="method-note">Evidence values are the calculated figures for that location and day (or week), checked against the AI output before it was stored. The order of dated casual gaps is calculated. The AI&apos;s wording is its interpretation and is not checked beyond those figures and references. Managers decide what to staff.</p>

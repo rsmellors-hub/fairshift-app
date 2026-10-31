@@ -65,7 +65,7 @@ function validAssessment(input: AssessmentInput): StaffingAssessment {
       { rank: 2, locationKey: top.key, date: null, severity: "MEDIUM", category: "CASUAL_GAP", reason: "The location needs casual cover across the week.", evidence: [{ metric: "casualGapMinutes", value: top.week!.casualGapMinutes }], action: "FILL_SHIFTS", actionNote: "Then cover the remaining days." },
     ],
     constraints: [{ type: "SYNTHETIC_REFERENCE_DATA", locationKey: null, note: "Forecasts come from synthetic reference history, not live sales." }, { type: "STALE_EVIDENCE", locationKey: null, note: "The planning week is mapped from older history." }],
-    signalCommentary: "Treat the ranking as directional: the history is synthetic and older than the planning week.",
+    signalCommentary: "Treat the ranking as directional: the history is synthetic and older than the planning week.", commercialImplication: "Demand and cost are in proportion.",
   };
 }
 function fakeProvider(respond: (input: AssessmentInput) => unknown = validAssessment) {
@@ -93,7 +93,7 @@ describe("AI staffing intelligence", () => {
       expect(sent.locations).toHaveLength(5);
       for (const text of [...c.rows.map(row => row.name), ...c.rows.map(row => row.id), "AI company", c.organisationId, "@"]) expect(provider.assess.mock.calls[0][0].input).not.toContain(text);
       expect(record).toMatchObject({ status: "AVAILABLE", scopeKey: "ORGANISATION", outletId: null, provider: "OPENAI", model: "gpt-test", responseModel: "gpt-test-2026", providerResponseId: "resp_test",
-        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2025-12-28", inputVersion: "fs-staffing-ai-input-v1", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
+        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2025-12-28", inputVersion: "fs-staffing-ai-input-v2", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
       expect(record.input).toEqual(sent);
       expect(Object.values(record.locationKeys as Record<string, string>).sort()).toEqual(c.rows.map(row => row.id).sort());
 

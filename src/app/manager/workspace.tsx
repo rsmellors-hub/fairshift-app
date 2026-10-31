@@ -16,7 +16,7 @@ import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
 import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
 import { isSyntheticSource } from "@/server/intelligence/forecast";
-import { labourHours, longDate, policyDescription, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
+import { labourHours, longDate, policyDescription, StaffingDayTable, StaffingMethodNote, wholeMoney } from "@/app/components/staffing";
 import { RequirementForm } from "./requirement-form";
 import { availabilityForShift, isOfferable, OPPORTUNITY_LABEL, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
@@ -225,12 +225,14 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
   return <section className="panel staffing-week" aria-labelledby="staffing-week-title">
     <h2 id="staffing-week-title">Planning week staffing</h2>
     <p>{scope.locationName} · Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</p>
-    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
+    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "ZETTLE" ? "Zettle sales · connected merchant account" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
     <p className="method-note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
     {outlet.totals ? <div className="status-grid forecast-grid" aria-label="Planning week totals">
       <article><span>Required labour</span><strong>{labourHours(outlet.totals.requiredMinutes)}</strong><small>From forecast demand</small></article>
       <article><span>Existing coverage</span><strong>{labourHours(outlet.totals.coverageMinutes)}</strong><small>Regular {labourHours(outlet.totals.regularMinutes)} · allocated casual {labourHours(outlet.totals.allocatedCasualMinutes)}</small></article>
       <article><span>Casual labour gap</span><strong>{labourHours(outlet.totals.casualGapMinutes)}</strong><small>Approx. {outlet.totals.indicativeShifts} shifts to fill · none created</small></article>
+      <article><span>Estimated cost to fill</span><strong>{outlet.commercial?.cost && outlet.currency ? outlet.commercial.cost.lowMinor === outlet.commercial.cost.highMinor ? wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency) : `${wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency)} – ${wholeMoney(outlet.commercial.cost.highMinor, outlet.currency)}` : "Not available"}</strong><small>{outlet.commercial?.cost ? "Estimate on this location’s work policies" : "Needs a work policy in this currency"}</small></article>
+      <article><span>Expected sales</span><strong>{outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "Not available"}</strong><small>{outlet.commercial?.comparable && outlet.currency ? `Comparable days ${wholeMoney(outlet.commercial.comparable.salesMinor, outlet.currency)}` : "Forecast, not recorded sales"}</small></article>
     </div> : null}
     <div className="history-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="history-table" planHref={planningDay => `/manager/plan?date=${planningDay}#add-requirement`} /></div>
     <p className="method-note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>

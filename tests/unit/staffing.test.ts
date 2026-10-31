@@ -93,7 +93,7 @@ const week = (overrides: Partial<OutletWeeklyForecast> = {}, currency = "GBP"): 
   outletId: "o1", outletName: "Leeds", timezone: "Europe/London", today: "2026-10-26",
   selection: { status: "SELECTED", source: "REFERENCE", currency, kind: "HISTORICAL", dataThrough: "2025-12-28", firstTarget: "2026-10-27", rejected: [] },
   days: Array.from({ length: 7 }, (_, i) => ({ targetDate: shiftDate("2026-10-27", i), forecast: forecast(200_000) })),
-  weeklyTotalMinor: 1_400_000, ...overrides,
+  weeklyTotalMinor: 1_400_000, evidenceDays: [], ...overrides,
 });
 const rota = new Map(Array.from({ length: 7 }, (_, i) => [i + 1, { plannedMinutes: h(12), source: "REFERENCE" }]));
 

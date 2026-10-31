@@ -124,7 +124,7 @@ export const saleTransactions = pgTable(
     uniqueIndex("sale_transactions_paypal_capture_unique").on(table.paypalCaptureId),
     index("sale_transactions_outlet_created_idx").on(table.outletId, table.createdAt),
     index("sale_transactions_outlet_occurred_idx").on(table.outletId, table.occurredAt),
-    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE', 'IMPORTED')`),
+    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE', 'IMPORTED', 'ZETTLE')`),
     check("sale_transactions_paypal_reference_check", sql`${table.source} != 'PAYPAL_SANDBOX' or ${table.paypalCustomId} is not null`),
     check("sale_transactions_demo_provenance_check", sql`${table.source} != 'DEMO_SEEDED' or (
       ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
@@ -151,6 +151,16 @@ export const saleTransactions = pgTable(
       ${table.providerStatus} = 'IMPORTED' and ${table.occurredAt} is not null and
       ${table.sourceSystem} is not null and ${table.sourceTransactionId} is not null
     )`),
+    // Retrieved from a connected Zettle merchant account: a commercial time and the
+    // provider's purchase identity, no PayPal identifiers and no reconciliation claim.
+    check("sale_transactions_zettle_provenance_check", sql`${table.source} != 'ZETTLE' or (
+      ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
+      ${table.paypalCustomId} is null and ${table.providerCreatedAt} is null and
+      ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
+      ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
+      ${table.providerStatus} = 'ZETTLE' and ${table.occurredAt} is not null and
+      ${table.sourceSystem} is not null and ${table.sourceTransactionId} is not null
+    )`),
     check("sale_transactions_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
     check("sale_transactions_amount_nonnegative", sql`${table.grossAmountMinor} >= 0`),
     check(
@@ -163,6 +173,48 @@ export const saleTransactions = pgTable(
     ),
   ],
 );
+
+// One merchant account connected to one location. Credentials are sealed at rest and
+// never selected for display; disconnecting erases them and keeps the retrieved history.
+export const commerceConnections = pgTable("commerce_connections", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  provider: text("provider").notNull(),
+  status: text("status").notNull(),
+  providerMerchantId: text("provider_merchant_id").notNull(),
+  sealedCredentials: text("sealed_credentials"),
+  connectedBy: uuid("connected_by").references(() => users.id),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull(),
+  disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+}, (t) => [
+  // A location has one live connection, and a merchant account feeds one location.
+  uniqueIndex("commerce_connections_live_outlet_unique").on(t.outletId).where(sql`${t.status} != 'DISCONNECTED'`),
+  uniqueIndex("commerce_connections_live_merchant_unique").on(t.provider, t.providerMerchantId).where(sql`${t.status} != 'DISCONNECTED'`),
+  check("commerce_connections_provider_check", sql`${t.provider} in ('ZETTLE')`),
+  check("commerce_connections_status_check", sql`${t.status} in ('CONNECTED', 'AUTH_FAILED', 'DISCONNECTED')`),
+  check("commerce_connections_credentials_check", sql`(${t.status} = 'DISCONNECTED') = (${t.sealedCredentials} is null)`),
+]);
+
+// Each retrieval attempt. A failed run changes no history and is never read as zero sales.
+export const commerceSyncRuns = pgTable("commerce_sync_runs", {
+  id: uuid("id").primaryKey(),
+  connectionId: uuid("connection_id").notNull().references(() => commerceConnections.id, { onDelete: "restrict" }),
+  status: text("status").notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  retrieved: integer("retrieved"),
+  inserted: integer("inserted"),
+  duplicates: integer("duplicates"),
+  refundsExcluded: integer("refunds_excluded"),
+  failureCode: text("failure_code"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("commerce_sync_runs_one_running_unique").on(t.connectionId).where(sql`${t.status} = 'RUNNING'`),
+  index("commerce_sync_runs_connection_started_idx").on(t.connectionId, t.startedAt),
+  check("commerce_sync_runs_status_check", sql`${t.status} in ('RUNNING', 'SUCCEEDED', 'FAILED')`),
+  check("commerce_sync_runs_outcome_check", sql`(${t.status} = 'FAILED') = (${t.failureCode} is not null)`),
+]);
 
 export const providerEvents = pgTable(
   "provider_events",
@@ -726,6 +778,8 @@ export const schema = {
   outlets,
   paypalConnections,
   saleTransactions,
+  commerceConnections,
+  commerceSyncRuns,
   providerEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales, workPerformanceResults,

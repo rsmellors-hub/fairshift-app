@@ -9,7 +9,7 @@ const navigation = [
   { label: "Locations", href: "/owner/locations" },
   { label: "Managers", href: "/owner/workforce" },
   { label: "Compensation", href: "/owner/policies" },
-  { label: "Incentives" },
+  { label: "Incentives", href: "/owner/policies#work-policies" },
   { label: "Payments / PayPal", href: "/owner/payments" },
   { label: "Settings", href: "/owner/settings" },
 ];

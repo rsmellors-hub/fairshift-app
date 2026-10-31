@@ -13,6 +13,8 @@ import { getDatabase } from "@/server/db/client";
 import { attributedSales, memberships, organisations, outlets, subscriptions, users, workAcceptances, workPayables, workPayouts, workPerformanceResults, workPolicies, workers } from "@/server/db/schema";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 import { confirmWorkPerformance, getLocationPerformance, importAttributedSales } from "@/server/performance/attribution";
+import { getWorkOutcomes } from "@/server/intelligence/commerce-labour";
+import { getOwnerOverview } from "@/server/product/owner-overview";
 import { allocateAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, offerAssignment } from "@/server/scheduling/operations";
 import { approvePayableAction, confirmPerformanceAction, createPolicyAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { ManagerWorkspace } from "@/app/manager/workspace";
@@ -394,4 +396,20 @@ describe("no knowledge of any particular business", () => {
       for (const banned of [/Rosebank|Leeds|London|Johannesburg|Alex Morgan|Zettle/, /DEMO_/, /"GBP"|"USD"|"ZAR"/, /65_?000|2_?500|650|\b25\b/]) expect(source, `${file} ${banned}`).not.toMatch(banned);
     }
   });
+});
+
+describe("recorded work outcomes for the Owner", () => {
+  it("sums confirmed pay and attributed evidence by location, counts payables needing approval, and stays inside its tenant and location", async () => {
+    const t = await createTestDatabase();
+    try {
+      const s = await setup(t.db), other = await business(t.db, { locations: ["Elsewhere"] });
+      expect(await getWorkOutcomes(t.db, s.c.ownerScope)).toEqual([]);
+      const { payable } = await finishedWork(t.db, s);
+      expect(await getWorkOutcomes(t.db, s.c.ownerScope)).toMatchObject([{ currency: "GBP", confirmedShifts: 1, confirmedPayMinor: payable.baseAmountMinor, paidMinor: 0, attributedSalesMinor: 0, shiftsWithAttribution: 0 }]);
+      expect((await getOwnerOverview(t.db, s.c.ownerScope)).payables).toEqual({ awaitingApproval: 1, needsAttention: 0 });
+      expect(await getWorkOutcomes(t.db, other.ownerScope)).toEqual([]);
+      expect((await getOwnerOverview(t.db, other.ownerScope)).payables).toEqual({ awaitingApproval: 0, needsAttention: 0 });
+      await expect(getWorkOutcomes(t.db, s.worker)).rejects.toThrow("Access denied");
+    } finally { await t.close(); }
+  }, 120_000);
 });

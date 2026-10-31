@@ -46,7 +46,8 @@ describe("shared product shell", () => {
     for (const area of ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"]) expect(html).toContain(`href="/owner/${area}"`);
     expect(html).toContain("Owner mobile navigation");
     expect(html).toContain("Skip to content");
-    expect(html).toContain("Incentives<small>Not available</small>");
+    expect(html).toContain('href="/owner/policies#work-policies"');
+    expect(html).not.toContain("Not available</small>");
     expect(html).not.toContain('href="/owner/incentives"');
     expect(html).toContain('href="/account"');
     expect(html).not.toContain('href="/manager');

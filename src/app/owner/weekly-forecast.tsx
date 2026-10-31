@@ -4,12 +4,14 @@ import type { OutletWeeklyForecast, SourceRejection, WeeklyForecast } from "@/se
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 import { labourHours, policyDescription, STAFFING_UNAVAILABLE, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
 import { isSyntheticSource } from "@/server/intelligence/forecast";
+import { CommercialByLocation } from "@/app/owner/commerce-labour";
 
 const SOURCE_LABEL: Record<SalesSource, string> = {
   REFERENCE: "Reference sales history",
   DEMO_SEEDED: "Demo / seeded history",
   PAYPAL_SANDBOX: "Verified PayPal Sandbox sales",
   IMPORTED: "Imported sales history",
+  ZETTLE: "Connected Zettle sales",
 };
 const REJECTION: Record<SourceRejection["reason"], string> = {
   CURRENCY_MISMATCH: "different currency", STALE: "not recent enough", INSUFFICIENT_DAYS: "too few days",
@@ -37,6 +39,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
   const available = weekly.outlets.filter(outlet => outlet.weeklyTotalMinor !== null);
   const historical = [...new Set(weekly.outlets.flatMap(outlet => outlet.selection.status === "SELECTED" && outlet.selection.kind === "HISTORICAL" && isSyntheticSource(outlet.selection.source) ? [outlet.selection.source] : []))];
   const imported = weekly.outlets.some(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "IMPORTED");
+  const connected = weekly.outlets.filter(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "ZETTLE").length;
   const columns = c?.days.map(row => row.targetDate) ?? null;
   return <div className="owner-overview owner-forecast">
     {header}
@@ -49,6 +52,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
       </section>
       {historical.length ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from historical evidence</span>{`${historical.map(sourceLabel).join(" and ")} ${historical.length > 1 ? "are" : "is"} labelled synthetic input${c ? `, through ${longDate(c.dataThrough)}` : ""}. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled. It does not describe current trading or any provider’s sales.`}</p> : null}
       {imported ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from imported history</span>Imported sales history supplied for this business, not verified by a payment provider. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled.</p> : null}
+      {connected ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from connected commerce</span>{`${connected === weekly.outlets.length ? "Every location forecasts" : `${connected} of ${weekly.outlets.length} locations forecast`} from sales retrieved from a connected Zettle account: completed sales through yesterday, refunds not deducted.`}</p> : null}
       <section aria-labelledby="owner-forecast-table-title">
         <div className="owner-section-heading"><div><h2 id="owner-forecast-table-title">Forecast by location</h2><p>Expected sales per day{columns ? "" : ", with each location’s own forecast dates"}. Ranges and evidence are under each location.</p></div></div>
         <div className="owner-forecast-scroll" role="region" aria-label="Forecast by location table" tabIndex={0}><table className="owner-location-table owner-forecast-table">
@@ -56,7 +60,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
           <thead><tr><th scope="col">Location</th>{columns ? columns.map(date => <th scope="col" key={date}>{shortDate(date)}</th>) : Array.from({ length: 7 }, (_, i) => <th scope="col" key={i}>Day {i + 1}</th>)}<th scope="col">Week</th></tr></thead>
           <tbody>{weekly.outlets.map(outlet => {
             const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : null;
-            return <tr key={outlet.outletId}><th scope="row"><strong>{outlet.outletName}</strong>{c ? null : <Provenance outlet={outlet} />}</th>
+            return <tr key={outlet.outletId}><th scope="row"><Link href={`/owner/locations/${outlet.outletId}`}><strong>{outlet.outletName}</strong></Link>{c ? null : <Provenance outlet={outlet} />}</th>
               {outlet.days.length ? outlet.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{row.forecast && currency ? whole(row.forecast.forecastSalesMinor, currency) : "Not available"}{columns ? null : <small>{shortDate(row.targetDate)}</small>}</td>)
                 : <td colSpan={7} data-label="Forecast">No forecast: no eligible sales history. No demand has been assumed.</td>}
               <td data-label="Week"><strong>{outlet.weeklyTotalMinor !== null && currency ? whole(outlet.weeklyTotalMinor, currency) : "Not available"}</strong></td></tr>;
@@ -65,6 +69,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
         </table></div>
       </section>
       <StaffingByLocation staffing={staffing} />
+      {staffing?.outlets.length ? <CommercialByLocation outlets={staffing.outlets} summary={staffing.commercial} /> : null}
       {assessment}
       <section className="owner-attention" aria-labelledby="owner-forecast-evidence-title">
         <div className="owner-section-heading"><div><h2 id="owner-forecast-evidence-title">Ranges and evidence</h2><p>Planning ranges are not calibrated confidence intervals.</p></div></div>
@@ -76,7 +81,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
               return <tr key={row.targetDate}><th scope="row">{longDate(row.targetDate)}</th>{row.forecast && currency ? <><td>{whole(row.forecast.forecastSalesMinor, currency)}</td><td>{whole(row.forecast.lowerSalesMinor, currency)} – {whole(row.forecast.upperSalesMinor, currency)}</td><td>{row.forecast.support === "MODERATE" ? "Moderate" : "Low"}</td><td>{row.forecast.evidence.length} {row.forecast.basis === "SAME_WEEKDAY" ? "same weekdays" : "recent days"}</td></> : <td colSpan={4}>Not available</td>}</tr>;
             })}</tbody></table> : <p>No eligible sales history, so no forecast was produced.</p>}
         </details>)}
-        <p className="owner-note">Method {weekly.methodVersion}: a recency-weighted average of matching weekdays from the 56 days up to the data-through date, with isolated high days capped. Calendar events and holidays are not modelled. Source rule {weekly.ruleVersion}: provider sales replace other history only with 28 or more recent days, including three of every weekday, in the location’s planning currency; imported history needs the same depth and comes before reference history. No AI is used in this forecast.</p>
+        <p className="owner-note">Method {weekly.methodVersion}: a recency-weighted average of matching weekdays from the 56 days up to the data-through date, with isolated high days capped. Calendar events and holidays are not modelled. Source rule {weekly.ruleVersion}: provider sales replace other history only with 28 or more recent days, including three of every weekday, in the location’s planning currency, with a connected merchant account first; imported history needs the same depth and comes before reference history. No AI is used in this forecast.</p>
       </section>
     </>}
   </div>;

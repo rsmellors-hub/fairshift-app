@@ -120,4 +120,29 @@ describe("forecast source eligibility", () => {
       expect(picked.status === "SELECTED" && picked.days.every(day => day.date <= "2026-03-01" && day.date >= "2026-01-05")).toBe(true);
     });
   });
+
+  describe("connected Zettle history", () => {
+    it("replaces reference and imported history only once it is deep and recent enough", () => {
+      expect(selectForecastSource([...reference, ...range("ZETTLE", YESTERDAY, 56)], TODAY)).toMatchObject({ source: "ZETTLE", kind: "PROVIDER", dataThrough: YESTERDAY });
+      expect(selectForecastSource([...range("IMPORTED", "2026-01-31", 56), ...range("ZETTLE", YESTERDAY, 56)], TODAY)).toMatchObject({ source: "ZETTLE" });
+    });
+    it("never lets a thin connection displace other history, and says why", () => {
+      expect(selectForecastSource([...reference, ...range("ZETTLE", YESTERDAY, 3)], TODAY)).toMatchObject({ source: "REFERENCE", rejected: [{ source: "ZETTLE", reason: "INSUFFICIENT_DAYS", detail: "3 of 28 required days in the 56-day lookback." }] });
+    });
+    it("stops being used when it goes stale, for example after a failed sync or a disconnection", () => {
+      expect(selectForecastSource([...reference, ...range("ZETTLE", shiftDate(TODAY, -3), 53)], TODAY)).toMatchObject({ source: "REFERENCE", rejected: [{ source: "ZETTLE", reason: "STALE" }] });
+    });
+    it("gives no forecast from thin connected history alone", () => {
+      expect(selectForecastSource(range("ZETTLE", YESTERDAY, 5), TODAY)).toMatchObject({ status: "NONE", rejected: [{ source: "ZETTLE" }] });
+    });
+    it("comes before PayPal Sandbox test captures, without being mixed with them", () => {
+      expect(selectForecastSource([...range("PAYPAL_SANDBOX", YESTERDAY, 56), ...range("ZETTLE", YESTERDAY, 56)], TODAY)).toMatchObject({ source: "ZETTLE", rejected: [] });
+    });
+    it("cannot replace planning history in another currency, and nothing is converted", () => {
+      expect(selectForecastSource([...reference, ...range("ZETTLE", YESTERDAY, 56, "USD")], TODAY)).toMatchObject({ source: "REFERENCE", rejected: [{ source: "ZETTLE", reason: "CURRENCY_MISMATCH" }] });
+    });
+    it("refuses to choose between two currencies of connected history", () => {
+      expect(selectForecastSource([...range("ZETTLE", YESTERDAY, 56, "GBP"), ...range("ZETTLE", YESTERDAY, 56, "USD")], TODAY)).toMatchObject({ status: "NONE" });
+    });
+  });
 });

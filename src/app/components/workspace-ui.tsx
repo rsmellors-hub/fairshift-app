@@ -92,6 +92,15 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 const FEEDBACK: Record<string, string> = {
+  "commerce-not-configured": "Commerce connections are not configured in this environment.",
+  "commerce-location": "That location is not available.",
+  "commerce-not-connected": "This location has no Zettle connection.",
+  "commerce-sync-running": "A sync is already running for this location.",
+  "zettle-credentials-rejected": "Zettle did not accept that client ID and API key. Nothing was connected.",
+  "zettle-scope-missing": "That API key cannot read purchases. Create one with the purchase permission. Nothing was connected.",
+  "zettle-unavailable": "Zettle could not be reached, so the connection could not be checked. Nothing was connected.",
+  "zettle-already-connected": "This location or Zettle account already has a connection.",
+  "zettle-sync-failed": "The sync did not complete. Existing sales history is unchanged. See the location below.",
   "time-invalid": "Enter a valid date and time.",
   "time-nonexistent": "That time does not exist at this location, because the clocks go forward then. Choose another time.",
   "time-ambiguous": "That time happens twice at this location, because the clocks go back then. Choose another time.",

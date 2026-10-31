@@ -134,7 +134,8 @@ All calls target `https://api-m.sandbox.paypal.com`. Production configuration ca
 | Sandbox order creation, capture, and Payments v2 reconciliation code | IMPLEMENTED | Code and mocked adapter tests pass; no provider IDs are fabricated. |
 | Verified, deduplicated webhook inbox | IMPLEMENTED — NOT LIVE-VERIFIED | Endpoint behavior is tested; no public PayPal delivery has reached this environment. |
 | Real PayPal sandbox order and capture evidence | IMPLEMENTED — NOT LIVE-VERIFIED | Sandbox credentials are not available in this environment. |
-| AI integration | NOT IMPLEMENTED | Deliberately deferred to a later package. |
+| AI staffing and commercial interpretation | VERIFIED locally | Structured OpenAI assessment validated against calculated figures; see `docs/ROADMAP_RECOVERY.md`. |
+| Zettle connected commerce | IMPLEMENTED, NOT API-VERIFIED | Connection, sync and normalisation tested against a mocked client. Zettle's live token endpoint has only rejected placeholder credentials. No real merchant data has been retrieved. |
 | Authenticated tenancy | REPOSITORY EVIDENCE | Database sessions, Owner onboarding and invitation-derived scoped memberships; hosted verification pending. |
 | Demo shift incentive, manager approval, and PayPal Sandbox payout/status path | SANDBOX-CONNECTED | One controlled $25 Sandbox payout reached `SUCCESS`; FairShift persisted `PAID`, prevented duplicate submission, and refreshed the status. |
 

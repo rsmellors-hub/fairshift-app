@@ -16,7 +16,7 @@ vi.mock("@/server/db/client", () => ({ getDatabase: () => ({}) }));
 vi.mock("@/server/product/owner-overview", () => ({ getOwnerOverview: vi.fn(), ownerForecastSummary: vi.fn(), ownerStaffingSummary: vi.fn() }));
 vi.mock("@/server/intelligence/weekly", () => ({ getWeeklyForecast: vi.fn() }));
 vi.mock("@/server/intelligence/staffing", () => ({ getWeeklyStaffing: vi.fn() }));
-const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], salesUnavailable: false };
+const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], payables: { awaitingApproval: 0, needsAttention: 0 }, salesUnavailable: false };
 afterEach(() => vi.resetAllMocks());
 
 describe("Owner Overview route and states", () => {
@@ -74,7 +74,7 @@ describe("Owner Overview route and states", () => {
     expect(html).toContain("Not available");
     expect(html).not.toMatch(/>0 h</);
     expect(html).toContain("No incentive approvals or failed payments recorded");
-    expect(html).not.toContain('href="/owner/locations/one');
+    expect(html).toContain('href="/owner/locations/one"');
     for (const route of ["reporting", "forecast", "payments"]) expect(html).toContain(`href="/owner/${route}"`);
   });
   it("shows meaningful loading text with stable placeholder regions", () => {
