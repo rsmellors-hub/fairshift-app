@@ -4,7 +4,7 @@ import type { Scope } from "@/server/auth/access";
 import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import Link from "next/link";
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
-import { ActionFeedback, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
+import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction } from "@/app/operations-actions";
 import { publishDemoShiftAction } from "@/app/scheduling-actions";
@@ -27,7 +27,7 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
   const scope=await requireScope(["OWNER","MANAGER"]);
   let data;
   try { data = await getOperations(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
-  const { team, departments, policies, requirements, offers, paymentIssues } = data;
+  const { team, departments, policies, requirements, offers, paymentIssues, payables, timezone } = data;
   const visibleRequirements = requirements.filter(r => (!date || r.shiftDate === date) && (!department || r.departmentId === department));
   const coverage = (id: string) => {
     const rows = offers.filter(r => r.offer.shiftId === id);
@@ -68,7 +68,19 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
     {area === "review" ? <>
-      <section className="panel"><h2>Confirm work performed</h2>{offers.filter(o => o.allocation?.state === "ALLOCATED").map(o => { const r = requirements.find(r => r.id === o.offer.shiftId)!; return <div className="requirement" key={o.offer.id}><h3>{o.workerName} · {r.shiftDate} · {r.roleName}</h3><ShiftTerms shift={r} locationName={scope.locationName} />{o.allocation?.confirmedAt ? <p>Work confirmed {dateTime(o.allocation.confirmedAt)}. Payment of work earnings is not tracked by the incentive payment rail.</p> : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><label><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > new Date()}>Confirm work</button></form>}{r.earningsModel === "COMMISSION" ? <p>Commission unavailable: verified attributed sales have not been supplied.</p> : null}</div>; })}</section>
+      <section className="panel"><h2>Confirm work performed</h2>{offers.filter(o => o.allocation?.state === "ALLOCATED").map(o => { const r = requirements.find(r => r.id === o.offer.shiftId)!; const payable = payables.find(p => p.payable.allocationId === o.allocation!.id)?.payable; return <div className="requirement" key={o.offer.id}><h3>{o.workerName} · {r.shiftDate} · {r.roleName}</h3><ShiftTerms shift={r} locationName={scope.locationName} />{o.allocation?.confirmedAt ? <>
+        <p>Work confirmed {dateTime(o.allocation.confirmedAt, timezone)} ({timezone}) as scheduled.</p>
+        {payable ? <p>Base payable {money(payable.baseAmountMinor, payable.currencyCode)} from the accepted terms · <a href="#base-payables">Awaiting approval</a></p>
+          : r.earningsModel === "COMMISSION" ? <p>Commission is not payable: verified attributed sales are required.</p>
+          : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><input name="confirmed" type="hidden" value="yes" /><p>The base payable for this confirmed work has not been recorded.</p><button className="secondary-button">Calculate base payable</button></form>}
+      </> : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><label><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > new Date()}>Confirm work</button>{r.endsAt > new Date() ? <small>Available after the scheduled end.</small> : null}</form>}</div>; })}</section>
+      <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Base payables · confirmed work</h2>
+        <p className="method-note">Calculated by FairShift from the terms each worker accepted, for work confirmed as scheduled. No timesheet, overtime or incentive is applied. Approval and payment of base payables are not yet available, so none of these amounts has been paid.</p>
+        {payables.length ? <>
+          <div className="overview-strip"><div><span>Awaiting approval</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "PENDING_REVIEW").map(p => ({ amountMinor: p.payable.baseAmountMinor, currencyCode: p.payable.currencyCode })))}</strong></div><div><span>Confirmed work items</span><strong>{payables.length}</strong></div></div>
+          <div className="table-scroll" role="region" aria-label="Base payables" tabIndex={0}><table><thead><tr><th>Worker</th><th>Shift</th><th>Accepted terms</th><th>Confirmed · {timezone}</th><th>Base payable</th><th>Status</th></tr></thead><tbody>{payables.map(({ payable, workerName, shiftDate, roleName }) => <tr key={payable.id}><td>{workerName}</td><td>{shiftDate} · {roleName}</td><td>{payableBasis(payable)} · version {payable.termsVersion}</td><td>{dateTime(payable.confirmedAt, timezone)}</td><td><strong>{money(payable.baseAmountMinor, payable.currencyCode)}</strong></td><td><PayableBadge status={payable.status} /></td></tr>)}</tbody></table></div>
+        </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
+      </section>
       {scope.organisationId === DEMO_ORGANISATION_ID ? await DemoReview() : null}
     </> : null}
   </>;

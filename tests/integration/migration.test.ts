@@ -186,3 +186,45 @@ describe("reference sales history upgrade",()=>{
   }finally{await client.close();}
  });
 });
+
+describe("work payable upgrade", () => {
+ it("gives existing policies their location currency and leaves shifts, acceptances, allocations and payouts unchanged", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 13)) await apply(entry.tag);
+   await client.exec(`
+    INSERT INTO organisations (id, name, country) VALUES
+     ('10000000-0000-4000-8000-0000000000c1', 'UK company', 'United Kingdom'),
+     ('10000000-0000-4000-8000-0000000000c2', 'SA company', 'South Africa');
+    INSERT INTO outlets (id, organisation_id, name, timezone, country) VALUES
+     ('20000000-0000-4000-8000-0000000000d1', '10000000-0000-4000-8000-0000000000c1', 'UK, no country', 'Europe/London', NULL),
+     ('20000000-0000-4000-8000-0000000000d2', '10000000-0000-4000-8000-0000000000c1', 'Abroad', 'Africa/Johannesburg', 'South Africa'),
+     ('20000000-0000-4000-8000-0000000000d3', '10000000-0000-4000-8000-0000000000c2', 'In England', 'Europe/London', ' england ');
+    INSERT INTO work_policies (id, outlet_id, name, earnings_model, rate_minor) VALUES
+     ('60000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-0000000000d1', 'UK hourly', 'HOURLY', 1200),
+     ('60000000-0000-4000-8000-0000000000e2', '20000000-0000-4000-8000-0000000000d2', 'Abroad daily', 'DAILY', 15000),
+     ('60000000-0000-4000-8000-0000000000e3', '20000000-0000-4000-8000-0000000000d3', 'England hourly', 'HOURLY', 1300),
+     ('60000000-0000-4000-8000-0000000000e4', '20000000-0000-4000-8000-000000000001', 'Rosebank hourly', 'HOURLY', 2000);
+    INSERT INTO shifts (id, outlet_id, policy_id, earnings_model, rate_minor, expected_earnings_minor, shift_date, starts_at, ends_at, role_name, status, currency_code, guaranteed_base_pay_minor, gratuity_policy, incentive_policy)
+     VALUES ('40000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-0000000000d1', '60000000-0000-4000-8000-0000000000e1', 'HOURLY', 1200, 7200, '2026-10-20', '2026-10-20T08:00:00Z', '2026-10-20T14:00:00Z', 'General', 'PUBLISHED', 'USD', 7200, 'None', 'None');
+    INSERT INTO workers (id, organisation_id, display_name, worker_type, location_id) VALUES ('30000000-0000-4000-8000-0000000000f2', '10000000-0000-4000-8000-0000000000c1', 'Casual', 'CASUAL', '20000000-0000-4000-8000-0000000000d1');
+    INSERT INTO shift_offers (id, shift_id, worker_id, status, responded_at, accepted_at) VALUES ('50000000-0000-4000-8000-0000000000f3', '40000000-0000-4000-8000-0000000000f1', '30000000-0000-4000-8000-0000000000f2', 'ACCEPTED', now(), now());
+    INSERT INTO work_acceptances (id, offer_id, worker_id, terms_version, snapshot) VALUES ('70000000-0000-4000-8000-0000000000f4', '50000000-0000-4000-8000-0000000000f3', '30000000-0000-4000-8000-0000000000f2', 1, '{"currencyCode":"USD","rateMinor":1200}');
+    INSERT INTO work_allocations (id, offer_id, acceptance_id, confirmed_at) VALUES ('80000000-0000-4000-8000-0000000000f5', '50000000-0000-4000-8000-0000000000f3', '70000000-0000-4000-8000-0000000000f4', now());
+    INSERT INTO shift_incentives (id, shift_id, worker_id, performance_sales_minor, target_sales_minor, earned_amount_minor, status, approved_at, approved_by, payout_recipient, paypal_sender_batch_id, paypal_sender_item_id, paypal_batch_id, paypal_item_id, paypal_status, paid_at)
+     VALUES ('90000000-0000-4000-8000-0000000000f6', '40000000-0000-4000-8000-0000000000f1', '30000000-0000-4000-8000-0000000000f2', 70000, 65000, 2500, 'PAID', now(), 'DEMO_MANAGER', 'worker@example.test', 'FS-BATCH-X', 'FS-ITEM-X', 'BATCH-X', 'ITEM-X', 'SUCCESS', now());`);
+   const snapshot = async () => Object.fromEntries(await Promise.all(["shifts", "shift_offers", "work_acceptances", "work_allocations", "shift_incentives", "sale_transactions"].map(async table => [table, (await client.query(`SELECT * FROM ${table} ORDER BY id`)).rows])));
+   const before = await snapshot();
+   expect(journal.entries[13].tag).toBe("0013_work_payables");
+   await apply(journal.entries[13].tag);
+   expect(await snapshot()).toEqual(before);
+   const policies = (await client.query<{ name: string; currency_code: string }>("SELECT name, currency_code FROM work_policies ORDER BY id")).rows;
+   expect(Object.fromEntries(policies.map(row => [row.name, row.currency_code]))).toEqual({ "UK hourly": "GBP", "Abroad daily": "USD", "England hourly": "GBP", "Rosebank hourly": "USD" });
+   // No payable is fabricated for work confirmed before payables existed.
+   expect((await client.query("SELECT count(*)::int AS count FROM work_payables")).rows[0]).toEqual({ count: 0 });
+   await expect(client.exec("INSERT INTO work_policies (id, outlet_id, name, earnings_model, rate_minor) VALUES ('60000000-0000-4000-8000-0000000000e9', '20000000-0000-4000-8000-0000000000d1', 'No currency', 'HOURLY', 1200)")).rejects.toThrow();
+  } finally { await client.close(); }
+ });
+});

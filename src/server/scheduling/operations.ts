@@ -1,11 +1,13 @@
 import { tokenHash } from "@/server/auth/identity";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, lt, gt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, gt } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { departments, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, auditEvents, shiftIncentives } from "@/server/db/schema";
+import { departments, organisations, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, auditEvents, shiftIncentives } from "@/server/db/schema";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
+import { resolveLocationCurrency } from "@/server/domain/currency";
+import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAcceptedTerms } from "@/server/domain/work-payable";
 import { localDate } from "@/server/intelligence/forecast";
 
 import type { Scope } from "@/server/auth/access";
@@ -17,6 +19,11 @@ async function location(db: DatabaseSession, scope:OperatingScope=demoScope) {
   const [row] = await db.select().from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
   if (!row) throw new Error("Location unavailable.");
   return row;
+}
+// Work terms at a location are denominated in that location's currency.
+async function locationCurrency(db: DatabaseSession, outlet: typeof outlets.$inferSelect) {
+  const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, outlet.organisationId));
+  return resolveLocationCurrency({ locationCountry: outlet.country, organisationCountry: organisation?.country });
 }
 const teamInput = z.object({ firstName: z.string().trim().min(1).max(100), surname: z.string().trim().min(1).max(100), telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/), email: z.string().trim().email().max(254) });
 export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope=demoScope) {
@@ -33,12 +40,12 @@ export async function createDepartment(db: Database, name: string, scope:Operati
   return db.insert(departments).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name) }).returning();
 }
 export async function createWorkPolicy(db: Database, input: unknown, name: string, scope:OperatingScope=demoScope) {
-  await location(db, scope);
+  const outlet = await location(db, scope);
   const terms = policyInput.parse(input);
-  return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms }).returning();
+  return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, currencyCode: await locationCurrency(db, outlet) }).returning();
 }
 export async function getOperations(db: DatabaseSession, scope:OperatingScope=demoScope) {
-  await location(db, scope);
+  const outlet = await location(db, scope);
   const team = await db.select({ worker: workers, invitation: teamInvitations }).from(workers)
     .leftJoin(teamInvitations, eq(teamInvitations.workerId, workers.id))
     .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId)));
@@ -53,7 +60,12 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
   const paymentIssues = await db.select({ id: shiftIncentives.id, status: shiftIncentives.status, shiftDate: shifts.shiftDate, workerName: workers.displayName }).from(shiftIncentives)
     .innerJoin(shifts, eq(shifts.id, shiftIncentives.shiftId)).innerJoin(workers, eq(workers.id, shiftIncentives.workerId))
     .where(and(eq(shifts.outletId, scope.locationId), eq(workers.organisationId, scope.organisationId), inArray(shiftIncentives.status, ["FAILED", "EARNED"])));
-  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues };
+  // Base payables of confirmed work at this location, in one scoped query.
+  const payables = await db.select({ payable: workPayables, workerName: workers.displayName, shiftDate: shifts.shiftDate, roleName: shifts.roleName })
+    .from(workPayables).innerJoin(workers, eq(workers.id, workPayables.workerId)).innerJoin(shifts, eq(shifts.id, workPayables.shiftId))
+    .where(and(eq(workPayables.organisationId, scope.organisationId), eq(workPayables.outletId, scope.locationId), eq(shifts.outletId, scope.locationId)))
+    .orderBy(desc(workPayables.confirmedAt));
+  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, currency: await locationCurrency(db, outlet), timezone: outlet.timezone };
 }
 export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope=demoScope) {
   z.object({ departmentId: z.uuid(), policyId: z.uuid(), startsAt: z.date(), endsAt: z.date(), requiredHeadcount: z.number().int().min(1).max(1000) }).parse(input);
@@ -65,7 +77,7 @@ export async function createRequirement(db: Database, input: { departmentId: str
     const expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt);
     const [row] = await tx.insert(shifts).values({ id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
-      requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: "USD", earningsModel: policy.earningsModel,
+      requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,
       guaranteedBasePayMinor: expected ?? 0, gratuityPolicy: "No gratuity terms apply.", incentivePolicy: "No incentive applies to this assignment.",
     }).returning();
@@ -138,16 +150,42 @@ export async function allocateAssignment(db: Database, offerId: string, scope:Op
   });
 }
 
-export async function confirmWork(db: Database, offerId: string, scope:OperatingScope=demoScope) {
+// Confirms that allocated work was performed as scheduled and, for fixed terms,
+// records its base payable from the accepted terms in the same transaction.
+// Idempotent: a repeat or retry returns the existing confirmation and payable and
+// never creates a second one. Commission work is confirmed without a payable, since
+// no verified attribution exists. Nothing is approved or paid here.
+export async function confirmWork(db: Database, offerId: string, scope:OperatingScope & { userId?: string }=demoScope) {
   return db.transaction(async (tx) => {
     const [offer] = await tx.select().from(shiftOffers).where(eq(shiftOffers.id, offerId));
     if (!offer || offer.status !== "ACCEPTED") throw new Error("Accepted work required.");
     const shift = await scopedShift(tx, offer.shiftId, scope);
-    const [allocation] = await tx.select().from(workAllocations).where(and(eq(workAllocations.offerId, offerId), eq(workAllocations.state, "ALLOCATED")));
+    const [worker] = await tx.select({ id: workers.id }).from(workers).where(and(eq(workers.id, offer.workerId), eq(workers.organisationId, scope.organisationId)));
+    if (!worker) throw new Error("Team member unavailable.");
+    const [allocation] = await tx.select().from(workAllocations).where(and(eq(workAllocations.offerId, offerId), eq(workAllocations.state, "ALLOCATED"))).for("update");
     if (!allocation) throw new Error("Allocate accepted work first.");
     if (shift.endsAt > new Date()) throw new Error("Scheduled work has not ended.");
-    await tx.update(workAllocations).set({ confirmedAt: allocation.confirmedAt ?? new Date() }).where(eq(workAllocations.id, allocation.id));
-    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_CONFIRMED", entityType: "work_allocation", entityId: allocation.id, correlationId: `assignment:${shift.id}`, metadata: { offerId, termsVersion: shift.termsVersion } });
+    const [acceptance] = await tx.select().from(workAcceptances).where(and(eq(workAcceptances.id, allocation.acceptanceId), eq(workAcceptances.offerId, offerId), eq(workAcceptances.termsVersion, shift.termsVersion)));
+    if (!acceptance) throw new Error("Current terms require acceptance.");
+    const terms = basePayableFromAcceptedTerms(acceptance.snapshot, { workerId: offer.workerId, offerId, shiftId: shift.id, locationId: shift.outletId, termsVersion: shift.termsVersion });
+    // Unverifiable fixed terms block confirmation, which would lock them, rather than becoming a zero payable.
+    if (terms.state === "UNAVAILABLE") throw new BasePayableUnavailableError(terms.reason);
+    const confirmedAt = allocation.confirmedAt ?? new Date();
+    if (!allocation.confirmedAt) {
+      await tx.update(workAllocations).set({ confirmedAt }).where(eq(workAllocations.id, allocation.id));
+      await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_CONFIRMED", entityType: "work_allocation", entityId: allocation.id, correlationId: `assignment:${shift.id}`, metadata: { offerId, termsVersion: shift.termsVersion } });
+    }
+    if (terms.state === "ATTRIBUTION_REQUIRED") return { allocationId: allocation.id, confirmedAt, payable: null, payableState: terms.state };
+    const [created] = await tx.insert(workPayables).values({
+      id: randomUUID(), organisationId: scope.organisationId, outletId: shift.outletId, shiftId: shift.id, workerId: offer.workerId, offerId,
+      allocationId: allocation.id, acceptanceId: acceptance.id, termsVersion: terms.termsVersion, calculationMethod: BASE_PAYABLE_METHOD,
+      earningsModel: terms.earningsModel, currencyCode: terms.currencyCode, rateMinor: terms.rateMinor,
+      scheduledStartsAt: terms.scheduledStartsAt, scheduledEndsAt: terms.scheduledEndsAt, baseAmountMinor: terms.baseAmountMinor,
+      confirmedAt, confirmedBy: scope.userId ?? null,
+    }).onConflictDoNothing({ target: workPayables.allocationId }).returning();
+    if (created) await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "BASE_PAYABLE_CALCULATED", entityType: "work_payable", entityId: created.id, correlationId: `assignment:${shift.id}`, metadata: { allocationId: allocation.id, termsVersion: terms.termsVersion, currencyCode: terms.currencyCode, baseAmountMinor: terms.baseAmountMinor } });
+    const [payable] = created ? [created] : await tx.select().from(workPayables).where(eq(workPayables.allocationId, allocation.id));
+    return { allocationId: allocation.id, confirmedAt, payable, payableState: terms.state };
   });
 }
 

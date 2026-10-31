@@ -247,8 +247,10 @@ export const workPolicies = pgTable("work_policies", {
   rateMinor: bigint("rate_minor", { mode: "number" }),
   commissionBps: integer("commission_bps"),
   commissionBasis: text("commission_basis"),
+  // The location's currency when the policy was created; rates are in its minor units.
+  currencyCode: text("currency_code").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("work_policy_terms_check", sql`(
+}, (t) => [check("work_policy_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`), check("work_policy_terms_check", sql`(
   ${t.earningsModel} in ('HOURLY', 'DAILY') and ${t.rateMinor} is not null and ${t.rateMinor} >= 0 and ${t.rateMinor} <= 9007199254740991 and ${t.commissionBps} is null and ${t.commissionBasis} is null
 ) or (
   ${t.earningsModel} = 'COMMISSION' and ${t.rateMinor} is null and ${t.commissionBps} is not null and ${t.commissionBasis} is not null and ${t.commissionBps} between 0 and 10000 and ${t.commissionBasis} = 'VERIFIED_ATTRIBUTED_SALES'
@@ -390,14 +392,60 @@ export const workAcceptances = pgTable("work_acceptances", {
   acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("work_acceptances_offer_version_unique").on(t.offerId, t.termsVersion)]);
 
+// The primary key is declared first: Drizzle reads a left-joined row as absent when its
+// first selected column is null, so a nullable first column hid unconfirmed allocations.
 export const workAllocations = pgTable("work_allocations", {
-  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   id: uuid("id").primaryKey(),
   offerId: uuid("offer_id").notNull().references(() => shiftOffers.id),
   acceptanceId: uuid("acceptance_id").notNull().references(() => workAcceptances.id),
   state: text("state").notNull().default("ALLOCATED"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("work_allocations_offer_unique").on(t.offerId),
   check("work_allocation_state_check", sql`${t.state} in ('ALLOCATED', 'REACCEPTANCE_REQUIRED')`)]);
+
+// The base payable for one confirmed work unit (one allocation), derived from the
+// immutable accepted terms it was allocated under (confirm-as-scheduled). A distinct
+// record from expected earnings, incentives and payouts: it is not an approval and
+// nothing here has been paid. Financial facts are immutable once written, and a
+// database trigger checks every reference against the same organisation, location,
+// shift, worker, offer, allocation and acceptance (drizzle/0013_work_payables.sql).
+export const workPayables = pgTable("work_payables", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  shiftId: uuid("shift_id").notNull().references(() => shifts.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  offerId: uuid("offer_id").notNull().references(() => shiftOffers.id, { onDelete: "restrict" }),
+  allocationId: uuid("allocation_id").notNull().references(() => workAllocations.id, { onDelete: "restrict" }),
+  acceptanceId: uuid("acceptance_id").notNull().references(() => workAcceptances.id, { onDelete: "restrict" }),
+  termsVersion: integer("terms_version").notNull(),
+  calculationMethod: text("calculation_method").notNull(),
+  earningsModel: text("earnings_model").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  rateMinor: bigint("rate_minor", { mode: "number" }).notNull(),
+  scheduledStartsAt: timestamp("scheduled_starts_at", { withTimezone: true }).notNull(),
+  scheduledEndsAt: timestamp("scheduled_ends_at", { withTimezone: true }).notNull(),
+  baseAmountMinor: bigint("base_amount_minor", { mode: "number" }).notNull(),
+  // Only the review state exists so far; approval and payout states are added with those operations.
+  status: text("status").notNull().default("PENDING_REVIEW"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
+  confirmedBy: uuid("confirmed_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("work_payables_allocation_unique").on(t.allocationId),
+  uniqueIndex("work_payables_shift_worker_unique").on(t.shiftId, t.workerId),
+  index("work_payables_scope_idx").on(t.organisationId, t.outletId, t.confirmedAt),
+  index("work_payables_worker_idx").on(t.workerId),
+  check("work_payables_method_check", sql`${t.calculationMethod} = 'confirm-as-scheduled-v1'`),
+  check("work_payables_model_check", sql`${t.earningsModel} in ('HOURLY', 'DAILY')`),
+  check("work_payables_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`),
+  check("work_payables_amounts_check", sql`${t.rateMinor} between 0 and 9007199254740991 and ${t.baseAmountMinor} between 0 and 9007199254740991 and ${t.termsVersion} > 0`),
+  check("work_payables_schedule_check", sql`${t.scheduledEndsAt} > ${t.scheduledStartsAt}`),
+  // The amount is exactly the accepted rate applied to the accepted schedule.
+  check("work_payables_formula_check", sql`(${t.earningsModel} = 'DAILY' and ${t.baseAmountMinor} = ${t.rateMinor}) or (${t.earningsModel} = 'HOURLY' and ${t.baseAmountMinor}::numeric * 3600 = ${t.rateMinor}::numeric * extract(epoch from ${t.scheduledEndsAt} - ${t.scheduledStartsAt}))`),
+  check("work_payables_status_check", sql`${t.status} in ('PENDING_REVIEW')`),
+]);
 
 // A separate boundary from location sales. No ingestion or demo attribution is supplied.
 export const attributedSales = pgTable("attributed_sales", {
@@ -481,7 +529,7 @@ export const schema = {
   saleTransactions,
   providerEvents,
   workers, regularStaffCoverage,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, attributedSales,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, attributedSales,
   shifts,
   shiftOffers,
   shiftIncentives,

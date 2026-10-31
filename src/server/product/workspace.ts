@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, departments } from "@/server/db/schema";
+import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 
 // These workspaces retain the existing server-pinned environment scope.
@@ -33,12 +33,19 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
       id: shiftIncentives.id, status: shiftIncentives.status, earnedAmountMinor: shiftIncentives.earnedAmountMinor,
       approvedAt: shiftIncentives.approvedAt, paidAt: shiftIncentives.paidAt,
     },
+    // The worker's own base payable for confirmed work, without internal references.
+    payable: {
+      id: workPayables.id, status: workPayables.status, baseAmountMinor: workPayables.baseAmountMinor, currencyCode: workPayables.currencyCode,
+      earningsModel: workPayables.earningsModel, rateMinor: workPayables.rateMinor, termsVersion: workPayables.termsVersion,
+      scheduledStartsAt: workPayables.scheduledStartsAt, scheduledEndsAt: workPayables.scheduledEndsAt, confirmedAt: workPayables.confirmedAt,
+    },
   }).from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))
     .leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id))
     .leftJoin(departments, eq(departments.id, shifts.departmentId))
     .innerJoin(workers, eq(shiftOffers.workerId, workers.id))
     .leftJoin(shiftIncentives, and(eq(shiftIncentives.shiftId, shifts.id), eq(shiftIncentives.workerId, workers.id)))
+    .leftJoin(workPayables, and(eq(workPayables.allocationId, workAllocations.id), eq(workPayables.workerId, workers.id), eq(workPayables.organisationId, workers.organisationId)))
     .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;

@@ -47,6 +47,16 @@ describe("casual labour gap and indicative shifts", () => {
     expect(gap(20, 20, 4)).toEqual({ requiredMinutes: h(20), regularMinutes: h(20), allocatedCasualMinutes: h(4), coverageMinutes: h(24), casualGapMinutes: 0, indicativeShifts: 0 });
     expect(gap(5, 40, 0).casualGapMinutes).toBe(0);
   });
+  it("sums daily gaps: surplus coverage on one day never offsets another day's shortage", () => {
+    // Weekly totals are sums of daily values, and each daily gap is floored at zero.
+    // So weekly gap = required − coverage + surplus on covered days, not required − coverage.
+    const week = [gap(20, 12, 0), gap(10, 16, 0), gap(14, 10, 2)];
+    const sum = (key: "requiredMinutes" | "coverageMinutes" | "casualGapMinutes") => week.reduce((total, day) => total + day[key], 0);
+    expect([sum("requiredMinutes"), sum("coverageMinutes"), sum("casualGapMinutes")]).toEqual([h(44), h(40), h(10)]);
+    expect(sum("requiredMinutes") - sum("coverageMinutes")).toBe(h(4));
+    const surplus = week.reduce((total, day) => total + Math.max(0, day.coverageMinutes - day.requiredMinutes), 0);
+    expect(sum("casualGapMinutes")).toBe(sum("requiredMinutes") - sum("coverageMinutes") + surplus);
+  });
   it("converts the gap to indicative 8-hour shifts by rounding up", () => {
     // Demand worth exactly gapMinutes of labour, with no coverage.
     const shifts = (gapMinutes: number) => calculateStaffing({ forecastSalesMinor: gapMinutes * 10_000 / 60, regularMinutes: 0, allocatedCasualMinutes: 0, policy }).indicativeShifts;
