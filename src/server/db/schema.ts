@@ -426,10 +426,17 @@ export const workPayables = pgTable("work_payables", {
   scheduledStartsAt: timestamp("scheduled_starts_at", { withTimezone: true }).notNull(),
   scheduledEndsAt: timestamp("scheduled_ends_at", { withTimezone: true }).notNull(),
   baseAmountMinor: bigint("base_amount_minor", { mode: "number" }).notNull(),
-  // Only the review state exists so far; approval and payout states are added with those operations.
+  // PENDING_REVIEW until a manager approves it (APPROVED). Payment state is held by
+  // the payable's work_payouts row, never here.
   status: text("status").notNull().default("PENDING_REVIEW"),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
   confirmedBy: uuid("confirmed_by").references(() => users.id),
+  // Manager approval of the final payable amount. For confirmed base work the final
+  // amount is the base payable exactly; an approved incentive would be added here later.
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedBy: uuid("approved_by").references(() => users.id),
+  approvedAmountMinor: bigint("approved_amount_minor", { mode: "number" }),
+  approvedCurrencyCode: text("approved_currency_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -444,7 +451,59 @@ export const workPayables = pgTable("work_payables", {
   check("work_payables_schedule_check", sql`${t.scheduledEndsAt} > ${t.scheduledStartsAt}`),
   // The amount is exactly the accepted rate applied to the accepted schedule.
   check("work_payables_formula_check", sql`(${t.earningsModel} = 'DAILY' and ${t.baseAmountMinor} = ${t.rateMinor}) or (${t.earningsModel} = 'HOURLY' and ${t.baseAmountMinor}::numeric * 3600 = ${t.rateMinor}::numeric * extract(epoch from ${t.scheduledEndsAt} - ${t.scheduledStartsAt}))`),
-  check("work_payables_status_check", sql`${t.status} in ('PENDING_REVIEW')`),
+  check("work_payables_status_check", sql`${t.status} in ('PENDING_REVIEW', 'APPROVED')`),
+  check("work_payables_approval_check", sql`(${t.status} = 'PENDING_REVIEW' and ${t.approvedAt} is null and ${t.approvedBy} is null and ${t.approvedAmountMinor} is null and ${t.approvedCurrencyCode} is null)
+    or (${t.status} = 'APPROVED' and ${t.approvedAt} is not null and ${t.approvedBy} is not null and ${t.approvedAmountMinor} = ${t.baseAmountMinor} and ${t.approvedCurrencyCode} = ${t.currencyCode})`),
+]);
+
+// The single PayPal payout of one approved work payable. The unique payable reference
+// is the reservation: at most one payout can ever exist for a payable, and its
+// sender batch/item IDs are derived from the payable, so a retry reuses them and
+// PayPal pays a sender_batch_id at most once. The amount, currency and recipient are
+// fixed when the payout is reserved; a database trigger checks the amount and currency
+// against the approved payable (drizzle/0014_work_payouts.sql).
+export const workPayouts = pgTable("work_payouts", {
+  id: uuid("id").primaryKey(),
+  payableId: uuid("payable_id").notNull().references(() => workPayables.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  recipient: text("recipient").notNull(),
+  senderBatchId: text("sender_batch_id").notNull(),
+  senderItemId: text("sender_item_id").notNull(),
+  // SUBMITTING: reserved and being sent; NOT_SENT: PayPal certainly made no payout;
+  // PROCESSING: PayPal accepted it; PAID: PayPal item SUCCESS; FAILED: PayPal refused
+  // or failed it; RECONCILIATION_REQUIRED: the outcome of the request is unknown.
+  status: text("status").notNull(),
+  paypalBatchId: text("paypal_batch_id"),
+  paypalItemId: text("paypal_item_id"),
+  paypalTransactionId: text("paypal_transaction_id"),
+  paypalBatchStatus: text("paypal_batch_status"),
+  paypalStatus: text("paypal_status"),
+  // Structured, non-sensitive provider error: code, HTTP status and debug ID only.
+  lastError: jsonb("last_error"),
+  attempts: integer("attempts").notNull().default(1),
+  requestedBy: uuid("requested_by").references(() => users.id),
+  reservedAt: timestamp("reserved_at", { withTimezone: true }).notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  statusCheckedAt: timestamp("status_checked_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("work_payouts_payable_unique").on(t.payableId),
+  uniqueIndex("work_payouts_sender_batch_unique").on(t.senderBatchId),
+  uniqueIndex("work_payouts_sender_item_unique").on(t.senderItemId),
+  uniqueIndex("work_payouts_paypal_batch_unique").on(t.paypalBatchId),
+  index("work_payouts_scope_idx").on(t.organisationId, t.outletId),
+  index("work_payouts_worker_idx").on(t.workerId),
+  check("work_payouts_status_check", sql`${t.status} in ('SUBMITTING', 'NOT_SENT', 'PROCESSING', 'PAID', 'FAILED', 'RECONCILIATION_REQUIRED')`),
+  check("work_payouts_amount_check", sql`${t.amountMinor} > 0 and ${t.amountMinor} <= 9007199254740991 and ${t.currencyCode} ~ '^[A-Z]{3}$' and ${t.attempts} > 0`),
+  // Processing and paid payouts have a PayPal batch; a reservation or unsent payout cannot.
+  check("work_payouts_provider_check", sql`(${t.status} not in ('PROCESSING', 'PAID') or ${t.paypalBatchId} is not null) and (${t.status} not in ('SUBMITTING', 'NOT_SENT') or ${t.paypalBatchId} is null)`),
+  check("work_payouts_paid_check", sql`(${t.status} = 'PAID') = (${t.paidAt} is not null and coalesce(${t.paypalStatus}, '') = 'SUCCESS')`),
 ]);
 
 // A separate boundary from location sales. No ingestion or demo attribution is supplied.
@@ -529,7 +588,7 @@ export const schema = {
   saleTransactions,
   providerEvents,
   workers, regularStaffCoverage,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, attributedSales,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, attributedSales,
   shifts,
   shiftOffers,
   shiftIncentives,

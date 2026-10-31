@@ -25,7 +25,7 @@ import Onboarding from "@/app/onboarding/page";
 import Account from "@/app/account/page";
 import { POST as createOrder } from "@/app/api/paypal/orders/route";
 import { inviteAction, selectLocationAction, refreshSubscriptionAction, selectMembershipAction, savePersonalAction, saveBusinessAction } from "@/app/auth-actions";
-import { createTeamAction, createDepartmentAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction } from "@/app/operations-actions";
+import { createTeamAction, createDepartmentAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
 import { submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import BillingReturn from "@/app/billing/return/page";
 const jar=vi.hoisted(()=>new Map<string,string>());
@@ -119,7 +119,7 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
     for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
-    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction]) {
+    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,approvePayableAction,sendPayoutAction,refreshPayoutAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
    }

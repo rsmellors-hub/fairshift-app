@@ -22,13 +22,22 @@ export function paymentLabel(status?: string | null) {
   }
 }
 
-// Base payables of confirmed work. Only the review state exists: nothing has been approved or paid.
-export function payableLabel(status?: string | null) {
-  return status === "PENDING_REVIEW" ? "Awaiting approval" : "Status unavailable";
+// The payment lifecycle of a confirmed work payable: approval on the payable, then the
+// state of its PayPal payout. "Paid" appears only once PayPal reports the item paid.
+export function payableLabel(status?: string | null, payout?: { status: string; paypalStatus?: string | null } | null) {
+  switch (payout?.status) {
+    case "SUBMITTING": return "Processing";
+    case "PROCESSING": return payout.paypalStatus === "UNCLAIMED" ? "Processing · awaiting PayPal claim" : payout.paypalStatus === "ONHOLD" ? "Processing · on hold at PayPal" : "Processing";
+    case "PAID": return "Paid";
+    case "FAILED": return "Needs attention";
+    case "RECONCILIATION_REQUIRED": return "Payment status being confirmed";
+  }
+  return status === "PENDING_REVIEW" ? "Awaiting approval" : status === "APPROVED" ? "Approved" : "Status unavailable";
 }
 
-export function PayableBadge({ status }: { status?: string | null }) {
-  return <StatusBadge tone={status === "PENDING_REVIEW" ? "neutral" : "warning"}>{payableLabel(status)}</StatusBadge>;
+export function PayableBadge({ status, payout }: { status?: string | null; payout?: { status: string; paypalStatus?: string | null } | null }) {
+  const tone = payout?.status === "PAID" ? "success" : payout?.status === "FAILED" ? "danger" : payout?.status === "RECONCILIATION_REQUIRED" || !["PENDING_REVIEW", "APPROVED"].includes(status ?? "") ? "warning" : "neutral";
+  return <StatusBadge tone={tone}>{payableLabel(status, payout)}</StatusBadge>;
 }
 
 export function scheduledHours(startsAt: Date, endsAt: Date) {

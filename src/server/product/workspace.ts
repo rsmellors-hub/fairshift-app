@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, departments } from "@/server/db/schema";
+import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 
 // These workspaces retain the existing server-pinned environment scope.
@@ -38,6 +38,12 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
       id: workPayables.id, status: workPayables.status, baseAmountMinor: workPayables.baseAmountMinor, currencyCode: workPayables.currencyCode,
       earningsModel: workPayables.earningsModel, rateMinor: workPayables.rateMinor, termsVersion: workPayables.termsVersion,
       scheduledStartsAt: workPayables.scheduledStartsAt, scheduledEndsAt: workPayables.scheduledEndsAt, confirmedAt: workPayables.confirmedAt,
+      approvedAt: workPayables.approvedAt,
+    },
+    // Its payout state, without PayPal identifiers, recipient or error internals.
+    payout: {
+      id: workPayouts.id, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, amountMinor: workPayouts.amountMinor,
+      currencyCode: workPayouts.currencyCode, submittedAt: workPayouts.submittedAt, paidAt: workPayouts.paidAt,
     },
   }).from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))
@@ -46,10 +52,12 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .innerJoin(workers, eq(shiftOffers.workerId, workers.id))
     .leftJoin(shiftIncentives, and(eq(shiftIncentives.shiftId, shifts.id), eq(shiftIncentives.workerId, workers.id)))
     .leftJoin(workPayables, and(eq(workPayables.allocationId, workAllocations.id), eq(workPayables.workerId, workers.id), eq(workPayables.organisationId, workers.organisationId)))
+    .leftJoin(workPayouts, and(eq(workPayouts.payableId, workPayables.id), eq(workPayouts.workerId, workers.id)))
     .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;
-  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null };
+  const [location] = await db.select({ timezone: outlets.timezone }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, timezone: location?.timezone ?? null };
 }
 
 export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DEMO_ORGANISATION_ID) {
@@ -68,5 +76,13 @@ export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DE
     .orderBy(desc(shifts.shiftDate));
   const workforce = await db.select({ name: workers.displayName, type: workers.workerType, status: workers.status })
     .from(workers).where(eq(workers.organisationId, organisationId));
-  return { locations, sales, payments, workforce };
+  // Work earnings across the organisation: approval and payout state only.
+  const workPayments = await db.select({
+    id: workPayables.id, outletId: workPayables.outletId, workerName: workers.displayName, shiftDate: shifts.shiftDate,
+    amountMinor: workPayables.baseAmountMinor, currencyCode: workPayables.currencyCode, status: workPayables.status,
+    payout: { id: workPayouts.id, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paidAt: workPayouts.paidAt },
+  }).from(workPayables).innerJoin(workers, eq(workers.id, workPayables.workerId)).innerJoin(shifts, eq(shifts.id, workPayables.shiftId))
+    .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))
+    .where(eq(workPayables.organisationId, organisationId)).orderBy(desc(workPayables.confirmedAt));
+  return { locations, sales, payments, workforce, workPayments };
 }

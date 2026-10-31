@@ -1,9 +1,9 @@
 import { tokenHash } from "@/server/auth/identity";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, lt, gt } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, lt, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { departments, organisations, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, auditEvents, shiftIncentives } from "@/server/db/schema";
+import { departments, organisations, outlets, workers, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
 import { resolveLocationCurrency } from "@/server/domain/currency";
@@ -44,6 +44,13 @@ export async function createWorkPolicy(db: Database, input: unknown, name: strin
   const terms = policyInput.parse(input);
   return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, currencyCode: await locationCurrency(db, outlet) }).returning();
 }
+// Payout state shown to managers; the stored recipient address is not needed to review it.
+type PayoutColumns = ReturnType<typeof getTableColumns<typeof workPayouts>>;
+const managerPayoutColumns = (() => {
+  const columns: Partial<PayoutColumns> = { ...getTableColumns(workPayouts) };
+  delete columns.recipient;
+  return columns as Omit<PayoutColumns, "recipient">;
+})();
 export async function getOperations(db: DatabaseSession, scope:OperatingScope=demoScope) {
   const outlet = await location(db, scope);
   const team = await db.select({ worker: workers, invitation: teamInvitations }).from(workers)
@@ -61,8 +68,12 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
     .innerJoin(shifts, eq(shifts.id, shiftIncentives.shiftId)).innerJoin(workers, eq(workers.id, shiftIncentives.workerId))
     .where(and(eq(shifts.outletId, scope.locationId), eq(workers.organisationId, scope.organisationId), inArray(shiftIncentives.status, ["FAILED", "EARNED"])));
   // Base payables of confirmed work at this location, in one scoped query.
-  const payables = await db.select({ payable: workPayables, workerName: workers.displayName, shiftDate: shifts.shiftDate, roleName: shifts.roleName })
+  // Each carries its payout, if any, and whether the worker has saved payment details
+  // (not the details themselves).
+  const payables = await db.select({ payable: workPayables, payout: managerPayoutColumns, workerName: workers.displayName, shiftDate: shifts.shiftDate, roleName: shifts.roleName,
+    paymentDetailsSaved: sql<boolean>`${workers.paypalPayoutEmail} is not null` })
     .from(workPayables).innerJoin(workers, eq(workers.id, workPayables.workerId)).innerJoin(shifts, eq(shifts.id, workPayables.shiftId))
+    .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))
     .where(and(eq(workPayables.organisationId, scope.organisationId), eq(workPayables.outletId, scope.locationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(workPayables.confirmedAt));
   return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, currency: await locationCurrency(db, outlet), timezone: outlet.timezone };

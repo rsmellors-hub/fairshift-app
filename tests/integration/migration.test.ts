@@ -227,4 +227,38 @@ describe("work payable upgrade", () => {
    await expect(client.exec("INSERT INTO work_policies (id, outlet_id, name, earnings_model, rate_minor) VALUES ('60000000-0000-4000-8000-0000000000e9', '20000000-0000-4000-8000-0000000000d1', 'No currency', 'HOURLY', 1200)")).rejects.toThrow();
   } finally { await client.close(); }
  });
+
+ it("keeps existing payables awaiting review and incentive payouts unchanged, and creates no payouts", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 14)) await apply(entry.tag);
+   await client.exec(`
+    INSERT INTO organisations (id, name, country) VALUES ('10000000-0000-4000-8000-0000000001c1', 'UK company', 'United Kingdom');
+    INSERT INTO outlets (id, organisation_id, name, timezone) VALUES ('20000000-0000-4000-8000-0000000001d1', '10000000-0000-4000-8000-0000000001c1', 'Leeds', 'Europe/London');
+    INSERT INTO work_policies (id, outlet_id, name, earnings_model, rate_minor, currency_code) VALUES ('60000000-0000-4000-8000-0000000001e1', '20000000-0000-4000-8000-0000000001d1', 'UK hourly', 'HOURLY', 1200, 'GBP');
+    INSERT INTO shifts (id, outlet_id, policy_id, earnings_model, rate_minor, expected_earnings_minor, shift_date, starts_at, ends_at, role_name, status, currency_code, guaranteed_base_pay_minor, gratuity_policy, incentive_policy)
+     VALUES ('40000000-0000-4000-8000-0000000001f1', '20000000-0000-4000-8000-0000000001d1', '60000000-0000-4000-8000-0000000001e1', 'HOURLY', 1200, 7200, '2026-10-20', '2026-10-20T08:00:00Z', '2026-10-20T14:00:00Z', 'General', 'PUBLISHED', 'GBP', 7200, 'None', 'None');
+    INSERT INTO workers (id, organisation_id, display_name, worker_type, location_id, paypal_payout_email) VALUES ('30000000-0000-4000-8000-0000000001f2', '10000000-0000-4000-8000-0000000001c1', 'Casual', 'CASUAL', '20000000-0000-4000-8000-0000000001d1', 'worker@example.test');
+    INSERT INTO shift_offers (id, shift_id, worker_id, status, responded_at, accepted_at) VALUES ('50000000-0000-4000-8000-0000000001f3', '40000000-0000-4000-8000-0000000001f1', '30000000-0000-4000-8000-0000000001f2', 'ACCEPTED', now(), now());
+    INSERT INTO work_acceptances (id, offer_id, worker_id, terms_version, snapshot) VALUES ('70000000-0000-4000-8000-0000000001f4', '50000000-0000-4000-8000-0000000001f3', '30000000-0000-4000-8000-0000000001f2', 1,
+     '{"earningsModel":"HOURLY","currencyCode":"GBP","rateMinor":1200,"expectedEarningsMinor":7200,"startsAt":"2026-10-20T08:00:00.000Z","endsAt":"2026-10-20T14:00:00.000Z"}');
+    INSERT INTO work_allocations (id, offer_id, acceptance_id, confirmed_at) VALUES ('80000000-0000-4000-8000-0000000001f5', '50000000-0000-4000-8000-0000000001f3', '70000000-0000-4000-8000-0000000001f4', '2026-10-21T09:00:00Z');
+    INSERT INTO work_payables (id, organisation_id, outlet_id, shift_id, worker_id, offer_id, allocation_id, acceptance_id, terms_version, calculation_method, earnings_model, currency_code, rate_minor, scheduled_starts_at, scheduled_ends_at, base_amount_minor, confirmed_at)
+     VALUES ('a0000000-0000-4000-8000-0000000001f7', '10000000-0000-4000-8000-0000000001c1', '20000000-0000-4000-8000-0000000001d1', '40000000-0000-4000-8000-0000000001f1', '30000000-0000-4000-8000-0000000001f2', '50000000-0000-4000-8000-0000000001f3', '80000000-0000-4000-8000-0000000001f5', '70000000-0000-4000-8000-0000000001f4', 1, 'confirm-as-scheduled-v1', 'HOURLY', 'GBP', 1200, '2026-10-20T08:00:00Z', '2026-10-20T14:00:00Z', 7200, '2026-10-21T09:00:00Z');
+    INSERT INTO shift_incentives (id, shift_id, worker_id, performance_sales_minor, target_sales_minor, earned_amount_minor, status, approved_at, approved_by, payout_recipient, paypal_sender_batch_id, paypal_sender_item_id, paypal_batch_id, paypal_item_id, paypal_status, paid_at)
+     VALUES ('90000000-0000-4000-8000-0000000001f6', '40000000-0000-4000-8000-0000000001f1', '30000000-0000-4000-8000-0000000001f2', 70000, 65000, 2500, 'PAID', now(), 'DEMO_MANAGER', 'worker@example.test', 'FS-BATCH-Y', 'FS-ITEM-Y', 'BATCH-Y', 'ITEM-Y', 'SUCCESS', now());`);
+   const snapshot = async () => Object.fromEntries(await Promise.all(["shifts", "shift_offers", "work_acceptances", "work_allocations", "shift_incentives", "workers"].map(async table => [table, (await client.query(`SELECT * FROM ${table} ORDER BY id`)).rows])));
+   const before = await snapshot();
+   const payableBefore = (await client.query<Record<string, unknown>>("SELECT * FROM work_payables")).rows[0];
+   expect(journal.entries[14].tag).toBe("0014_work_payouts");
+   await apply(journal.entries[14].tag);
+   expect(await snapshot()).toEqual(before);
+   expect((await client.query("SELECT * FROM work_payables")).rows[0]).toEqual({ ...payableBefore, approved_at: null, approved_by: null, approved_amount_minor: null, approved_currency_code: null });
+   // Nothing is approved or paid by the migration.
+   expect((await client.query("SELECT count(*)::int AS count FROM work_payouts")).rows[0]).toEqual({ count: 0 });
+   await expect(client.exec("UPDATE work_payables SET base_amount_minor = 1")).rejects.toThrow();
+  } finally { await client.close(); }
+ });
 });

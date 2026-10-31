@@ -12,6 +12,8 @@ import { dispatchNotification, dispatchWorkerEmails } from "@/server/notificatio
 import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
+import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
+import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 
 async function perform(path: string, fn: () => Promise<unknown>) {
   if (!getConfigurationStatus().databaseConfigured) redirect(`${path}${path.includes("?") ? "&" : "?"}status=error`);
@@ -79,6 +81,20 @@ export async function confirmWorkAction(form: FormData) {
     if (field(form, "confirmed") !== "yes") throw new Error("Confirm completed work.");
     return confirmWork(getDatabase(), field(form, "offerId"),scope);
   });
+}
+// Payment actions take only the payable ID: amount, currency and recipient are read
+// from the approved payable and the worker's saved payment settings on the server.
+export async function approvePayableAction(form: FormData) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  return perform("/manager/review", () => approveWorkPayable(getDatabase(), scope, field(form, "payableId")));
+}
+export async function sendPayoutAction(form: FormData) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  return perform("/manager/review", () => submitWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
+}
+export async function refreshPayoutAction(form: FormData) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  return perform("/manager/review", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
 }
 export async function changeAssignmentAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);
