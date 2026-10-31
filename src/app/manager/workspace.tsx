@@ -89,6 +89,11 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
     </> : null}
   </>;
 }
+// The structured PayPal error code recorded with a payout, if any (never a provider message).
+function payoutReason(lastError: unknown) {
+  const code = typeof lastError === "object" && lastError !== null && "code" in lastError ? (lastError as { code: unknown }).code : null;
+  return typeof code === "string" ? code : null;
+}
 type ManagerPayables = Awaited<ReturnType<typeof getOperations>>["payables"];
 // One next action per payable: approve, then send, then check status. Each form posts
 // only the payable ID; the server reads amount, currency and recipient itself.
@@ -106,6 +111,7 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
   }
   return <>
     {payout.status === "FAILED" ? <p><small>PayPal did not complete this payment. It cannot be sent again from FairShift; contact your platform operator.</small></p> : null}
+    {payout.status === "PROCESSING" && ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "") ? <p><small>PayPal is waiting for the worker to {payout.paypalStatus === "UNCLAIMED" ? "claim the payment with a PayPal account" : "accept the payment in their PayPal account"}. Nothing is paid until PayPal reports success.</small></p> : null}
     {payout.status === "RECONCILIATION_REQUIRED" ? <p><small>PayPal&apos;s response was not received, so this payment is unconfirmed. Checking repeats the identical request, which PayPal pays at most once.</small></p> : null}
     {payout.status !== "FAILED" || payout.paypalBatchId ? <form action={refreshPayoutAction}>{id}<button className="secondary-button">Check payment status</button></form> : null}
     <details><summary>PayPal Sandbox reference</summary><dl className="shift-terms">
@@ -114,6 +120,7 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
       <div><dt>Payout item</dt><dd>{payout.paypalItemId ?? "Not yet received"}</dd></div>
       <div><dt>Transaction</dt><dd>{payout.paypalTransactionId ?? "Not yet received"}</dd></div>
       <div><dt>PayPal status</dt><dd>{payout.paypalStatus ?? payout.paypalBatchStatus ?? "Unknown"}</dd></div>
+      {payoutReason(payout.lastError) ? <div><dt>PayPal reason</dt><dd>{payoutReason(payout.lastError)}</dd></div> : null}
       <div><dt>Last checked</dt><dd>{payout.statusCheckedAt ? dateTime(payout.statusCheckedAt, timezone) : "Not yet checked"}</dd></div>
       {payout.paidAt ? <div><dt>Paid</dt><dd>{dateTime(payout.paidAt, timezone)}</dd></div> : null}
     </dl></details>

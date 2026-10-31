@@ -462,6 +462,34 @@ describe("manager approval and PayPal payout of confirmed work", () => {
     } finally { fetchSpy.mockRestore(); await t.close(); }
   });
 
+  it("explains a payout PayPal holds for the recipient, without calling it paid or exposing codes to the worker", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable, workerScope } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      // As observed in Sandbox for a GBP payout to an account that does not hold GBP.
+      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => ({ batchId, itemId: "PPI-H", status: "ONHOLD", batchStatus: "PROCESSING", itemStatus: "ONHOLD", transactionId: "PPT-H", itemErrorCode: "PENDING_RECIPIENT_NON_HOLDING_CURRENCY_PAYMENT_PREFERENCE" })) });
+      await submitWorkPayout(t.db, paypal, manager, payable.id);
+      expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null, lastError: { code: "PENDING_RECIPIENT_NON_HOLDING_CURRENCY_PAYMENT_PREFERENCE" } });
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireScope).mockResolvedValue(manager);
+      const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
+      for (const text of ["Processing · on hold at PayPal", "accept the payment in their PayPal account", "PENDING_RECIPIENT_NON_HOLDING_CURRENCY_PAYMENT_PREFERENCE"]) expect(review).toContain(text);
+      expect(review).not.toMatch(/>\s*Paid\s*</);
+      vi.mocked(requireScope).mockResolvedValue(workerScope);
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      expect(earnings).toContain("check your PayPal account to accept it");
+      expect(earnings).not.toContain("PENDING_RECIPIENT");
+      expect(earnings).not.toMatch(/>\s*Paid\s*</);
+      const home = renderToStaticMarkup(await WorkerWorkspace({ area: "home" }));
+      expect(home).toContain("£72.00 sent to PayPal · processing");
+      expect(home).not.toContain("£72.00 paid");
+    } finally { await t.close(); }
+  });
+
   it("shows payment details required to the manager and worker without offering a payout", async () => {
     const t = await createTestDatabase();
     try {
