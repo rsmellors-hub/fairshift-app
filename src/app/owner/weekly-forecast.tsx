@@ -27,7 +27,8 @@ function Provenance({ outlet }: { outlet: OutletWeeklyForecast }) {
 }
 
 // staffing: null = failed to load (never zero coverage or zero gap).
-export function OwnerWeeklyForecast({ weekly, staffing }: { weekly: WeeklyForecast | null; staffing?: WeeklyStaffing | null }) {
+// assessment: the AI interpretation panel, rendered after the calculated staffing figures it interprets.
+export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: WeeklyForecast | null; staffing?: WeeklyStaffing | null; assessment?: React.ReactNode }) {
   const header = <header className="owner-heading"><div><p className="owner-eyebrow">Demand forecast</p><h1>Weekly forecast</h1><p>Expected sales, required labour and casual labour gaps for the next seven days at each location.</p></div><Link className="owner-link" href="/owner">Back to Overview <span aria-hidden="true">→</span></Link></header>;
   if (!weekly) return <div className="owner-overview owner-forecast">{header}<section className="owner-empty" role="alert"><h2>Forecast could not be loaded</h2><p>No demand has been assumed. Reload to try again.</p></section></div>;
   const c = weekly.consolidated;
@@ -60,6 +61,7 @@ export function OwnerWeeklyForecast({ weekly, staffing }: { weekly: WeeklyForeca
         </table></div>
       </section>
       <StaffingByLocation staffing={staffing} />
+      {assessment}
       <section className="owner-attention" aria-labelledby="owner-forecast-evidence-title">
         <div className="owner-section-heading"><div><h2 id="owner-forecast-evidence-title">Ranges and evidence</h2><p>Planning ranges are not calibrated confidence intervals.</p></div></div>
         {weekly.outlets.map(outlet => <details className="owner-forecast-detail" key={outlet.outletId}><summary><strong>{outlet.outletName}</strong> <Provenance outlet={outlet} /></summary>

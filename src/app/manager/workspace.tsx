@@ -13,16 +13,18 @@ import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
 import { getManagerForecast } from "@/server/intelligence/manager";
-import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
 import { labourHours, longDate, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
-import { getAiOperationalAssessment } from "@/server/integrations/openai/operational-intelligence";
+import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
+import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
+import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { AllocationScheduler } from "./allocation-scheduler";
 import { DemoReview } from "./review-workspace";
 
 export const managerAreas = ["plan", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
 
-export async function ManagerWorkspace({ area, status, date, department }: { area: ManagerArea; status?: string; date?: string; department?: string }) {
+export async function ManagerWorkspace({ area, status, date, department, ai }: { area: ManagerArea; status?: string; date?: string; department?: string; ai?: string }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=await requireScope(["OWNER","MANAGER"]);
   let data;
@@ -48,8 +50,8 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
       <section className="panel"><h2>Add team member</h2><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p>Location: {scope.locationName}. Email is sent only when configured; invitation state is tracked separately.</p><button className="primary-button">Create & send FairShift invite</button></form></section>
     </> : null}
     {area === "plan" ? <>
-      {await Staffing(scope)}
-      <details className="panel"><summary>Single-day demand forecast & AI interpretation</summary>{await Forecast(scope)}</details>
+      {await Staffing(scope, ai)}
+      <details className="panel"><summary>Single-day demand forecast</summary>{await Forecast(scope)}</details>
       <section className="panel"><h2>Coverage requirements</h2><p>{scope.locationName} · Johannesburg time</p>
       <form method="get" action="/manager/plan" className="inline-form"><label>Trading day<input type="date" name="date" defaultValue={date} /></label><label>Department<select name="department" defaultValue={department ?? ""}><option value="">All departments</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label><button className="secondary-button">Apply</button><Link href="/manager/plan">All dates</Link></form>
         {visibleRequirements.length ? visibleRequirements.sort((a,b) => a.shiftDate.localeCompare(b.shiftDate)).map(r => {
@@ -63,7 +65,7 @@ export async function ManagerWorkspace({ area, status, date, department }: { are
           </article>;
         }) : <StatePanel title="No coverage requirements" />}
       <p className="method-note">Invitations beyond the requested headcount are unavailable pending a capacity-policy decision.</p></section>
-      <details className="panel" id="add-requirement"><summary>Add a department coverage requirement</summary>{departments.length && policies.length ? <form action={createRequirementAction} className="workspace-form form-grid"><PlanContext date={date} department={department} /><label>Department<select name="departmentId" defaultValue={department}>{departments.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>Owner-defined work terms<select name="policyId">{policies.map(p => <option key={p.id} value={p.id}>{p.name} · {p.earningsModel.toLowerCase()}</option>)}</select></label><label>Starts · Johannesburg<input name="startsAt" type="datetime-local" required /></label><label>Ends · Johannesburg<input name="endsAt" type="datetime-local" required /></label><label>Required headcount<input name="headcount" type="number" min="1" max="1000" defaultValue="1" required /></label><button className="primary-button">Create requirement</button></form> : <p>Owner/Admin must configure a department and work policy first.</p>}</details>
+      <details className="panel" id="add-requirement" open={!!date}><summary>Add a department coverage requirement</summary>{departments.length && policies.length ? <form action={createRequirementAction} className="workspace-form form-grid"><PlanContext date={date} department={department} /><label>Department<select name="departmentId" defaultValue={department}>{departments.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>Owner-defined work terms<select name="policyId">{policies.map(p => <option key={p.id} value={p.id}>{p.name} · {p.earningsModel.toLowerCase()}</option>)}</select></label><label>Starts · Johannesburg<input name="startsAt" type="datetime-local" required /></label><label>Ends · Johannesburg<input name="endsAt" type="datetime-local" required /></label><label>Required headcount<input name="headcount" type="number" min="1" max="1000" defaultValue="1" required /></label><button className="primary-button">Create requirement</button></form> : <p>Owner/Admin must configure a department and work policy first.</p>}</details>
       {await Roster(scope)}
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
@@ -129,15 +131,17 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
 function PlanContext({ date, department }: { date?: string; department?: string }) {
   return <><input type="hidden" name="planDate" value={date ?? ""} /><input type="hidden" name="planDepartment" value={department ?? ""} /></>;
 }
+// The single-day forecast is deterministic only: AI interpretation is the weekly
+// assessment in Staffing, which is stored and never requested by rendering.
 async function Forecast(scope:Scope) {
-  let result, aiResult;
-  try { result = await getManagerForecast(getDatabase(),new Date(),scope); aiResult = await getAiOperationalAssessment(result); }
+  let result;
+  try { result = await getManagerForecast(getDatabase(),new Date(),scope); }
   catch { return <ManagerForecast result={null} error="Demand evidence is unavailable. Prior requirements remain available." />; }
-  return <ManagerForecast result={result} aiResult={aiResult} />;
+  return <ManagerForecast result={result} />;
 }
 // Planning-week staffing evidence for the manager's own location; managers are
 // scoped to one location, so no location selector is shown.
-async function Staffing(scope:Scope) {
+async function Staffing(scope:Scope, aiNotice?: string) {
   let staffing;
   try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); }
   catch { return <StatePanel title="Staffing unavailable" tone="warning"><p>Forecast or coverage could not be loaded, so no labour gap is shown. Existing requirements remain available below.</p></StatePanel>; }
@@ -157,7 +161,18 @@ async function Staffing(scope:Scope) {
     <div className="history-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="history-table" /></div>
     <p className="method-note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>
     {outlet.totals?.casualGapMinutes ? <p><Link href="#add-requirement">Plan shifts for the casual labour gap ↓</Link></p> : null}
+    {await LocationAssessment(scope, staffing, aiNotice)}
   </section>;
+}
+// AI interpretation of this location's staffing week. A failure here never hides the
+// calculated figures above it.
+async function LocationAssessment(scope:Scope, staffing:WeeklyStaffing, notice?: string) {
+  let view = null;
+  try { view = await getStaffingAssessmentView(getDatabase(),scope,"LOCATION",staffing); } catch { view = null; }
+  const names = Object.fromEntries(staffing.outlets.map(outlet => [outlet.outletId, outlet.outletName]));
+  return <AiStaffingAssessment view={view} names={names} configured={getConfigurationStatus().aiConfigured} action={generateLocationAssessmentAction} notice={notice}
+    timeZone={staffing.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone}
+    planHref={(outletId, date) => outletId === scope.locationId ? `/manager/plan${date ? `?date=${date}` : ""}#add-requirement` : null} />;
 }
 async function Roster(scope:Scope) {
   let schedule;

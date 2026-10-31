@@ -106,6 +106,13 @@
       "when": 1793446830260,
       "tag": "0014_work_payouts",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793455412601,
+      "tag": "0015_ai_staffing_assessments",
+      "breakpoints": true
     }
   ]
 }

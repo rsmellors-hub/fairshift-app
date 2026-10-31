@@ -58,7 +58,7 @@ export function ManagerForecast({
             <h3>Manager action</h3>
             <p>{result.action}</p>
           </section>
-          <section className="panel" aria-label="AI operational assessment">
+          {aiResult === undefined ? null : <section className="panel" aria-label="AI operational assessment">
             <DataLabel kind="predictive">AI-assisted interpretation</DataLabel>
             <h2>Operational interpretation</h2>
             {aiResult?.status === "AVAILABLE" ? (
@@ -98,7 +98,7 @@ export function ManagerForecast({
                 <p>AI operational assessment is temporarily unavailable. No AI assessment has been fabricated; use the deterministic evidence above.</p>
               </>
             )}
-          </section>
+          </section>}
           <section className="panel">
             <DataLabel kind="fact">Historical fact</DataLabel>
             <h2>Historical evidence</h2>

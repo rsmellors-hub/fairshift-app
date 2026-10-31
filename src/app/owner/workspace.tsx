@@ -16,13 +16,16 @@ import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { loadDailySales } from "@/server/intelligence/sales-history";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { getOwnerWorkspace } from "@/server/product/workspace";
+import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
+import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
+import { generateOwnerAssessmentAction } from "@/app/intelligence-actions";
 import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 
 const REPORTING_SOURCE = { REFERENCE: "Reference sales history · synthetic", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Verified PayPal Sandbox sales" } as const;
 export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"] as const;
 export type OwnerArea = "overview" | typeof ownerAreas[number];
 
-export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status?: string }) {
+export async function OwnerWorkspace({ area, status, ai }: { area: OwnerArea; status?: string; ai?: string }) {
   if (area === "overview") return OwnerPage();
   const configuration = getConfigurationStatus();
   if (!configuration.databaseConfigured) return <WorkspaceUnavailable />;
@@ -34,7 +37,13 @@ export async function OwnerWorkspace({ area, status }: { area: OwnerArea; status
     let weekly = null, staffing = null;
     try { weekly = await getWeeklyForecast(getDatabase(), scope, now); } catch { weekly = null; }
     try { staffing = await getWeeklyStaffing(getDatabase(), scope, now); } catch { staffing = null; }
-    return <OwnerWeeklyForecast weekly={weekly} staffing={staffing} />;
+    // The AI assessment is read from storage only; a failure leaves the forecast intact.
+    let view = null;
+    if (staffing) { try { view = await getStaffingAssessmentView(getDatabase(), scope, "ORGANISATION", staffing); } catch { view = null; } }
+    const names = Object.fromEntries((staffing?.outlets ?? []).map(outlet => [outlet.outletId, outlet.outletName]));
+    const assessment = staffing === null && weekly === null ? null : <AiStaffingAssessment view={view} names={names} configured={configuration.aiConfigured} action={generateOwnerAssessmentAction} notice={ai}
+      planHref={(outletId, date) => outletId === scope.locationId ? `/manager/plan${date ? `?date=${date}` : ""}#add-requirement` : null} />;
+    return <OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} />;
   }
   const subscription=await subscriptionFor(getDatabase(),scope);
   const invitations=await getDatabase().select().from(teamInvitations).where(eq(teamInvitations.organisationId,scope.organisationId));

@@ -261,4 +261,21 @@ describe("work payable upgrade", () => {
    await expect(client.exec("UPDATE work_payables SET base_amount_minor = 1")).rejects.toThrow();
   } finally { await client.close(); }
  });
+
+ it("adds the AI assessment store without touching existing records", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 15)) await apply(entry.tag);
+   await client.exec(`INSERT INTO organisations (id, name, country) VALUES ('10000000-0000-4000-8000-0000000002c1', 'UK company', 'United Kingdom');
+    INSERT INTO outlets (id, organisation_id, name, timezone) VALUES ('20000000-0000-4000-8000-0000000002d1', '10000000-0000-4000-8000-0000000002c1', 'Leeds', 'Europe/London');`);
+   const tables = async () => Object.fromEntries(await Promise.all(["organisations", "outlets", "sale_transactions", "work_payables", "work_payouts", "audit_events"].map(async table => [table, (await client.query(`SELECT * FROM ${table} ORDER BY 1`)).rows])));
+   const before = await tables();
+   expect(journal.entries[15].tag).toBe("0015_ai_staffing_assessments");
+   await apply(journal.entries[15].tag);
+   expect(await tables()).toEqual(before);
+   expect((await client.query("SELECT count(*)::int AS count FROM ai_staffing_assessments")).rows[0]).toEqual({ count: 0 });
+  } finally { await client.close(); }
+ });
 });

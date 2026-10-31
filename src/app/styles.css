@@ -630,3 +630,19 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .workplace-grid { grid-template-columns: 1fr; }
   .workplace-form > .primary-button { width: 100%; }
 }
+
+/* AI-assisted staffing interpretation: visibly separate from calculated figures. */
+.ai-assessment { border-left: 4px solid var(--indigo); }
+.ai-priorities { margin: 16px 0; padding: 0; list-style: none; counter-reset: ai-priority; display: grid; gap: 12px; }
+.ai-priority { counter-increment: ai-priority; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow-wrap: anywhere; }
+.ai-priority p { margin: 6px 0; }
+.ai-priority-heading::before { content: counter(ai-priority) ". "; font-weight: 700; }
+.ai-severity { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+.ai-severity-high { color: #9b3042; background: #fde9ed; }
+.ai-severity-medium { color: #765716; background: #fff3d9; }
+.ai-severity-low { color: #215f76; background: #e6f5fa; }
+.ai-evidence { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ai-evidence div { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.ai-evidence dt { color: var(--muted); font-size: 0.75rem; }
+.ai-evidence dd { margin: 0; font-weight: 700; }
+.ai-constraints { padding-left: 20px; overflow-wrap: anywhere; }

@@ -560,6 +560,43 @@ export const shiftIncentives = pgTable(
   ],
 );
 
+// One AI-assisted interpretation of a deterministic staffing week, or a failed
+// attempt at one. `input` is exactly what the model was given (aggregate planning
+// evidence with opaque location keys) and `input_fingerprint` its SHA-256, so an
+// assessment is current only while the deterministic evidence is unchanged.
+// `location_keys` maps those keys back to outlets; it is never sent to the model.
+// Scope is the organisation (Owner) or one location (Manager).
+export const aiStaffingAssessments = pgTable("ai_staffing_assessments", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "restrict" }),
+  scopeKey: text("scope_key").notNull(),
+  inputVersion: text("input_version").notNull(),
+  outputSchemaVersion: text("output_schema_version").notNull(),
+  inputFingerprint: text("input_fingerprint").notNull(),
+  input: jsonb("input").notNull(),
+  locationKeys: jsonb("location_keys").notNull(),
+  planningStart: date("planning_start", { mode: "string" }),
+  planningEnd: date("planning_end", { mode: "string" }),
+  evidenceThrough: date("evidence_through", { mode: "string" }),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  responseModel: text("response_model"),
+  providerResponseId: text("provider_response_id"),
+  status: text("status").notNull(),
+  failureCode: text("failure_code"),
+  assessment: jsonb("assessment"),
+  requestedBy: uuid("requested_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ai_staffing_assessments_scope_idx").on(t.organisationId, t.scopeKey, t.createdAt),
+  uniqueIndex("ai_staffing_assessments_current_unique").on(t.organisationId, t.scopeKey, t.inputFingerprint).where(sql`${t.status} = 'AVAILABLE'`),
+  check("ai_staffing_assessments_status_check", sql`(${t.status} = 'AVAILABLE' and ${t.assessment} is not null and ${t.failureCode} is null and ${t.responseModel} is not null)
+    or (${t.status} = 'FAILED' and ${t.assessment} is null and ${t.failureCode} is not null)`),
+  check("ai_staffing_assessments_scope_check", sql`(${t.scopeKey} = 'ORGANISATION' and ${t.outletId} is null) or (${t.outletId} is not null and ${t.scopeKey} = 'LOCATION:' || ${t.outletId}::text)`),
+  check("ai_staffing_assessments_fingerprint_check", sql`${t.inputFingerprint} ~ '^[0-9a-f]{64}$'`),
+]);
+
 export const auditEvents = pgTable(
   "audit_events",
   {
@@ -588,7 +625,7 @@ export const schema = {
   saleTransactions,
   providerEvents,
   workers, regularStaffCoverage,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, attributedSales,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales,
   shifts,
   shiftOffers,
   shiftIncentives,
