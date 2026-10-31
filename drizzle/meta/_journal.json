@@ -113,6 +113,13 @@
       "when": 1793455412601,
       "tag": "0015_ai_staffing_assessments",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793462932315,
+      "tag": "0016_business_labour_policy",
+      "breakpoints": true
     }
   ]
 }

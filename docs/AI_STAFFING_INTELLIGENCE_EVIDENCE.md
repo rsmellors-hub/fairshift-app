@@ -122,7 +122,7 @@ Because prose cannot contain digits, every number on the panel comes from the ca
 | None | An offer to generate |
 | Not configured | A statement that the calculated figures are complete without AI; no button |
 
-**Retired:** the Manager Plan page previously called the model on every render through `getAiOperationalAssessment`. It no longer does. That module is not used by any page and remains only with its unit tests.
+**Retired:** the Manager Plan page previously called the model on every render through `getAiOperationalAssessment`. It no longer does. That module was later deleted in FS-INTEL-CORRECT-001.
 
 ## Failure behaviour
 

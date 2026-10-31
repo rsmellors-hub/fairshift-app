@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import type { SalesSource } from "@/server/intelligence/forecast";
+import { isSyntheticSource, type SalesSource } from "@/server/intelligence/forecast";
 import type { OutletStaffing, WeeklyStaffing } from "@/server/intelligence/staffing";
 import { PROVIDER_RULE } from "@/server/intelligence/weekly";
 
@@ -54,9 +54,9 @@ const weekday = (date: string) => WEEKDAYS[(new Date(`${date}T12:00:00Z`).getUTC
 function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation {
   const evidence = outlet.evidence && {
     source: outlet.evidence.source, kind: outlet.evidence.kind,
-    synthetic: outlet.evidence.source !== "PAYPAL_SANDBOX",
+    synthetic: isSyntheticSource(outlet.evidence.source),
     dataThrough: outlet.evidence.dataThrough, ageDays: outlet.evidence.ageDays,
-    stale: outlet.evidence.kind === "HISTORICAL" || outlet.evidence.ageDays > PROVIDER_RULE.maximumAgeDays,
+    stale: outlet.evidence.ageDays > PROVIDER_RULE.maximumAgeDays,
   };
   const days = outlet.days.map((day): AssessmentDay => ({
     date: day.planningDate, weekday: weekday(day.planningDate), support: day.support, unavailable: day.unavailable,
@@ -68,7 +68,7 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
   if (evidence?.stale) flags.push("HISTORICAL_EVIDENCE_STALE");
   if (!outlet.regularCoverage) flags.push("REGULAR_COVERAGE_MISSING");
   if (days.some(day => day.unavailable === "NO_FORECAST")) flags.push("FORECAST_UNAVAILABLE");
-  if (days.some(day => day.unavailable === "NO_LABOUR_ASSUMPTION")) flags.push("NO_LABOUR_ASSUMPTION");
+  if (days.some(day => day.unavailable === "NO_LABOUR_POLICY" || day.unavailable === "LABOUR_POLICY_CURRENCY_MISMATCH")) flags.push("NO_LABOUR_ASSUMPTION");
   if (days.some(day => day.support === "LOW")) flags.push("LOW_SUPPORT_DAYS");
   return { key, currency: outlet.currency, labourPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week: outlet.totals ? { ...outlet.totals } : null, days };
 }
@@ -274,6 +274,9 @@ Rules:
   copied exactly from the input: for a date, the field of that day; for a null date,
   the location's "week" totals; "evidenceAgeDays" is the location's evidence ageDays.
   Minutes are labour minutes; amounts ending in Minor are minor currency units.
+- Every priority cites one to four evidence items, and at most ten constraints are
+  given. A null or missing figure cannot be cited. If a location has no "week" totals,
+  use a planning date and cite that day's non-null figures, or cite evidenceAgeDays.
 - Refer to a location in text only as its key in double brackets, for example [[L1]],
   and to days by weekday name.
 - Only use a category or action the evidence supports: CASUAL_GAP and FILL_SHIFTS

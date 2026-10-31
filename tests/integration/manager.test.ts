@@ -47,18 +47,22 @@ describe("persisted commercial history to manager output", () => {
       vi.setSystemTime(DEMO_AS_OF);
       let html: string;
       try { html = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" })); } finally { vi.useRealTimers(); }
-      expect(html).toContain("Demo / seeded · not PayPal verified");
-      expect(html).toContain("Recommended worker delta");
-      expect(html).toContain("+3");
-      expect(html).toContain("forecast for 2026-10-16");
+      // The legacy single-day worker estimate is no longer on the page; weekly staffing is authoritative.
+      expect(html).not.toContain("Recommended worker delta");
+      expect(html).not.toContain("Single-day demand forecast");
+      const singleDay = renderToStaticMarkup(createElement(ManagerForecast, { result }));
+      expect(singleDay).toContain("Demo / seeded · not PayPal verified");
+      expect(singleDay).toContain("Recommended worker delta");
+      expect(singleDay).toContain("+3");
+      expect(singleDay).toContain("forecast for 2026-10-16");
       // Planning-week staffing for the USD demo location: labour assumption is GBP-only, so no gap is invented.
       expect(html).toContain("Planning week Fri, 16 Oct 2026 – Thu, 22 Oct 2026");
-      expect(html).toContain("No staffing assumption for this currency");
+      expect(html).toContain("No labour policy is configured");
       expect(html).not.toMatch(/Casual labour gap<\/span><strong>/);
       expect(html).toContain("Historical evidence");
-      expect(html).toContain("comparison assumption, not a saved plan");
-      expect(html).toContain("comparable-days-recency-v1");
-      expect(html).toContain("not a calibrated confidence interval");
+      expect(singleDay).toContain("comparison assumption, not a saved plan");
+      expect(singleDay).toContain("comparable-days-recency-v1");
+      expect(singleDay).toContain("not a calibrated confidence interval");
       expect(html).toContain("Coverage requirements");
       expect(html).not.toContain("Approve incentive");
     } finally {

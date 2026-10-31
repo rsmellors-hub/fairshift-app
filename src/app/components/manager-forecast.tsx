@@ -1,6 +1,5 @@
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import type { ForecastResult } from "@/server/intelligence/forecast";
-import type { AiAssessmentResult } from "@/server/integrations/openai/operational-intelligence";
 
 function money(value: number, currency: string) {
   return new Intl.NumberFormat(currency === "GBP" ? "en-GB" : "en-US", { style: "currency", currency }).format(value / 100);
@@ -9,6 +8,7 @@ const SOURCE = {
   PAYPAL_SANDBOX: { kind: "fact", label: "Historical fact · verified PayPal Sandbox sales", records: "PayPal sandbox reconciled records" },
   DEMO_SEEDED: { kind: "demo", label: "Demo / seeded · not PayPal verified", records: "DEMO / SEEDED" },
   REFERENCE: { kind: "demo", label: "Reference history · synthetic, not provider sales", records: "REFERENCE / SYNTHETIC" },
+  IMPORTED: { kind: "fact", label: "Imported sales history · not provider-verified", records: "IMPORTED" },
 } as const;
 const UNAVAILABLE = {
   NO_ELIGIBLE_HISTORY: "No eligible completed sales in the 56-day lookback. No forecast or staffing recommendation has been invented.",
@@ -17,11 +17,9 @@ const UNAVAILABLE = {
 
 export function ManagerForecast({
   result,
-  aiResult,
   error,
 }: {
   result: ForecastResult | null;
-  aiResult?: AiAssessmentResult | null;
   error?: string;
 }) {
   return (
@@ -43,6 +41,7 @@ export function ManagerForecast({
             <p>{result.timezone} · {result.staffing.policy.tradingHours}-hour trading day · {result.currency}</p>
             <p className="method-note">{result.source === "PAYPAL_SANDBOX"
               ? "Uses completed, reconciled PayPal sandbox sales only. Seeded transactions are excluded."
+              : result.source === "IMPORTED" ? `Imported history; forecast for ${result.targetDate} from comparable weekdays in that history. This is not a live forecast.`
               : `Synthetic history; forecast for ${result.targetDate} from comparable weekdays in that history. This is not a live forecast.`}</p>
           </section>
           <section className="status-grid forecast-grid" aria-label="Forecast and staffing">
@@ -58,47 +57,6 @@ export function ManagerForecast({
             <h3>Manager action</h3>
             <p>{result.action}</p>
           </section>
-          {aiResult === undefined ? null : <section className="panel" aria-label="AI operational assessment">
-            <DataLabel kind="predictive">AI-assisted interpretation</DataLabel>
-            <h2>Operational interpretation</h2>
-            {aiResult?.status === "AVAILABLE" ? (
-              <>
-                <strong className="sandbox-banner">AI interpretation</strong>
-                <div className="status-grid forecast-grid">
-                  <article>
-                    <span>Demand outlook</span>
-                    <strong>{aiResult.assessment.demandOutlook.replaceAll("_", " ").toLowerCase()}</strong>
-                    <small>AI interpretation of the deterministic evidence</small>
-                  </article>
-                  <article>
-                    <span>Signal quality</span>
-                    <strong>{aiResult.assessment.signalQuality.toLowerCase()}</strong>
-                    <small>Evidence-quality assessment, not forecast confidence</small>
-                  </article>
-                  <article>
-                    <span>Staffing assessment</span>
-                    <strong>{aiResult.assessment.staffingAssessment.replaceAll("_", " ").toLowerCase()}</strong>
-                    <small>The AI cannot replace the deterministic worker count</small>
-                  </article>
-                </div>
-                <h3>Assessment</h3>
-                <p>{aiResult.assessment.summary}</p>
-                <h3>Manager action</h3>
-                <p>{aiResult.assessment.managerAction}</p>
-                <p className="method-note">
-                  AI provides bounded decision support only. The deterministic forecast and staffing baseline above remain unchanged, and manager judgement is required.
-                </p>
-              </>
-            ) : aiResult?.status === "NOT_CONFIGURED" ? (
-              <>
-                <p>AI interpretation is unavailable. The deterministic forecast and staffing baseline remain available.</p>
-              </>
-            ) : (
-              <>
-                <p>AI operational assessment is temporarily unavailable. No AI assessment has been fabricated; use the deterministic evidence above.</p>
-              </>
-            )}
-          </section>}
           <section className="panel">
             <DataLabel kind="fact">Historical fact</DataLabel>
             <h2>Historical evidence</h2>

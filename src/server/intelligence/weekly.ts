@@ -5,10 +5,10 @@ import { outlets } from "@/server/db/schema";
 import { forecastFromHistory, localDate, LOOKBACK_DAYS, METHOD_VERSION, shiftDate, type DailySales, type SalesForecast, type SalesSource } from "@/server/intelligence/forecast";
 import { loadDailySales, type DailySalesRow } from "@/server/intelligence/sales-history";
 
-export const SOURCE_RULE_VERSION = "source-eligibility-v1";
+export const SOURCE_RULE_VERSION = "source-eligibility-v2";
 export const PROVIDER_RULE = { minimumDays: 28, minimumPerWeekday: 3, maximumAgeDays: 2 } as const;
 const PROVIDER_SOURCES: readonly SalesSource[] = ["PAYPAL_SANDBOX"];
-// Historical evidence sources in precedence order. They never describe current trading.
+// Labelled synthetic evidence sources in precedence order. They never describe current trading.
 const HISTORICAL_SOURCES: readonly SalesSource[] = ["REFERENCE", "DEMO_SEEDED"];
 
 export type SourceRejection = {
@@ -24,11 +24,22 @@ export type SourceSelection =
 
 const weekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
 
+function sufficientImported(entry: { source: SalesSource; currency: string; days: DailySales[] }, rejected: SourceRejection[]) {
+  const reject = (reason: SourceRejection["reason"], detail: string) => (rejected.push({ source: entry.source, currency: entry.currency, reason, detail }), false);
+  const window = entry.days.filter(day => day.date >= shiftDate(entry.days.at(-1)!.date, -(LOOKBACK_DAYS - 1)));
+  if (window.length < PROVIDER_RULE.minimumDays) return reject("INSUFFICIENT_DAYS", `${window.length} of ${PROVIDER_RULE.minimumDays} required days in the ${LOOKBACK_DAYS}-day lookback.`);
+  const thin = [0, 1, 2, 3, 4, 5, 6].filter(day => window.filter(row => weekday(row.date) === day).length < PROVIDER_RULE.minimumPerWeekday);
+  return thin.length ? reject("INCOMPLETE_WEEKDAYS", `${thin.length} weekday(s) have fewer than ${PROVIDER_RULE.minimumPerWeekday} observations.`) : true;
+}
+
 // Deterministic, versioned choice of one history per outlet. Histories are never
-// mixed. A provider series supersedes historical evidence only when it is complete
-// enough for a weekly forecast: in the 56 days to yesterday it needs 28 distinct
-// days, three of every weekday, recent data, and the outlet's planning currency.
-// Otherwise labelled historical evidence (reference, then legacy demo) is used.
+// mixed. Precedence: eligible provider series, then sufficient imported history, then
+// labelled historical evidence (reference, then legacy demo). A provider series needs,
+// in the 56 days to yesterday, 28 distinct days, three of every weekday, recent data,
+// and the outlet's planning currency. Imported history needs the same depth in the 56
+// days to its own latest day: too little is rejected with its reason, so it can neither
+// replace another history nor produce a forecast of its own. It may be old; its age is
+// reported as evidence, not hidden.
 // Every source plans the same horizon: the next seven local days from tomorrow.
 // Historical evidence keeps its own data-through date and is never re-dated; its
 // comparable weekdays are mapped onto the planning dates by the forecast method.
@@ -44,9 +55,12 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
   }
   const all = [...series.values()].map(entry => ({ ...entry, days: entry.days.sort((a, b) => a.date.localeCompare(b.date)) }));
   const rejected: SourceRejection[] = [];
-  // The outlet's planning currency is that of its established history (reference,
-  // else legacy demo), when that history has exactly one currency.
-  const established = HISTORICAL_SOURCES.map(source => all.filter(entry => entry.source === source)).find(entries => entries.length);
+  const importedSeries = all.filter(entry => entry.source === "IMPORTED");
+  if (importedSeries.length > 1) for (const entry of importedSeries) rejected.push({ source: entry.source, currency: entry.currency, reason: "AMBIGUOUS", detail: "History exists in more than one currency; none was chosen." });
+  const imported = importedSeries.length === 1 && sufficientImported(importedSeries[0], rejected) ? importedSeries[0] : null;
+  // The outlet's planning currency is that of its established history (imported,
+  // else reference, else legacy demo), when that history has exactly one currency.
+  const established = imported ? [imported] : HISTORICAL_SOURCES.map(source => all.filter(entry => entry.source === source)).find(entries => entries.length);
   const planningCurrency = established?.length === 1 ? established[0].currency : null;
 
   const eligibleProviders = all.filter(entry => PROVIDER_SOURCES.includes(entry.source)).filter(entry => {
@@ -67,6 +81,11 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
       dataThrough: yesterday, firstTarget: shiftDate(today, 1), days: entry.days, rejected };
   }
   for (const entry of eligibleProviders) rejected.push({ source: entry.source, currency: entry.currency, reason: "AMBIGUOUS", detail: "More than one eligible provider currency; none was chosen." });
+
+  if (imported) {
+    return { status: "SELECTED", source: imported.source, currency: imported.currency, kind: "HISTORICAL",
+      dataThrough: imported.days.at(-1)!.date, firstTarget: shiftDate(today, 1), days: imported.days, rejected };
+  }
 
   for (const source of HISTORICAL_SOURCES) {
     const candidates = all.filter(entry => entry.source === source);

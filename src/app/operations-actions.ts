@@ -13,6 +13,7 @@ import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
+import { clearLabourPolicy, setLabourPolicy, setRegularCoverage, type PolicyLevel } from "@/server/intelligence/business-policy";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 
 async function perform(path: string, fn: () => Promise<unknown>) {
@@ -95,6 +96,41 @@ export async function sendPayoutAction(form: FormData) {
 export async function refreshPayoutAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
   return perform("/manager/review", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
+}
+// Owner-only staffing inputs, for the organisation or the Owner's selected location.
+function minorFromMajor(value: string) {
+  if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) throw new Error("Enter a valid amount.");
+  const [whole, fraction = ""] = value.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+}
+function labourPolicyAction(level: PolicyLevel) {
+  return async (form: FormData) => {
+    const scope=await requireScope(["OWNER"]);
+    return perform("/owner/policies", () => setLabourPolicy(getDatabase(),scope,level,{ currencyCode: field(form,"currencyCode").trim().toUpperCase(), salesMinorPerLabourHour: minorFromMajor(field(form,"salesPerLabourHour").trim()) }));
+  };
+}
+export async function saveOrganisationLabourPolicyAction(form: FormData) { return labourPolicyAction("ORGANISATION")(form); }
+export async function saveLocationLabourPolicyAction(form: FormData) { return labourPolicyAction("LOCATION")(form); }
+export async function clearOrganisationLabourPolicyAction() {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => clearLabourPolicy(getDatabase(),scope,"ORGANISATION"));
+}
+export async function clearLocationLabourPolicyAction() {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => clearLabourPolicy(getDatabase(),scope,"LOCATION"));
+}
+// Hours per weekday: blank leaves the day not set; 0 is a configured zero.
+export async function saveRegularCoverageAction(form: FormData) {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => setRegularCoverage(getDatabase(),scope,[1,2,3,4,5,6,7].map(day => {
+    const value = field(form,`day${day}`).trim();
+    if (!value) return null;
+    if (!/^\d{1,5}(\.\d{1,2})?$/.test(value)) throw new Error("Enter hours as a number.");
+    const [whole, fraction = ""] = value.split(".");
+    const minutes = (Number(whole) * 100 + Number(fraction.padEnd(2, "0"))) * 60 / 100;
+    if (!Number.isInteger(minutes)) throw new Error("Enter hours in whole minutes.");
+    return minutes;
+  })));
 }
 export async function changeAssignmentAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);

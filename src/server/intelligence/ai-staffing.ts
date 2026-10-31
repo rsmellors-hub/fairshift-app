@@ -79,6 +79,8 @@ export async function generateStaffingAssessment(db: Database, scope: Assessment
     let raw: unknown;
     try { raw = JSON.parse(response.text); } catch { raw = undefined; }
     const validated = validateAssessment(raw, prepared.input);
+    // Which rule and field rejected it, for diagnosis; never the model's text.
+    if (!validated.ok) console.error("AI staffing assessment rejected", { code: validated.code, detail: validated.detail, responseId: response.responseId });
     outcome = validated.ok
       ? { assessment: validated.assessment, responseModel: response.responseModel, responseId: response.responseId }
       : { failureCode: `VALIDATION_${validated.code}`, responseModel: response.responseModel, responseId: response.responseId };

@@ -110,16 +110,20 @@ export const saleTransactions = pgTable(
     // Commercial sale time. Required for REFERENCE history, whose rows are loaded
     // long after the sales they describe; other sources fall back to provider/created time.
     occurredAt: timestamp("occurred_at", { withTimezone: true }),
+    // Identity in the system the observation came from, for canonically ingested rows.
+    sourceSystem: text("source_system"),
+    sourceTransactionId: text("source_transaction_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("sale_transactions_internal_reference_unique").on(table.internalReference),
+    uniqueIndex("sale_transactions_source_identity_unique").on(table.outletId, table.source, table.sourceSystem, table.sourceTransactionId).where(sql`${table.sourceTransactionId} is not null`),
     uniqueIndex("sale_transactions_paypal_order_unique").on(table.paypalOrderId),
     uniqueIndex("sale_transactions_paypal_capture_unique").on(table.paypalCaptureId),
     index("sale_transactions_outlet_created_idx").on(table.outletId, table.createdAt),
     index("sale_transactions_outlet_occurred_idx").on(table.outletId, table.occurredAt),
-    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE')`),
+    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE', 'IMPORTED')`),
     check("sale_transactions_paypal_reference_check", sql`${table.source} != 'PAYPAL_SANDBOX' or ${table.paypalCustomId} is not null`),
     check("sale_transactions_demo_provenance_check", sql`${table.source} != 'DEMO_SEEDED' or (
       ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
@@ -135,6 +139,16 @@ export const saleTransactions = pgTable(
       ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
       ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
       ${table.providerStatus} = 'REFERENCE' and ${table.occurredAt} is not null
+    )`),
+    // Genuine imported history: a commercial time and source identity, no provider
+    // identifiers and no verification claim.
+    check("sale_transactions_imported_provenance_check", sql`${table.source} != 'IMPORTED' or (
+      ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
+      ${table.paypalCustomId} is null and ${table.providerCreatedAt} is null and
+      ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
+      ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
+      ${table.providerStatus} = 'IMPORTED' and ${table.occurredAt} is not null and
+      ${table.sourceSystem} is not null and ${table.sourceTransactionId} is not null
     )`),
     check("sale_transactions_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
     check("sale_transactions_amount_nonnegative", sql`${table.grossAmountMinor} >= 0`),
@@ -215,7 +229,8 @@ export const workers = pgTable(
 
 // Planned regular-staff labour per location and local weekday: a standing weekly
 // rota applied to each planning date. Lightweight staffing input, not user
-// accounts, shifts, timesheets or payroll. Only labelled reference input exists so far.
+// accounts, shifts, timesheets or payroll. A weekday with no row is not set; a row
+// with zero minutes is a configured zero. Source says who supplied it.
 export const regularStaffCoverage = pgTable("regular_staff_coverage", {
   id: uuid("id").primaryKey(),
   organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
@@ -230,7 +245,34 @@ export const regularStaffCoverage = pgTable("regular_staff_coverage", {
   index("regular_staff_coverage_organisation_idx").on(t.organisationId),
   check("regular_staff_coverage_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
   check("regular_staff_coverage_minutes_check", sql`${t.plannedMinutes} between 0 and 1440000`),
-  check("regular_staff_coverage_source_check", sql`${t.source} in ('REFERENCE')`),
+  check("regular_staff_coverage_source_check", sql`${t.source} in ('REFERENCE', 'CONFIGURED')`),
+]);
+
+// A business's labour-productivity assumption: forecast sales per labour hour, in
+// integer minor units of one currency. Organisation default (no outlet) with optional
+// location overrides. Versions are append-only; at most one is active per scope, and
+// a superseded version remains so staffing evidence can be explained later.
+export const labourPolicies = pgTable("labour_policies", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "restrict" }),
+  version: integer("version").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  salesMinorPerLabourHour: bigint("sales_minor_per_labour_hour", { mode: "number" }).notNull(),
+  source: text("source").notNull(),
+  status: text("status").notNull().default("ACTIVE"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("labour_policies_active_organisation_unique").on(t.organisationId).where(sql`${t.status} = 'ACTIVE' and ${t.outletId} is null`),
+  uniqueIndex("labour_policies_active_location_unique").on(t.outletId).where(sql`${t.status} = 'ACTIVE' and ${t.outletId} is not null`),
+  index("labour_policies_organisation_idx").on(t.organisationId, t.createdAt),
+  check("labour_policies_rate_check", sql`${t.salesMinorPerLabourHour} between 1 and 10000000`),
+  check("labour_policies_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`),
+  check("labour_policies_version_check", sql`${t.version} > 0`),
+  check("labour_policies_source_check", sql`${t.source} in ('CONFIGURED', 'REFERENCE')`),
+  check("labour_policies_status_check", sql`(${t.status} = 'ACTIVE' and ${t.supersededAt} is null) or (${t.status} = 'SUPERSEDED' and ${t.supersededAt} is not null)`),
 ]);
 
 export const departments = pgTable("departments", {
@@ -624,7 +666,7 @@ export const schema = {
   paypalConnections,
   saleTransactions,
   providerEvents,
-  workers, regularStaffCoverage,
+  workers, regularStaffCoverage, labourPolicies,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales,
   shifts,
   shiftOffers,

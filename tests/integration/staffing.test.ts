@@ -10,7 +10,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { organisations, outlets, regularStaffCoverage, shifts } from "@/server/db/schema";
 import { forecastFromHistory, shiftDate } from "@/server/intelligence/forecast";
-import { calculateStaffing, getWeeklyStaffing, REFERENCE_LABOUR_POLICY } from "@/server/intelligence/staffing";
+import { calculateStaffing, getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { provisionReferenceHistory } from "@/server/reference/provision";
 import { REFERENCE_STORE_CODES, referenceDates, referenceStore, referenceTradingDay } from "@/server/reference/uk-retail";
 import { allocateAssignment, changeAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
@@ -69,7 +69,7 @@ describe("coverage-aware weekly staffing", () => {
       const gaps: number[] = [];
       for (const [i, outlet] of staffing.outlets.entries()) {
         const code = REFERENCE_STORE_CODES[i];
-        expect(outlet).toMatchObject({ currency: "GBP", policy: REFERENCE_LABOUR_POLICY, regularCoverage: "REFERENCE", timezone: "Europe/London",
+        expect(outlet).toMatchObject({ currency: "GBP", policy: { currency: "GBP", salesMinorPerLabourHour: 10_000, source: "REFERENCE", level: "ORGANISATION", version: "organisation-v1" }, regularCoverage: "REFERENCE", timezone: "Europe/London",
           evidence: { source: "REFERENCE", kind: "HISTORICAL", dataThrough: "2025-12-28", ageDays: 302 } });
         expect(outlet.days.map(day => day.planningDate)).toEqual(WEEK);
         // Independent derivation: generator daily totals → forecast → policy, minus the store's rota.
@@ -78,7 +78,7 @@ describe("coverage-aware weekly staffing", () => {
         for (const day of outlet.days) {
           const predicted = forecastFromHistory({ days: history, dataThrough: "2025-12-28", targetDate: day.planningDate })!;
           const weekday = new Date(`${day.planningDate}T12:00:00Z`).getUTCDay() || 7;
-          const expected = calculateStaffing({ forecastSalesMinor: predicted.forecastSalesMinor, regularMinutes: referenceStore(code).regularCoverageHours[weekday - 1] * 60, allocatedCasualMinutes: 0, policy: REFERENCE_LABOUR_POLICY });
+          const expected = calculateStaffing({ forecastSalesMinor: predicted.forecastSalesMinor, regularMinutes: referenceStore(code).regularCoverageHours[weekday - 1] * 60, allocatedCasualMinutes: 0, policy: outlet.policy! });
           expect(day).toMatchObject({ ...expected, forecastSalesMinor: predicted.forecastSalesMinor, unavailable: null });
           gaps.push(day.casualGapMinutes!);
         }
@@ -217,7 +217,7 @@ describe("coverage-aware weekly staffing", () => {
       let html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
       for (const text of ["Planning week", "Mon, 26 Oct 2026 – Sun, 1 Nov 2026", "Historical evidence through Sun, 28 Dec 2025", "Staffing by location",
         "Casual labour gap", "Required labour", "Regular coverage", "Allocated casual coverage", "Indicative shifts",
-        "Reference staffing assumption: £100 forecast sales per labour hour", "No shifts have been created or offered", "standing regular-staff rota (synthetic input)"]) expect(html).toContain(text);
+        "Staffing assumption: £100 forecast sales per labour hour, the reference company’s configured assumption", "No shifts have been created or offered", "standing rota (synthetic input)"]) expect(html).toContain(text);
       expect(html).not.toContain("$");
       expect(html).not.toMatch(/live demand|real-time|optimal|workers required|AI says|shifts created/i);
 

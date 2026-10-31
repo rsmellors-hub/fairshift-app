@@ -34,7 +34,6 @@ vi.mock("@/server/auth/request", () => ({
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
-vi.mock("@/server/integrations/openai/operational-intelligence", () => ({ getAiOperationalAssessment: vi.fn(async () => ({ status: "NOT_CONFIGURED" })) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); }, usePathname: () => "/operator" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 

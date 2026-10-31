@@ -84,4 +84,40 @@ describe("forecast source eligibility", () => {
     const rows = [...reference, ...range("PAYPAL_SANDBOX", YESTERDAY, 20)];
     expect(selectForecastSource(rows, TODAY)).toEqual(selectForecastSource([...rows].reverse(), TODAY));
   });
+
+  describe("imported history", () => {
+    const TODAY = "2026-10-26";
+    const series = (source: DailySalesRow["source"], currency: string, last: string, days: number): DailySalesRow[] =>
+      Array.from({ length: days }, (_, i) => ({ outletId: "o", source, currency, date: shiftDate(last, -i), salesMinor: 100_000, transactions: 10 }));
+    const reference = series("REFERENCE", "GBP", "2025-12-28", 56);
+
+    it("outranks reference and demo history when it has enough depth, however old", () => {
+      const selected = selectForecastSource([...reference, ...series("DEMO_SEEDED", "GBP", "2026-09-01", 56), ...series("IMPORTED", "GBP", "2026-03-01", 56)], TODAY);
+      expect(selected).toMatchObject({ status: "SELECTED", source: "IMPORTED", kind: "HISTORICAL", currency: "GBP", dataThrough: "2026-03-01", firstTarget: "2026-10-27" });
+    });
+    it("cannot replace another history, or forecast by itself, when too thin", () => {
+      const thin = series("IMPORTED", "GBP", "2026-10-20", 27);
+      const withReference = selectForecastSource([...reference, ...thin], TODAY);
+      expect(withReference).toMatchObject({ status: "SELECTED", source: "REFERENCE" });
+      expect(withReference.rejected).toEqual([expect.objectContaining({ source: "IMPORTED", reason: "INSUFFICIENT_DAYS" })]);
+      expect(selectForecastSource(thin, TODAY)).toMatchObject({ status: "NONE", rejected: [{ source: "IMPORTED", reason: "INSUFFICIENT_DAYS" }] });
+      // Enough days but one weekday missing.
+      const noSundays = series("IMPORTED", "GBP", "2026-10-20", 56).filter(row => new Date(`${row.date}T12:00:00Z`).getUTCDay() !== 0);
+      expect(selectForecastSource(noSundays, TODAY)).toMatchObject({ status: "NONE", rejected: [{ reason: "INCOMPLETE_WEEKDAYS" }] });
+    });
+    it("gives way to eligible PayPal history, and sets the currency PayPal must match", () => {
+      const paypal = series("PAYPAL_SANDBOX", "GBP", "2026-10-25", 56);
+      expect(selectForecastSource([...series("IMPORTED", "GBP", "2026-10-25", 56), ...paypal], TODAY)).toMatchObject({ source: "PAYPAL_SANDBOX", kind: "PROVIDER" });
+      const mismatch = selectForecastSource([...series("IMPORTED", "ZAR", "2026-10-25", 56), ...paypal], TODAY);
+      expect(mismatch).toMatchObject({ source: "IMPORTED", currency: "ZAR" });
+      expect(mismatch.rejected).toEqual([expect.objectContaining({ source: "PAYPAL_SANDBOX", reason: "CURRENCY_MISMATCH" })]);
+    });
+    it("refuses to guess between currencies, and never mixes sources", () => {
+      const two = selectForecastSource([...series("IMPORTED", "GBP", "2026-10-25", 56), ...series("IMPORTED", "ZAR", "2026-10-25", 56), ...reference], TODAY);
+      expect(two).toMatchObject({ status: "SELECTED", source: "REFERENCE" });
+      expect(two.rejected.filter(row => row.reason === "AMBIGUOUS")).toHaveLength(2);
+      const picked = selectForecastSource([...reference, ...series("IMPORTED", "GBP", "2026-03-01", 56)], TODAY);
+      expect(picked.status === "SELECTED" && picked.days.every(day => day.date <= "2026-03-01" && day.date >= "2026-01-05")).toBe(true);
+    });
+  });
 });

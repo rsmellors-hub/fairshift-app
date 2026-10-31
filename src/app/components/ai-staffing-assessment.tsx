@@ -41,13 +41,14 @@ export type AiPanelProps = {
   // Where a manager plans shifts for a location and date, if this viewer can.
   planHref?: (outletId: string, date: string | null) => string | null;
   notice?: string;
+  // The viewer's location time zone, for the generation time; UTC if none is known.
   timeZone?: string;
 };
 
 // AI-assisted interpretation of the calculated staffing week, kept visibly separate
 // from the calculated figures. Every value shown here comes from the deterministic
 // input the assessment was validated against, never from the model's text.
-export function AiStaffingAssessment({ view, names, configured, action, planHref, notice, timeZone = "Europe/London" }: AiPanelProps) {
+export function AiStaffingAssessment({ view, names, configured, action, planHref, notice, timeZone = "UTC" }: AiPanelProps) {
   const button = (label: string) => configured && view?.prepared.hasEvidence ? <form action={action}><button className="secondary-button">{label}</button></form> : null;
   const keyNames = Object.fromEntries(Object.entries(view?.prepared.locationKeys ?? {}).map(([key, outletId]) => [key, names[outletId] ?? "a location"]));
   const header = <><DataLabel kind="predictive">AI-assisted interpretation</DataLabel><h2 id="ai-assessment-title">What to staff first</h2></>;
@@ -56,7 +57,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   if (!view) return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}<p>AI assessment is unavailable because the staffing evidence could not be loaded. No AI interpretation is shown.</p></section>;
   if (view.state !== "CURRENT" || !view.assessment) {
     return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}{banner}
-      {!view.prepared.hasEvidence ? <p>There is no forecast staffing evidence to interpret, so no AI assessment is available.</p>
+      {!view.prepared.hasEvidence ? <p>{view.prepared.input.locations.some(location => location.flags.includes("NO_LABOUR_ASSUMPTION")) ? "Required labour is unavailable because no compatible labour policy is configured, so there is nothing for AI to interpret." : "There is no forecast staffing evidence to interpret, so no AI assessment is available."}</p>
         : view.state === "FAILED" ? <p>The latest AI assessment of this planning evidence failed: {failureText(view.record?.failureCode ?? null)}. No AI interpretation is shown. The calculated figures remain available.</p>
         : view.state === "STALE" ? <p>The planning evidence or assessment method has changed since the last AI assessment ({generated(view.record!.createdAt, timeZone)}), so it is not shown. Generate a new assessment for the current figures.</p>
         : <p>No AI assessment has been generated for the current planning evidence.</p>}
@@ -70,10 +71,10 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   const listed = new Set(a.priorities.map(p => `${p.locationKey}:${p.date}`));
   const unlisted = view.prepared.input.locations.reduce((sum, location) => sum + location.days.filter(day => (day.casualGapMinutes ?? 0) > 0 && !listed.has(`${location.key}:${day.date}`)).length, 0);
   const format = (metric: EvidenceMetric, value: number, currency: string | null) =>
-    metric === "forecastSalesMinor" ? wholeMoney(value, currency ?? "GBP") : metric === "indicativeShifts" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
+    metric === "forecastSalesMinor" ? (currency ? wholeMoney(value, currency) : "Not available") : metric === "indicativeShifts" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
   return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">
     {header}{banner}
-    <p className="method-note">Generated {generated(view.record!.createdAt, timeZone)} by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>
+    <p className="method-note">Generated {generated(view.record!.createdAt, timeZone)} ({timeZone}) by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>
     <p><Prose text={a.summary} names={keyNames} /></p>
     {a.priorities.length ? <ol className="ai-priorities">{a.priorities.map(p => {
       const location = locations.get(p.locationKey)!;

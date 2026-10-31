@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, regularStaffCoverage, shiftOffers, shifts, workAllocations, workers } from "@/server/db/schema";
+import { labourPolicies, outlets, regularStaffCoverage, shiftOffers, shifts, workAllocations, workers } from "@/server/db/schema";
 import { shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
 import { getWeeklyForecast, type OutletWeeklyForecast } from "@/server/intelligence/weekly";
 
@@ -10,6 +10,8 @@ export const STAFFING_METHOD_VERSION = "coverage-gap-v1";
 
 export const labourPolicySchema = z.object({
   version: z.string().min(1),
+  level: z.enum(["ORGANISATION", "LOCATION"]),
+  source: z.enum(["CONFIGURED", "REFERENCE"]),
   currency: z.string().length(3),
   salesMinorPerLabourHour: z.number().int().positive(),
   planningIncrementMinutes: z.number().int().min(1).max(60),
@@ -17,22 +19,23 @@ export const labourPolicySchema = z.object({
 });
 export type LabourPolicy = z.infer<typeof labourPolicySchema>;
 
-// Hackathon MVP reference productivity assumption for the UK reference retailer:
-// £100 of forecast sales per required labour hour. A documented planning
-// assumption, not a UK retail benchmark, a learned per-location rate or an AI output.
-// Labour is planned in 15-minute increments; 8-hour shifts only give an indicative count.
-export const REFERENCE_LABOUR_POLICY = labourPolicySchema.parse({
-  version: "reference-productivity-v1",
-  currency: "GBP",
-  salesMinorPerLabourHour: 10_000,
-  planningIncrementMinutes: 15,
-  indicativeShiftMinutes: 480,
-});
-const LABOUR_POLICIES: readonly LabourPolicy[] = [REFERENCE_LABOUR_POLICY];
+// How FairShift plans labour for every business: 15-minute increments, and 8-hour
+// shifts that only give an indicative count. The rate is the business's own policy.
+export const LABOUR_PLANNING = { planningIncrementMinutes: 15, indicativeShiftMinutes: 480 } as const;
 
-// A labour assumption is denominated in one currency; no currency is converted.
-export function labourPolicyFor(currency: string) {
-  return LABOUR_POLICIES.find(policy => policy.currency === currency) ?? null;
+export type LabourPolicyRecord = Pick<typeof labourPolicies.$inferSelect, "outletId" | "version" | "currencyCode" | "salesMinorPerLabourHour" | "source">;
+export type LabourPolicyResolution = { policy: LabourPolicy; reason: null } | { policy: null; reason: "NO_LABOUR_POLICY" | "LABOUR_POLICY_CURRENCY_MISMATCH" };
+
+// A location override wins over the organisation default. Nothing else applies: with
+// neither, or one in another currency, labour is unavailable. A mismatched override
+// does not fall back to the organisation, and no currency is converted.
+export function resolveLabourPolicy(records: readonly LabourPolicyRecord[], outletId: string, currency: string): LabourPolicyResolution {
+  const record = records.find(row => row.outletId === outletId) ?? records.find(row => row.outletId === null);
+  if (!record) return { policy: null, reason: "NO_LABOUR_POLICY" };
+  if (record.currencyCode !== currency) return { policy: null, reason: "LABOUR_POLICY_CURRENCY_MISMATCH" };
+  const level = record.outletId ? "LOCATION" : "ORGANISATION";
+  return { reason: null, policy: labourPolicySchema.parse({ version: `${level.toLowerCase()}-v${record.version}`, level, source: record.source,
+    currency: record.currencyCode, salesMinorPerLabourHour: record.salesMinorPerLabourHour, ...LABOUR_PLANNING }) };
 }
 
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -60,7 +63,7 @@ export function calculateStaffing(input: { forecastSalesMinor: number; regularMi
     indicativeShifts: ceilDiv(casualGapMinutes, policy.indicativeShiftMinutes) };
 }
 
-export type StaffingUnavailableReason = "NO_FORECAST" | "NO_LABOUR_ASSUMPTION" | "REGULAR_COVERAGE_NOT_SET";
+export type StaffingUnavailableReason = "NO_FORECAST" | "NO_LABOUR_POLICY" | "LABOUR_POLICY_CURRENCY_MISMATCH" | "REGULAR_COVERAGE_NOT_SET";
 export type StaffingDay = {
   planningDate: string;
   forecastSalesMinor: number | null;
@@ -78,7 +81,7 @@ export type OutletStaffing = {
   outletId: string; outletName: string; timezone: string;
   currency: string | null; policy: LabourPolicy | null;
   evidence: { source: SalesSource; kind: "PROVIDER" | "HISTORICAL"; dataThrough: string; ageDays: number } | null;
-  regularCoverage: "REFERENCE" | null;
+  regularCoverage: "REFERENCE" | "CONFIGURED" | null;
   days: StaffingDay[];
   totals: Totals | null;
 };
@@ -100,9 +103,10 @@ const sumTotals = (rows: readonly Totals[]): Totals => rows.reduce((sum, row) =>
 
 // Pure assembly of one outlet's planning week from its forecast and coverage inputs.
 export function outletStaffing(forecast: OutletWeeklyForecast, regular: ReadonlyMap<number, { plannedMinutes: number; source: string }>,
-  allocated: readonly { startsAt: Date; endsAt: Date }[]): OutletStaffing {
+  allocated: readonly { startsAt: Date; endsAt: Date }[], policies: readonly LabourPolicyRecord[]): OutletStaffing {
   const selected = forecast.selection.status === "SELECTED" ? forecast.selection : null;
-  const policy = selected ? labourPolicyFor(selected.currency) : null;
+  const resolution = selected ? resolveLabourPolicy(policies, forecast.outletId, selected.currency) : null;
+  const policy = resolution?.policy ?? null;
   const firstDate = shiftDate(forecast.today, 1);
   const days = Array.from({ length: 7 }, (_, i): StaffingDay => {
     const planningDate = shiftDate(firstDate, i);
@@ -111,7 +115,7 @@ export function outletStaffing(forecast: OutletWeeklyForecast, regular: Readonly
     const allocatedCasualMinutes = allocated.reduce((sum, shift) => sum + minutesWithin(shift, dayStart, dayEnd), 0);
     const regularMinutes = regular.get(isoWeekday(planningDate))?.plannedMinutes ?? null;
     const base = { planningDate, forecastSalesMinor: prediction?.forecastSalesMinor ?? null, support: prediction?.support ?? null, regularMinutes, allocatedCasualMinutes };
-    const unavailable: StaffingUnavailableReason | null = !prediction ? "NO_FORECAST" : !policy ? "NO_LABOUR_ASSUMPTION" : regularMinutes === null ? "REGULAR_COVERAGE_NOT_SET" : null;
+    const unavailable: StaffingUnavailableReason | null = !prediction ? "NO_FORECAST" : !policy ? resolution!.reason! : regularMinutes === null ? "REGULAR_COVERAGE_NOT_SET" : null;
     if (unavailable) {
       // Required labour is still known without regular coverage; the gap is not.
       const requiredMinutes = prediction && policy ? requiredLabourMinutes(prediction.forecastSalesMinor, policy) : null;
@@ -125,7 +129,7 @@ export function outletStaffing(forecast: OutletWeeklyForecast, regular: Readonly
     currency: selected?.currency ?? null, policy,
     evidence: selected && { source: selected.source, kind: selected.kind, dataThrough: selected.dataThrough,
       ageDays: Math.round((Date.parse(`${firstDate}T12:00:00Z`) - Date.parse(`${selected.dataThrough}T12:00:00Z`)) / 86_400_000) },
-    regularCoverage: regular.size ? "REFERENCE" : null,
+    regularCoverage: !regular.size ? null : [...regular.values()].some(row => row.source === "CONFIGURED") ? "CONFIGURED" : "REFERENCE",
     days,
     totals: complete ? sumTotals(days as unknown as Totals[]) : null,
   };
@@ -142,7 +146,9 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
   if (!outletIds.length) return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: [], consolidated: null };
   const windows = weekly.outlets.map(outlet => ({ start: startOfLocalDay(shiftDate(outlet.today, 1), outlet.timezone), end: startOfLocalDay(shiftDate(outlet.today, 8), outlet.timezone) }));
   const from = new Date(Math.min(...windows.map(w => w.start.getTime()))), to = new Date(Math.max(...windows.map(w => w.end.getTime())));
-  const [regularRows, allocatedRows] = await Promise.all([
+  const [policyRows, regularRows, allocatedRows] = await Promise.all([
+    db.select({ outletId: labourPolicies.outletId, version: labourPolicies.version, currencyCode: labourPolicies.currencyCode, salesMinorPerLabourHour: labourPolicies.salesMinorPerLabourHour, source: labourPolicies.source })
+      .from(labourPolicies).where(and(eq(labourPolicies.organisationId, scope.organisationId), eq(labourPolicies.status, "ACTIVE"))),
     db.select({ outletId: regularStaffCoverage.outletId, isoWeekday: regularStaffCoverage.isoWeekday, plannedMinutes: regularStaffCoverage.plannedMinutes, source: regularStaffCoverage.source })
       .from(regularStaffCoverage).innerJoin(outlets, and(eq(outlets.id, regularStaffCoverage.outletId), eq(outlets.organisationId, regularStaffCoverage.organisationId)))
       .where(and(eq(regularStaffCoverage.organisationId, scope.organisationId), inArray(regularStaffCoverage.outletId, outletIds))),
@@ -160,7 +166,7 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
   ]);
   const result = weekly.outlets.map(outlet => outletStaffing(outlet,
     new Map(regularRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, row])),
-    allocatedRows.filter(row => row.outletId === outlet.outletId)));
+    allocatedRows.filter(row => row.outletId === outlet.outletId), policyRows));
   return { methodVersion: STAFFING_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result) };
 }
 

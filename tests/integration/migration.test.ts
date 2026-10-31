@@ -278,4 +278,47 @@ describe("work payable upgrade", () => {
    expect((await client.query("SELECT count(*)::int AS count FROM ai_staffing_assessments")).rows[0]).toEqual({ count: 0 });
   } finally { await client.close(); }
  });
+
+ it("adds business labour policy and imported provenance without changing existing records", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 16)) await apply(entry.tag);
+   await client.exec(`INSERT INTO organisations (id, name, country) VALUES ('10000000-0000-4000-8000-0000000003c1', 'UK company', 'United Kingdom');
+    INSERT INTO outlets (id, organisation_id, name, timezone) VALUES ('20000000-0000-4000-8000-0000000003d1', '10000000-0000-4000-8000-0000000003c1', 'Leeds', 'Europe/London');
+    INSERT INTO sale_transactions (id, internal_reference, outlet_id, source, currency_code, gross_amount_minor, provider_status, occurred_at) VALUES ('40000000-0000-4000-8000-0000000003e1', 'REF:OLD', '20000000-0000-4000-8000-0000000003d1', 'REFERENCE', 'GBP', 900, 'REFERENCE', '2025-12-01T10:00:00Z');
+    INSERT INTO regular_staff_coverage (id, organisation_id, outlet_id, iso_weekday, planned_minutes, source) VALUES ('50000000-0000-4000-8000-0000000003f1', '10000000-0000-4000-8000-0000000003c1', '20000000-0000-4000-8000-0000000003d1', 1, 480, 'REFERENCE');`);
+   const rows = async (table: string) => (await client.query<Record<string, unknown>>(`SELECT * FROM ${table} ORDER BY 1`)).rows;
+   const [sales, coverage, payables, payouts] = await Promise.all(["sale_transactions", "regular_staff_coverage", "work_payables", "work_payouts"].map(rows));
+   expect(journal.entries[16].tag).toBe("0016_business_labour_policy");
+   await apply(journal.entries[16].tag);
+   expect((await rows("sale_transactions")).map(row => { const { source_system, source_transaction_id, ...rest } = row; expect([source_system, source_transaction_id]).toEqual([null, null]); return rest; })).toEqual(sales);
+   expect(await rows("regular_staff_coverage")).toEqual(coverage);
+   expect(await rows("work_payables")).toEqual(payables);
+   expect(await rows("work_payouts")).toEqual(payouts);
+   // No policy is invented for anyone, including existing reference data.
+   expect(await rows("labour_policies")).toEqual([]);
+   const org = "10000000-0000-4000-8000-0000000003c1", outlet = "20000000-0000-4000-8000-0000000003d1";
+   const policy = (id: string, values: string) => client.exec(`INSERT INTO labour_policies (id, organisation_id, outlet_id, version, currency_code, sales_minor_per_labour_hour, source) VALUES ('${id}', '${org}', ${values})`);
+   for (const invalid of [`null, 1, 'GBP', 0, 'CONFIGURED'`, `null, 1, 'GBP', -1, 'CONFIGURED'`, `null, 1, 'GBP', 10000001, 'CONFIGURED'`, `null, 1, 'gbp', 100, 'CONFIGURED'`, `null, 0, 'GBP', 100, 'CONFIGURED'`, `null, 1, 'GBP', 100, 'GUESSED'`]) {
+    await expect(policy("60000000-0000-4000-8000-0000000003a1", invalid)).rejects.toThrow();
+   }
+   await policy("60000000-0000-4000-8000-0000000003a1", `null, 1, 'GBP', 10000, 'CONFIGURED'`);
+   // One active policy per scope; versions immutable and retained.
+   await expect(policy("60000000-0000-4000-8000-0000000003a2", `null, 2, 'GBP', 7500, 'CONFIGURED'`)).rejects.toThrow();
+   await policy("60000000-0000-4000-8000-0000000003a3", `'${outlet}', 1, 'GBP', 18000, 'CONFIGURED'`);
+   await expect(client.exec(`UPDATE labour_policies SET sales_minor_per_labour_hour = 1 WHERE outlet_id IS NULL`)).rejects.toThrow(/immutable/);
+   await expect(client.exec(`DELETE FROM labour_policies`)).rejects.toThrow(/retained/);
+   // Imported rows need source identity and carry no provider or verification claim.
+   const sale = (id: string, cols: string, values: string) => client.exec(`INSERT INTO sale_transactions (id, internal_reference, outlet_id, source, currency_code, gross_amount_minor, provider_status, occurred_at${cols}) VALUES ('${id}', '${id}', '${outlet}', 'IMPORTED', 'GBP', 100, 'IMPORTED', now()${values})`);
+   await expect(sale("70000000-0000-4000-8000-0000000003b1", "", "")).rejects.toThrow();
+   await expect(sale("70000000-0000-4000-8000-0000000003b2", ", source_system, source_transaction_id, verification_state", ", 'till', 'T1', 'VERIFIED'")).rejects.toThrow();
+   await expect(sale("70000000-0000-4000-8000-0000000003b3", ", source_system, source_transaction_id, paypal_capture_id", ", 'till', 'T1', 'CAP1'")).rejects.toThrow();
+   await sale("70000000-0000-4000-8000-0000000003b4", ", source_system, source_transaction_id", ", 'till', 'T1'");
+   await expect(sale("70000000-0000-4000-8000-0000000003b5", ", source_system, source_transaction_id", ", 'till', 'T1'")).rejects.toThrow();
+   await client.exec(`UPDATE regular_staff_coverage SET source = 'CONFIGURED', planned_minutes = 0`);
+   await expect(client.exec(`UPDATE regular_staff_coverage SET source = 'GUESSED'`)).rejects.toThrow();
+  } finally { await client.close(); }
+ });
 });

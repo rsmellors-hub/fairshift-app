@@ -125,7 +125,7 @@ describe("AI staffing intelligence", () => {
       expect(html).not.toContain("[[L");
       // Nothing operational or financial was created by the AI path.
       expect(await counts(t.db)).toEqual(before);
-      expect((await t.db.select().from(auditEvents)).map(event => event.action)).toEqual(["AI_STAFFING_ASSESSMENT_CREATED"]);
+      expect((await t.db.select().from(auditEvents)).map(event => event.action).filter(action => action.startsWith("AI_"))).toEqual(["AI_STAFFING_ASSESSMENT_CREATED"]);
     } finally { fetchSpy.mockRestore(); await t.close(); }
   });
 

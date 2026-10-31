@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, like, not, sql } from "drizzle-orm";
+import { persistCanonicalRows, type CanonicalRow } from "@/server/commerce/ingestion";
+import { writeLabourPolicyVersion } from "@/server/intelligence/business-policy";
+import { and, eq, inArray, isNull, like, not, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
-import { organisations, outlets, regularStaffCoverage, saleTransactions } from "@/server/db/schema";
+import { labourPolicies, organisations, outlets, regularStaffCoverage, saleTransactions } from "@/server/db/schema";
 import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceDates, referenceStore, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-retail";
 
 const inputSchema = z.object({
@@ -34,7 +36,9 @@ export async function referenceDataThrough(db: Pick<Database, "select">, outletI
 }
 
 // Loads labelled synthetic reference sales into explicitly mapped outlets of one
-// organisation. Idempotent: deterministic references make a rerun insert nothing.
+// organisation, through the canonical commerce boundary, with this company's own rota
+// and labour policy as explicit reference configuration. Idempotent: deterministic
+// references make a rerun insert nothing. A policy the business already has is kept.
 export async function provisionReferenceHistory(db: Database, rawInput: ReferenceProvisionInput) {
   const input = inputSchema.parse(rawInput);
   const dates = referenceDates(input.from, input.through);
@@ -63,19 +67,17 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
     }
     let inserted = 0, expected = 0;
     for (const { code, outletId } of mapping) {
-      let batch: (typeof saleTransactions.$inferInsert)[] = [];
+      let batch: CanonicalRow[] = [];
       const flush = async () => {
         if (!batch.length) return;
-        inserted += (await tx.insert(saleTransactions).values(batch)
-          .onConflictDoNothing({ target: saleTransactions.internalReference }).returning({ id: saleTransactions.id })).length;
+        inserted += (await persistCanonicalRows(tx, batch)).inserted;
         batch = [];
       };
       for (const date of dates) {
         for (const sale of referenceTransactions(code, date)) {
           const reference = `${referencePrefix(code, outletId)}${date}:${String(sale.sequence).padStart(4, "0")}`;
-          batch.push({ id: deterministicId(reference), internalReference: reference, outletId, source: "REFERENCE",
-            currencyCode: REFERENCE_DATASET.currency, grossAmountMinor: sale.amountMinor, occurredAt: sale.occurredAt,
-            providerStatus: "REFERENCE", verificationState: "PENDING", reconciliationState: "NOT_RECONCILED" });
+          batch.push({ internalReference: reference, outletId, source: "REFERENCE", sourceSystem: REFERENCE_DATASET.version, sourceTransactionId: `${code}:${date}:${sale.sequence}`,
+            currencyCode: REFERENCE_DATASET.currency, grossAmountMinor: sale.amountMinor, occurredAt: sale.occurredAt });
           expected++;
           if (batch.length === 1000) await flush();
         }
@@ -92,6 +94,10 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
       set: { plannedMinutes: sql`excluded.planned_minutes`, updatedAt: new Date() },
       setWhere: sql`${regularStaffCoverage.source} = 'REFERENCE'`,
     });
+    const [existingPolicy] = await tx.select({ id: labourPolicies.id }).from(labourPolicies)
+      .where(and(eq(labourPolicies.organisationId, input.organisationId), isNull(labourPolicies.outletId), eq(labourPolicies.status, "ACTIVE")));
+    if (!existingPolicy) await writeLabourPolicyVersion(tx, { organisationId: input.organisationId, outletId: null, currencyCode: REFERENCE_DATASET.currency,
+      salesMinorPerLabourHour: REFERENCE_DATASET.salesMinorPerLabourHour, source: "REFERENCE", createdBy: null });
     return { inserted, expected, regularCoverageRows: coverage.length };
   });
   const through = await referenceDataThrough(db, mapping.map(row => row.outletId));

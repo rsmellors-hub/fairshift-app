@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 export const METHOD_VERSION = "comparable-days-recency-v1";
-export const sourceSchema = z.enum(["PAYPAL_SANDBOX", "DEMO_SEEDED", "REFERENCE"]);
+export const sourceSchema = z.enum(["PAYPAL_SANDBOX", "DEMO_SEEDED", "REFERENCE", "IMPORTED"]);
 export type SalesSource = z.infer<typeof sourceSchema>;
+// Reference and demo history are generated; imported and PayPal history are genuine.
+export const isSyntheticSource = (source: SalesSource) => source === "REFERENCE" || source === "DEMO_SEEDED";
 const minor = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 export const staffingPolicySchema = z.object({
@@ -13,8 +15,9 @@ export const staffingPolicySchema = z.object({
   comparisonWorkers: z.number().int().min(0).max(100),
 });
 
-// Explicit demonstration assumptions, not wages, individual quotas or a saved
-// staffing plan. One worker supplies an entire eight-hour trading day.
+// Legacy single-day demonstration estimate, no longer reachable from any page: weekly
+// staffing with the business's labour policy is authoritative. Not wages, individual
+// quotas or a saved staffing plan. One worker supplies an entire eight-hour trading day.
 export const STAFFING_POLICY_CURRENCY = "USD";
 export const STAFFING_POLICY = staffingPolicySchema.parse({
   version: "revenue-capacity-v1",
@@ -117,6 +120,7 @@ export function eligibleObservation(sale: Observation, source: SalesSource) {
     sale.providerStatus === "COMPLETED" && !!sale.paypalCaptureId && !!sale.providerCreatedAt;
   const synthetic = sale.verificationState === "PENDING" && sale.reconciliationState === "NOT_RECONCILED" &&
     !sale.paypalCaptureId && !sale.providerCreatedAt;
+  if (source === "IMPORTED") return synthetic && sale.providerStatus === "IMPORTED" && !!sale.occurredAt;
   return source === "REFERENCE" ? synthetic && sale.providerStatus === "REFERENCE" && !!sale.occurredAt
     : synthetic && sale.providerStatus === "DEMO_SEEDED";
 }

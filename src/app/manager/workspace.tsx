@@ -5,15 +5,14 @@ import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import Link from "next/link";
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, payableLabel, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
-import { ManagerForecast } from "@/app/components/manager-forecast";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
 import { publishDemoShiftAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
-import { getManagerForecast } from "@/server/intelligence/manager";
 import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
+import { isSyntheticSource } from "@/server/intelligence/forecast";
 import { labourHours, longDate, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
 import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
@@ -51,7 +50,6 @@ export async function ManagerWorkspace({ area, status, date, department, ai }: {
     </> : null}
     {area === "plan" ? <>
       {await Staffing(scope, ai)}
-      <details className="panel"><summary>Single-day demand forecast</summary>{await Forecast(scope)}</details>
       <section className="panel"><h2>Coverage requirements</h2><p>{scope.locationName} · Johannesburg time</p>
       <form method="get" action="/manager/plan" className="inline-form"><label>Trading day<input type="date" name="date" defaultValue={date} /></label><label>Department<select name="department" defaultValue={department ?? ""}><option value="">All departments</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label><button className="secondary-button">Apply</button><Link href="/manager/plan">All dates</Link></form>
         {visibleRequirements.length ? visibleRequirements.sort((a,b) => a.shiftDate.localeCompare(b.shiftDate)).map(r => {
@@ -131,14 +129,6 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
 function PlanContext({ date, department }: { date?: string; department?: string }) {
   return <><input type="hidden" name="planDate" value={date ?? ""} /><input type="hidden" name="planDepartment" value={department ?? ""} /></>;
 }
-// The single-day forecast is deterministic only: AI interpretation is the weekly
-// assessment in Staffing, which is stored and never requested by rendering.
-async function Forecast(scope:Scope) {
-  let result;
-  try { result = await getManagerForecast(getDatabase(),new Date(),scope); }
-  catch { return <ManagerForecast result={null} error="Demand evidence is unavailable. Prior requirements remain available." />; }
-  return <ManagerForecast result={result} />;
-}
 // Planning-week staffing evidence for the manager's own location; managers are
 // scoped to one location, so no location selector is shown.
 async function Staffing(scope:Scope, aiNotice?: string) {
@@ -151,7 +141,7 @@ async function Staffing(scope:Scope, aiNotice?: string) {
   return <section className="panel staffing-week" aria-labelledby="staffing-week-title">
     <h2 id="staffing-week-title">Planning week staffing</h2>
     <p>{scope.locationName} · Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</p>
-    {evidence ? <DataLabel kind={evidence.source === "PAYPAL_SANDBOX" ? "fact" : "demo"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
+    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
     <p className="method-note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
     {outlet.totals ? <div className="status-grid forecast-grid" aria-label="Planning week totals">
       <article><span>Required labour</span><strong>{labourHours(outlet.totals.requiredMinutes)}</strong><small>From forecast demand</small></article>

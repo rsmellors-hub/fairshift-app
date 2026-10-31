@@ -12,6 +12,13 @@ const COUNTRY_CURRENCIES: Readonly<Record<string, string>> = {
   england: "GBP", scotland: "GBP", wales: "GBP", "northern ireland": "GBP",
 };
 
+// Amounts are held in minor units and shown divided by one hundred, so only known
+// two-decimal currencies are accepted where a business supplies money or history.
+export function isMinorUnitCurrency(code: string) {
+  if (!/^[A-Z]{3}$/.test(code) || !Intl.supportedValuesOf("currency").includes(code)) return false;
+  return new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits === 2;
+}
+
 export function currencyForCountry(country?: string | null) {
   return country ? COUNTRY_CURRENCIES[country.trim().toLowerCase()] ?? null : null;
 }

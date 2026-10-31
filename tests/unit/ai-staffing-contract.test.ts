@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AI_OUTPUT_SCHEMA_VERSION, assessmentJsonSchema, prepareAssessmentInput, validateAssessment, type AssessmentInput, type StaffingAssessment } from "@/server/intelligence/ai-staffing-contract";
-import { REFERENCE_LABOUR_POLICY, type OutletStaffing } from "@/server/intelligence/staffing";
+import { LABOUR_PLANNING, type LabourPolicy, type OutletStaffing } from "@/server/intelligence/staffing";
+
+const POLICY: LabourPolicy = { version: "organisation-v1", level: "ORGANISATION", source: "CONFIGURED", currency: "GBP", salesMinorPerLabourHour: 10_000, ...LABOUR_PLANNING };
 
 const DATES = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"];
 function outlet(id: string, name: string, gaps: number[], options: { regular?: boolean } = {}): OutletStaffing {
@@ -14,7 +16,7 @@ function outlet(id: string, name: string, gaps: number[], options: { regular?: b
   const complete = days.every(day => !day.unavailable);
   const sum = (key: "forecastSalesMinor" | "requiredMinutes" | "regularMinutes" | "allocatedCasualMinutes" | "coverageMinutes" | "casualGapMinutes" | "indicativeShifts") => days.reduce((total, day) => total + (day[key] ?? 0), 0);
   return {
-    outletId: id, outletName: name, timezone: "Europe/London", currency: "GBP", policy: REFERENCE_LABOUR_POLICY,
+    outletId: id, outletName: name, timezone: "Europe/London", currency: "GBP", policy: POLICY,
     evidence: { source: "REFERENCE", kind: "HISTORICAL", dataThrough: "2025-12-28", ageDays: 302 },
     regularCoverage: options.regular === false ? null : "REFERENCE", days,
     totals: complete ? { forecastSalesMinor: sum("forecastSalesMinor"), requiredMinutes: sum("requiredMinutes"), regularMinutes: sum("regularMinutes"), allocatedCasualMinutes: 0, coverageMinutes: sum("coverageMinutes"), casualGapMinutes: sum("casualGapMinutes"), indicativeShifts: sum("indicativeShifts") } : null,
@@ -113,6 +115,15 @@ describe("AI staffing output validation", () => {
       expect(check(o => { o.priorities[0].reason = text; return o; })).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
       expect(check(o => { o.signalCommentary = text; return o; })).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
     }
+  });
+
+  it("accepts a priority for a location without a rota only when it cites figures that exist", () => {
+    const missing = { rank: 2, locationKey: "L1", severity: "MEDIUM" as const, category: "MISSING_REGULAR_COVERAGE" as const, reason: "No regular rota is set, so no gap can be calculated.", action: "REVIEW_REGULAR_COVERAGE" as const, actionNote: "Set the rota." };
+    // Its week has no totals, and its days have no gap, but required labour and evidence age exist.
+    expect(check(o => { o.priorities[1] = { ...missing, date: "2026-10-26", evidence: [{ metric: "requiredMinutes", value: 600 }] }; return o; })).toMatchObject({ ok: true });
+    expect(check(o => { o.priorities[1] = { ...missing, date: null, evidence: [{ metric: "evidenceAgeDays", value: 302 }] }; return o; })).toMatchObject({ ok: true });
+    expect(check(o => { o.priorities[1] = { ...missing, date: null, evidence: [{ metric: "requiredMinutes", value: 4200 }] }; return o; })).toMatchObject({ ok: false, code: "NUMBER_MISMATCH" });
+    expect(check(o => { o.priorities[1] = { ...missing, date: "2026-10-26", evidence: [] }; return o; })).toMatchObject({ ok: false, code: "SCHEMA" });
   });
 
   it("requires dated gap priorities to follow the calculated order, without skipping", () => {

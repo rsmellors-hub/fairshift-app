@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { SalesSource } from "@/server/intelligence/forecast";
 import type { OutletWeeklyForecast, SourceRejection, WeeklyForecast } from "@/server/intelligence/weekly";
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
-import { labourHours, STAFFING_UNAVAILABLE, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
+import { labourHours, policyDescription, STAFFING_UNAVAILABLE, StaffingDayTable, StaffingMethodNote } from "@/app/components/staffing";
+import { isSyntheticSource } from "@/server/intelligence/forecast";
 
 const SOURCE_LABEL: Record<SalesSource, string> = {
   REFERENCE: "Reference sales history",
   DEMO_SEEDED: "Demo / seeded history",
   PAYPAL_SANDBOX: "Verified PayPal Sandbox sales",
+  IMPORTED: "Imported sales history",
 };
 const REJECTION: Record<SourceRejection["reason"], string> = {
   CURRENCY_MISMATCH: "different currency", STALE: "not recent enough", INSUFFICIENT_DAYS: "too few days",
@@ -33,7 +35,8 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
   if (!weekly) return <div className="owner-overview owner-forecast">{header}<section className="owner-empty" role="alert"><h2>Forecast could not be loaded</h2><p>No demand has been assumed. Reload to try again.</p></section></div>;
   const c = weekly.consolidated;
   const available = weekly.outlets.filter(outlet => outlet.weeklyTotalMinor !== null);
-  const historical = [...new Set(weekly.outlets.flatMap(outlet => outlet.selection.status === "SELECTED" && outlet.selection.kind === "HISTORICAL" ? [outlet.selection.source] : []))];
+  const historical = [...new Set(weekly.outlets.flatMap(outlet => outlet.selection.status === "SELECTED" && outlet.selection.kind === "HISTORICAL" && isSyntheticSource(outlet.selection.source) ? [outlet.selection.source] : []))];
+  const imported = weekly.outlets.some(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "IMPORTED");
   const columns = c?.days.map(row => row.targetDate) ?? null;
   return <div className="owner-overview owner-forecast">
     {header}
@@ -45,17 +48,18 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
         <StaffingSummary staffing={staffing} />
       </section>
       {historical.length ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from historical evidence</span>{`${historical.map(sourceLabel).join(" and ")} ${historical.length > 1 ? "are" : "is"} labelled synthetic input${c ? `, through ${longDate(c.dataThrough)}` : ""}. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled. It does not describe current trading or any provider’s sales.`}</p> : null}
+      {imported ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from imported history</span>Imported sales history supplied for this business, not verified by a payment provider. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled.</p> : null}
       <section aria-labelledby="owner-forecast-table-title">
         <div className="owner-section-heading"><div><h2 id="owner-forecast-table-title">Forecast by location</h2><p>Expected sales per day{columns ? "" : ", with each location’s own forecast dates"}. Ranges and evidence are under each location.</p></div></div>
         <div className="owner-forecast-scroll" role="region" aria-label="Forecast by location table" tabIndex={0}><table className="owner-location-table owner-forecast-table">
           <caption className="owner-sr-only">Seven-day sales forecast by location. Forecasts are estimates, not recorded sales.</caption>
           <thead><tr><th scope="col">Location</th>{columns ? columns.map(date => <th scope="col" key={date}>{shortDate(date)}</th>) : Array.from({ length: 7 }, (_, i) => <th scope="col" key={i}>Day {i + 1}</th>)}<th scope="col">Week</th></tr></thead>
           <tbody>{weekly.outlets.map(outlet => {
-            const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : "GBP";
+            const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : null;
             return <tr key={outlet.outletId}><th scope="row"><strong>{outlet.outletName}</strong>{c ? null : <Provenance outlet={outlet} />}</th>
-              {outlet.days.length ? outlet.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{row.forecast ? whole(row.forecast.forecastSalesMinor, currency) : "Not available"}{columns ? null : <small>{shortDate(row.targetDate)}</small>}</td>)
+              {outlet.days.length ? outlet.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{row.forecast && currency ? whole(row.forecast.forecastSalesMinor, currency) : "Not available"}{columns ? null : <small>{shortDate(row.targetDate)}</small>}</td>)
                 : <td colSpan={7} data-label="Forecast">No forecast: no eligible sales history. No demand has been assumed.</td>}
-              <td data-label="Week"><strong>{outlet.weeklyTotalMinor !== null ? whole(outlet.weeklyTotalMinor, currency) : "Not available"}</strong></td></tr>;
+              <td data-label="Week"><strong>{outlet.weeklyTotalMinor !== null && currency ? whole(outlet.weeklyTotalMinor, currency) : "Not available"}</strong></td></tr>;
           })}</tbody>
           {c ? <tfoot><tr><th scope="row">All locations</th>{c.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{whole(row.forecastSalesMinor, c.currency)}</td>)}<td data-label="Week"><strong>{whole(c.totalMinor, c.currency)}</strong></td></tr></tfoot> : null}
         </table></div>
@@ -68,11 +72,11 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
           {outlet.selection.rejected.length ? <p>Not used: {outlet.selection.rejected.map(row => `${sourceLabel(row.source)} (${row.currency}): ${REJECTION[row.reason]}. ${row.detail}`).join(" ")}</p> : null}
           {outlet.days.length ? <table><caption className="owner-sr-only">{outlet.outletName} daily forecast ranges</caption><thead><tr><th scope="col">Date</th><th scope="col">Forecast</th><th scope="col">Planning range</th><th scope="col">Support</th><th scope="col">Comparable days</th></tr></thead>
             <tbody>{outlet.days.map(row => {
-              const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : "GBP";
-              return <tr key={row.targetDate}><th scope="row">{longDate(row.targetDate)}</th>{row.forecast ? <><td>{whole(row.forecast.forecastSalesMinor, currency)}</td><td>{whole(row.forecast.lowerSalesMinor, currency)} – {whole(row.forecast.upperSalesMinor, currency)}</td><td>{row.forecast.support === "MODERATE" ? "Moderate" : "Low"}</td><td>{row.forecast.evidence.length} {row.forecast.basis === "SAME_WEEKDAY" ? "same weekdays" : "recent days"}</td></> : <td colSpan={4}>Not available</td>}</tr>;
+              const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : null;
+              return <tr key={row.targetDate}><th scope="row">{longDate(row.targetDate)}</th>{row.forecast && currency ? <><td>{whole(row.forecast.forecastSalesMinor, currency)}</td><td>{whole(row.forecast.lowerSalesMinor, currency)} – {whole(row.forecast.upperSalesMinor, currency)}</td><td>{row.forecast.support === "MODERATE" ? "Moderate" : "Low"}</td><td>{row.forecast.evidence.length} {row.forecast.basis === "SAME_WEEKDAY" ? "same weekdays" : "recent days"}</td></> : <td colSpan={4}>Not available</td>}</tr>;
             })}</tbody></table> : <p>No eligible sales history, so no forecast was produced.</p>}
         </details>)}
-        <p className="owner-note">Method {weekly.methodVersion}: a recency-weighted average of matching weekdays from the 56 days up to the data-through date, with isolated high days capped. Calendar events and holidays are not modelled. Source rule {weekly.ruleVersion}: provider sales replace historical evidence only with 28 or more recent days, including three of every weekday, in the location’s planning currency. No AI is used in this forecast.</p>
+        <p className="owner-note">Method {weekly.methodVersion}: a recency-weighted average of matching weekdays from the 56 days up to the data-through date, with isolated high days capped. Calendar events and holidays are not modelled. Source rule {weekly.ruleVersion}: provider sales replace other history only with 28 or more recent days, including three of every weekday, in the location’s planning currency; imported history needs the same depth and comes before reference history. No AI is used in this forecast.</p>
       </section>
     </>}
   </div>;
@@ -105,9 +109,10 @@ function StaffingByLocation({ staffing }: { staffing?: WeeklyStaffing | null }) 
     <div className="owner-staffing-detail">
       {staffing.outlets.map(outlet => <details className="owner-forecast-detail" key={outlet.outletId}><summary><strong>{outlet.outletName}</strong> <small>{outlet.totals ? `Casual labour gap ${labourHours(outlet.totals.casualGapMinutes)} this week` : outlet.days.find(day => day.unavailable) ? STAFFING_UNAVAILABLE[outlet.days.find(day => day.unavailable)!.unavailable!] : ""}</small></summary>
         <div className="owner-forecast-scroll-inner" role="region" aria-label={`${outlet.outletName} staffing by day`} tabIndex={0}><StaffingDayTable outlet={outlet} /></div>
-        <p>{outlet.regularCoverage === "REFERENCE" ? "Regular coverage: the reference retailer’s standing regular-staff rota (synthetic input)." : "No regular-staff coverage has been set for this location, so its casual gap is not calculated."}</p>
+        <p>{outlet.regularCoverage === "REFERENCE" ? "Regular coverage: the reference company’s standing rota (synthetic input)." : outlet.regularCoverage === "CONFIGURED" ? "Regular coverage: the rota configured for this location." : "No regular-staff coverage has been set for this location, so its casual gap is not calculated."}</p>
+        <p>{outlet.policy ? `Staffing assumption: ${policyDescription(outlet.policy)}.` : "No labour policy applies to this location’s sales, so required labour is unavailable. This does not mean no labour is needed."}</p>
       </details>)}
     </div>
-    <p className="owner-note"><StaffingMethodNote policy={staffing.consolidated?.policy ?? staffing.outlets.find(outlet => outlet.policy)?.policy ?? null} /> Method {staffing.methodVersion}. No AI is used in these figures.</p>
+    <p className="owner-note"><StaffingMethodNote policy={staffing.consolidated?.policy ?? null} varied={!staffing.consolidated && staffing.outlets.some(outlet => outlet.policy)} /> Method {staffing.methodVersion}. No AI is used in these figures.</p>
   </section>;
 }

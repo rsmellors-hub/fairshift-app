@@ -15,6 +15,9 @@ export const REFERENCE_DATASET = {
   lastDate: "2025-12-28",
   // Final 12 weeks reserved for out-of-sample forecast evaluation.
   holdoutStart: "2025-10-06",
+  // This fictional company's own planning assumption, provisioned as its labour policy:
+  // £100 of forecast sales per labour hour. Not a benchmark or a learned rate.
+  salesMinorPerLabourHour: 10_000,
 } as const;
 
 export const REFERENCE_STORE_CODES = ["UK01", "UK02", "UK03", "UK04", "UK05"] as const;

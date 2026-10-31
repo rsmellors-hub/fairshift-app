@@ -6,15 +6,16 @@ import type { OwnerForecastSummary, OwnerOverviewData, OwnerStaffingSummary, Sal
 
 const money = (minor: number, currency: string) => new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(minor / 100);
 const dateLabel = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
-const sourceLabel = (series: SalesSeries) => ({ REFERENCE: "Reference sales history", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Actual · PayPal Sandbox" })[series.source];
+const sourceLabel = (series: SalesSeries) => ({ REFERENCE: "Reference sales history", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Actual · PayPal Sandbox", IMPORTED: "Imported sales history" })[series.source];
 const shortDate = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 const hours = (minutes: number) => `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(minutes / 60)} h`;
 const wholeMoney = (minor: number, currency: string) => new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
-const evidenceLabel = { REFERENCE: "reference history", DEMO_SEEDED: "demo history", PAYPAL_SANDBOX: "verified PayPal Sandbox sales" } as const;
+const evidenceLabel = { REFERENCE: "reference history", DEMO_SEEDED: "demo history", PAYPAL_SANDBOX: "verified PayPal Sandbox sales", IMPORTED: "imported history" } as const;
 const sourceNote = (series: SalesSeries) => ({
   REFERENCE: "Labelled synthetic reference history for a fictional retailer, not Zettle, PayPal or other provider sales.",
   DEMO_SEEDED: "Synthetic demo sales, not provider-verified commerce.",
   PAYPAL_SANDBOX: "Completed, verified and reconciled PayPal Sandbox sales only.",
+  IMPORTED: "Imported sales history supplied for this business, not verified by a payment provider.",
 })[series.source];
 
 export function OwnerReload() {
