@@ -16,6 +16,13 @@ const acceptedTerms = z.object({
   termsVersion: z.number().int().positive(),
 });
 
+// Accepted base earnings + the incentive from the confirmed performance result, if any.
+export function finalPayableMinor(payable: { baseAmountMinor: number; incentiveAmountMinor?: number | null }) {
+  const total = payable.baseAmountMinor + (payable.incentiveAmountMinor ?? 0);
+  if (!Number.isSafeInteger(total)) throw new Error("Payable exceeds the supported range.");
+  return total;
+}
+
 export type BasePayableUnavailableReason = "INVALID_ACCEPTED_TERMS" | "NOT_WHOLE_MINOR_UNITS" | "EXPECTED_EARNINGS_MISMATCH";
 export type BasePayableResult =
   | { state: "CALCULATED"; earningsModel: "HOURLY" | "DAILY"; currencyCode: string; rateMinor: number; scheduledStartsAt: Date; scheduledEndsAt: Date; baseAmountMinor: number; termsVersion: number }

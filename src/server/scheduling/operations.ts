@@ -12,6 +12,7 @@ import { localDate } from "@/server/intelligence/forecast";
 
 import type { Scope } from "@/server/auth/access";
 import { UserFacingError } from "@/server/domain/errors";
+import { acceptedIncentiveTerms, INDIVIDUAL_INCENTIVE_BASIS } from "@/server/domain/incentive";
 import { availabilityForShift, isOfferable, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
 
 // Internal demo compatibility only; HTTP entrypoints always supply authenticated scope.
@@ -44,7 +45,11 @@ export async function createDepartment(db: Database, name: string, scope:Operati
 export async function createWorkPolicy(db: Database, input: unknown, name: string, scope:OperatingScope=demoScope) {
   const outlet = await location(db, scope);
   const terms = policyInput.parse(input);
-  return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, currencyCode: await locationCurrency(db, outlet) }).returning();
+  // An optional target and fixed bonus, together and positive, on fixed-pay terms only.
+  const { incentiveTargetMinor: target = null, incentiveBonusMinor: bonus = null } = input as { incentiveTargetMinor?: number | null; incentiveBonusMinor?: number | null };
+  const validAmount = (value: number) => Number.isSafeInteger(value) && value > 0;
+  if ((target !== null || bonus !== null) && (target === null || bonus === null || !validAmount(target) || !validAmount(bonus) || terms.earningsModel === "COMMISSION")) throw new UserFacingError("policy-incentive", "A sales target and bonus must both be set, on hourly or daily terms.");
+  return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, incentiveTargetMinor: target, incentiveBonusMinor: bonus, currencyCode: await locationCurrency(db, outlet) }).returning();
 }
 // Payout state shown to managers; the stored recipient address is not needed to review it.
 type PayoutColumns = ReturnType<typeof getTableColumns<typeof workPayouts>>;
@@ -103,7 +108,10 @@ export async function createRequirement(db: Database, input: { departmentId: str
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,
-      guaranteedBasePayMinor: expected ?? 0, gratuityPolicy: "No gratuity terms apply.", incentivePolicy: "No incentive applies to this assignment.",
+      guaranteedBasePayMinor: expected ?? 0, gratuityPolicy: "No gratuity terms apply.",
+      ...(policy.incentiveTargetMinor !== null && policy.incentiveBonusMinor !== null
+        ? { incentiveBasis: INDIVIDUAL_INCENTIVE_BASIS, incentiveTargetMinor: policy.incentiveTargetMinor, incentiveAmountMinor: policy.incentiveBonusMinor, incentivePolicy: "A fixed bonus is earned if the worker's own attributed sales for this shift reach the target." }
+        : { incentivePolicy: "No incentive applies to this assignment." }),
     }).returning();
     return row;
   });
@@ -160,7 +168,7 @@ export async function respondToAssignment(db: Database, workerId: string, offerI
         departmentId: shift.departmentId, departmentName: department?.name ?? shift.roleName, startsAt: shift.startsAt.toISOString(), endsAt: shift.endsAt.toISOString(),
         earningsModel: shift.earningsModel, currencyCode: shift.currencyCode, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null),
         commissionBps: shift.commissionBps, commissionBasis: shift.commissionBasis, expectedEarningsMinor: shift.earningsModel === "COMMISSION" ? null : shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor,
-        incentivePolicy: shift.incentivePolicy, incentiveTargetMinor: shift.incentiveTargetMinor, incentiveAmountMinor: shift.incentiveAmountMinor, gratuityPolicy: shift.gratuityPolicy,
+        incentivePolicy: shift.incentivePolicy, incentiveBasis: shift.incentiveBasis, incentiveTargetMinor: shift.incentiveTargetMinor, incentiveAmountMinor: shift.incentiveAmountMinor, gratuityPolicy: shift.gratuityPolicy,
         termsVersion: version, acceptedAt: now.toISOString(), acknowledged: true };
       await tx.insert(workAcceptances).values({ id: randomUUID(), offerId, workerId, termsVersion: version, snapshot, acceptedAt: now });
       await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "SHIFT_ACCEPTED", entityType: "shift_offer", entityId: offerId, correlationId: `demo-cycle:${shift.id}`, metadata: { workerId, shiftId: shift.id, termsVersion: version } });
@@ -213,7 +221,7 @@ export async function confirmWork(db: Database, offerId: string, scope:Operating
       allocationId: allocation.id, acceptanceId: acceptance.id, termsVersion: terms.termsVersion, calculationMethod: BASE_PAYABLE_METHOD,
       earningsModel: terms.earningsModel, currencyCode: terms.currencyCode, rateMinor: terms.rateMinor,
       scheduledStartsAt: terms.scheduledStartsAt, scheduledEndsAt: terms.scheduledEndsAt, baseAmountMinor: terms.baseAmountMinor,
-      confirmedAt, confirmedBy: scope.userId ?? null,
+      confirmedAt, confirmedBy: scope.userId ?? null, incentiveRequired: acceptedIncentiveTerms(acceptance.snapshot) !== null,
     }).onConflictDoNothing({ target: workPayables.allocationId }).returning();
     if (created) await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "BASE_PAYABLE_CALCULATED", entityType: "work_payable", entityId: created.id, correlationId: `assignment:${shift.id}`, metadata: { allocationId: allocation.id, termsVersion: terms.termsVersion, currencyCode: terms.currencyCode, baseAmountMinor: terms.baseAmountMinor } });
     const [payable] = created ? [created] : await tx.select().from(workPayables).where(eq(workPayables.allocationId, allocation.id));

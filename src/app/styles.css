@@ -674,3 +674,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .worker-section > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 700; }
 .product-shell-worker .panel p > a, .product-shell-worker .state-panel p > a, .worker-section p > a { display: inline-flex; align-items: center; min-height: 44px; }
 .staffing-fill-link { display: block; padding: 6px 0; font-size: .8rem; font-weight: 700; white-space: nowrap; }
+.worker-shift-bonus { font-weight: 650; }
+.worker-shift-bonus small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
+.worker-performance { flex-basis: 100%; }
+.worker-performance dl { display: grid; gap: 8px; margin: 8px 0; }
+.worker-performance dl > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding-block: 4px; border-bottom: 1px solid var(--line); }
+.worker-performance dt { color: var(--muted); }
+.worker-performance dd { margin: 0; font-weight: 700; }
+.worker-performance-total { font-size: 1.15rem; border-bottom: 0 !important; }

@@ -6,6 +6,7 @@ import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
 import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
 import { UserFacingError } from "@/server/domain/errors";
+import { confirmWorkPerformance, importAttributedSales } from "@/server/performance/attribution";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
 import { requireScope } from "@/server/auth/request";
 import { inviteMember } from "@/server/auth/tenancy";
@@ -55,7 +56,15 @@ export async function createPolicyAction(form: FormData) {
     if (!/^\d{1,10}(\.\d{1,2})?$/.test(rate)) throw new Error("Enter a valid rate or percentage.");
     const [whole, fraction = ""] = rate.split(".");
     const value = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-    return createWorkPolicy(getDatabase(), earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" } : { earningsModel, rateMinor: value }, field(form, "name"),scope);
+    const optionalAmount = (name: string) => {
+      const text = field(form, name).trim();
+      if (!text) return null;
+      if (!/^\d{1,10}(\.\d{1,2})?$/.test(text)) throw new UserFacingError("policy-incentive", "Enter a valid amount.");
+      const [units, cents = ""] = text.split(".");
+      return Number(units) * 100 + Number(cents.padEnd(2, "0"));
+    };
+    const incentive = { incentiveTargetMinor: optionalAmount("incentiveTarget"), incentiveBonusMinor: optionalAmount("incentiveBonus") };
+    return createWorkPolicy(getDatabase(), earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", ...incentive } : { earningsModel, rateMinor: value, ...incentive }, field(form, "name"),scope);
   });
 }
 export async function createRequirementAction(form: FormData) {
@@ -102,6 +111,26 @@ export async function confirmWorkAction(form: FormData) {
   return perform("/manager/review", () => {
     if (field(form, "confirmed") !== "yes") throw new Error("Confirm completed work.");
     return confirmWork(getDatabase(), field(form, "offerId"),scope);
+  });
+}
+// Sales evidence for this location. Workers, location and amounts come from the rows and
+// the session; nothing else in the form is read.
+export async function importAttributedSalesAction(form: FormData) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  let summary: Awaited<ReturnType<typeof importAttributedSales>>;
+  try { summary = await importAttributedSales(getDatabase(), scope, field(form, "rows")); }
+  catch (error) { redirect(`/manager/review?status=${error instanceof UserFacingError ? error.feedback : "error"}#performance`); }
+  for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
+  const rejected = summary.rejected.slice(0, 10).map(row => `${row.line}:${row.reason}`).join(",");
+  redirect(`/manager/review?importResult=${summary.imported}.${summary.duplicates}.${summary.rejected.length}${rejected ? `.${rejected}` : ""}#performance`);
+}
+// The manager states the evidence is complete; the figures and incentive are calculated
+// on the server. The seen values only detect sales that arrived after the page opened.
+export async function confirmPerformanceAction(form: FormData) {
+  const scope=await requireScope(["OWNER","MANAGER"]);
+  return perform("/manager/review", () => {
+    if (field(form, "complete") !== "yes") throw new Error("Confirm the sales are complete.");
+    return confirmWorkPerformance(getDatabase(), scope, field(form, "allocationId"), { count: Number(field(form, "seenCount")), minor: Number(field(form, "seenMinor")) });
   });
 }
 // Payment actions take only the payable ID: amount, currency and recipient are read

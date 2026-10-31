@@ -1,3 +1,5 @@
+import { UserFacingError } from "@/server/domain/errors";
+import { finalPayableMinor } from "@/server/domain/work-payable";
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -86,13 +88,15 @@ export async function approveWorkPayable(db: Database, scope: PayoutScope, payab
     if (payable.status !== "PENDING_REVIEW") throw new Error("Payable cannot be approved.");
     if (scope.workerId && scope.workerId === payable.workerId) throw new Error("A payable cannot be approved by its own worker.");
     if (payable.baseAmountMinor <= 0) throw new Error("There is no amount to approve.");
+    // Unknown sales are not zero sales: an incentive cannot be approved away by omission.
+    if (payable.incentiveRequired && payable.incentiveAmountMinor === null) throw new UserFacingError("performance-required", "Confirm the sales results for this shift first.");
     const [approved] = await tx.update(workPayables).set({
       status: "APPROVED", approvedAt: new Date(), approvedBy: scope.userId,
-      approvedAmountMinor: payable.baseAmountMinor, approvedCurrencyCode: payable.currencyCode, updatedAt: new Date(),
+      approvedAmountMinor: finalPayableMinor(payable), approvedCurrencyCode: payable.currencyCode, updatedAt: new Date(),
     }).where(and(eq(workPayables.id, payable.id), eq(workPayables.status, "PENDING_REVIEW"))).returning();
     if (!approved) throw new Error("Payable approval changed concurrently.");
     await audit(tx, scope, "PAYABLE_APPROVED", "work_payable", approved.id, approved.id, {
-      approvedAmountMinor: approved.approvedAmountMinor, approvedCurrencyCode: approved.approvedCurrencyCode, baseAmountMinor: approved.baseAmountMinor,
+      approvedAmountMinor: approved.approvedAmountMinor, approvedCurrencyCode: approved.approvedCurrencyCode, baseAmountMinor: approved.baseAmountMinor, incentiveAmountMinor: approved.incentiveAmountMinor,
       allocationId: approved.allocationId, acceptanceId: approved.acceptanceId, termsVersion: approved.termsVersion,
     });
     return approved;

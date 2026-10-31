@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { DEMO_CASUAL_WORKER_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
+import { calculateIncentive } from "@/server/domain/incentive";
 import { shiftIncentives, shifts, workers } from "@/server/db/schema";
 import { PayPalPayoutError, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
@@ -11,13 +12,7 @@ import { getDemoWorkerShift } from "@/server/scheduling/demo";
 const minor = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const email = z.string().trim().email().max(254);
 
-export function calculateIncentive(performanceSalesMinor: number, targetSalesMinor: number, configuredAmountMinor: number) {
-  minor.parse(performanceSalesMinor);
-  minor.parse(targetSalesMinor);
-  minor.parse(configuredAmountMinor);
-  const earned = performanceSalesMinor >= targetSalesMinor;
-  return { earned, earnedAmountMinor: earned ? configuredAmountMinor : 0, status: earned ? "EARNED" as const : "NOT_EARNED" as const };
-}
+export { calculateIncentive };
 
 export async function setDemoPayoutDestination(db: DatabaseSession, value: string) {
   const recipient = email.parse(value);

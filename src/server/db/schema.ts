@@ -12,6 +12,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("auth_users", {
@@ -306,8 +307,14 @@ export const workPolicies = pgTable("work_policies", {
   commissionBasis: text("commission_basis"),
   // The location's currency when the policy was created; rates are in its minor units.
   currencyCode: text("currency_code").notNull(),
+  // Optional Owner-set incentive: this fixed bonus if the worker's own attributed sales
+  // for the shift reach this target. Copied to shifts; a later change here alters nothing accepted.
+  incentiveTargetMinor: bigint("incentive_target_minor", { mode: "number" }),
+  incentiveBonusMinor: bigint("incentive_bonus_minor", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("work_policy_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`), check("work_policy_terms_check", sql`(
+}, (t) => [check("work_policy_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`), check("work_policy_incentive_check", sql`(${t.incentiveTargetMinor} is null and ${t.incentiveBonusMinor} is null) or (
+  ${t.incentiveTargetMinor} is not null and ${t.incentiveBonusMinor} is not null and ${t.incentiveTargetMinor} between 1 and 9007199254740991 and ${t.incentiveBonusMinor} between 1 and 9007199254740991 and ${t.earningsModel} in ('HOURLY', 'DAILY')
+)`), check("work_policy_terms_check", sql`(
   ${t.earningsModel} in ('HOURLY', 'DAILY') and ${t.rateMinor} is not null and ${t.rateMinor} >= 0 and ${t.rateMinor} <= 9007199254740991 and ${t.commissionBps} is null and ${t.commissionBasis} is null
 ) or (
   ${t.earningsModel} = 'COMMISSION' and ${t.rateMinor} is null and ${t.commissionBps} is not null and ${t.commissionBasis} is not null and ${t.commissionBps} between 0 and 10000 and ${t.commissionBasis} = 'VERIFIED_ATTRIBUTED_SALES'
@@ -395,6 +402,8 @@ export const shifts = pgTable(
     incentivePolicy: text("incentive_policy").notNull(),
     incentiveTargetMinor: bigint("incentive_target_minor", { mode: "number" }).notNull().default(0),
     incentiveAmountMinor: bigint("incentive_amount_minor", { mode: "number" }).notNull().default(0),
+    // Set only for the individual target-and-bonus incentive; the seeded demo's team incentive leaves it null.
+    incentiveBasis: text("incentive_basis"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -407,6 +416,7 @@ export const shifts = pgTable(
     check("shifts_base_pay_nonnegative", sql`${table.guaranteedBasePayMinor} >= 0`),
     check("shifts_incentive_target_nonnegative", sql`${table.incentiveTargetMinor} >= 0`),
     check("shifts_incentive_amount_nonnegative", sql`${table.incentiveAmountMinor} >= 0`),
+    check("shifts_incentive_basis_check", sql`${table.incentiveBasis} is null or (${table.incentiveBasis} = 'INDIVIDUAL_ATTRIBUTED_SALES' and ${table.incentiveTargetMinor} > 0 and ${table.incentiveAmountMinor} > 0)`),
     check("shifts_time_order_check", sql`${table.endsAt} > ${table.startsAt}`),
   ],
 );
@@ -488,12 +498,17 @@ export const workPayables = pgTable("work_payables", {
   status: text("status").notNull().default("PENDING_REVIEW"),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
   confirmedBy: uuid("confirmed_by").references(() => users.id),
-  // Manager approval of the final payable amount. For confirmed base work the final
-  // amount is the base payable exactly; an approved incentive would be added here later.
+  // Manager approval of the final payable amount, which the manager cannot edit.
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedBy: uuid("approved_by").references(() => users.id),
   approvedAmountMinor: bigint("approved_amount_minor", { mode: "number" }),
   approvedCurrencyCode: text("approved_currency_code"),
+  // Whether the accepted terms carry an incentive, and the amount from the confirmed
+  // performance result. Null while unknown: unknown is not zero, and blocks approval.
+  // Final payable = base amount + incentive amount.
+  incentiveRequired: boolean("incentive_required").notNull().default(false),
+  incentiveAmountMinor: bigint("incentive_amount_minor", { mode: "number" }),
+  performanceResultId: uuid("performance_result_id").references((): AnyPgColumn => workPerformanceResults.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -509,8 +524,9 @@ export const workPayables = pgTable("work_payables", {
   // The amount is exactly the accepted rate applied to the accepted schedule.
   check("work_payables_formula_check", sql`(${t.earningsModel} = 'DAILY' and ${t.baseAmountMinor} = ${t.rateMinor}) or (${t.earningsModel} = 'HOURLY' and ${t.baseAmountMinor}::numeric * 3600 = ${t.rateMinor}::numeric * extract(epoch from ${t.scheduledEndsAt} - ${t.scheduledStartsAt}))`),
   check("work_payables_status_check", sql`${t.status} in ('PENDING_REVIEW', 'APPROVED')`),
+  check("work_payables_incentive_check", sql`(${t.incentiveAmountMinor} is null and ${t.performanceResultId} is null) or (${t.incentiveRequired} and ${t.incentiveAmountMinor} is not null and ${t.incentiveAmountMinor} between 0 and 9007199254740991 and ${t.performanceResultId} is not null)`),
   check("work_payables_approval_check", sql`(${t.status} = 'PENDING_REVIEW' and ${t.approvedAt} is null and ${t.approvedBy} is null and ${t.approvedAmountMinor} is null and ${t.approvedCurrencyCode} is null)
-    or (${t.status} = 'APPROVED' and ${t.approvedAt} is not null and ${t.approvedBy} is not null and ${t.approvedAmountMinor} = ${t.baseAmountMinor} and ${t.approvedCurrencyCode} = ${t.currencyCode})`),
+    or (${t.status} = 'APPROVED' and ${t.approvedAt} is not null and ${t.approvedBy} is not null and ${t.approvedAmountMinor} is not null and ${t.approvedAmountMinor} = ${t.baseAmountMinor} + coalesce(${t.incentiveAmountMinor}, 0) and ${t.approvedCurrencyCode} = ${t.currencyCode} and (not ${t.incentiveRequired} or ${t.incentiveAmountMinor} is not null))`),
 ]);
 
 // The single PayPal payout of one approved work payable. The unique payable reference
@@ -563,7 +579,8 @@ export const workPayouts = pgTable("work_payouts", {
   check("work_payouts_paid_check", sql`(${t.status} = 'PAID') = (${t.paidAt} is not null and coalesce(${t.paypalStatus}, '') = 'SUCCESS')`),
 ]);
 
-// A separate boundary from location sales. No ingestion or demo attribution is supplied.
+// Worker-attributed sales: a separate boundary from location sales. Rows arrive only
+// through the location-scoped import, and stay UNVERIFIED: no provider has confirmed them.
 export const attributedSales = pgTable("attributed_sales", {
   id: uuid("id").primaryKey(),
   provider: text("provider").notNull(),
@@ -576,9 +593,38 @@ export const attributedSales = pgTable("attributed_sales", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   source: text("source").notNull(),
   verificationState: text("verification_state").notNull().default("UNVERIFIED"),
-}, (t) => [uniqueIndex("attributed_sales_provider_transaction_unique").on(t.provider, t.providerTransactionId),
+}, (t) => [uniqueIndex("attributed_sales_location_transaction_unique").on(t.outletId, t.provider, t.providerTransactionId),
+  index("attributed_sales_worker_time_idx").on(t.workerId, t.occurredAt),
   check("attributed_sales_verification_check", sql`${t.verificationState} in ('UNVERIFIED', 'VERIFIED', 'FAILED')`),
   check("attributed_sales_amount_check", sql`${t.amountMinor} >= 0 and ${t.amountMinor} <= 9007199254740991`)]);
+
+// The sales result a manager confirmed as complete for one allocation, and the incentive
+// it produced under the accepted terms. Its existence is what separates a genuine zero
+// from missing evidence. Immutable, and checked against the acceptance by a trigger
+// (drizzle/0018). Confirming for payment does not make imported evidence provider-verified.
+export const workPerformanceResults = pgTable("work_performance_results", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  shiftId: uuid("shift_id").notNull().references(() => shifts.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  allocationId: uuid("allocation_id").notNull().references(() => workAllocations.id, { onDelete: "restrict" }),
+  acceptanceId: uuid("acceptance_id").notNull().references(() => workAcceptances.id, { onDelete: "restrict" }),
+  salesCount: integer("sales_count").notNull(),
+  salesMinor: bigint("sales_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  targetMinor: bigint("target_minor", { mode: "number" }).notNull(),
+  bonusMinor: bigint("bonus_minor", { mode: "number" }).notNull(),
+  earnedMinor: bigint("earned_minor", { mode: "number" }).notNull(),
+  evidenceProvenance: text("evidence_provenance").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
+  confirmedBy: uuid("confirmed_by").references(() => users.id),
+}, (t) => [uniqueIndex("work_performance_results_allocation_unique").on(t.allocationId),
+  index("work_performance_results_worker_idx").on(t.workerId),
+  check("work_performance_results_amounts_check", sql`${t.salesCount} >= 0 and ${t.salesMinor} between 0 and 9007199254740991 and ${t.targetMinor} > 0 and ${t.bonusMinor} > 0 and (${t.salesCount} > 0 or ${t.salesMinor} = 0)`),
+  check("work_performance_results_formula_check", sql`${t.earnedMinor} = case when ${t.salesMinor} >= ${t.targetMinor} then ${t.bonusMinor} else 0 end`),
+  check("work_performance_results_provenance_check", sql`${t.evidenceProvenance} = 'IMPORTED_NOT_PROVIDER_VERIFIED'`),
+  check("work_performance_results_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`)]);
 
 export const shiftIncentives = pgTable(
   "shift_incentives",
@@ -682,7 +728,7 @@ export const schema = {
   saleTransactions,
   providerEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales, workPerformanceResults,
   shifts,
   shiftOffers,
   shiftIncentives,

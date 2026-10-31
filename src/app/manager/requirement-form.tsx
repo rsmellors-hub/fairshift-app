@@ -5,11 +5,12 @@ import { money, scheduledHours } from "@/app/components/format";
 import { localDateTimeToInstant, LocalTimeError } from "@/server/domain/timezone";
 import { expectedWorkEarnings, type WorkPolicy } from "@/server/domain/work-terms";
 
-type PolicyOption = { id: string; name: string; earningsModel: string; rateMinor: number | null; commissionBps: number | null; currencyCode: string };
+type PolicyOption = { id: string; name: string; earningsModel: string; rateMinor: number | null; commissionBps: number | null; currencyCode: string; incentiveTargetMinor: number | null; incentiveBonusMinor: number | null };
 
 function policyTerms(policy: PolicyOption) {
   if (policy.earningsModel === "COMMISSION") return `${(policy.commissionBps ?? 0) / 100}% of verified attributed sales`;
-  return `${money(policy.rateMinor ?? 0, policy.currencyCode)}/${policy.earningsModel === "HOURLY" ? "hour" : "day"}`;
+  const bonus = policy.incentiveTargetMinor && policy.incentiveBonusMinor ? ` · ${money(policy.incentiveBonusMinor, policy.currencyCode)} bonus at ${money(policy.incentiveTargetMinor, policy.currencyCode)} sales` : "";
+  return `${money(policy.rateMinor ?? 0, policy.currencyCode)}/${policy.earningsModel === "HOURLY" ? "hour" : "day"}${bonus}`;
 }
 
 // Times are typed as wall-clock at the work location. The preview uses the same time
@@ -38,7 +39,7 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
         const expected = expectedWorkEarnings(policy.earningsModel === "COMMISSION"
           ? { earningsModel: "COMMISSION", commissionBps: policy.commissionBps ?? 0, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" }
           : { earningsModel: policy.earningsModel, rateMinor: policy.rateMinor ?? 0 } as WorkPolicy, start, end);
-        preview = `${scheduledHours(start, end)} · ${expected === null ? "earnings depend on verified attributed sales" : `${money(expected, policy.currencyCode)} expected earnings per worker`}`;
+        preview = `${scheduledHours(start, end)} · ${expected === null ? "earnings depend on verified attributed sales" : `${money(expected, policy.currencyCode)} expected earnings per worker${policy.incentiveBonusMinor ? `, up to ${money(expected + policy.incentiveBonusMinor, policy.currencyCode)} with the sales bonus` : ""}`}`;
       }
     }
   } catch (error) {

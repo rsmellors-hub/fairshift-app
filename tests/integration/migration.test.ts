@@ -344,4 +344,29 @@ describe("work payable upgrade", () => {
    await expect(row("40000000-0000-4000-8000-0000000004e2", 1, "UNAVAILABLE")).rejects.toThrow();
   } finally { await client.close(); }
  });
+
+ it("adds performance and incentives without changing existing records or making old payables incentive-bearing", async () => {
+  const client = new PGlite();
+  try {
+   const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {entries: {tag: string}[]};
+   async function apply(tag: string) {for (const statement of (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint")) if (statement.trim()) await client.exec(statement);}
+   for (const entry of journal.entries.slice(0, 18)) await apply(entry.tag);
+   await client.exec(`INSERT INTO organisations (id, name, country) VALUES ('10000000-0000-4000-8000-0000000005c1', 'Any company', 'United Kingdom');
+    INSERT INTO outlets (id, organisation_id, name, timezone, country) VALUES ('20000000-0000-4000-8000-0000000005c1', '10000000-0000-4000-8000-0000000005c1', 'Any site', 'Europe/London', 'United Kingdom');
+    INSERT INTO workers (id, organisation_id, location_id, display_name, worker_type) VALUES ('30000000-0000-4000-8000-0000000005d1', '10000000-0000-4000-8000-0000000005c1', '20000000-0000-4000-8000-0000000005c1', 'Casual', 'CASUAL');
+    INSERT INTO work_policies (id, outlet_id, name, earnings_model, rate_minor, currency_code) VALUES ('40000000-0000-4000-8000-0000000005e1', '20000000-0000-4000-8000-0000000005c1', 'Existing', 'HOURLY', 1200, 'GBP');
+    INSERT INTO attributed_sales (id, provider, provider_transaction_id, attribution_code, outlet_id, amount_minor, currency_code, occurred_at, source) VALUES ('50000000-0000-4000-8000-0000000005f1', 'P', 'T1', 'C', '20000000-0000-4000-8000-0000000005c1', 100, 'GBP', now(), 'S');`);
+   const tables = async () => Object.fromEntries(await Promise.all(["workers", "shifts", "shift_offers", "work_acceptances", "work_allocations", "work_payables", "work_payouts", "shift_incentives", "attributed_sales"].map(async table => [table, (await client.query(`SELECT * FROM ${table} ORDER BY 1`)).rows])));
+   const before = await tables();
+   const policyBefore = (await client.query<Record<string, unknown>>("SELECT * FROM work_policies")).rows[0];
+   expect(journal.entries[18].tag).toBe("0018_work_performance");
+   await apply(journal.entries[18].tag);
+   expect(await tables()).toEqual(before);
+   expect((await client.query("SELECT count(*)::int AS count FROM work_performance_results")).rows[0]).toEqual({ count: 0 });
+   expect((await client.query<Record<string, unknown>>("SELECT * FROM work_policies")).rows[0]).toEqual({ ...policyBefore, incentive_target_minor: null, incentive_bonus_minor: null });
+   await expect(client.exec("UPDATE work_policies SET incentive_target_minor = 100")).rejects.toThrow();
+   await expect(client.exec("UPDATE work_policies SET incentive_target_minor = 0, incentive_bonus_minor = 5")).rejects.toThrow();
+   await client.exec("UPDATE work_policies SET incentive_target_minor = 100, incentive_bonus_minor = 5");
+  } finally { await client.close(); }
+ });
 });

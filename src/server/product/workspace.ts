@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workerAvailability, departments } from "@/server/db/schema";
+import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 
 // These workspaces retain the existing server-pinned environment scope.
@@ -38,7 +38,12 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
       id: workPayables.id, status: workPayables.status, baseAmountMinor: workPayables.baseAmountMinor, currencyCode: workPayables.currencyCode,
       earningsModel: workPayables.earningsModel, rateMinor: workPayables.rateMinor, termsVersion: workPayables.termsVersion,
       scheduledStartsAt: workPayables.scheduledStartsAt, scheduledEndsAt: workPayables.scheduledEndsAt, confirmedAt: workPayables.confirmedAt,
-      approvedAt: workPayables.approvedAt,
+      approvedAt: workPayables.approvedAt, incentiveRequired: workPayables.incentiveRequired, incentiveAmountMinor: workPayables.incentiveAmountMinor,
+    },
+    // The worker's own confirmed sales totals: aggregates only, never transactions.
+    performance: {
+      salesCount: workPerformanceResults.salesCount, salesMinor: workPerformanceResults.salesMinor, currencyCode: workPerformanceResults.currencyCode,
+      targetMinor: workPerformanceResults.targetMinor, bonusMinor: workPerformanceResults.bonusMinor, earnedMinor: workPerformanceResults.earnedMinor,
     },
     // Its payout state, without PayPal identifiers, recipient or error internals.
     payout: {
@@ -53,6 +58,7 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .leftJoin(shiftIncentives, and(eq(shiftIncentives.shiftId, shifts.id), eq(shiftIncentives.workerId, workers.id)))
     .leftJoin(workPayables, and(eq(workPayables.allocationId, workAllocations.id), eq(workPayables.workerId, workers.id), eq(workPayables.organisationId, workers.organisationId)))
     .leftJoin(workPayouts, and(eq(workPayouts.payableId, workPayables.id), eq(workPayouts.workerId, workers.id)))
+    .leftJoin(workPerformanceResults, and(eq(workPerformanceResults.allocationId, workAllocations.id), eq(workPerformanceResults.workerId, workers.id)))
     .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;
@@ -80,7 +86,7 @@ export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DE
   // Work earnings across the organisation: approval and payout state only.
   const workPayments = await db.select({
     id: workPayables.id, outletId: workPayables.outletId, workerName: workers.displayName, shiftDate: shifts.shiftDate,
-    amountMinor: workPayables.baseAmountMinor, currencyCode: workPayables.currencyCode, status: workPayables.status,
+    amountMinor: sql<number>`${workPayables.baseAmountMinor} + coalesce(${workPayables.incentiveAmountMinor}, 0)`.mapWith(Number), currencyCode: workPayables.currencyCode, status: workPayables.status,
     payout: { id: workPayouts.id, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paidAt: workPayouts.paidAt },
   }).from(workPayables).innerJoin(workers, eq(workers.id, workPayables.workerId)).innerJoin(shifts, eq(shifts.id, workPayables.shiftId))
     .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))

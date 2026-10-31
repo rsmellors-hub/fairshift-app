@@ -4,7 +4,7 @@ import { AssignmentResponse } from "@/app/components/assignment-response";
 import { money, scheduledHours } from "@/app/components/format";
 import { availabilityForShift, shiftWeekdays } from "@/server/scheduling/worker-pool";
 
-type Row = { shift: { id: string; roleName: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number };
+type Row = { shift: { id: string; roleName: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
   offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null };
 
 // The worker's shifts, grouped by what they need to do. Terms always come from the
@@ -54,9 +54,33 @@ export function WorkerShiftCard({ row, kind, locationName, timeZone, availabilit
     <p>{locationName}</p>
     <p><strong>{when.date}</strong><br />{when.time}, {locationName} time</p>
     <Earn shift={row.shift} />
-    {row.shift.incentiveAmountMinor > 0 ? <p>You could also earn a {money(row.shift.incentiveAmountMinor, row.shift.currencyCode)} incentive if the team meets its target.</p> : null}
+    {row.shift.incentiveBasis ? <p className="worker-shift-bonus">Plus a {money(row.shift.incentiveAmountMinor, row.shift.currencyCode)} bonus if your own sales for this shift reach {money(row.shift.incentiveTargetMinor, row.shift.currencyCode)}.<small>Up to {money((row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor) + row.shift.incentiveAmountMinor, row.shift.currencyCode)} in total</small></p>
+      : row.shift.incentiveAmountMinor > 0 ? <p>You could also earn a {money(row.shift.incentiveAmountMinor, row.shift.currencyCode)} incentive if the team meets its target.</p> : null}
     {NEXT[kind] ? <p>{NEXT[kind]}</p> : null}
     {blocked ? <p role="status">You’ve marked this day as unavailable. <Link href="/worker/availability">Change your availability</Link> if you want to accept.</p> : null}
     {respond ? <AssignmentResponse offerId={row.offer.id} version={row.shift.termsVersion} canAccept={!blocked} /> : null}
   </article>;
+}
+
+// What the worker earned on one shift. Before the sales are confirmed the bonus is
+// unknown, not zero, so no sales figures or total are shown.
+type Earned = { baseAmountMinor: number; currencyCode: string; incentiveRequired: boolean; incentiveAmountMinor: number | null };
+type Performance = { salesCount: number; salesMinor: number; currencyCode: string; targetMinor: number; bonusMinor: number; earnedMinor: number };
+export function WorkerPerformance({ payable, performance, shift }: { payable: Earned; performance: Performance | null; shift: { incentiveTargetMinor: number; incentiveAmountMinor: number } }) {
+  const amount = (value: number) => money(value, payable.currencyCode);
+  if (!performance) return <div className="worker-performance">
+    <p><strong>Your sales results aren’t final yet.</strong> Your manager confirms them after the shift. You’ll earn a {amount(shift.incentiveAmountMinor)} bonus if your sales reached {amount(shift.incentiveTargetMinor)}.</p>
+    <dl><div><dt>Base earnings</dt><dd>{amount(payable.baseAmountMinor)}</dd></div><div><dt>Bonus</dt><dd>Not known yet</dd></div></dl>
+  </div>;
+  return <div className="worker-performance">
+    <dl>
+      <div><dt>Your sales</dt><dd>{performance.salesCount}</dd></div>
+      <div><dt>Your sales value</dt><dd>{amount(performance.salesMinor)}</dd></div>
+      <div><dt>Target</dt><dd>{amount(performance.targetMinor)} · {performance.salesMinor >= performance.targetMinor ? "reached" : "not reached"}</dd></div>
+      <div><dt>Base earnings</dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
+      <div><dt>Bonus earned</dt><dd>{amount(performance.earnedMinor)}</dd></div>
+      <div className="worker-performance-total"><dt>Total earnings</dt><dd>{amount(payable.baseAmountMinor + performance.earnedMinor)}</dd></div>
+    </dl>
+    <p className="method-note">Based on sales records your manager imported and confirmed. They haven’t been checked by a sales provider.</p>
+  </div>;
 }

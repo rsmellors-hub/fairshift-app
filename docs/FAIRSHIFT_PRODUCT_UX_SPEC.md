@@ -658,7 +658,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 - Final fictional specialty-retailer brand and exact five store locations.
 - Final SaaS pricing and packaging.
-- Permanent incentive policy and formula; the $650 / $25 demo rule is evidence of the current path only.
+- Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.
 - Over-invitation and capacity behaviour when more workers accept than required.
 - Invitation transport and notification channel.

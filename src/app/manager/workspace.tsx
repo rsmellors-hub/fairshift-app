@@ -3,8 +3,11 @@ import { requireScope } from "@/server/auth/request";
 import type { Scope } from "@/server/auth/access";
 import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import Link from "next/link";
-import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
+import { DataLabel, PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, payableLabel, scheduledHours, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
+import { getLocationPerformance, type ImportRejection } from "@/server/performance/attribution";
+import { finalPayableMinor } from "@/server/domain/work-payable";
+import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
 import { publishDemoShiftAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
@@ -25,7 +28,7 @@ import { DemoReview } from "./review-workspace";
 export const managerAreas = ["plan", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
 
-export async function ManagerWorkspace({ area, status, date, department, ai }: { area: ManagerArea; status?: string; date?: string; department?: string; ai?: string }) {
+export async function ManagerWorkspace({ area, status, date, department, ai, importResult }: { area: ManagerArea; status?: string; date?: string; department?: string; ai?: string; importResult?: string }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=await requireScope(["OWNER","MANAGER"]);
   let data;
@@ -85,7 +88,7 @@ export async function ManagerWorkspace({ area, status, date, department, ai }: {
         {gapDay ? <section className="staffing-handoff" aria-label="Staffing requirement"><p><strong>FairShift identified a staffing requirement for {longDate(gapDay.planningDate)}.</strong> You are creating the work to address it. Nothing is created or offered until you do.</p>
           <dl className="shift-terms"><div><dt>Required labour</dt><dd>{gapDay.requiredMinutes === null ? "Unavailable" : labourHours(gapDay.requiredMinutes)}</dd></div><div><dt>Regular coverage</dt><dd>{gapDay.regularMinutes === null ? "Not set" : labourHours(gapDay.regularMinutes)}</dd></div><div><dt>Allocated casual</dt><dd>{labourHours(gapDay.allocatedCasualMinutes)}</dd></div><div><dt>Casual labour gap</dt><dd>{gapDay.casualGapMinutes === null ? "Unavailable" : labourHours(gapDay.casualGapMinutes)}</dd></div><div><dt>Indicative shifts</dt><dd>{gapDay.indicativeShifts ?? "Unavailable"}</dd></div></dl>
           <p className="method-note">{planningOutlet?.policy ? `Calculated with ${policyDescription(planningOutlet.policy)}. ` : ""}{planningOutlet?.evidence ? `Sales evidence through ${longDate(planningOutlet.evidence.dataThrough)}.` : ""}</p></section> : null}
-        {departments.length && policies.length ? <RequirementForm action={createRequirementAction} departments={departments.map(d => ({ id: d.id, name: d.name }))} policies={policies.map(p => ({ id: p.id, name: p.name, earningsModel: p.earningsModel, rateMinor: p.rateMinor, commissionBps: p.commissionBps, currencyCode: p.currencyCode }))} timeZone={timezone} locationName={scope.locationName}
+        {departments.length && policies.length ? <RequirementForm action={createRequirementAction} departments={departments.map(d => ({ id: d.id, name: d.name }))} policies={policies.map(p => ({ id: p.id, name: p.name, earningsModel: p.earningsModel, rateMinor: p.rateMinor, commissionBps: p.commissionBps, currencyCode: p.currencyCode, incentiveTargetMinor: p.incentiveTargetMinor, incentiveBonusMinor: p.incentiveBonusMinor }))} timeZone={timezone} locationName={scope.locationName}
           defaults={{ departmentId: department, startsAt: planningDate ? `${planningDate}T09:00` : "", endsAt: planningDate ? `${planningDate}T17:00` : "", headcount: gapDay?.indicativeShifts || 1 }} context={<PlanContext date={date} department={department} />} /> : <p>The business owner must configure a department and work policy first.</p>}</details>
       {await Roster(scope, timezone)}
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
@@ -93,24 +96,78 @@ export async function ManagerWorkspace({ area, status, date, department, ai }: {
     {area === "review" ? <>
       <section className="panel"><h2>Confirm work performed</h2>{offers.filter(o => o.allocation?.state === "ALLOCATED").map(o => { const r = requirements.find(r => r.id === o.offer.shiftId)!; const payable = payables.find(p => p.payable.allocationId === o.allocation!.id)?.payable; return <div className="requirement" key={o.offer.id}><h3>{o.workerName} · {r.shiftDate} · {r.roleName}</h3><ShiftTerms shift={r} locationName={scope.locationName} timeZone={timezone} />{o.allocation?.confirmedAt ? <>
         <p>Work confirmed {dateTime(o.allocation.confirmedAt, timezone)} ({timezone}) as scheduled.</p>
-        {payable ? <p>Base payable {money(payable.baseAmountMinor, payable.currencyCode)} from the accepted terms · <a href="#base-payables">{payableLabel(payable.status, payables.find(p => p.payable.id === payable.id)?.payout)}</a></p>
+        {payable ? <p>Base payable {money(payable.baseAmountMinor, payable.currencyCode)} from the accepted terms · {payable.incentiveRequired && payable.incentiveAmountMinor === null ? <a href="#performance">Sales results needed</a> : <a href="#base-payables">{payableLabel(payable.status, payables.find(p => p.payable.id === payable.id)?.payout)}</a>}</p>
           : r.earningsModel === "COMMISSION" ? <p>Commission is not payable: verified attributed sales are required.</p>
           : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><input name="confirmed" type="hidden" value="yes" /><p>The base payable for this confirmed work has not been recorded.</p><button className="secondary-button">Calculate base payable</button></form>}
       </> : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><label><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > new Date()}>Confirm work</button>{r.endsAt > new Date() ? <small>Available after the scheduled end.</small> : null}</form>}</div>; })}</section>
+      {await PerformanceReview(scope, payables, timezone, importResult)}
       <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Payments &amp; approvals · confirmed work</h2>
-        <p className="method-note">Base payables are calculated by FairShift from the terms each worker accepted, for work confirmed as scheduled. No timesheet, overtime or incentive is applied. Approving confirms the calculated amount; it cannot be edited. Sending the payout pays exactly the approved amount and currency through PayPal (Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
+        <p className="method-note">Payables are calculated by FairShift: the base from the terms each worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied. Approving confirms the calculated amount; it cannot be edited. Sending the payout pays exactly the approved amount and currency through PayPal (Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
         {payables.length ? <>
           <div className="overview-strip">
-            <div><span>Awaiting approval</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "PENDING_REVIEW").map(p => ({ amountMinor: p.payable.baseAmountMinor, currencyCode: p.payable.currencyCode }))) || "None"}</strong></div>
+            <div><span>Awaiting approval</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "PENDING_REVIEW").map(p => ({ amountMinor: finalPayableMinor(p.payable), currencyCode: p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Approved · not yet paid</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "APPROVED" && p.payout?.status !== "PAID").map(p => ({ amountMinor: p.payable.approvedAmountMinor ?? 0, currencyCode: p.payable.approvedCurrencyCode ?? p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Paid · confirmed by PayPal</span><strong>{currencyTotals(payables.filter(p => p.payout?.status === "PAID").map(p => ({ amountMinor: p.payout!.amountMinor, currencyCode: p.payout!.currencyCode }))) || "None"}</strong></div>
           </div>
-          <div className="table-scroll" role="region" aria-label="Payables and payouts" tabIndex={0}><table><thead><tr><th>Worker</th><th>Shift</th><th>Accepted terms</th><th>Confirmed · {timezone}</th><th>Payable</th><th>Status</th><th>Action</th></tr></thead><tbody>{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved }) => <tr key={payable.id}><td>{workerName}</td><td>{shiftDate} · {roleName}</td><td>{payableBasis(payable)} · version {payable.termsVersion}</td><td>{dateTime(payable.confirmedAt, timezone)}</td><td><strong>{money(payable.baseAmountMinor, payable.currencyCode)}</strong>{payable.approvedAt ? <><br /><small>Approved {dateTime(payable.approvedAt, timezone)}</small></> : null}</td><td><PayableBadge status={payable.status} payout={payout} /></td><td><PayableAction payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} /></td></tr>)}</tbody></table></div>
+          <div className="table-scroll" role="region" aria-label="Payables and payouts" tabIndex={0}><table><thead><tr><th>Worker</th><th>Shift</th><th>Accepted terms</th><th>Confirmed · {timezone}</th><th>Payable</th><th>Status</th><th>Action</th></tr></thead><tbody>{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved }) => <tr key={payable.id}><td>{workerName}</td><td>{shiftDate} · {roleName}</td><td>{payableBasis(payable)} · version {payable.termsVersion}</td><td>{dateTime(payable.confirmedAt, timezone)}</td><td><strong>{money(finalPayableMinor(payable), payable.currencyCode)}</strong>{payable.incentiveRequired ? <><br /><small>{payable.incentiveAmountMinor === null ? "Base only · bonus not known yet" : `${money(payable.baseAmountMinor, payable.currencyCode)} base + ${money(payable.incentiveAmountMinor, payable.currencyCode)} bonus`}</small></> : null}{payable.approvedAt ? <><br /><small>Approved {dateTime(payable.approvedAt, timezone)}</small></> : null}</td><td><PayableBadge status={payable.status} payout={payout} /></td><td><PayableAction payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} /></td></tr>)}</tbody></table></div>
         </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
       </section>
       {scope.organisationId === DEMO_ORGANISATION_ID ? await DemoReview() : null}
     </> : null}
   </>;
+}
+const IMPORT_REASON: Record<ImportRejection, string> = {
+  INVALID_ROW: "not readable: check the columns, the time's offset and a two-decimal amount above zero",
+  IN_THE_FUTURE: "the time is in the future",
+  UNKNOWN_CODE: "no worker at this location has that attribution code",
+  NO_MATCHING_SHIFT: "not within an accepted incentive shift for that worker",
+  WRONG_CURRENCY: "not in the currency of the accepted terms",
+  RESULTS_FINAL: "that shift's sales results are already confirmed",
+  TRANSACTION_CHANGED: "that transaction was already imported with different details",
+};
+// Each number and reason is checked, so an edited link can only show what is valid.
+function ImportOutcome({ value }: { value?: string }) {
+  const match = value?.match(/^(\d+)\.(\d+)\.(\d+)(?:\.([\w:,]+))?$/);
+  if (!match) return null;
+  const rows = (match[4] ?? "").split(",").flatMap(item => { const [line, reason] = item.split(":"); return reason && reason in IMPORT_REASON ? [{ line, reason: IMPORT_REASON[reason as ImportRejection] }] : []; });
+  return <StatePanel title={`${match[1]} imported · ${match[2]} already imported · ${match[3]} not imported`} tone={match[3] === "0" ? "success" : "warning"}>
+    {rows.length ? <ul>{rows.map(row => <li key={row.line}>Line {row.line}: {row.reason}.</li>)}</ul> : null}
+    {Number(match[3]) > rows.length ? <p>Only the first {rows.length} are listed.</p> : null}
+  </StatePanel>;
+}
+// Sales evidence for incentive shifts, in aggregate: count and value, never transactions.
+async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<typeof getOperations>>["payables"], timezone: string, importResult?: string) {
+  let work: Awaited<ReturnType<typeof getLocationPerformance>>;
+  try { work = await getLocationPerformance(getDatabase(), scope); } catch { return <StatePanel title="Sales results are unavailable" tone="warning"><p>Please try again shortly. Nothing has been calculated as zero.</p></StatePanel>; }
+  return <section className="panel" id="performance" aria-labelledby="performance-title"><h2 id="performance-title">Performance · attributed sales</h2>
+    <p className="method-note">Sales are imported, matched to a worker by attribution code within their accepted shift at this location, and marked “Imported · not provider-verified”. Confirming them for payment doesn’t change that. The bonus is calculated from the accepted terms and can’t be edited.</p>
+    <ImportOutcome value={importResult} />
+    {work.length ? work.map(item => {
+      const payable = payables.find(row => row.payable.allocationId === item.allocationId)?.payable, currency = item.terms.currencyCode, amount = (value: number) => money(value, currency);
+      const count = item.result?.salesCount ?? item.attributed.count, value = item.result?.salesMinor ?? item.attributed.minor, base = payable?.baseAmountMinor;
+      return <article className="requirement" key={item.allocationId}><h3>{item.workerName} · {item.shiftDate} · {item.roleName}</h3>
+        <p><StatusBadge tone="warning">Imported · not provider-verified</StatusBadge> {item.result ? <strong>Confirmed for payment</strong> : <strong>Not complete yet</strong>}</p>
+        <dl className="shift-terms">
+          <div><dt>Attributed sales</dt><dd>{count === 0 && !item.result ? "None imported yet" : count}</dd></div>
+          <div><dt>Attributed sales value</dt><dd>{count === 0 && !item.result ? "Not known yet" : amount(value)}</dd></div>
+          <div><dt>Target · accepted</dt><dd>{amount(item.terms.targetMinor)}</dd></div>
+          <div><dt>Fixed bonus · accepted</dt><dd>{amount(item.terms.bonusMinor)}</dd></div>
+          <div><dt>Accepted base earnings</dt><dd>{base === undefined ? "After work is confirmed" : amount(base)}</dd></div>
+          <div><dt>Bonus earned</dt><dd>{item.result ? `${amount(item.result.earnedMinor)} · target ${item.result.earnedMinor > 0 ? "reached" : "not reached"}` : "Not known yet"}</dd></div>
+          <div><dt>Final payable</dt><dd>{payable && item.result ? amount(finalPayableMinor(payable)) : "Not known yet"}</dd></div>
+        </dl>
+        {item.result ? null : payable ? <form action={confirmPerformanceAction}><input type="hidden" name="allocationId" value={item.allocationId} /><input type="hidden" name="seenCount" value={item.attributed.count} /><input type="hidden" name="seenMinor" value={item.attributed.minor} />
+          <label><input type="checkbox" name="complete" value="yes" required /> {count === 0 ? "I’ve checked: this worker made no attributed sales on this shift." : "I’ve checked: these sales are complete for this shift."}</label>
+          <button className="primary-button">Confirm sales results</button></form>
+          : <p><small>Confirm the work above before its sales results. Allocated {dateTime(item.startsAt, timezone)}.</small></p>}
+      </article>; }) : <StatePanel title="No incentive shifts yet"><p>Allocated work with a sales target appears here.</p></StatePanel>}
+    <details><summary>Import attributed sales</summary>
+      <form action={importAttributedSalesAction} className="workspace-form">
+        <label>Paste rows from your sales export<textarea name="rows" rows={6} required spellCheck={false} placeholder="transaction_id,attribution_code,occurred_at,amount,currency" /></label>
+        <p className="method-note">Columns: transaction_id, attribution_code, occurred_at (with a time zone offset, such as 2026-11-03T11:15:00+00:00), amount (such as 25.00), currency. Importing the same rows again doesn’t count them twice. Don’t include customer or product details.</p>
+        <button className="secondary-button">Import sales</button>
+      </form></details>
+  </section>;
 }
 // The structured PayPal error code recorded with a payout, if any (never a provider message).
 function payoutReason(lastError: unknown) {
@@ -122,7 +179,8 @@ type ManagerPayables = Awaited<ReturnType<typeof getOperations>>["payables"];
 // only the payable ID; the server reads amount, currency and recipient itself.
 function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured, timezone }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { payoutsConfigured: boolean; timezone: string }) {
   const id = <input name="payableId" type="hidden" value={payable.id} />;
-  if (payable.status === "PENDING_REVIEW") return <form action={approvePayableAction}>{id}<button className="primary-button">Approve {money(payable.baseAmountMinor, payable.currencyCode)}</button></form>;
+  if (payable.status === "PENDING_REVIEW" && payable.incentiveRequired && payable.incentiveAmountMinor === null) return <a href="#performance">Confirm sales results first</a>;
+  if (payable.status === "PENDING_REVIEW") return <form action={approvePayableAction}>{id}<button className="primary-button">Approve {money(finalPayableMinor(payable), payable.currencyCode)}</button></form>;
   if (payable.status !== "APPROVED") return <span>Unavailable</span>;
   if (!payout || payout.status === "NOT_SENT") {
     return <>

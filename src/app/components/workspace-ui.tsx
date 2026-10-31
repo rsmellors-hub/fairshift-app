@@ -70,7 +70,7 @@ export function PaymentBadge({ status }: { status?: string | null }) {
   return <StatusBadge tone={status === "PAID" ? "success" : status === "FAILED" ? "danger" : "neutral"}>{paymentLabel(status)}</StatusBadge>;
 }
 
-export function ShiftTerms({ shift, locationName, timeZone }: { locationName: string; timeZone: string; shift: Pick<typeof shifts.$inferSelect, "startsAt" | "endsAt" | "guaranteedBasePayMinor" | "incentiveAmountMinor" | "currencyCode"> & Partial<Pick<typeof shifts.$inferSelect, "earningsModel" | "rateMinor" | "commissionBps" | "expectedEarningsMinor">> }) {
+export function ShiftTerms({ shift, locationName, timeZone }: { locationName: string; timeZone: string; shift: Pick<typeof shifts.$inferSelect, "startsAt" | "endsAt" | "guaranteedBasePayMinor" | "incentiveAmountMinor" | "currencyCode"> & Partial<Pick<typeof shifts.$inferSelect, "incentiveTargetMinor" | "incentiveBasis" | "earningsModel" | "rateMinor" | "commissionBps" | "expectedEarningsMinor">> }) {
   const model = shift.earningsModel ?? "DAILY";
   return <dl className="shift-terms">
     <div><dt>Location</dt><dd>{locationName}</dd></div>
@@ -79,6 +79,7 @@ export function ShiftTerms({ shift, locationName, timeZone }: { locationName: st
     <div><dt>Earnings model</dt><dd>{model === "COMMISSION" ? "Commission" : model === "HOURLY" ? "Hourly" : "Daily"}</dd></div>
     {model === "COMMISSION" ? <><div><dt>Commission rate</dt><dd>{(shift.commissionBps ?? 0) / 100}%</dd></div><div><dt>Basis</dt><dd>Verified attributed sales</dd></div></> : <><div><dt>Rate</dt><dd>{money(shift.rateMinor ?? shift.guaranteedBasePayMinor, shift.currencyCode)}{model === "HOURLY" ? "/hour" : "/day"}</dd></div>{model === "HOURLY" ? <div><dt>Scheduled duration</dt><dd>{scheduledHours(shift.startsAt, shift.endsAt)}</dd></div> : null}<div><dt>Expected work earnings</dt><dd>{money(shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor, shift.currencyCode)}</dd></div></>}
     {shift.incentiveAmountMinor > 0 ? <div><dt>Potential incentive</dt><dd>{money(shift.incentiveAmountMinor, shift.currencyCode)}</dd></div> : null}
+    {shift.incentiveBasis ? <><div><dt>Individual sales target</dt><dd>{money(shift.incentiveTargetMinor ?? 0, shift.currencyCode)}</dd></div><div><dt>Potential total</dt><dd>{money((shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor) + shift.incentiveAmountMinor, shift.currencyCode)}</dd></div></> : null}
   </dl>;
 }
 
@@ -104,6 +105,11 @@ const FEEDBACK: Record<string, string> = {
   "worker-not-activated": "This person has not activated their FairShift account yet, so they cannot see an offer.",
   "already-offered": "This person already has an offer for this shift.",
   "shift-ended": "This shift has already finished, so it can no longer be accepted.",
+  "policy-incentive": "A sales target and bonus must both be set, as amounts above zero, on hourly or daily terms.",
+  "performance-required": "Confirm this shift’s sales results before approving its payment.",
+  "sales-changed": "Sales for this shift changed after you opened this page. Check the new figures and confirm again.",
+  "work-not-confirmed": "Confirm the work before its sales results.",
+  "import-format": "The first line must be: transaction_id,attribution_code,occurred_at,amount,currency. An import can have at most 2,000 rows.",
   "terms-changed": "The details of this work changed. Check the new details before responding.",
 };
 

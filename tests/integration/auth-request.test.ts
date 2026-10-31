@@ -25,6 +25,7 @@ import Onboarding from "@/app/onboarding/page";
 import Account from "@/app/account/page";
 import { POST as createOrder } from "@/app/api/paypal/orders/route";
 import { inviteAction, selectLocationAction, refreshSubscriptionAction, selectMembershipAction, savePersonalAction, saveBusinessAction } from "@/app/auth-actions";
+import { importAttributedSalesAction, confirmPerformanceAction } from "@/app/operations-actions";
 import { createTeamAction, createDepartmentAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction, saveOrganisationLabourPolicyAction, saveLocationLabourPolicyAction, clearOrganisationLabourPolicyAction, clearLocationLabourPolicyAction, saveRegularCoverageAction } from "@/app/operations-actions";
 import { submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import BillingReturn from "@/app/billing/return/page";
@@ -119,7 +120,7 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
     for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
-    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,approvePayableAction,sendPayoutAction,refreshPayoutAction,saveOrganisationLabourPolicyAction,saveLocationLabourPolicyAction,clearOrganisationLabourPolicyAction,clearLocationLabourPolicyAction,saveRegularCoverageAction]) {
+    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,approvePayableAction,sendPayoutAction,refreshPayoutAction,saveOrganisationLabourPolicyAction,saveLocationLabourPolicyAction,clearOrganisationLabourPolicyAction,clearLocationLabourPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
    }
