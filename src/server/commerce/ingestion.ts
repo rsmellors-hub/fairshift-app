@@ -79,11 +79,11 @@ export async function ingestCommerceObservations(db: Database, input: IngestionI
 }
 
 // The same boundary for observations retrieved through an authenticated connection.
-export async function ingestConnectedObservations(db: Database, input: Omit<IngestionInput, "source">) {
+export async function ingestConnectedObservations(db: Pick<Database, "transaction">, input: Omit<IngestionInput, "source">) {
   return ingest(db, input, "ZETTLE");
 }
 
-async function ingest(db: Database, input: IngestionInput | Omit<IngestionInput, "source">, source: CanonicalRow["source"]) {
+async function ingest(db: Pick<Database, "transaction">, input: IngestionInput | Omit<IngestionInput, "source">, source: CanonicalRow["source"]) {
   const header = batchHeader.safeParse(input);
   if (!header.success) throw new CommerceIngestionError("INVALID_OBSERVATION", "Organisation or source system is invalid.");
   const { organisationId, sourceSystem } = header.data;

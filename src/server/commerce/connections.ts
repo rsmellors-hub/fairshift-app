@@ -64,7 +64,7 @@ export async function connectZettle(db: Database, scope: ConnectionScope, input:
 function connectionRefusal(error: unknown) {
   if (!(error instanceof ZettleError)) throw error;
   if (error.code === "AUTH_REJECTED") return new UserFacingError("zettle-credentials-rejected", "Zettle did not accept these credentials.");
-  if (error.code === "SCOPE_MISSING") return new UserFacingError("zettle-scope-missing", "The key does not allow reading purchases.");
+  if (error.code === "SCOPE_MISSING") return new UserFacingError("zettle-scope-missing", "The key does not have the access FairShift needs.");
   return new UserFacingError("zettle-unavailable", "Zettle could not be reached.");
 }
 
@@ -111,11 +111,15 @@ export async function syncZettle(db: Database, scope: ConnectionScope, outletId:
     }
     // Normalised as a whole first, so one unreadable purchase stores nothing.
     const { observations, refundsExcluded } = normaliseZettlePurchases(purchases, location);
-    let inserted = 0, duplicates = 0;
-    for (let i = 0; i < observations.length; i += MAX_BATCH_OBSERVATIONS) {
-      const written = await ingestConnectedObservations(db, { organisationId: scope.organisationId, sourceSystem: `ZETTLE:${connection.providerMerchantId}`, observations: observations.slice(i, i + MAX_BATCH_OBSERVATIONS), now: new Date() });
-      inserted += written.inserted; duplicates += written.duplicates;
-    }
+    // One transaction across batches, so a rejected batch leaves none of the retrieval behind.
+    const { inserted, duplicates } = await db.transaction(async tx => {
+      const totals = { inserted: 0, duplicates: 0 };
+      for (let i = 0; i < observations.length; i += MAX_BATCH_OBSERVATIONS) {
+        const written = await ingestConnectedObservations(tx, { organisationId: scope.organisationId, sourceSystem: `ZETTLE:${connection.providerMerchantId}`, observations: observations.slice(i, i + MAX_BATCH_OBSERVATIONS), now: new Date() });
+        totals.inserted += written.inserted; totals.duplicates += written.duplicates;
+      }
+      return totals;
+    });
     await db.update(commerceSyncRuns).set({ status: "SUCCEEDED", retrieved: purchases.length, inserted, duplicates, refundsExcluded, finishedAt: new Date() }).where(eq(commerceSyncRuns.id, runId));
     if (connection.status === "AUTH_FAILED") await db.update(commerceConnections).set({ status: "CONNECTED" }).where(eq(commerceConnections.id, connection.id));
     await audit(db, scope, location, "COMMERCE_SYNC_SUCCEEDED", connection.id, { runId, retrieved: purchases.length, inserted, duplicates, refundsExcluded });

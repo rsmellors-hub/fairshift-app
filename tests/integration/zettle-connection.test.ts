@@ -155,6 +155,31 @@ describe("synchronising sales", () => {
     expect(await syncZettle(db, b.scope, b.outletId, fakeClient([[purchase("a", YESTERDAY, 100), { purchaseUUID1: "bad", amount: "12" }]]), NOW)).toMatchObject({ status: "FAILED", failureCode: "MALFORMED_RESPONSE" });
     expect(await zettleRows(db, b.outletId)).toEqual([]);
   }));
+  it("stores nothing when a later page of the retrieval fails, and does not advance the window", () => withDb(async db => {
+    const b = await business(db);
+    await connect(db, b);
+    const purchases = vi.fn<ZettleClient["purchases"]>()
+      .mockResolvedValueOnce({ purchases: [purchase("a", YESTERDAY, 100)], lastPurchaseHash: "hash-1" })
+      .mockRejectedValueOnce(new ZettleError("PROVIDER_UNAVAILABLE"));
+    expect(await syncZettle(db, b.scope, b.outletId, fakeClient([], { purchases }), NOW)).toEqual({ status: "FAILED", failureCode: "PROVIDER_UNAVAILABLE" });
+    expect(await zettleRows(db, b.outletId)).toEqual([]);
+    expect((await getCommerceConnections(db, b.scope))[0].lastSuccess).toBeNull();
+  }));
+  it("refuses a provider that repeats a page rather than looping or recording it as complete", () => withDb(async db => {
+    const b = await business(db);
+    await connect(db, b);
+    const purchases = vi.fn<ZettleClient["purchases"]>(async () => ({ purchases: [purchase("a", YESTERDAY, 100)], lastPurchaseHash: "same-hash" }));
+    expect(await syncZettle(db, b.scope, b.outletId, fakeClient([], { purchases }), NOW)).toEqual({ status: "FAILED", failureCode: "MALFORMED_RESPONSE" });
+    expect(purchases).toHaveBeenCalledTimes(2);
+    expect(await zettleRows(db, b.outletId)).toEqual([]);
+  }));
+  it("a retrieval spanning several ingestion batches is stored whole or not at all", () => withDb(async db => {
+    const b = await business(db);
+    await connect(db, b);
+    const good = Array.from({ length: 10_000 }, (_, i) => purchase(`p-${i}`, YESTERDAY, 100));
+    expect(await syncZettle(db, b.scope, b.outletId, fakeClient([[...good, purchase("future", "2027-01-01", 100)]]), NOW)).toMatchObject({ status: "FAILED", failureCode: "FUTURE_DATED" });
+    expect(await zettleRows(db, b.outletId)).toEqual([]);
+  }), 120_000);
   it("rejects changed facts for a sale already held, a future-dated sale and an unsupported currency", () => withDb(async db => {
     const b = await business(db);
     await connect(db, b);

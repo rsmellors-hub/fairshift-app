@@ -52,7 +52,8 @@ export function createZettleClient(fetchImpl: typeof fetch = fetch): ZettleClien
       return parsed(tokenSchema, value).access_token;
     },
     async merchantId(token) {
-      const value = await request(fetchImpl, `${OAUTH_BASE}/users/self`, { headers: { Authorization: `Bearer ${token}` } });
+      const value = await request(fetchImpl, `${OAUTH_BASE}/users/self`, { headers: { Authorization: `Bearer ${token}` } },
+        status => status === 403 ? "SCOPE_MISSING" : null);
       return parsed(merchantSchema, value).organizationUuid;
     },
     async purchases(token, query) {

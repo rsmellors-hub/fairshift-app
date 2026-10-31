@@ -97,7 +97,7 @@ const FEEDBACK: Record<string, string> = {
   "commerce-not-connected": "This location has no Zettle connection.",
   "commerce-sync-running": "A sync is already running for this location.",
   "zettle-credentials-rejected": "Zettle did not accept that client ID and API key. Nothing was connected.",
-  "zettle-scope-missing": "That API key cannot read purchases. Create one with the purchase permission. Nothing was connected.",
+  "zettle-scope-missing": "That API key does not have the access FairShift needs. Create one with the permissions shown, or contact Zettle if this continues. Nothing was connected.",
   "zettle-unavailable": "Zettle could not be reached, so the connection could not be checked. Nothing was connected.",
   "zettle-already-connected": "This location or Zettle account already has a connection.",
   "zettle-sync-failed": "The sync did not complete. Existing sales history is unchanged. See the location below.",

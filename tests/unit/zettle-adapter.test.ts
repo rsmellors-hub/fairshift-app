@@ -57,6 +57,9 @@ describe("Zettle client", () => {
   it("maps a forbidden purchase read to a missing scope", async () => {
     await expect(failing(403).purchases("t", { startDate: "2026-01-01", limit: 1 })).rejects.toMatchObject({ code: "SCOPE_MISSING" });
   });
+  it("maps a forbidden identity read to a missing scope, not to an outage", async () => {
+    await expect(failing(403).merchantId("t")).rejects.toMatchObject({ code: "SCOPE_MISSING" });
+  });
   it("treats a network failure as unavailable, not as no sales", async () => {
     const client = createZettleClient((async () => { throw new Error("down"); }) as typeof fetch);
     await expect(client.purchases("t", { startDate: "2026-01-01", limit: 1 })).rejects.toMatchObject({ code: "PROVIDER_UNAVAILABLE" });
