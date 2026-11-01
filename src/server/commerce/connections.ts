@@ -22,21 +22,21 @@ const OVERLAP_DAYS = 1;
 const MAX_PAGES = 200;
 const ABANDONED_AFTER_MS = 15 * 60_000;
 
-type ConnectionScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role">;
-const authorised = async (db: DatabaseSession, scope: ConnectionScope) => { assertRole(scope as Scope, ["OWNER"]); await requireEntitlement(db, scope.organisationId); };
-const requiredKey = () => {
+export type ConnectionScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role">;
+export const authorised = async (db: DatabaseSession, scope: ConnectionScope) => { assertRole(scope as Scope, ["OWNER"]); await requireEntitlement(db, scope.organisationId); };
+export const requiredKey = () => {
   const key = credentialKey();
   if (!key) throw new UserFacingError("commerce-not-configured", "Commerce connections are not configured.");
   return key;
 };
-async function ownedLocation(db: DatabaseSession, scope: ConnectionScope, outletId: string) {
+export async function ownedLocation(db: DatabaseSession, scope: ConnectionScope, outletId: string) {
   const parsed = z.uuid().safeParse(outletId);
   const [outlet] = parsed.success ? await db.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.id, parsed.data), eq(outlets.organisationId, scope.organisationId), eq(outlets.active, true))) : [];
   if (!outlet) throw new UserFacingError("commerce-location", "Location unavailable.");
   return outlet.id;
 }
-const audit = (db: DatabaseSession, scope: ConnectionScope, outletId: string, action: string, entityId: string, metadata: Record<string, unknown> = {}) =>
-  db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId, action, entityType: "commerce_connection", entityId, correlationId: `commerce:${entityId}`, metadata: { actorUserId: scope.userId, ...metadata } });
+export const audit = (db: DatabaseSession, scope: { organisationId: string; userId?: string | null }, outletId: string, action: string, entityId: string, metadata: Record<string, unknown> = {}) =>
+  db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId, action, entityType: "commerce_connection", entityId, correlationId: `commerce:${entityId}`, metadata: { actorUserId: scope.userId ?? null, ...metadata } });
 
 // Connects only after Zettle has accepted the credentials, named the merchant and
 // allowed a purchase read. If any of that fails, nothing is stored.
@@ -68,28 +68,36 @@ function connectionRefusal(error: unknown) {
   return new UserFacingError("zettle-unavailable", "Zettle could not be reached.");
 }
 
+// Opens a run for a connection's retrieval, covering everything since the last completed sync
+// less an overlap, because repeats are harmless and late records are not. Null means another
+// run holds the connection. A run abandoned by a crash must not block retrying forever.
+export async function openSyncRun(db: DatabaseSession, connectionId: string, now: Date) {
+  await db.update(commerceSyncRuns).set({ status: "FAILED", failureCode: "ABANDONED", finishedAt: now })
+    .where(and(eq(commerceSyncRuns.connectionId, connectionId), eq(commerceSyncRuns.status, "RUNNING"), lt(commerceSyncRuns.startedAt, new Date(now.getTime() - ABANDONED_AFTER_MS))));
+  const [last] = await db.select({ startedAt: commerceSyncRuns.startedAt }).from(commerceSyncRuns)
+    .where(and(eq(commerceSyncRuns.connectionId, connectionId), eq(commerceSyncRuns.status, "SUCCEEDED"))).orderBy(desc(commerceSyncRuns.startedAt)).limit(1);
+  const windowStart = last ? days(last.startedAt, OVERLAP_DAYS) : days(now, FIRST_SYNC_DAYS);
+  const runId = randomUUID();
+  const [run] = await db.insert(commerceSyncRuns).values({ id: runId, connectionId, status: "RUNNING", windowStart, startedAt: now }).onConflictDoNothing().returning({ id: commerceSyncRuns.id });
+  return run ? { runId, windowStart } : null;
+}
+
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 const days = (date: Date, count: number) => new Date(date.getTime() - count * 86_400_000);
 
-// Retrieves purchases since the last completed sync, overlapping a day because repeats
-// are harmless and late records are not. Reports the run; never throws a provider failure.
+// Retrieves purchases since the last completed sync. Reports the run; never throws a provider failure.
 export async function syncZettle(db: Database, scope: ConnectionScope, outletId: string, client: ZettleClient, now = new Date()) {
   await authorised(db, scope);
   const key = requiredKey();
   const location = await ownedLocation(db, scope, outletId);
-  const [connection] = await db.select().from(commerceConnections).where(and(eq(commerceConnections.outletId, location), eq(commerceConnections.organisationId, scope.organisationId), ne(commerceConnections.status, "DISCONNECTED")));
+  // Another provider's credentials must never reach this client.
+  const [connection] = await db.select().from(commerceConnections).where(and(eq(commerceConnections.outletId, location), eq(commerceConnections.organisationId, scope.organisationId), eq(commerceConnections.provider, "ZETTLE"), ne(commerceConnections.status, "DISCONNECTED")));
   if (!connection?.sealedCredentials) throw new UserFacingError("commerce-not-connected", "This location has no connection.");
   await consumeLimit(db, `zettle-sync:${connection.id}`, 20);
 
-  // A run abandoned by a crash must not block retrying forever.
-  await db.update(commerceSyncRuns).set({ status: "FAILED", failureCode: "ABANDONED", finishedAt: now })
-    .where(and(eq(commerceSyncRuns.connectionId, connection.id), eq(commerceSyncRuns.status, "RUNNING"), lt(commerceSyncRuns.startedAt, new Date(now.getTime() - ABANDONED_AFTER_MS))));
-  const [last] = await db.select({ startedAt: commerceSyncRuns.startedAt }).from(commerceSyncRuns)
-    .where(and(eq(commerceSyncRuns.connectionId, connection.id), eq(commerceSyncRuns.status, "SUCCEEDED"))).orderBy(desc(commerceSyncRuns.startedAt)).limit(1);
-  const windowStart = last ? days(last.startedAt, OVERLAP_DAYS) : days(now, FIRST_SYNC_DAYS);
-  const runId = randomUUID();
-  const [run] = await db.insert(commerceSyncRuns).values({ id: runId, connectionId: connection.id, status: "RUNNING", windowStart, startedAt: now }).onConflictDoNothing().returning({ id: commerceSyncRuns.id });
-  if (!run) throw new UserFacingError("commerce-sync-running", "A sync is already running for this location.");
+  const opened = await openSyncRun(db, connection.id, now);
+  if (!opened) throw new UserFacingError("commerce-sync-running", "A sync is already running for this location.");
+  const { runId, windowStart } = opened;
 
   const fail = async (failureCode: string) => {
     await db.update(commerceSyncRuns).set({ status: "FAILED", failureCode, finishedAt: new Date() }).where(eq(commerceSyncRuns.id, runId));
@@ -115,7 +123,7 @@ export async function syncZettle(db: Database, scope: ConnectionScope, outletId:
     const { inserted, duplicates } = await db.transaction(async tx => {
       const totals = { inserted: 0, duplicates: 0 };
       for (let i = 0; i < observations.length; i += MAX_BATCH_OBSERVATIONS) {
-        const written = await ingestConnectedObservations(tx, { organisationId: scope.organisationId, sourceSystem: `ZETTLE:${connection.providerMerchantId}`, observations: observations.slice(i, i + MAX_BATCH_OBSERVATIONS), now: new Date() });
+        const written = await ingestConnectedObservations(tx, { organisationId: scope.organisationId, provider: "ZETTLE", sourceSystem: `ZETTLE:${connection.providerMerchantId}`, observations: observations.slice(i, i + MAX_BATCH_OBSERVATIONS), now: new Date() });
         totals.inserted += written.inserted; totals.duplicates += written.duplicates;
       }
       return totals;
@@ -132,8 +140,9 @@ export async function syncZettle(db: Database, scope: ConnectionScope, outletId:
   }
 }
 
-// Erases the credentials. Sales already retrieved remain as Zettle history; they were
-// genuine when retrieved, and their freshness rules stop them being treated as current.
+// Erases the credentials, for a connection of any provider. Sales already retrieved remain as
+// history; they were genuine when retrieved, and their freshness rules stop them being treated
+// as current.
 export async function disconnectZettle(db: Database, scope: ConnectionScope, outletId: string, now = new Date()) {
   await authorised(db, scope);
   const location = await ownedLocation(db, scope, outletId);
@@ -147,7 +156,7 @@ export async function disconnectZettle(db: Database, scope: ConnectionScope, out
 // identifier are not selected.
 export async function getCommerceConnections(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "role">) {
   assertRole(scope as Scope, ["OWNER"]);
-  const rows = await db.select({ id: commerceConnections.id, outletId: commerceConnections.outletId, provider: commerceConnections.provider, status: commerceConnections.status, connectedAt: commerceConnections.connectedAt })
+  const rows = await db.select({ id: commerceConnections.id, outletId: commerceConnections.outletId, provider: commerceConnections.provider, providerEnvironment: commerceConnections.providerEnvironment, status: commerceConnections.status, connectedAt: commerceConnections.connectedAt })
     .from(commerceConnections).where(and(eq(commerceConnections.organisationId, scope.organisationId), ne(commerceConnections.status, "DISCONNECTED")));
   const runs = rows.length ? await db.select({ connectionId: commerceSyncRuns.connectionId, status: commerceSyncRuns.status, failureCode: commerceSyncRuns.failureCode, retrieved: commerceSyncRuns.retrieved, inserted: commerceSyncRuns.inserted, duplicates: commerceSyncRuns.duplicates, refundsExcluded: commerceSyncRuns.refundsExcluded, startedAt: commerceSyncRuns.startedAt, finishedAt: commerceSyncRuns.finishedAt })
     .from(commerceSyncRuns).where(inArray(commerceSyncRuns.connectionId, rows.map(row => row.id))).orderBy(desc(commerceSyncRuns.startedAt)) : [];

@@ -322,29 +322,27 @@ describe("Owner pages", () => {
   const sales = async () => renderToStaticMarkup(await OwnerWorkspace({ area: "reporting" }));
   const location = async (locationId: string) => renderToStaticMarkup(await OwnerLocationPage({ params: Promise.resolve({ locationId }) }));
 
-  it("Sales says when nothing is connected or configured, and claims no Zettle data", () => withDb(async db => {
+  it("Sales offers no Zettle controls and claims no Zettle data, configured or not", () => withDb(async db => {
     const b = await business(db);
     prepare(db, b.scope);
-    expect(await sales()).toContain("Not connected. This location has no Zettle sales.");
+    let html = await sales();
+    expect(html).not.toMatch(/Zettle|name="apiKey"/);
     vi.stubEnv("COMMERCE_CREDENTIAL_KEY", "");
-    const html = await sales();
+    html = await sales();
     expect(html).toContain("not configured in this environment");
-    expect(html).not.toContain('name="apiKey"');
+    expect(html).not.toMatch(/Zettle|name="apiKey"/);
   }));
-  it("Sales labels connected sales, reports a failed sync as a failure, and shows whether history drives the forecast", () => withDb(async db => {
+  // Retrieved rows stay truthful history if any exist, without naming an inactive provider.
+  it("Sales keeps earlier retrieved sales separate, and shows whether they drive the forecast", () => withDb(async db => {
     const b = await business(db);
     prepare(db, b.scope);
     await connect(db, b);
     await syncZettle(db, b.scope, b.outletId, fakeClient([dailyPurchases(5, () => 100_000)]), NOW);
-    let html = await sales();
-    expect(html).toContain("Zettle sales · connected merchant account");
+    const html = await sales();
+    expect(html).toContain("Earlier connected-account sales");
     expect(html).toContain("Not used for forecast");
     expect(html).toContain("5 of 28 required days");
-    expect(html).not.toMatch(/apiKey.*value=|zettle-api-key/);
-    await syncZettle(db, b.scope, b.outletId, fakeClient([], { purchases: vi.fn(async () => { throw new ZettleError("PROVIDER_UNAVAILABLE"); }) }), new Date(NOW.getTime() + 60_000));
-    html = await sales();
-    expect(html).toContain("Connected · last sync failed");
-    expect(html).toContain("does not mean no sales happened");
+    expect(html).not.toMatch(/Zettle|zettle-api-key|name="apiKey"/);
   }));
   it("location drill-down is scoped to the organisation and keeps missing figures unavailable", () => withDb(async db => {
     const b = await business(db), other = await business(db, ["Elsewhere"]);

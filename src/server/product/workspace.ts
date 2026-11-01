@@ -43,7 +43,7 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     // The worker's own confirmed sales totals: aggregates only, never transactions.
     performance: {
       salesCount: workPerformanceResults.salesCount, salesMinor: workPerformanceResults.salesMinor, currencyCode: workPerformanceResults.currencyCode,
-      targetMinor: workPerformanceResults.targetMinor, bonusMinor: workPerformanceResults.bonusMinor, earnedMinor: workPerformanceResults.earnedMinor,
+      targetMinor: workPerformanceResults.targetMinor, bonusMinor: workPerformanceResults.bonusMinor, earnedMinor: workPerformanceResults.earnedMinor, evidenceProvenance: workPerformanceResults.evidenceProvenance,
     },
     // Its payout state, without PayPal identifiers, recipient or error internals.
     payout: {

@@ -124,7 +124,7 @@ export const saleTransactions = pgTable(
     uniqueIndex("sale_transactions_paypal_capture_unique").on(table.paypalCaptureId),
     index("sale_transactions_outlet_created_idx").on(table.outletId, table.createdAt),
     index("sale_transactions_outlet_occurred_idx").on(table.outletId, table.occurredAt),
-    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE', 'IMPORTED', 'ZETTLE')`),
+    check("sale_transactions_source_check", sql`${table.source} in ('PAYPAL_SANDBOX', 'DEMO_SEEDED', 'REFERENCE', 'IMPORTED', 'ZETTLE', 'SQUARE')`),
     check("sale_transactions_paypal_reference_check", sql`${table.source} != 'PAYPAL_SANDBOX' or ${table.paypalCustomId} is not null`),
     check("sale_transactions_demo_provenance_check", sql`${table.source} != 'DEMO_SEEDED' or (
       ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
@@ -161,6 +161,14 @@ export const saleTransactions = pgTable(
       ${table.providerStatus} = 'ZETTLE' and ${table.occurredAt} is not null and
       ${table.sourceSystem} is not null and ${table.sourceTransactionId} is not null
     )`),
+    check("sale_transactions_square_provenance_check", sql`${table.source} != 'SQUARE' or (
+      ${table.paypalOrderId} is null and ${table.paypalCaptureId} is null and
+      ${table.paypalCustomId} is null and ${table.providerCreatedAt} is null and
+      ${table.providerUpdatedAt} is null and ${table.reconciledAt} is null and
+      ${table.verificationState} = 'PENDING' and ${table.reconciliationState} = 'NOT_RECONCILED' and
+      ${table.providerStatus} = 'SQUARE' and ${table.occurredAt} is not null and
+      ${table.sourceSystem} is not null and ${table.sourceTransactionId} is not null
+    )`),
     check("sale_transactions_currency_code_check", sql`char_length(${table.currencyCode}) = 3`),
     check("sale_transactions_amount_nonnegative", sql`${table.grossAmountMinor} >= 0`),
     check(
@@ -183,6 +191,10 @@ export const commerceConnections = pgTable("commerce_connections", {
   provider: text("provider").notNull(),
   status: text("status").notNull(),
   providerMerchantId: text("provider_merchant_id").notNull(),
+  // The provider's own location and environment, where the provider has them. A Square
+  // connection binds exactly one Square location to this FairShift location.
+  providerLocationId: text("provider_location_id"),
+  providerEnvironment: text("provider_environment"),
   sealedCredentials: text("sealed_credentials"),
   connectedBy: uuid("connected_by").references(() => users.id),
   connectedAt: timestamp("connected_at", { withTimezone: true }).notNull(),
@@ -191,7 +203,8 @@ export const commerceConnections = pgTable("commerce_connections", {
   // A location has one live connection, and a merchant account feeds one location.
   uniqueIndex("commerce_connections_live_outlet_unique").on(t.outletId).where(sql`${t.status} != 'DISCONNECTED'`),
   uniqueIndex("commerce_connections_live_merchant_unique").on(t.provider, t.providerMerchantId).where(sql`${t.status} != 'DISCONNECTED'`),
-  check("commerce_connections_provider_check", sql`${t.provider} in ('ZETTLE')`),
+  check("commerce_connections_provider_check", sql`${t.provider} in ('ZETTLE', 'SQUARE')`),
+  check("commerce_connections_square_binding_check", sql`${t.provider} != 'SQUARE' or (${t.providerLocationId} is not null and ${t.providerEnvironment} = 'SANDBOX')`),
   check("commerce_connections_status_check", sql`${t.status} in ('CONNECTED', 'AUTH_FAILED', 'DISCONNECTED')`),
   check("commerce_connections_credentials_check", sql`(${t.status} = 'DISCONNECTED') = (${t.sealedCredentials} is null)`),
 ]);
@@ -279,6 +292,74 @@ export const workers = pgTable(
     check("workers_status_check", sql`${table.status} in ('ACTIVE', 'INACTIVE')`),
   ],
 );
+
+// What a provider says about a canonical sale beyond the facts forecasting uses. It extends
+// the sale rather than duplicating it, so forecasting never depends on a provider's shape.
+// The team member identity is the provider's record of who the payment was associated with.
+// It is not proof of who was logged in to a till.
+export const commercePaymentEvidence = pgTable("commerce_payment_evidence", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  connectionId: uuid("connection_id").notNull().references(() => commerceConnections.id, { onDelete: "restrict" }),
+  saleTransactionId: uuid("sale_transaction_id").notNull().references(() => saleTransactions.id, { onDelete: "restrict" }),
+  provider: text("provider").notNull(),
+  providerPaymentId: text("provider_payment_id").notNull(),
+  providerLocationId: text("provider_location_id").notNull(),
+  providerStatus: text("provider_status").notNull(),
+  providerTeamMemberId: text("provider_team_member_id"),
+}, (t) => [
+  uniqueIndex("commerce_payment_evidence_payment_unique").on(t.outletId, t.provider, t.providerPaymentId),
+  uniqueIndex("commerce_payment_evidence_sale_unique").on(t.saleTransactionId),
+  check("commerce_payment_evidence_provider_check", sql`${t.provider} in ('SQUARE')`),
+  check("commerce_payment_evidence_status_check", sql`${t.providerStatus} = 'COMPLETED'`),
+]);
+
+// A refund as evidence: linked to its payment and never netted off a sale or an incentive.
+// The identity a provider holds on a refund is deliberately not stored. Nothing establishes
+// who performed a refund, so nothing here can be read as worker responsibility.
+export const commerceRefundEvidence = pgTable("commerce_refund_evidence", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  connectionId: uuid("connection_id").notNull().references(() => commerceConnections.id, { onDelete: "restrict" }),
+  provider: text("provider").notNull(),
+  providerRefundId: text("provider_refund_id").notNull(),
+  providerPaymentId: text("provider_payment_id").notNull(),
+  providerStatus: text("provider_status").notNull(),
+  amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  uniqueIndex("commerce_refund_evidence_refund_unique").on(t.outletId, t.provider, t.providerRefundId),
+  index("commerce_refund_evidence_payment_idx").on(t.outletId, t.providerPaymentId),
+  check("commerce_refund_evidence_provider_check", sql`${t.provider} in ('SQUARE')`),
+  check("commerce_refund_evidence_amount_check", sql`${t.amountMinor} >= 0 and ${t.amountMinor} <= 9007199254740991`),
+]);
+
+// A manager's statement that a provider's team member identity means this FairShift worker.
+// Scoped to one provider account, one location and one worker. Removing a mapping keeps the record.
+export const commerceWorkerIdentities = pgTable("commerce_worker_identities", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  provider: text("provider").notNull(),
+  providerMerchantId: text("provider_merchant_id").notNull(),
+  providerTeamMemberId: text("provider_team_member_id").notNull(),
+  status: text("status").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  removedBy: uuid("removed_by").references(() => users.id),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+}, (t) => [
+  // Across tenants: one provider identity means one worker, and one worker has one identity here.
+  uniqueIndex("commerce_worker_identities_live_identity_unique").on(t.provider, t.providerMerchantId, t.providerTeamMemberId).where(sql`${t.status} = 'ACTIVE'`),
+  uniqueIndex("commerce_worker_identities_live_worker_unique").on(t.outletId, t.provider, t.workerId).where(sql`${t.status} = 'ACTIVE'`),
+  check("commerce_worker_identities_provider_check", sql`${t.provider} in ('SQUARE')`),
+  check("commerce_worker_identities_status_check", sql`${t.status} in ('ACTIVE', 'REMOVED')`),
+  check("commerce_worker_identities_removal_check", sql`(${t.status} = 'REMOVED') = (${t.removedAt} is not null)`),
+]);
 
 // A casual worker's own weekly availability, one row per local weekday they have
 // stated. No row means not provided, which is not the same as available or unavailable.
@@ -675,7 +756,7 @@ export const workPerformanceResults = pgTable("work_performance_results", {
   index("work_performance_results_worker_idx").on(t.workerId),
   check("work_performance_results_amounts_check", sql`${t.salesCount} >= 0 and ${t.salesMinor} between 0 and 9007199254740991 and ${t.targetMinor} > 0 and ${t.bonusMinor} > 0 and (${t.salesCount} > 0 or ${t.salesMinor} = 0)`),
   check("work_performance_results_formula_check", sql`${t.earnedMinor} = case when ${t.salesMinor} >= ${t.targetMinor} then ${t.bonusMinor} else 0 end`),
-  check("work_performance_results_provenance_check", sql`${t.evidenceProvenance} = 'IMPORTED_NOT_PROVIDER_VERIFIED'`),
+  check("work_performance_results_provenance_check", sql`${t.evidenceProvenance} in ('IMPORTED_NOT_PROVIDER_VERIFIED', 'SQUARE_TEAM_MEMBER')`),
   check("work_performance_results_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`)]);
 
 export const shiftIncentives = pgTable(
@@ -780,6 +861,9 @@ export const schema = {
   saleTransactions,
   commerceConnections,
   commerceSyncRuns,
+  commercePaymentEvidence,
+  commerceRefundEvidence,
+  commerceWorkerIdentities,
   providerEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales, workPerformanceResults,

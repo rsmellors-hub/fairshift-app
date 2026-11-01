@@ -91,16 +91,33 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
   return <Link className="task-link" href={href}><strong>{title}</strong><span>{children}</span></Link>;
 }
 
+// Outcomes that succeeded and still have something to explain.
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered" };
 const FEEDBACK: Record<string, string> = {
   "commerce-not-configured": "Commerce connections are not configured in this environment.",
   "commerce-location": "That location is not available.",
-  "commerce-not-connected": "This location has no Zettle connection.",
+  "commerce-not-connected": "This location has no sales connection.",
+  "square-not-configured": "Square Sandbox is not configured in this environment.",
+  "square-credentials-rejected": "Square did not accept the configured Sandbox credentials. Nothing was connected.",
+  "square-unavailable": "Square could not be reached. Nothing was changed.",
+  "square-location-choice": "The Square Sandbox seller must have exactly one active location to connect. Nothing was connected.",
+  "square-location-currency": "That Square location trades in a different currency from this location. Nothing was connected.",
+  "square-already-connected": "This location or Square seller already has a connection. One Square location connects to one FairShift location.",
+  "square-sync-failed": "The sync did not complete. Existing sales history is unchanged. See the location below.",
+  "square-mapping-worker": "That worker is not available at this location.",
+  "square-mapping-identity": "Square does not list that team member at this location, so nothing was mapped.",
+  "square-mapping-duplicate": "That worker or Square team member is already mapped.",
+  "square-mapping-unavailable": "That mapping is not available.",
+  "square-demo-disabled": "Sandbox demo tools are not available here.",
+  "square-demo-amount": "Enter an amount such as 12.50, up to the Sandbox limit.",
+  "square-demo-unmapped": "Map this worker to a Square team member first.",
+  "square-demo-refused": "Square did not create this Sandbox payment. Nothing was recorded.",
+  "square-demo-shift": "That demo shift could not be offered. Check the worker and the time.",
+  "square-sale-recorded": "Square created the Sandbox payment. It counts once FairShift has read it back from Square, within about 30 seconds.",
+  "square-demo-shift-created": "Demo shift offered. The worker accepts it on their Shifts page, then you finalise it in Allocations.",
+  "sales-evidence-incomplete": "Square hasn’t been checked since this shift ended, so these sales may be incomplete. Try again shortly.",
+  "import-closed-connected": "This location’s sales come from Square, so they can’t be imported.",
   "commerce-sync-running": "A sync is already running for this location.",
-  "zettle-credentials-rejected": "Zettle did not accept that client ID and API key. Nothing was connected.",
-  "zettle-scope-missing": "That API key does not have the access FairShift needs. Create one with the permissions shown, or contact Zettle if this continues. Nothing was connected.",
-  "zettle-unavailable": "Zettle could not be reached, so the connection could not be checked. Nothing was connected.",
-  "zettle-already-connected": "This location or Zettle account already has a connection.",
-  "zettle-sync-failed": "The sync did not complete. Existing sales history is unchanged. See the location below.",
   "time-invalid": "Enter a valid date and time.",
   "time-nonexistent": "That time does not exist at this location, because the clocks go forward then. Choose another time.",
   "time-ambiguous": "That time happens twice at this location, because the clocks go back then. Choose another time.",
@@ -124,7 +141,8 @@ const FEEDBACK: Record<string, string> = {
 
 export function ActionFeedback({ status }: { status?: string }) {
   if (!status) return null;
-  return <StatePanel title={status === "saved" ? "Changes saved" : "Action could not be completed"} tone={status === "saved" ? "success" : "warning"}>
+  const done = status === "saved" ? "Changes saved" : DONE[status];
+  return <StatePanel title={done ?? "Action could not be completed"} tone={done ? "success" : "warning"}>
     {status !== "saved" ? <p>{FEEDBACK[status] ?? "Reload this page and check the current state before trying again. No payment confirmation is implied."}</p> : null}
   </StatePanel>;
 }

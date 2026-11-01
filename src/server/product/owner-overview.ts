@@ -20,7 +20,7 @@ export type SalesSeries = {
 
 // Default series order. Series are never merged; every other series stays selectable.
 // A complete labelled reference history leads; a few provider records do not displace it.
-const SOURCE_ORDER: Record<SalesSeries["source"], number> = { IMPORTED: 0, REFERENCE: 1, ZETTLE: 2, PAYPAL_SANDBOX: 3, DEMO_SEEDED: 4 };
+const SOURCE_ORDER: Record<SalesSeries["source"], number> = { IMPORTED: 0, REFERENCE: 1, SQUARE: 2, ZETTLE: 3, PAYPAL_SANDBOX: 4, DEMO_SEEDED: 5 };
 
 export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
   assertRole(scope, ["OWNER"]);

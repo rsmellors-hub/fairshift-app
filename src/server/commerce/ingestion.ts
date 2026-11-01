@@ -13,9 +13,9 @@ import { isMinorUnitCurrency } from "@/server/domain/currency";
 // nothing is stored. Repeating an identical observation changes nothing. Values are
 // stored as given: no currency conversion, no date correction, no rounding.
 // PayPal captures keep their own verified path (they carry provider evidence), and
-// the legacy demo seed is not an import. Zettle provenance cannot be claimed by a
-// caller: it is reachable only through ingestConnectedObservations, used by the sync of
-// an authenticated connection.
+// the legacy demo seed is not an import. Connected-provider provenance cannot be claimed
+// by a caller: it is reachable only through ingestConnectedObservations, used by the sync
+// of an authenticated connection.
 
 export const INGESTIBLE_SOURCES = ["IMPORTED", "REFERENCE"] as const;
 export const MAX_BATCH_OBSERVATIONS = 10_000;
@@ -38,7 +38,8 @@ const observationSchema = z.object({
 export type CommerceObservation = z.input<typeof observationSchema>;
 const batchHeader = z.object({ organisationId: z.uuid(), sourceSystem: z.string().trim().min(1).max(100) });
 
-export type CanonicalRow = { internalReference: string; outletId: string; source: "IMPORTED" | "REFERENCE" | "ZETTLE"; sourceSystem: string; sourceTransactionId: string; occurredAt: Date; currencyCode: string; grossAmountMinor: number };
+export type ConnectedProvider = "ZETTLE" | "SQUARE";
+export type CanonicalRow = { internalReference: string; outletId: string; source: "IMPORTED" | "REFERENCE" | ConnectedProvider; sourceSystem: string; sourceTransactionId: string; occurredAt: Date; currencyCode: string; grossAmountMinor: number };
 
 function deterministicId(reference: string) {
   const hash = createHash("sha256").update(reference).digest("hex");
@@ -70,7 +71,7 @@ export async function persistCanonicalRows(tx: DatabaseSession, rows: readonly C
 }
 
 type IngestionInput = { organisationId: string; source: string; sourceSystem: string; observations: readonly unknown[]; now?: Date };
-const REFERENCE_PREFIX = { IMPORTED: "IMP", REFERENCE: "REF", ZETTLE: "ZET" } as const;
+const REFERENCE_PREFIX = { IMPORTED: "IMP", REFERENCE: "REF", ZETTLE: "ZET", SQUARE: "SQU" } as const;
 
 export async function ingestCommerceObservations(db: Database, input: IngestionInput) {
   const source = INGESTIBLE_SOURCES.find(value => value === input.source);
@@ -79,8 +80,8 @@ export async function ingestCommerceObservations(db: Database, input: IngestionI
 }
 
 // The same boundary for observations retrieved through an authenticated connection.
-export async function ingestConnectedObservations(db: Pick<Database, "transaction">, input: Omit<IngestionInput, "source">) {
-  return ingest(db, input, "ZETTLE");
+export async function ingestConnectedObservations(db: Pick<Database, "transaction">, input: Omit<IngestionInput, "source"> & { provider: ConnectedProvider }) {
+  return ingest(db, input, input.provider);
 }
 
 async function ingest(db: Pick<Database, "transaction">, input: IngestionInput | Omit<IngestionInput, "source">, source: CanonicalRow["source"]) {

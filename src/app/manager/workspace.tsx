@@ -26,6 +26,9 @@ import { AllocationScheduler } from "./allocation-scheduler";
 import { DemoReview } from "./review-workspace";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
+import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
+import { getSquareFreshness } from "@/server/commerce/square-connection";
+import { SquarePanel } from "./square-panel";
 
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
@@ -69,6 +72,7 @@ export async function ManagerWorkspace({ area, status, date, department, ai, imp
       <section className="panel"><h2>Location team · {team.length}</h2><div className="table-scroll"><table><thead><tr><th>Name</th><th>Contact</th><th>Sales attribution code</th><th>FairShift invitation</th></tr></thead><tbody>{team.map(({worker, invitation}) => <tr key={worker.id}><td>{worker.displayName}</td><td>{worker.telephone ?? "—"}<br />{worker.email ?? "—"}</td><td>{worker.attributionCode}</td><td>{invitation ? invitation.state === "CREATED_NOT_SENT" ? "Prepared · not sent" : invitation.state.replaceAll("_"," ") : "Existing profile"}{invitation && !["REDEEMED","REVOKED"].includes(invitation.state) ? <><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Revoke invite</button></form></>:null}</td></tr>)}</tbody></table></div></section>
       <section className="panel"><h2>Add team member</h2><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p>Location: {scope.locationName}. Email is sent only when configured; invitation state is tracked separately.</p><button className="primary-button">Create & send FairShift invite</button></form></section>
     </> : null}
+    {area === "team" ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
     {area === "plan" ? await Staffing(scope, ai, staffing) : null}
     {area === "allocations" ? await Roster(scope, timezone) : null}
     {area === "fill" ? <>
@@ -148,17 +152,23 @@ function ImportOutcome({ value }: { value?: string }) {
 // Sales evidence for incentive shifts, in aggregate: count and value, never transactions.
 async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<typeof getOperations>>["payables"], timezone: string, importResult?: string) {
   let work: Awaited<ReturnType<typeof getLocationPerformance>>;
-  try { work = await getLocationPerformance(getDatabase(), scope); } catch { return <StatePanel title="Sales results are unavailable" tone="warning"><p>Please try again shortly. Nothing has been calculated as zero.</p></StatePanel>; }
+  let freshness: Awaited<ReturnType<typeof getSquareFreshness>> = null;
+  try { work = await getLocationPerformance(getDatabase(), scope); freshness = await getSquareFreshness(getDatabase(), scope); } catch { return <StatePanel title="Sales results are unavailable" tone="warning"><p>Please try again shortly. Nothing has been calculated as zero.</p></StatePanel>; }
   return <section className="panel" id="performance" aria-labelledby="performance-title"><h2 id="performance-title">Performance · attributed sales</h2>
-    <p className="method-note">Sales are imported, matched to a worker by attribution code within their accepted shift at this location, and marked “Imported · not provider-verified”. Confirming them for payment doesn’t change that. The bonus is calculated from the accepted terms and can’t be edited.</p>
+    {freshness ? <>
+      <p className="method-note">Sales come from Square Sandbox payments carrying the team-member identity mapped to a worker, within their accepted shift at this location. This doesn’t show who was logged in to a till. Refunds are recorded but don’t change the result. The bonus is calculated from the accepted terms and can’t be edited.</p>
+      {work.some(item => !item.result) ? <SquareLiveRefresh timeZone={timezone} initial={{ revision: freshness.revision, failed: freshness.attention || freshness.lastFailed, lastCheckedAt: freshness.lastSuccessAt?.toISOString() ?? null }} /> : null}
+    </> : <p className="method-note">Sales are imported, matched to a worker by attribution code within their accepted shift at this location, and marked “Imported · not provider-verified”. Confirming them for payment doesn’t change that. The bonus is calculated from the accepted terms and can’t be edited.</p>}
     <ImportOutcome value={importResult} />
     {work.length ? work.map(item => {
       const payable = payables.find(row => row.payable.allocationId === item.allocationId)?.payable, currency = item.terms.currencyCode, amount = (value: number) => money(value, currency);
+      const square = item.result ? item.result.evidenceProvenance === "SQUARE_TEAM_MEMBER" : item.evidence === "SQUARE";
+      const none = square ? "None attributed yet" : "None imported yet";
       const count = item.result?.salesCount ?? item.attributed.count, value = item.result?.salesMinor ?? item.attributed.minor, base = payable?.baseAmountMinor;
       return <article className="requirement" key={item.allocationId}><h3>{item.workerName} · {item.shiftDate} · {item.roleName}</h3>
-        <p><StatusBadge tone="warning">Imported · not provider-verified</StatusBadge> {item.result ? <strong>Confirmed for payment</strong> : <strong>Not complete yet</strong>}</p>
+        <p><StatusBadge tone="warning">{square ? "Square Sandbox attributed sales" : !item.result && item.evidence === "MIXED" ? "Square Sandbox and imported sales" : "Imported · not provider-verified"}</StatusBadge> {item.result ? <strong>Confirmed for payment</strong> : <strong>Not complete yet</strong>}</p>
         <dl className="shift-terms">
-          <div><dt>Attributed sales</dt><dd>{count === 0 && !item.result ? "None imported yet" : count}</dd></div>
+          <div><dt>Attributed sales</dt><dd>{count === 0 && !item.result ? none : count}</dd></div>
           <div><dt>Attributed sales value</dt><dd>{count === 0 && !item.result ? "Not known yet" : amount(value)}</dd></div>
           <div><dt>Target · accepted</dt><dd>{amount(item.terms.targetMinor)}</dd></div>
           <div><dt>Fixed bonus · accepted</dt><dd>{amount(item.terms.bonusMinor)}</dd></div>
@@ -171,12 +181,12 @@ async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<type
           <button className="primary-button">Confirm sales results</button></form>
           : <p><small>Confirm the work above before its sales results. Allocated {dateTime(item.startsAt, timezone)}.</small></p>}
       </article>; }) : <StatePanel title="No incentive shifts yet"><p>Allocated work with a sales target appears here.</p></StatePanel>}
-    <details><summary>Import attributed sales</summary>
+    {freshness ? null : <details><summary>Import attributed sales</summary>
       <form action={importAttributedSalesAction} className="workspace-form">
         <label>Paste rows from your sales export<textarea name="rows" rows={6} required spellCheck={false} placeholder="transaction_id,attribution_code,occurred_at,amount,currency" /></label>
         <p className="method-note">Columns: transaction_id, attribution_code, occurred_at (with a time zone offset, such as 2026-11-03T11:15:00+00:00), amount (such as 25.00), currency. Importing the same rows again doesn’t count them twice. Don’t include customer or product details.</p>
         <button className="secondary-button">Import sales</button>
-      </form></details>
+      </form></details>}
   </section>;
 }
 // The structured PayPal error code recorded with a payout, if any (never a provider message).
@@ -235,7 +245,7 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
   return <section className="panel staffing-week" aria-labelledby="staffing-week-title">
     <h2 id="staffing-week-title">Planning week staffing</h2>
     <p>{scope.locationName} · Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</p>
-    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "ZETTLE" ? "Zettle sales · connected merchant account" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
+    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "SQUARE" ? "Square Sandbox sales · connected seller" : evidence.source === "ZETTLE" ? "Earlier connected-account sales" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
     <p className="method-note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
     <WeekCover outlet={outlet} />
     {outlet.totals ? <div className="status-grid forecast-grid" aria-label="Planning week totals">

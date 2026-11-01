@@ -317,10 +317,12 @@ Rules:
   MISSING_REGULAR_COVERAGE needs regularCoverageSet false; STALE_EVIDENCE needs
   evidence.stale true; LOW_SIGNAL needs LOW support.
 - If evidence is synthetic (SYNTHETIC_REFERENCE_DATA), say it is synthetic reference
-  history and never describe it as live, current, Zettle or PayPal sales. If it is
+  history and never describe it as live, current, Square, Zettle or PayPal sales. If it is
   stale, say the planning week is mapped from older history. If evidence.source is
   ZETTLE, it was retrieved from the merchant's connected account; do not call it
-  reconciled or audited. If it is IMPORTED, it is not provider-verified.
+  reconciled or audited. If evidence.source is SQUARE, it was retrieved from a connected
+  Square Sandbox seller and is test commerce; do not call it reconciled, audited or live
+  trading. If it is IMPORTED, it is not provider-verified.
 - Recommend manager actions only. You cannot create shifts, choose or allocate
   workers, set or approve pay, or make payments, and must not say you have.
 - Do not mention individual workers, wages, incentives or payouts. Do not invent

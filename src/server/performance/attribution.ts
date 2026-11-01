@@ -1,21 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { attributedSales, auditEvents, shiftOffers, shifts, workAcceptances, workAllocations, workPayables, workPerformanceResults, workers } from "@/server/db/schema";
+import { attributedSales, auditEvents, commerceConnections, commerceSyncRuns, shiftOffers, shifts, workAcceptances, workAllocations, workPayables, workPerformanceResults, workers } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, calculateIncentive } from "@/server/domain/incentive";
 import { decimalToMinorUnits } from "@/server/domain/money";
 
-// Worker-attributed sales evidence. It arrives only through this location-scoped import,
-// is matched on the worker's attribution code, location, accepted shift window and
-// currency, and stays unverified: confirming it for payment is a manager's decision about
-// completeness, not a provider's verification of the sales.
+// Worker-attributed sales evidence. It arrives through this location-scoped import, matched on
+// the worker's attribution code, or from a connected provider's team member identity (see
+// square-attribution.ts), and in both cases on location, accepted shift window and currency.
+// It stays unverified: confirming it for payment is a manager's decision about completeness,
+// not a provider's verification of who made the sales.
 export const IMPORT_PROVIDER = "FAIRSHIFT_IMPORT";
 export const IMPORTED_PROVENANCE = "IMPORTED_NOT_PROVIDER_VERIFIED";
+export const SQUARE_ATTRIBUTION_PROVIDER = "SQUARE";
+export const SQUARE_PROVENANCE = "SQUARE_TEAM_MEMBER";
+// A shift's sales are known only once a sync has started this long after it ended, because a
+// provider can list a new payment a few seconds late.
+const SETTLE_AFTER_SHIFT_MS = 30_000;
 const HEADER = "transaction_id,attribution_code,occurred_at,amount,currency";
 const MAX_ROWS = 2000;
 
@@ -55,7 +61,7 @@ export function parseAttributionRows(text: string) {
 }
 
 // Allocated work at this location whose accepted terms carry an incentive.
-async function incentiveWork(db: DatabaseSession, scope: PerformanceScope, lock: boolean, workerIds?: string[]) {
+export async function incentiveWork(db: DatabaseSession, scope: PerformanceScope, lock: boolean, workerIds?: string[]) {
   const query = db.select({ allocation: workAllocations, snapshot: workAcceptances.snapshot, offerId: shiftOffers.id, workerId: shiftOffers.workerId, shiftId: shifts.id, shiftDate: shifts.shiftDate, roleName: shifts.roleName, startsAt: shifts.startsAt, workerName: workers.displayName })
     .from(workAllocations).innerJoin(workAcceptances, eq(workAcceptances.id, workAllocations.acceptanceId))
     .innerJoin(shiftOffers, eq(shiftOffers.id, workAllocations.offerId)).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))
@@ -70,6 +76,8 @@ async function incentiveWork(db: DatabaseSession, scope: PerformanceScope, lock:
 // All-or-nothing per row: valid rows are stored and every other row is reported by line.
 export async function importAttributedSales(db: Database, scope: PerformanceScope, text: string, now = new Date()): Promise<ImportSummary> {
   await authorise(db, scope);
+  // A pasted file could otherwise count a sale the connected provider already reported.
+  if (await connectedEvidence(db, scope)) throw new UserFacingError("import-closed-connected", "This location’s sales come from Square, so they can’t be imported.");
   const rows = parseAttributionRows(text);
   return db.transaction(async tx => {
     const summary: ImportSummary = { imported: 0, duplicates: 0, rejected: [] };
@@ -115,6 +123,20 @@ async function attributedTotals(db: DatabaseSession, input: { workerId: string; 
   return totals;
 }
 
+async function connectedEvidence(db: DatabaseSession, scope: Pick<PerformanceScope, "organisationId" | "locationId">) {
+  const [connection] = await db.select({ id: commerceConnections.id }).from(commerceConnections).where(and(eq(commerceConnections.organisationId, scope.organisationId), eq(commerceConnections.outletId, scope.locationId), eq(commerceConnections.provider, SQUARE_ATTRIBUTION_PROVIDER), ne(commerceConnections.status, "DISCONNECTED")));
+  return connection ?? null;
+}
+// Where a shift's figures come from. Mixed evidence is shown as such and treated as the weaker kind.
+export type EvidenceSource = "SQUARE" | "IMPORTED" | "MIXED";
+async function evidenceSource(db: DatabaseSession, input: { workerId: string; outletId: string; organisationId: string; currencyCode: string; startsAt: Date; endsAt: Date }): Promise<EvidenceSource> {
+  const rows = await db.select({ provider: attributedSales.provider }).from(attributedSales).where(and(eq(attributedSales.workerId, input.workerId), eq(attributedSales.outletId, input.outletId), eq(attributedSales.currencyCode, input.currencyCode), gte(attributedSales.occurredAt, input.startsAt), lt(attributedSales.occurredAt, input.endsAt), ne(attributedSales.verificationState, "FAILED")));
+  const square = rows.some(row => row.provider === SQUARE_ATTRIBUTION_PROVIDER), imported = rows.some(row => row.provider !== SQUARE_ATTRIBUTION_PROVIDER);
+  if (square && imported) return "MIXED";
+  if (imported) return "IMPORTED";
+  return square || await connectedEvidence(db, { organisationId: input.organisationId, locationId: input.outletId }) ? "SQUARE" : "IMPORTED";
+}
+
 // Aggregates only, for the manager's review: never transactions or customers.
 export async function getLocationPerformance(db: DatabaseSession, scope: PerformanceScope) {
   await authorise(db, scope);
@@ -123,6 +145,7 @@ export async function getLocationPerformance(db: DatabaseSession, scope: Perform
   return Promise.all(work.map(async item => ({
     allocationId: item.allocation.id, confirmedAt: item.allocation.confirmedAt, workerName: item.workerName, shiftDate: item.shiftDate, roleName: item.roleName, startsAt: item.startsAt, terms: item.terms,
     attributed: await attributedTotals(db, { workerId: item.workerId, outletId: scope.locationId, currencyCode: item.terms.currencyCode, startsAt: item.terms.startsAt, endsAt: item.terms.endsAt }),
+    evidence: await evidenceSource(db, { workerId: item.workerId, outletId: scope.locationId, organisationId: scope.organisationId, currencyCode: item.terms.currencyCode, startsAt: item.terms.startsAt, endsAt: item.terms.endsAt }),
     result: results.find(result => result.allocationId === item.allocation.id) ?? null,
   })));
 }
@@ -137,6 +160,7 @@ export async function getWorkerTargets(db: DatabaseSession, scope: Pick<Scope, "
   return Promise.all(open.map(async item => ({
     allocationId: item.allocation.id, shiftId: item.shiftId, terms: item.terms,
     attributed: await attributedTotals(db, { workerId: scope.workerId, outletId: scope.locationId, currencyCode: item.terms.currencyCode, startsAt: item.terms.startsAt, endsAt: item.terms.endsAt }),
+    evidence: await evidenceSource(db, { workerId: scope.workerId, outletId: scope.locationId, organisationId: scope.organisationId, currencyCode: item.terms.currencyCode, startsAt: item.terms.startsAt, endsAt: item.terms.endsAt }),
   })));
 }
 
@@ -157,13 +181,21 @@ export async function confirmWorkPerformance(db: Database, scope: PerformanceSco
     if (!payable || !payable.incentiveRequired) throw new UserFacingError("work-not-confirmed", "Confirm the work before its sales results.");
     const totals = await attributedTotals(tx, { workerId: work.workerId, outletId: scope.locationId, currencyCode: work.terms.currencyCode, startsAt: work.terms.startsAt, endsAt: work.terms.endsAt });
     if (totals.count !== seen.count || totals.minor !== seen.minor) throw new UserFacingError("sales-changed", "These sales changed since you opened this page.");
+    // Missing provider evidence must not be confirmed as a result, least of all as a zero.
+    const connection = await connectedEvidence(tx, scope);
+    if (connection) {
+      const [synced] = await tx.select({ startedAt: commerceSyncRuns.startedAt }).from(commerceSyncRuns).where(and(eq(commerceSyncRuns.connectionId, connection.id), eq(commerceSyncRuns.status, "SUCCEEDED"))).orderBy(desc(commerceSyncRuns.startedAt)).limit(1);
+      if (!synced || synced.startedAt.getTime() < work.terms.endsAt.getTime() + SETTLE_AFTER_SHIFT_MS) throw new UserFacingError("sales-evidence-incomplete", "Square hasn’t been checked since this shift ended, so these sales may be incomplete. Try again shortly.");
+    }
+    const source = await evidenceSource(tx, { workerId: work.workerId, outletId: scope.locationId, organisationId: scope.organisationId, currencyCode: work.terms.currencyCode, startsAt: work.terms.startsAt, endsAt: work.terms.endsAt });
+    const provenance = source === "SQUARE" ? SQUARE_PROVENANCE : IMPORTED_PROVENANCE;
     const { earnedAmountMinor } = calculateIncentive(totals.minor, work.terms.targetMinor, work.terms.bonusMinor);
     const [result] = await tx.insert(workPerformanceResults).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, shiftId: work.shiftId, workerId: work.workerId, allocationId, acceptanceId: work.allocation.acceptanceId,
       salesCount: totals.count, salesMinor: totals.minor, currencyCode: work.terms.currencyCode, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor,
-      evidenceProvenance: IMPORTED_PROVENANCE, confirmedAt: new Date(), confirmedBy: scope.userId ?? null }).returning();
+      evidenceProvenance: provenance, confirmedAt: new Date(), confirmedBy: scope.userId ?? null }).returning();
     await tx.update(workPayables).set({ incentiveAmountMinor: earnedAmountMinor, performanceResultId: result.id, updatedAt: new Date() }).where(eq(workPayables.id, payable.id));
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_PERFORMANCE_CONFIRMED", entityType: "work_performance_result", entityId: result.id, correlationId: `payable:${payable.id}`,
-      metadata: { actorUserId: scope.userId ?? null, salesCount: totals.count, salesMinor: totals.minor, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor, provenance: IMPORTED_PROVENANCE } });
+      metadata: { actorUserId: scope.userId ?? null, salesCount: totals.count, salesMinor: totals.minor, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor, provenance } });
     return result;
   });
 }

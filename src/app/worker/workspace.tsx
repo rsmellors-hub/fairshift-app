@@ -10,6 +10,8 @@ import { saveDemoPayoutDestinationAction } from "@/app/scheduling-actions";
 import { saveAvailabilityAction } from "@/app/operations-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
+import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
+import { getSquareFreshness } from "@/server/commerce/square-connection";
 
 export const workerAreas = ["shifts", "earnings", "availability", "profile"] as const;
 export type WorkerArea = "home" | typeof workerAreas[number];
@@ -26,6 +28,8 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   try { data = await workerWorkspace(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
   const { profile, assignments, availability, timezone, targets } = data;
   if (!timezone) return <WorkspaceUnavailable />;
+  let freshness: Awaited<ReturnType<typeof getSquareFreshness>> = null;
+  if (targets.length) { try { freshness = await getSquareFreshness(getDatabase(), scope); } catch { freshness = null; } }
   const now = new Date();
   const stated = new Map(availability.map(row => [row.isoWeekday, row.state]));
   const kindOf = (row: (typeof assignments)[number]) => workerShiftKind(row, now);
@@ -48,7 +52,8 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const paidTotal = currencyTotals(accepted.flatMap((row) => row.payout?.status === "PAID" ? [{ amountMinor: row.payout.amountMinor, currencyCode: row.payout.currencyCode }] : []));
   const paymentDetailsNeeded = !profile?.paypalPayoutEmail && accepted.some((row) => row.payable?.status === "APPROVED" && (!row.payout || row.payout.status === "NOT_SENT"));
   // Soonest open target first: the one the worker is on now, or next.
-  const targetCards = [...targets].sort((a, b) => a.terms.startsAt.getTime() - b.terms.startsAt.getTime()).map(target => <WorkerTarget key={target.allocationId} target={target} baseMinor={assignments.find(row => row.shift.id === target.shiftId)?.shift.expectedEarningsMinor ?? null} timeZone={timezone} now={now} />);
+  const targetCards = [...targets].sort((a, b) => a.terms.startsAt.getTime() - b.terms.startsAt.getTime()).map(target => <WorkerTarget key={target.allocationId} target={target} baseMinor={assignments.find(row => row.shift.id === target.shiftId)?.shift.expectedEarningsMinor ?? null} timeZone={timezone} now={now} salesKnown={!freshness || !!freshness.lastSuccessAt} />);
+  const liveRefresh = freshness && targets.some(target => target.evidence !== "IMPORTED") ? <SquareLiveRefresh timeZone={timezone} initial={{ revision: freshness.revision, failed: freshness.attention || freshness.lastFailed, lastCheckedAt: freshness.lastSuccessAt?.toISOString() ?? null }} /> : null;
   const earned = accepted.filter(row => row.payable?.status === "PENDING_REVIEW");
   const pending = accepted.filter(row => row.payable?.status === "APPROVED" && row.payout?.status !== "PAID");
   const paid = accepted.filter(row => row.payout?.status === "PAID");
@@ -77,7 +82,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
     <PageHeader eyebrow={scope.locationName} title={title} description={area === "home" ? "What needs your attention." : undefined} />
     <ActionFeedback status={status} />
     {area === "home" ? <>
-      {targetCards.length ? <section className="worker-section" aria-label="Your shift target">{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null}
+      {targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null}
       {offersNow.length ? <section className="worker-section" aria-labelledby="home-offers"><h2 id="home-offers">{offersNow.length === 1 ? "You have a new shift offer" : `You have ${offersNow.length} new shift offers`}</h2>{card(offersNow[0])}{offersNow.length > 1 ? <p><Link href="/worker/shifts">See all offers →</Link></p> : null}</section> : null}
       {waiting.length ? <section className="worker-section" aria-labelledby="home-waiting"><h2 id="home-waiting">Waiting for your manager</h2>{card(waiting[0])}{waiting.length > 1 ? <p><Link href="/worker/shifts">See all →</Link></p> : null}</section> : null}
       {upcoming.length ? <section className="worker-section" aria-labelledby="home-upcoming"><h2 id="home-upcoming">Your next shift</h2>{card(upcoming[0])}{upcoming.length > 1 ? <p><Link href="/worker/shifts">See all your shifts →</Link></p> : null}</section> : null}
@@ -86,7 +91,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       <div className="task-grid"><TaskLink href="/worker/earnings" title="Earnings">{[paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ") || "What you’ve earned and how payment is going."}</TaskLink><TaskLink href="/worker/availability" title="Availability">{availability.length ? "Update the days you can work." : "Tell your manager which days you can work."}</TaskLink></div>
     </> : null}
     {area === "shifts" ? assignments.length ? <>
-      {targetCards.length ? <section className="worker-section" aria-label="Your shift targets">{targetCards}</section> : null}
+      {targetCards.length ? <section className="worker-section" aria-label="Your shift targets">{liveRefresh}{targetCards}</section> : null}
       {offersNow.length ? <section className="worker-section" aria-labelledby="shifts-offers"><h2 id="shifts-offers">New offers</h2>{offersNow.map(card)}</section> : null}
       {waiting.length ? <section className="worker-section" aria-labelledby="shifts-waiting"><h2 id="shifts-waiting">Waiting for your manager</h2>{waiting.map(card)}</section> : null}
       {upcoming.length ? <section className="worker-section" aria-labelledby="shifts-upcoming"><h2 id="shifts-upcoming">You’re booked</h2>{upcoming.map(card)}</section> : null}

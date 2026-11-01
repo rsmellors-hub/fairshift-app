@@ -11,7 +11,8 @@ const SOURCE_LABEL: Record<SalesSource, string> = {
   DEMO_SEEDED: "Demo / seeded history",
   PAYPAL_SANDBOX: "Verified PayPal Sandbox sales",
   IMPORTED: "Imported sales history",
-  ZETTLE: "Connected Zettle sales",
+  ZETTLE: "Earlier connected-account sales",
+  SQUARE: "Square Sandbox sales",
 };
 const REJECTION: Record<SourceRejection["reason"], string> = {
   CURRENCY_MISMATCH: "different currency", STALE: "not recent enough", INSUFFICIENT_DAYS: "too few days",
@@ -39,7 +40,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
   const available = weekly.outlets.filter(outlet => outlet.weeklyTotalMinor !== null);
   const historical = [...new Set(weekly.outlets.flatMap(outlet => outlet.selection.status === "SELECTED" && outlet.selection.kind === "HISTORICAL" && isSyntheticSource(outlet.selection.source) ? [outlet.selection.source] : []))];
   const imported = weekly.outlets.some(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "IMPORTED");
-  const connected = weekly.outlets.filter(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "ZETTLE").length;
+  const connected = weekly.outlets.filter(outlet => outlet.selection.status === "SELECTED" && (outlet.selection.source === "ZETTLE" || outlet.selection.source === "SQUARE")).length;
   const columns = c?.days.map(row => row.targetDate) ?? null;
   return <div className="owner-overview owner-forecast">
     {header}
@@ -52,7 +53,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
       </section>
       {historical.length ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from historical evidence</span>{`${historical.map(sourceLabel).join(" and ")} ${historical.length > 1 ? "are" : "is"} labelled synthetic input${c ? `, through ${longDate(c.dataThrough)}` : ""}. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled. It does not describe current trading or any provider’s sales.`}</p> : null}
       {imported ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from imported history</span>Imported sales history supplied for this business, not verified by a payment provider. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled.</p> : null}
-      {connected ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from connected commerce</span>{`${connected === weekly.outlets.length ? "Every location forecasts" : `${connected} of ${weekly.outlets.length} locations forecast`} from sales retrieved from a connected Zettle account: completed sales through yesterday, refunds not deducted.`}</p> : null}
+      {connected ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from connected commerce</span>{`${connected === weekly.outlets.length ? "Every location forecasts" : `${connected} of ${weekly.outlets.length} locations forecast`} from sales retrieved from a connected account: completed sales through yesterday, refunds not deducted.`}</p> : null}
       <section aria-labelledby="owner-forecast-table-title">
         <div className="owner-section-heading"><div><h2 id="owner-forecast-table-title">Forecast by location</h2><p>Expected sales per day{columns ? "" : ", with each location’s own forecast dates"}. Ranges and evidence are under each location.</p></div></div>
         <div className="owner-forecast-scroll" role="region" aria-label="Forecast by location table" tabIndex={0}><table className="owner-location-table owner-forecast-table">

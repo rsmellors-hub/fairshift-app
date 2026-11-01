@@ -8,7 +8,7 @@ import { loadDailySales, type DailySalesRow } from "@/server/intelligence/sales-
 export const SOURCE_RULE_VERSION = "source-eligibility-v3";
 export const PROVIDER_RULE = { minimumDays: 28, minimumPerWeekday: 3, maximumAgeDays: 2 } as const;
 // In precedence order: a merchant's connected trading comes before Sandbox test captures.
-const PROVIDER_SOURCES: readonly SalesSource[] = ["ZETTLE", "PAYPAL_SANDBOX"];
+const PROVIDER_SOURCES: readonly SalesSource[] = ["SQUARE", "ZETTLE", "PAYPAL_SANDBOX"];
 // Labelled synthetic evidence sources in precedence order. They never describe current trading.
 const HISTORICAL_SOURCES: readonly SalesSource[] = ["REFERENCE", "DEMO_SEEDED"];
 

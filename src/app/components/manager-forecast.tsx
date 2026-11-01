@@ -9,7 +9,8 @@ const SOURCE = {
   DEMO_SEEDED: { kind: "demo", label: "Demo / seeded · not PayPal verified", records: "DEMO / SEEDED" },
   REFERENCE: { kind: "demo", label: "Reference history · synthetic, not provider sales", records: "REFERENCE / SYNTHETIC" },
   IMPORTED: { kind: "fact", label: "Imported sales history · not provider-verified", records: "IMPORTED" },
-  ZETTLE: { kind: "fact", label: "Zettle sales · connected merchant account", records: "ZETTLE" },
+  ZETTLE: { kind: "fact", label: "Earlier connected-account sales", records: "CONNECTED ACCOUNT" },
+  SQUARE: { kind: "fact", label: "Square Sandbox sales · connected seller", records: "SQUARE SANDBOX" },
 } as const;
 const UNAVAILABLE = {
   NO_ELIGIBLE_HISTORY: "No eligible completed sales in the 56-day lookback. No forecast or staffing recommendation has been invented.",

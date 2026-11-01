@@ -136,14 +136,14 @@ describe("reference sales history provisioning", () => {
       expect(series.locations.every(location => location.observedDays === 6)).toBe(true);
       const html = renderToStaticMarkup(createElement(OwnerOverview, { data }));
       expect(html).toContain("Reference sales history");
-      expect(html).toContain("not Zettle, PayPal or other provider sales");
+      expect(html).toContain("not Square, PayPal or other provider sales");
       expect(html).toContain("Data through 28 Dec 2025");
       // Dated wording, never "recent", for history that ended long ago.
       expect(html).toContain("Latest recorded sales");
       expect(html).not.toMatch(/Recent (recorded )?sales/);
       expect(html).toContain("£");
       expect(html).not.toContain("$");
-      expect(html).not.toMatch(/Zettle sales|live sales|verified sales/i);
+      expect(html).not.toMatch(/Zettle|Square Sandbox sales|live sales|verified sales/i);
     } finally { await t.close(); }
   }, 120_000);
 });

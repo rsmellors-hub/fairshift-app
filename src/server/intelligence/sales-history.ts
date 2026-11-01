@@ -4,7 +4,7 @@ import type { DatabaseSession } from "@/server/db/client";
 import { outlets, saleTransactions } from "@/server/db/schema";
 import type { SalesSource } from "@/server/intelligence/forecast";
 
-// Commercial sale time: explicit for reference, imported and Zettle history, provider time for PayPal, else record time.
+// Commercial sale time: explicit for reference, imported and connected-provider history, provider time for PayPal, else record time.
 const saleTime = sql`coalesce(${saleTransactions.occurredAt}, ${saleTransactions.providerCreatedAt}, ${saleTransactions.createdAt})`;
 const saleDate = sql<string>`to_char(${saleTime} at time zone ${outlets.timezone}, 'YYYY-MM-DD')`;
 const unverified = sql`${saleTransactions.verificationState} = 'PENDING' and ${saleTransactions.reconciliationState} = 'NOT_RECONCILED'
@@ -22,6 +22,8 @@ const eligibleSale = sql`(
   or (${saleTransactions.source} = 'IMPORTED' and ${saleTransactions.providerStatus} = 'IMPORTED'
     and ${saleTransactions.occurredAt} is not null and ${unverified})
   or (${saleTransactions.source} = 'ZETTLE' and ${saleTransactions.providerStatus} = 'ZETTLE'
+    and ${saleTransactions.occurredAt} is not null and ${unverified})
+  or (${saleTransactions.source} = 'SQUARE' and ${saleTransactions.providerStatus} = 'SQUARE'
     and ${saleTransactions.occurredAt} is not null and ${unverified})
 )`;
 
