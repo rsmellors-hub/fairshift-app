@@ -9,6 +9,8 @@ import "./allocations.css";
 const navigation = [
   { label: "Today", href: "/manager" },
   { label: "Plan", href: "/manager/plan" },
+  { label: "Fill shifts", href: "/manager/fill" },
+  { label: "Allocations", href: "/manager/allocations" },
   { label: "Team", href: "/manager/team" },
   { label: "Review", href: "/manager/review" },
 ];

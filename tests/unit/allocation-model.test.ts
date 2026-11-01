@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocationState, readOnlySchedulerConfig, toAllocationSchedule } from "@/app/manager/allocation-model";
+import { allocationState, moveToDay, schedulerConfig, toAllocationSchedule } from "@/app/manager/allocation-model";
 
 describe("Scheduler presentation contract", () => {
   it("maps persisted identities, times, terms and offer relationships without inventing allocations", () => {
@@ -22,13 +22,27 @@ describe("Scheduler presentation contract", () => {
     expect(allocationState("CANCELLED", "ACCEPTED")).toBe("Cancelled");
   });
 
-  it("has a valid empty model and explicitly disables all scheduling mutation features", () => {
+  it("has a valid empty model; the timeline can't create, delete, edit or reassign, and holds no server connection of its own", () => {
     expect(toAllocationSchedule([], null)).toEqual({ resources: [], events: [], assignments: [] });
-    expect(readOnlySchedulerConfig.readOnly).toBe(true);
-    expect(readOnlySchedulerConfig.enableDeleteKey).toBe(false);
-    for (const feature of ["eventDrag", "eventResize", "eventDragCreate", "eventEdit", "eventMenu", "scheduleMenu"] as const) {
-      expect(readOnlySchedulerConfig.features[feature]).toBe(false);
-    }
-    expect(readOnlySchedulerConfig).not.toHaveProperty("crudManager");
+    expect(schedulerConfig.enableDeleteKey).toBe(false);
+    expect(schedulerConfig.features.eventDrag.constrainDragToResource).toBe(true);
+    for (const feature of ["eventDragCreate", "eventEdit", "eventMenu", "scheduleMenu", "eventCopyPaste"] as const) expect(schedulerConfig.features[feature]).toBe(false);
+    expect(schedulerConfig).not.toHaveProperty("crudManager");
+  });
+});
+
+describe("moving a shift to another day in the week view", () => {
+  const shift = { startDate: "2026-11-05T09:00:00.000Z", endDate: "2026-11-05T17:00:00.000Z" };
+  it("keeps the shift's own hours, not the midnight the timeline snapped to", () => {
+    expect(moveToDay(shift, "2026-11-06", "Europe/London")).toEqual({ startsAt: "2026-11-06T09:00", endsAt: "2026-11-06T17:00" });
+  });
+  it("reads the hours at the location, whatever the browser's time zone", () => {
+    expect(moveToDay(shift, "2026-11-06", "Africa/Johannesburg")).toEqual({ startsAt: "2026-11-06T11:00", endsAt: "2026-11-06T19:00" });
+  });
+  it("keeps the same wall-clock hours across a clock change", () => {
+    expect(moveToDay({ startDate: "2027-03-27T09:00:00.000Z", endDate: "2027-03-27T17:00:00.000Z" }, "2027-03-29", "Europe/London")).toEqual({ startsAt: "2027-03-29T09:00", endsAt: "2027-03-29T17:00" });
+  });
+  it("keeps an overnight shift overnight, across a month end", () => {
+    expect(moveToDay({ startDate: "2026-11-05T22:00:00.000Z", endDate: "2026-11-06T04:00:00.000Z" }, "2026-11-30", "Europe/London")).toEqual({ startsAt: "2026-11-30T22:00", endsAt: "2026-12-01T04:00" });
   });
 });

@@ -14,10 +14,10 @@ import { createTestDatabase } from "../helpers/database";
 vi.mock("@/server/auth/request",()=>({requireScope:async()=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",role:"MANAGER",organisationName:"Demo",locationName:"Rosebank Kitchen"})}));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
-vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, useRouter: () => ({ refresh() {} }) }));
 
 async function page() {
-  return renderToStaticMarkup(await ManagerAreaPage({ params: Promise.resolve({ area: "plan" }), searchParams: Promise.resolve({}) }));
+  return renderToStaticMarkup(await ManagerAreaPage({ params: Promise.resolve({ area: "allocations" }), searchParams: Promise.resolve({}) }));
 }
 
 describe("Manager allocation schedule", () => {
@@ -35,15 +35,15 @@ describe("Manager allocation schedule", () => {
       await recordDemoPerformance(testDb.db, 0);
       const second = await startNewDemoCycle(testDb.db);
       const schedule = await getAllocationSchedule(testDb.db);
-      expect(schedule.events.map((row) => row.id)).toEqual([second.offer.id, first.offer.id]);
+      expect(schedule.events.filter((row) => row.kind === "OFFER").map((row) => row.id)).toEqual([second.offer.id, first.offer.id]);
       expect(schedule.events[1].state).toBe("Completed work");
       expect(schedule.assignments).toContainEqual({ id: first.offer.id, eventId: first.offer.id, resourceId: first.worker.id });
       const html = await page();
-      expect(html).toContain("Worker timeline");
+      expect(html).toContain("Weekly schedule");
       expect(html).toContain("Loading schedule timeline");
       expect(html).toContain("Completed work");
       expect(html).toContain("Alex Morgan");
-      expect(html).toContain("Read-only schedule");
+      expect(html).toContain("FairShift checks every change on the server");
       expect(html).not.toContain("No shift allocations");
       expect(html).not.toContain("paypalBatchId");
       vi.mocked(getDatabase).mockReturnValue({ select: () => { throw new Error("Database unavailable"); } } as unknown as ReturnType<typeof getDatabase>);

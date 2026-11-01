@@ -107,9 +107,9 @@ describe("opportunity to allocation, across roles", () => {
       // The Manager sees the gap and opens Fill Shifts with its context, on the page of their one location.
       const plan = await render(manager, () => ManagerWorkspace({ area: "plan" }));
       const monday = "2026-01-19";
-      expect(plan).toContain(`/manager/plan?date=${monday}#add-requirement`);
+      expect(plan).toContain(`/manager/fill?date=${monday}#add-requirement`);
       expect(plan).not.toContain('name="locationId"');
-      const context = await render(manager, () => ManagerWorkspace({ area: "plan", date: monday }));
+      const context = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
       // £2,000 at £100 an hour is 20 h; 8 h regular leaves 12 h: approximately 2 eight-hour shifts.
       for (const text of ["FairShift identified a staffing requirement for Mon, 19 Jan 2026", "Required labour", "20 h", "Regular coverage", "8 h", "Casual labour gap", "12 h", "Indicative shifts", "this business’s configured assumption", "Sales evidence through", "Nothing is created or offered until you do", `value="${monday}T09:00"`, "Europe/London"]) expect(context).toContain(text);
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
@@ -120,7 +120,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(shift).toMatchObject({ outletId: location, startsAt: new Date(`${monday}T10:00:00Z`), endsAt: new Date(`${monday}T18:00:00Z`), shiftDate: monday, currencyCode: "GBP", rateMinor: 1_200, expectedEarningsMinor: 9_600, requiredHeadcount: 2 });
 
       // The worker appears in the pool, and an offer is sent.
-      let page = await render(manager, () => ManagerWorkspace({ area: "plan", date: monday }));
+      let page = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
       expect(page).toContain("Availability not provided");
       expect(page).toContain("£96.00 expected earnings per worker");
       expect(await act(manager, offerAssignmentAction, { shiftId: shift.id, workerId: worker.workerId!, planDate: monday })).toContain("status=saved");
@@ -149,7 +149,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(shiftsPage).not.toContain("Accept shift");
 
       // The Manager sees the acceptance and finalises it.
-      page = await render(manager, () => ManagerWorkspace({ area: "plan" }));
+      page = await render(manager, () => ManagerWorkspace({ area: "fill" }));
       expect(page).toContain("Accepted · ready to allocate");
       expect(await render(manager, () => ManagerWorkspace({ area: "overview" }))).toContain("Accepted offers need allocation");
       expect(await act(manager, allocateAssignmentAction, { offerId: offer.id })).toContain("status=saved");
@@ -157,7 +157,7 @@ describe("opportunity to allocation, across roles", () => {
       const allocations = await t.db.select().from(workAllocations).where(eq(workAllocations.offerId, offer.id));
       expect(allocations).toHaveLength(1);
       expect(allocations[0]).toMatchObject({ acceptanceId: acceptance.id, state: "ALLOCATED", confirmedAt: null });
-      expect(await render(manager, () => ManagerWorkspace({ area: "plan" }))).toContain("Allocated");
+      expect(await render(manager, () => ManagerWorkspace({ area: "fill" }))).toContain("Allocated");
 
       // The Worker finds booked work again, and it is not called completed or paid.
       shiftsPage = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
@@ -166,7 +166,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).toContain("Your next shift");
 
       // Allocated labour reduces the gap the Manager started from: same underlying record.
-      expect(await render(manager, () => ManagerWorkspace({ area: "plan", date: monday }))).toContain("Allocated casual");
+      expect(await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }))).toContain("Allocated casual");
       const owner = await render(c.ownerScope, () => OwnerWorkspace({ area: "forecast" }));
       expect(owner).toContain("the rota configured for this location");
       expect(await t.db.select().from(workPayables)).toEqual([]);
@@ -190,7 +190,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(shift.startsAt.toISOString()).toBe(instant);
       await offerAssignment(t.db, shift.id, worker.workerId!, manager);
       expect(await render(worker, () => WorkerWorkspace({ area: "shifts" }))).toContain(shown);
-      const page = await render(manager, () => ManagerWorkspace({ area: "plan" }));
+      const page = await render(manager, () => ManagerWorkspace({ area: "fill" }));
       expect(page).toContain(timezone);
       expect(page).toContain("10:00");
       if (timezone !== "Africa/Johannesburg") expect(page).not.toContain("Johannesburg");
@@ -214,7 +214,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(await create("2026-01-19T10:00", "2026-01-19T10:07", uneven.id)).toContain("status=earnings-not-whole");
       expect(await create("2026-01-19T10:00", "2026-01-19T12:00", randomUUID())).toContain("status=error");
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
-      const feedback = await render(manager, () => ManagerWorkspace({ area: "plan", status: "time-nonexistent" }));
+      const feedback = await render(manager, () => ManagerWorkspace({ area: "fill", status: "time-nonexistent" }));
       expect(feedback).toContain("the clocks go forward then");
     } finally { await t.close(); }
   });
@@ -279,7 +279,7 @@ describe("worker pool and offers", () => {
       await allocateAssignment(t.db, earlierOffer.id, manager);
       const shift = await shiftAt(t.db, manager, pay);
 
-      const page = await render(manager, () => ManagerWorkspace({ area: "plan" }));
+      const page = await render(manager, () => ManagerWorkspace({ area: "fill" }));
       const article = page.split("<article").find(a => a.includes(`requirement-${shift.id}`))!;
       const pool = article.slice(article.indexOf("Worker pool"));
       for (const [name, state] of [["Free", "Availability not provided"], ["Away", "Unavailable"], ["Yes", "Available"], ["Busy", "Already working"], ["Invited", "Awaiting activation"], ["Off", "Inactive"]]) {
@@ -338,7 +338,7 @@ describe("worker pool and offers", () => {
       // Workers of another location or tenant cannot be offered, and do not appear in the pool.
       await expect(offerAssignment(t.db, shift.id, yorkWorker.workerId!, leeds)).rejects.toThrow(/unavailable at this location/);
       await expect(offerAssignment(t.db, shift.id, rivalWorker.workerId!, leeds)).rejects.toThrow(/unavailable at this location/);
-      const page = await render(leeds, () => ManagerWorkspace({ area: "plan" }));
+      const page = await render(leeds, () => ManagerWorkspace({ area: "fill" }));
       expect(page).toContain("Lee ");
       expect(page).not.toContain("Yan ");
       expect(page).not.toContain("Rio ");
@@ -413,7 +413,7 @@ describe("responses and allocation", () => {
       // The Manager moves the shift: the old acceptance stands as evidence but no longer books the worker.
       await changeAssignment(t.db, manager, shift.id, { startsAt: future(1), endsAt: future(9) });
       await expect(allocateAssignment(t.db, offer.id, manager)).rejects.toThrow(/Accept the offer|require acceptance/);
-      expect(await render(manager, () => ManagerWorkspace({ area: "plan" }))).toContain("Reacceptance required");
+      expect(await render(manager, () => ManagerWorkspace({ area: "fill" }))).toContain("Reacceptance required");
       let page = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
       expect(page).toContain("Details changed");
       expect(page).toContain("The details changed");
@@ -509,7 +509,7 @@ describe("payment truthfulness and downstream regression", () => {
       expect(await t.db.select().from(workPayouts)).toHaveLength(1);
       // The worker sees a plain state and a next step, with no provider code and no Paid.
       const earnings = await render(worker, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["Action required", "PayPal is holding this payment", "check your PayPal account", "£96.00 earned"]) expect(earnings).toContain(text);
+      for (const text of ["Action required", "PayPal is holding this payment", "check your PayPal account", "Base pay", "£96.00"]) expect(earnings).toContain(text);
       expect(earnings).not.toContain("PENDING_RECIPIENT");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).not.toContain("£96.00 paid");

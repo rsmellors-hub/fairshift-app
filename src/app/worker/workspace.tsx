@@ -1,7 +1,8 @@
 import { requireScope } from "@/server/auth/request";
 import { workerWorkspace } from "@/server/auth/operations";
 import Link from "next/link";
-import { WorkerPerformance, WorkerShiftCard, shiftWhen, workerShiftKind } from "@/app/worker/shift-cards";
+import { WorkerPerformance, WorkerShiftCard, WorkerTarget, shiftWhen, workerShiftKind } from "@/app/worker/shift-cards";
+import { PayoutProgress } from "@/app/components/payment-progress";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { PageHeader, StatePanel } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, dateTime, money, payableBasis, PaymentBadge, TaskLink, WorkerPaymentBadge, WorkspaceUnavailable } from "@/app/components/workspace-ui";
@@ -23,7 +24,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const scope=await requireScope(["TEAM_MEMBER"]);
   let data;
   try { data = await workerWorkspace(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
-  const { profile, assignments, availability, timezone } = data;
+  const { profile, assignments, availability, timezone, targets } = data;
   if (!timezone) return <WorkspaceUnavailable />;
   const now = new Date();
   const stated = new Map(availability.map(row => [row.isoWeekday, row.state]));
@@ -46,11 +47,37 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const notSentTotal = currencyTotals(accepted.flatMap((row) => row.payable?.status === "APPROVED" && (!row.payout || ["NOT_SENT", "FAILED"].includes(row.payout.status)) ? [{ amountMinor: finalPayableMinor(row.payable), currencyCode: row.payable.currencyCode }] : []));
   const paidTotal = currencyTotals(accepted.flatMap((row) => row.payout?.status === "PAID" ? [{ amountMinor: row.payout.amountMinor, currencyCode: row.payout.currencyCode }] : []));
   const paymentDetailsNeeded = !profile?.paypalPayoutEmail && accepted.some((row) => row.payable?.status === "APPROVED" && (!row.payout || row.payout.status === "NOT_SENT"));
+  // Soonest open target first: the one the worker is on now, or next.
+  const targetCards = [...targets].sort((a, b) => a.terms.startsAt.getTime() - b.terms.startsAt.getTime()).map(target => <WorkerTarget key={target.allocationId} target={target} baseMinor={assignments.find(row => row.shift.id === target.shiftId)?.shift.expectedEarningsMinor ?? null} timeZone={timezone} now={now} />);
+  const earned = accepted.filter(row => row.payable?.status === "PENDING_REVIEW");
+  const pending = accepted.filter(row => row.payable?.status === "APPROVED" && row.payout?.status !== "PAID");
+  const paid = accepted.filter(row => row.payout?.status === "PAID");
+  const expected = accepted.filter(row => !row.payable);
+  const earning = (row: (typeof accepted)[number]) => {
+    const payable = row.payable!, amount = (value: number) => money(value, payable.currencyCode);
+    const bonusUnknown = payable.incentiveRequired && payable.incentiveAmountMinor === null;
+    return <article className="earning-item" key={row.offer.id} aria-label={`${row.departmentName ?? row.shift.roleName}, ${shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date}`}>
+      <p><strong>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date}</strong> · {row.departmentName ?? row.shift.roleName} · {scope.locationName}</p>
+      <dl className="earning-sum">
+        <div><dt>Base pay · {payableBasis(payable)}</dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
+        {payable.incentiveRequired ? <div><dt>Bonus</dt><dd>{bonusUnknown ? "Not known yet" : amount(payable.incentiveAmountMinor!)}</dd></div> : null}
+        <div className="earning-total"><dt>Total</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
+      </dl>
+      <WorkerPaymentBadge status={payable.status} payout={row.payout} />
+      <PayoutProgress status={payable.status} payout={row.payout} />
+      {row.payout?.status === "PAID" && row.payout.paidAt ? <p>PayPal confirmed: paid to your PayPal account {dateTime(row.payout.paidAt, timezone)} ({timezone})</p> : null}
+      {row.payout?.status === "FAILED" ? <p>Your payment needs attention: ask your manager to review it.</p> : null}
+      {row.payout?.status === "PROCESSING" && row.payout.paypalStatus === "ONHOLD" ? <p>PayPal is holding this payment, so it has not reached you yet: check your PayPal account to accept it.</p> : null}
+      {row.payout?.status === "PROCESSING" && row.payout.paypalStatus === "UNCLAIMED" ? <p>Claim this payment by signing in to PayPal with your saved email.</p> : null}
+      {payable.incentiveRequired ? <WorkerPerformance payable={payable} performance={row.performance} shift={row.shift} /> : null}
+    </article>;
+  };
   const title = { home: `Welcome${profile ? `, ${profile.displayName}` : ""}`, shifts: "Your shifts", earnings: "Your earnings", availability: "Your availability", profile: "Your profile" }[area];
   return <>
     <PageHeader eyebrow={scope.locationName} title={title} description={area === "home" ? "What needs your attention." : undefined} />
     <ActionFeedback status={status} />
     {area === "home" ? <>
+      {targetCards.length ? <section className="worker-section" aria-label="Your shift target">{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null}
       {offersNow.length ? <section className="worker-section" aria-labelledby="home-offers"><h2 id="home-offers">{offersNow.length === 1 ? "You have a new shift offer" : `You have ${offersNow.length} new shift offers`}</h2>{card(offersNow[0])}{offersNow.length > 1 ? <p><Link href="/worker/shifts">See all offers →</Link></p> : null}</section> : null}
       {waiting.length ? <section className="worker-section" aria-labelledby="home-waiting"><h2 id="home-waiting">Waiting for your manager</h2>{card(waiting[0])}{waiting.length > 1 ? <p><Link href="/worker/shifts">See all →</Link></p> : null}</section> : null}
       {upcoming.length ? <section className="worker-section" aria-labelledby="home-upcoming"><h2 id="home-upcoming">Your next shift</h2>{card(upcoming[0])}{upcoming.length > 1 ? <p><Link href="/worker/shifts">See all your shifts →</Link></p> : null}</section> : null}
@@ -59,6 +86,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       <div className="task-grid"><TaskLink href="/worker/earnings" title="Earnings">{[paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ") || "What you’ve earned and how payment is going."}</TaskLink><TaskLink href="/worker/availability" title="Availability">{availability.length ? "Update the days you can work." : "Tell your manager which days you can work."}</TaskLink></div>
     </> : null}
     {area === "shifts" ? assignments.length ? <>
+      {targetCards.length ? <section className="worker-section" aria-label="Your shift targets">{targetCards}</section> : null}
       {offersNow.length ? <section className="worker-section" aria-labelledby="shifts-offers"><h2 id="shifts-offers">New offers</h2>{offersNow.map(card)}</section> : null}
       {waiting.length ? <section className="worker-section" aria-labelledby="shifts-waiting"><h2 id="shifts-waiting">Waiting for your manager</h2>{waiting.map(card)}</section> : null}
       {upcoming.length ? <section className="worker-section" aria-labelledby="shifts-upcoming"><h2 id="shifts-upcoming">You’re booked</h2>{upcoming.map(card)}</section> : null}
@@ -79,10 +107,17 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
     </section> : null}
     {area === "earnings" ? <>
       <section className="panel" aria-labelledby="work-earnings-title"><h2 id="work-earnings-title">Work earnings</h2>
-        <div className="overview-strip"><div><span>Expected · work not yet confirmed</span><strong>{expectedTotal || "None"}</strong></div><div><span>Confirmed · awaiting approval</span><strong>{payableTotal || "None"}</strong></div><div><span>Approved · payment not yet confirmed</span><strong>{approvedTotal || "None"}</strong></div><div><span>Paid · confirmed by PayPal</span><strong>{paidTotal || "None"}</strong></div></div>
+        <div className="overview-strip">
+          <div><span>Earned</span><strong>{payableTotal || "None"}</strong><small>Confirmed · awaiting approval</small></div>
+          <div><span>Pending</span><strong>{approvedTotal || "None"}</strong><small>Approved · payment not yet confirmed</small></div>
+          <div><span>Paid so far</span><strong>{paidTotal || "None"}</strong><small>Confirmed by PayPal</small></div>
+        </div>
         {paymentDetailsNeeded ? <StatePanel title="Payment details required" tone="warning"><p>Approved earnings cannot be sent until you add a PayPal email. <Link href="/worker/profile#payment-settings">Add it in Profile → Payment settings</Link></p></StatePanel> : null}
-        {accepted.length ? accepted.map(row => <div className="record-row" key={row.offer.id}><span>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date} · {row.departmentName ?? row.shift.roleName}</span>{row.payable ? <><span>{money(finalPayableMinor(row.payable), row.payable.currencyCode)} {row.payable.incentiveRequired && row.payable.incentiveAmountMinor === null ? "base earnings" : "earned"} · {payableBasis(row.payable)} · work confirmed{row.payout?.status === "PAID" && row.payout.paidAt ? ` · paid to your PayPal account ${dateTime(row.payout.paidAt, timezone)} (${timezone})` : ""}{row.payout?.status === "FAILED" ? " · your payment needs attention: ask your manager to review it" : ""}{row.payout?.status === "PROCESSING" && row.payout.paypalStatus === "ONHOLD" ? " · PayPal is holding this payment, so it has not reached you yet: check your PayPal account to accept it" : ""}{row.payout?.status === "PROCESSING" && row.payout.paypalStatus === "UNCLAIMED" ? " · claim this payment by signing in to PayPal with your saved email" : ""}</span><WorkerPaymentBadge status={row.payable.status} payout={row.payout} />{row.payable.incentiveRequired ? <WorkerPerformance payable={row.payable} performance={row.performance} shift={row.shift} /> : null}</>
-          : <span>{row.shift.earningsModel === "COMMISSION" ? "Commission awaiting verified attributed sales" : `${money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode)} expected`} · {row.allocation?.confirmedAt ? row.shift.earningsModel === "COMMISSION" ? "Work confirmed" : "Work confirmed · earnings not yet recorded" : "Awaiting work confirmation"}</span>}</div>) : <p>No accepted shifts yet.</p>}
+        {earned.length ? <div className="earnings-group"><h3>Earned</h3>{earned.map(earning)}</div> : null}
+        {pending.length ? <div className="earnings-group"><h3>Pending</h3>{pending.map(earning)}</div> : null}
+        {paid.length ? <div className="earnings-group"><h3>Paid</h3>{paid.map(earning)}</div> : null}
+        {expected.length ? <div className="earnings-group"><h3>Coming up{expectedTotal ? ` · ${expectedTotal} expected` : ""}</h3>{expected.map(row => <div className="record-row" key={row.offer.id}><span>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date} · {row.departmentName ?? row.shift.roleName}</span><span>{row.shift.earningsModel === "COMMISSION" ? "Commission awaiting verified attributed sales" : `${money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode)} expected`} · {row.allocation?.confirmedAt ? row.shift.earningsModel === "COMMISSION" ? "Work confirmed" : "Work confirmed · earnings not yet recorded" : "Awaiting work confirmation"}</span></div>)}</div> : null}
+        {!accepted.length ? <p>No accepted shifts yet.</p> : null}
         <p className="method-note">When your manager confirms the work, FairShift works out your earnings from the terms you accepted. Your manager then approves them and sends them to your PayPal account. An amount shows as Paid only after PayPal confirms the payment. Questions about a payment? Ask your manager.</p>
       </section>
       {!profile?.paypalPayoutEmail && !paymentDetailsNeeded ? <StatePanel title="Payment setup incomplete" tone="warning"><p>Add your payment details before your approved earnings can be sent. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}

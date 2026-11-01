@@ -236,7 +236,7 @@ describe("coverage-aware weekly staffing", () => {
       expect(html).toContain("Planning week Mon, 26 Oct 2026 – Sun, 1 Nov 2026");
       expect(html).toContain("Historical evidence through Sun, 28 Dec 2025 (302 days before the planning week)");
       expect(html).toContain(`Approx. ${uk04.totals!.indicativeShifts} shifts to fill · none created`);
-      expect(html).toContain("Create work for the casual labour gap");
+      expect(html).toContain("needs the most cover");
       expect(html).not.toContain('name="locationId"'); // one authorised location: no selector
       for (const other of c.rows.filter(row => row.id !== c.mapping.UK04)) expect(html).not.toContain(other.name);
     } finally { await t.close(); }

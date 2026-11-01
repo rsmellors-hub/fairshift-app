@@ -34,7 +34,7 @@ vi.mock("@/server/auth/request", () => ({
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); }, usePathname: () => "/operator" }));
+vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); }, usePathname: () => "/operator", useRouter: () => ({ refresh() {} }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 function form(values: Record<string, string>) {
@@ -91,7 +91,7 @@ describe("functional product workspaces", () => {
       expect(profileHtml).not.toContain("worker@example.test");
 
       await expect(publishDemoShiftAction(form({}))).rejects.toThrow("status=error");
-      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/plan?status=saved");
+      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/fill?status=saved");
       const current = (await getDemoWorkerShift(testDb.db))!;
       // The seeded shift has a fixed date, so what the Worker sees is checked at a fixed clock.
       vi.useFakeTimers({ now: new Date("2026-10-15T12:00:00Z"), toFake: ["Date"] });
@@ -175,7 +175,7 @@ describe("functional product workspaces", () => {
       const demo = await publishDemoShift(t.db);
       ops = await getOperations(t.db);
       const departmentId = ops.departments[0].id;
-      await expect(createRequirementAction(form({ departmentId, policyId:ops.policies[0].id, headcount:"2", startsAt:"2026-12-01T10:00", endsAt:"2026-12-01T16:00", planDate:"2026-12-01" }))).rejects.toThrow("REDIRECT:/manager/plan?date=2026-12-01&status=saved");
+      await expect(createRequirementAction(form({ departmentId, policyId:ops.policies[0].id, headcount:"2", startsAt:"2026-12-01T10:00", endsAt:"2026-12-01T16:00", planDate:"2026-12-01" }))).rejects.toThrow("REDIRECT:/manager/fill?date=2026-12-01&status=saved");
       const requirement = (await getOperations(t.db)).requirements.find(r => r.policyId === ops.policies[0].id)!;
       const offer = await offerAssignment(t.db, requirement.id, demo.worker.id);
       const shiftsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"shifts"}));
@@ -189,7 +189,7 @@ describe("functional product workspaces", () => {
       await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED",acknowledged:"yes"}))).rejects.toThrow("status=saved");
       const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"earnings"}));
       expect(earningsHtml).toContain("Commission awaiting verified attributed sales");
-      const filtered = renderToStaticMarkup(await ManagerWorkspace({area:"plan",date:"2026-12-01",department:departmentId}));
+      const filtered = renderToStaticMarkup(await ManagerWorkspace({area:"fill",date:"2026-12-01",department:departmentId}));
       expect(filtered).toContain("2 needed");
       expect(filtered).toContain("1 accepted");
       expect(filtered).toContain("Sam Taylor");

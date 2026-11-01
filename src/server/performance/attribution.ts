@@ -127,6 +127,19 @@ export async function getLocationPerformance(db: DatabaseSession, scope: Perform
   })));
 }
 
+// One worker's own progress on allocated shifts whose results aren't confirmed yet. It is
+// keyed to the worker in the session and returns their totals only: no transactions,
+// customers, other workers or store figures. Finished results come from the shift's record.
+export async function getWorkerTargets(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "locationId"> & { workerId: string }) {
+  const work = await incentiveWork(db, { ...scope, role: "TEAM_MEMBER" }, false, [scope.workerId]);
+  const results = work.length ? await db.select({ allocationId: workPerformanceResults.allocationId }).from(workPerformanceResults).where(inArray(workPerformanceResults.allocationId, work.map(item => item.allocation.id))) : [];
+  const open = work.filter(item => !results.some(result => result.allocationId === item.allocation.id) && !item.allocation.confirmedAt);
+  return Promise.all(open.map(async item => ({
+    allocationId: item.allocation.id, shiftId: item.shiftId, terms: item.terms,
+    attributed: await attributedTotals(db, { workerId: scope.workerId, outletId: scope.locationId, currencyCode: item.terms.currencyCode, startsAt: item.terms.startsAt, endsAt: item.terms.endsAt }),
+  })));
+}
+
 // The manager states the sales evidence for one shift is complete. The figures and the
 // incentive are FairShift's own; what the manager saw is only compared, so a late import
 // cannot be confirmed unseen. Idempotent: a confirmed result is returned, never recalculated.

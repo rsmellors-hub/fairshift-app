@@ -248,12 +248,12 @@ describe("AI staffing intelligence", () => {
       expect(html).toContain("What to staff first");
       expect(html).toContain(`highest at <strong>${c.rows[0].name}</strong>`);
       for (const row of c.rows.slice(1)) expect(html).not.toContain(row.name);
-      expect(html).toContain(`/manager/plan?date=`);
+      expect(html).toContain(`/manager/fill?date=`);
       expect(html).toContain("#add-requirement");
       expect(html).not.toContain("Operational interpretation");
       // The hand-off from a dated priority opens shift planning; nothing is created by it.
       expect(html).not.toMatch(/<details[^>]*id="add-requirement"[^>]* open/);
-      expect(renderToStaticMarkup(await ManagerWorkspace({ area: "plan", date: "2026-10-31" }))).toMatch(/<details[^>]*id="add-requirement"[^>]* open/);
+      expect(renderToStaticMarkup(await ManagerWorkspace({ area: "fill", date: "2026-10-31" }))).toMatch(/<details[^>]*id="add-requirement"[^>]* open/);
       // Through the action, the scope comes from the session only.
       vi.mocked(getStaffingAssessmentProvider).mockReturnValue(provider);
       await expect(generateLocationAssessmentAction()).rejects.toThrow("REDIRECT:/manager/plan?ai=saved");

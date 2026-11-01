@@ -84,3 +84,29 @@ export function WorkerPerformance({ payable, performance, shift }: { payable: Ea
     <p className="method-note">Based on sales records your manager imported and confirmed. They haven’t been checked by a sales provider.</p>
   </div>;
 }
+
+// The worker's own target for an allocated shift, from their own attributed sales so far.
+// No sales recorded yet is shown as that, never as a result of zero. The bonus stays
+// unconfirmed until the manager has checked the sales, even once the target is reached.
+type Target = { terms: { targetMinor: number; bonusMinor: number; currencyCode: string; startsAt: Date; endsAt: Date }; attributed: { count: number; minor: number } };
+export function WorkerTarget({ target, baseMinor, timeZone, now }: { target: Target; baseMinor: number | null; timeZone: string; now: Date }) {
+  const { terms, attributed } = target, amount = (value: number) => money(value, terms.currencyCode);
+  const when = shiftWhen(terms.startsAt, terms.endsAt, timeZone);
+  const phase = terms.endsAt <= now ? "Finished · your manager checks your sales next" : terms.startsAt <= now ? "On shift now" : `${when.date}, ${when.time}`;
+  const reached = attributed.minor >= terms.targetMinor;
+  const percent = Math.min(100, Math.floor((attributed.minor / terms.targetMinor) * 100));
+  return <article className="worker-target" aria-label="Your shift target">
+    <h3>Your shift target</h3>
+    <p>{phase}</p>
+    <StatusBadge tone="warning">Imported · not provider-verified</StatusBadge>
+    <div className="target-meter" role="progressbar" aria-label="Progress to your target" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
+    <p><strong>{attributed.count === 0 ? `No sales recorded yet · target ${amount(terms.targetMinor)}` : reached ? `Target of ${amount(terms.targetMinor)} reached` : `${amount(terms.targetMinor - attributed.minor)} to go · target ${amount(terms.targetMinor)}`}</strong></p>
+    <dl className="target-figures">
+      <div><dt>Your sales</dt><dd>{attributed.count === 0 ? "None yet" : attributed.count}</dd></div>
+      <div><dt>Your sales value</dt><dd>{attributed.count === 0 ? "None yet" : amount(attributed.minor)}</dd></div>
+      <div><dt>Base pay</dt><dd>{baseMinor === null ? "Per your accepted terms" : amount(baseMinor)}</dd></div>
+      <div><dt>Bonus</dt><dd>{reached ? `${amount(terms.bonusMinor)} · to be confirmed` : `${amount(terms.bonusMinor)} if you reach your target`}</dd></div>
+    </dl>
+    <p className="method-note">Your own sales only, from records your manager imported. They haven’t been checked by a sales provider. Your manager confirms the result before any bonus is final.</p>
+  </article>;
+}

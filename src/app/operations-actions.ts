@@ -35,7 +35,9 @@ function planPath(form: FormData) {
   const date = field(form, "planDate"), department = field(form, "planDepartment");
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) query.set("date", date);
   if (/^[0-9a-f-]{36}$/i.test(department)) query.set("department", department);
-  return `/manager/plan${query.size ? `?${query}` : ""}`;
+  // Only a known page: the value comes from a form and decides a redirect.
+  const area = field(form, "returnArea") === "allocations" ? "allocations" : "fill";
+  return `/manager/${area}${query.size ? `?${query}` : ""}`;
 }
 export async function createTeamAction(form: FormData) {
   const scope = await requireScope(["OWNER","MANAGER"]);

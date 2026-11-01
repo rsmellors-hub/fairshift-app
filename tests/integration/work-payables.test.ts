@@ -356,7 +356,7 @@ describe("confirmed work and authoritative base payables", () => {
       let earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
       expect(earnings).toContain("£72.00 expected");
       expect(earnings).toContain("Awaiting work confirmation");
-      expect(earnings).not.toContain("£72.00 earned");
+      expect(earnings).not.toContain("<h3>Earned</h3>");
       noDollars(earnings);
       noDollars(await render(workerScope, () => WorkerWorkspace({ area: "home" })));
       // Allocated, unconfirmed work is visible as allocated and offered for confirmation.
@@ -385,7 +385,7 @@ describe("confirmed work and authoritative base payables", () => {
       noDollars(review);
       noPayment(review);
       earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["£72.00 earned", "£12.00/hour × 6 hours scheduled", "Confirmed · awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms the payment"]) expect(earnings).toContain(text);
+      for (const text of ["<h3>Earned</h3>", "£72.00", "£12.00/hour × 6 hours scheduled", "Confirmed · awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms the payment"]) expect(earnings).toContain(text);
       noDollars(earnings);
       noPayment(earnings);
       expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£72.00 confirmed · awaiting approval");

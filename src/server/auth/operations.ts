@@ -8,11 +8,13 @@ import { UserFacingError } from "@/server/domain/errors";
 import { assertRole, type Scope } from "./access";
 import { respondToAssignment } from "@/server/scheduling/operations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
+import { getWorkerTargets } from "@/server/performance/attribution";
 export async function workerWorkspace(db:Database,scope:Scope) {
   assertRole(scope,["TEAM_MEMBER"]);
   await requireEntitlement(db,scope.organisationId);
   await workerIdentity(db,scope);
-  return getWorkerWorkspace(db,scope);
+  const workspace = await getWorkerWorkspace(db,scope);
+  return { ...workspace, targets: await getWorkerTargets(db,{ organisationId: scope.organisationId, locationId: scope.locationId, workerId: scope.workerId! }) };
 }
 export async function workerRespond(db:Database,scope:Scope,offerId:string,version:number,response:"ACCEPTED"|"DECLINED",acknowledged:boolean) {
   assertRole(scope,["TEAM_MEMBER"]);

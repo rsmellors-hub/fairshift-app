@@ -4,3 +4,26 @@
 .allocation-schedule input, .allocation-schedule select { min-height: 44px; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); }
 .allocation-timeline { width: 100%; min-width: 0; overflow: hidden; }
 .allocation-schedule > label { margin-block: 18px; }
+
+.allocation-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; padding: 0; list-style: none; color: var(--muted); font-size: .82rem; }
+.allocation-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.allocation-legend i { width: 12px; height: 12px; border-radius: 3px; }
+.allocation-legend i[data-state="gap"] { background: #ef4444; }
+.allocation-legend i[data-state="offered"] { background: #f97316; }
+.allocation-legend i[data-state="accepted"] { background: #3b82f6; }
+.allocation-legend i[data-state="allocated"] { background: #22c55e; }
+.allocation-legend i[data-state="closed"] { background: #9ca3af; }
+.allocation-confirm { margin-block: 12px; padding: 16px; border: 1px solid var(--amber); border-radius: 8px; background: #fff9ef; }
+.allocation-confirm h3 { margin: 0 0 6px; }
+.allocation-confirm-actions, .allocation-links { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.allocation-outcome { margin-block: 10px; padding: 10px 12px; border-left: 3px solid #1ca278; background: #f5fcfa; }
+.allocation-outcome-refused { border-left-color: var(--red); background: #fdf3f4; }
+.allocation-detail { margin-top: 12px; }
+.allocation-change { margin-top: 12px; }
+.allocation-bar { display: grid; gap: 1px; width: 100%; min-width: 0; overflow: hidden; font-size: 10.5px; line-height: 1.2; white-space: nowrap; }
+.allocation-bar strong { font-weight: 700; }
+.allocation-timeline .b-sch-event { padding-inline: 3px; }
+.allocation-timeline .b-sch-event-content { flex: 1 1 auto; width: 100%; min-width: 0; margin: 0; }
+.allocation-schedule > label { grid-template-columns: minmax(0, 1fr); }
+.allocation-schedule select { width: 100%; }
+.allocation-controls select { width: auto; }

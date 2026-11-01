@@ -63,7 +63,7 @@ describe("persisted commercial history to manager output", () => {
       expect(singleDay).toContain("comparison assumption, not a saved plan");
       expect(singleDay).toContain("comparable-days-recency-v1");
       expect(singleDay).toContain("not a calibrated confidence interval");
-      expect(html).toContain("Fill shifts");
+      expect(html).toContain("/manager/fill");
       expect(html).not.toContain("Approve incentive");
     } finally {
       vi.resetAllMocks();

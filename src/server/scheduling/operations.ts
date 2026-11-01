@@ -10,7 +10,8 @@ import { resolveLocationCurrency } from "@/server/domain/currency";
 import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAcceptedTerms } from "@/server/domain/work-payable";
 import { localDate } from "@/server/intelligence/forecast";
 
-import type { Scope } from "@/server/auth/access";
+import { assertRole, type Scope } from "@/server/auth/access";
+import { shiftInteraction } from "@/server/domain/shift-change";
 import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, INDIVIDUAL_INCENTIVE_BASIS } from "@/server/domain/incentive";
 import { availabilityForShift, isOfferable, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
@@ -226,6 +227,48 @@ export async function confirmWork(db: Database, offerId: string, scope:Operating
     if (created) await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "BASE_PAYABLE_CALCULATED", entityType: "work_payable", entityId: created.id, correlationId: `assignment:${shift.id}`, metadata: { allocationId: allocation.id, termsVersion: terms.termsVersion, currencyCode: terms.currencyCode, baseAmountMinor: terms.baseAmountMinor } });
     const [payable] = created ? [created] : await tx.select().from(workPayables).where(eq(workPayables.allocationId, allocation.id));
     return { allocationId: allocation.id, confirmedAt, payable, payableState: terms.state };
+  });
+}
+
+const rescheduleInput = z.object({ shiftId: z.uuid(), expectedTermsVersion: z.number().int().positive(), startsAt: z.date(), endsAt: z.date(), source: z.enum(["DRAG", "CHANGE"]), acknowledgeReacceptance: z.boolean() }).strict();
+
+// A time change requested from the schedule. The client supplies only the shift, the terms
+// version it was looking at and the proposed times; everything else is read here, so a
+// forged event cannot set pay, a worker or a location. Moving a shift with live offers
+// creates a new terms version through the database rule, which returns every acceptance
+// and allocation to "must accept again". It can never leave accepted terms silently changed.
+export async function rescheduleShift(db: Database, scope: OperatingScope & Pick<Scope, "role">, raw: unknown, now = new Date()) {
+  assertRole(scope as Scope, ["OWNER", "MANAGER"]);
+  const parsed = rescheduleInput.safeParse(raw);
+  if (!parsed.success) throw new UserFacingError("schedule-invalid", "That change could not be read, so nothing was changed.");
+  const input = parsed.data;
+  return db.transaction(async tx => {
+    const outlet = await location(tx, scope);
+    const [shift] = await tx.select().from(shifts).where(and(eq(shifts.id, input.shiftId), eq(shifts.outletId, scope.locationId))).for("update");
+    if (!shift) throw new UserFacingError("schedule-unavailable", "This shift is no longer available at this location.");
+    if (shift.status === "PUBLISHED" && input.expectedTermsVersion !== shift.termsVersion) throw new UserFacingError("schedule-stale", "This shift changed since you opened the schedule, so nothing was moved. It now shows the latest details.");
+    const offers = await tx.select({ workerId: shiftOffers.workerId, offerStatus: shiftOffers.status, allocationState: workAllocations.state, confirmedAt: workAllocations.confirmedAt })
+      .from(shiftOffers).leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id)).where(eq(shiftOffers.shiftId, shift.id));
+    const interaction = shiftInteraction(shift, offers, now);
+    if (interaction === "LOCKED") throw new UserFacingError("schedule-locked", "This shift is finished, reviewed or closed, so it cannot be changed.");
+    if (interaction === "CHANGE_ONLY" && input.source === "DRAG") throw new UserFacingError("schedule-allocated", "This shift is allocated, so it cannot be dragged. Use Change shift: its workers must then accept again.");
+    if (interaction !== "MOVE" && !input.acknowledgeReacceptance) throw new UserFacingError("schedule-needs-confirmation", "Workers have live offers on this shift. Confirm that they must accept the new times.");
+    if (input.endsAt <= input.startsAt) throw new UserFacingError("invalid-duration", "The end must be after the start.");
+    if (input.startsAt <= now) throw new UserFacingError("schedule-past", "A shift cannot be moved to a time that has already started.");
+    if (input.startsAt.getTime() === shift.startsAt.getTime() && input.endsAt.getTime() === shift.endsAt.getTime()) return { termsVersion: shift.termsVersion, changed: false };
+    // The proposed times must suit everyone holding a live offer, under the same rule as sending one.
+    const proposed = { ...shift, startsAt: input.startsAt, endsAt: input.endsAt };
+    for (const offer of offers.filter(row => ["OFFERED", "ACCEPTED"].includes(row.offerStatus))) {
+      try { await eligible(tx, offer.workerId, proposed, true, scope); }
+      catch (error) { if (error instanceof UserFacingError) throw error; throw new UserFacingError("schedule-conflict", "A worker on this shift cannot work these times, so nothing was changed."); }
+    }
+    let expected: number | null;
+    try { expected = expectedWorkEarnings(policyInput.parse(shift.earningsModel === "COMMISSION" ? shift : { ...shift, rateMinor: shift.rateMinor ?? shift.guaranteedBasePayMinor }), input.startsAt, input.endsAt); }
+    catch (error) { throw new UserFacingError("earnings-not-whole", error instanceof Error ? error.message : "These terms cannot be calculated."); }
+    const [updated] = await tx.update(shifts).set({ startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone), expectedEarningsMinor: expected, guaranteedBasePayMinor: expected ?? 0, updatedAt: now }).where(eq(shifts.id, shift.id)).returning({ termsVersion: shifts.termsVersion });
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "SHIFT_RESCHEDULED", entityType: "shift", entityId: shift.id, correlationId: `assignment:${shift.id}`,
+      metadata: { source: input.source, interaction, fromStartsAt: shift.startsAt.toISOString(), fromEndsAt: shift.endsAt.toISOString(), startsAt: input.startsAt.toISOString(), endsAt: input.endsAt.toISOString(), fromTermsVersion: shift.termsVersion, termsVersion: updated.termsVersion } });
+    return { termsVersion: updated.termsVersion, changed: true };
   });
 }
 

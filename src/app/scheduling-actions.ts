@@ -40,7 +40,7 @@ async function performAction(path: string, action: () => Promise<unknown>) {
 
 export async function publishDemoShiftAction(formData: FormData) {
   await demoAuthority();
-  return performAction("/manager/plan", async () => {
+  return performAction("/manager/fill", async () => {
     if (formData.get("workerSelected") !== "yes") throw new Error("Select the invitation recipient.");
     await publishDemoShift(getDatabase());
   });

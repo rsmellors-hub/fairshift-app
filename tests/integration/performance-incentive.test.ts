@@ -110,7 +110,7 @@ describe("work to approved final payable", () => {
       expect(await act(c.ownerScope, createPolicyAction, { name: "Bonus terms", earningsModel: "HOURLY", rate: "12.00", incentiveTarget: "650.00", incentiveBonus: "25.00" })).toContain("status=saved");
       const [policy] = await t.db.select().from(workPolicies);
       expect(policy).toMatchObject({ incentiveTargetMinor: 65_000, incentiveBonusMinor: 2_500, currencyCode: "GBP" });
-      expect(await render(manager, () => ManagerWorkspace({ area: "plan" }))).toContain("£25.00 bonus at £650.00 sales");
+      expect(await render(manager, () => ManagerWorkspace({ area: "fill" }))).toContain("£25.00 bonus at £650.00 sales");
       const { shift, offer, allocation } = await bookedShift(t.db, manager, worker, { department, policy }, "2026-01-19T09:00:00Z", "2026-01-19T17:00:00Z");
       expect(shift).toMatchObject({ incentiveBasis: "INDIVIDUAL_ATTRIBUTED_SALES", incentiveTargetMinor: 65_000, incentiveAmountMinor: 2_500 });
       expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ incentiveBasis: "INDIVIDUAL_ATTRIBUTED_SALES", incentiveTargetMinor: 65_000, incentiveAmountMinor: 2_500, currencyCode: "GBP", expectedEarningsMinor: 9_600 });
