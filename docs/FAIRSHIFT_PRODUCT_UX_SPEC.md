@@ -263,13 +263,13 @@ The story runs:
 
 ### Current verified golden path
 
-The Square Sandbox journey is verified locally from allocation to manager review ([`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md)):
+The Square Sandbox journey is verified locally from allocation to worker payment confirmation ([`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md), [`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)):
 
-> labelled reference history drives the forecast → manager offer → worker acceptance → allocation → genuine Square Sandbox payments carrying `team_member_id` → mapped worker performance → deterministic incentive → manager review showing £96 base + £25 bonus = £121
+> labelled reference history drives the forecast → manager offer → worker acceptance → allocation → genuine Square Sandbox payments carrying `team_member_id` → mapped worker performance → deterministic incentive → manager approval of £96 base + £25 bonus = £121 → genuine PayPal Sandbox payout of GBP 121.00 → item `SUCCESS` → persisted `PAID` → worker confirmation
 
-**NOT VERIFIED on this path:** clicking approval, PayPal payout, and worker payment confirmation for Square-attributed work. These have no end-to-end run yet, and the path is not deployed.
+**Limits of that run:** it used a short real shift on the same terms, not the 14:00–20:00 window. The 14:00–20:00 rehearsal has not been run, and the path is not deployed.
 
-PayPal payout status is separately **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
+PayPal payout status is **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
 
 ### Golden Path economics
 

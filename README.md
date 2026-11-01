@@ -14,7 +14,7 @@ Reference historical commerce → deterministic demand model → OpenAI bounded 
 | FairShift | Business logic, worker and shift identity, compensation, incentive, attribution eligibility, approval |
 | PayPal | FairShift subscription infrastructure and worker payout |
 
-Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. Approval and PayPal payout on Square-attributed work are not yet verified.
+Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. One genuine GBP 121.00 PayPal Sandbox payout on Square-attributed work has completed locally; see `docs/PAYPAL_FINAL_EVIDENCE.md`.
 
 ## PayPal Sandbox
 

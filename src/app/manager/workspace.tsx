@@ -213,6 +213,7 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
   return <>
     {payout.status === "FAILED" ? <p><small>PayPal did not complete this payment. It cannot be sent again from FairShift; contact your platform operator.</small></p> : null}
     {payout.status === "PROCESSING" && ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "") ? <p><small>PayPal is waiting for the worker to {payout.paypalStatus === "UNCLAIMED" ? "claim the payment with a PayPal account" : "accept the payment in their PayPal account"}. Nothing is paid until PayPal reports success.</small></p> : null}
+    {["PROVIDER_AMOUNT_MISMATCH", "PROVIDER_AMOUNT_UNAVAILABLE"].includes(payoutReason(payout.lastError) ?? "") ? <p><small>PayPal reports this item as complete, but FairShift could not match PayPal&apos;s amount to the approved amount. It is not shown as paid. Contact your platform operator.</small></p> : null}
     {payout.status === "RECONCILIATION_REQUIRED" ? <p><small>PayPal&apos;s response was not received, so this payment is unconfirmed. Checking repeats the identical request, which PayPal pays at most once.</small></p> : null}
     {payout.status !== "FAILED" || payout.paypalBatchId ? <form action={refreshPayoutAction}>{id}<button className="secondary-button">Check payment status</button></form> : null}
     <details><summary>PayPal Sandbox reference</summary><dl className="shift-terms">

@@ -143,7 +143,10 @@ export async function approvePayableAction(form: FormData) {
 }
 export async function sendPayoutAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", () => submitWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
+  return perform("/manager/review", async () => {
+    const { submitted } = await submitWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId"));
+    if (!submitted) throw new UserFacingError("payout-already-sent", "This payment has already gone to PayPal.");
+  });
 }
 export async function refreshPayoutAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);

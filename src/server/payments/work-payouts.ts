@@ -58,6 +58,18 @@ export function payoutStatusFromProvider(result: Pick<PayoutResult, "itemStatus"
   return "PROCESSING";
 }
 
+// PayPal's SUCCESS confirms payment only of the amount FairShift approved. An item reporting
+// another amount or currency, or none, stays unconfirmed: the money is not called paid, and it
+// is not resent either, because PayPal may already have paid something.
+function reconciledStatus(result: PayoutResult, payout: Pick<WorkPayout, "amountMinor" | "currencyCode">) {
+  const status = payoutStatusFromProvider(result);
+  if (status !== "PAID") return { status, amountError: null };
+  const returned = result.itemAmount;
+  if (!returned) return { status: "PROCESSING" as const, amountError: "PROVIDER_AMOUNT_UNAVAILABLE" };
+  if (returned.currency !== payout.currencyCode || returned.value !== payoutAmount(payout.amountMinor, payout.currencyCode)) return { status: "PROCESSING" as const, amountError: "PROVIDER_AMOUNT_MISMATCH" };
+  return { status, amountError: null };
+}
+
 async function scopedPayable(db: DatabaseSession, scope: PayoutScope, payableId: string, lock = false) {
   z.uuid().parse(payableId);
   const query = db.select().from(workPayables).where(and(
@@ -112,11 +124,12 @@ async function recordCreateOutcome(db: DatabaseSession, scope: PayoutScope, payo
   const now = new Date();
   let values: Partial<WorkPayout>;
   if ("result" in outcome) {
-    const status = payoutStatusFromProvider(outcome.result);
+    const { status, amountError } = reconciledStatus(outcome.result, payout);
+    const errorCode = amountError ?? outcome.result.itemErrorCode;
     values = {
       status, paypalBatchId: outcome.result.batchId, paypalItemId: outcome.result.itemId ?? null, paypalTransactionId: outcome.result.transactionId ?? null,
       paypalBatchStatus: outcome.result.batchStatus ?? null, paypalStatus: outcome.result.itemStatus ?? null,
-      lastError: outcome.result.itemErrorCode ? { code: outcome.result.itemErrorCode } : null,
+      lastError: errorCode ? { code: errorCode } : null,
       submittedAt: payout.submittedAt ?? now, statusCheckedAt: now, paidAt: status === "PAID" ? now : null,
     };
   } else {
@@ -224,15 +237,16 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
       throw new Error("PayPal payout status could not be retrieved. The recorded status is unchanged.", { cause: error });
     }
     if (result.batchId !== payout.paypalBatchId) throw new Error("PayPal returned a different payout batch.");
-    const status = payoutStatusFromProvider(result);
+    const { status, amountError } = reconciledStatus(result, payout);
+    const errorCode = amountError ?? result.itemErrorCode;
     const [updated] = await db.update(workPayouts).set({
       status, paypalItemId: payout.paypalItemId ?? result.itemId ?? null, paypalTransactionId: payout.paypalTransactionId ?? result.transactionId ?? null,
       paypalBatchStatus: result.batchStatus ?? null, paypalStatus: result.itemStatus ?? null,
-      lastError: result.itemErrorCode ? { code: result.itemErrorCode } : null,
-      statusCheckedAt: now, paidAt: status === "PAID" ? payout.paidAt ?? now : payout.paidAt, updatedAt: now,
+      lastError: errorCode ? { code: errorCode } : null,
+      statusCheckedAt: now, paidAt: status === "PAID" ? payout.paidAt ?? now : amountError ? null : payout.paidAt, updatedAt: now,
     }).where(and(eq(workPayouts.id, payout.id), eq(workPayouts.paypalBatchId, payout.paypalBatchId))).returning();
-    if (updated.status !== payout.status) {
-      await audit(db, scope, "PAYOUT_STATUS_UPDATED", "work_payout", updated.id, payable.id, { from: payout.status, to: updated.status, paypalStatus: updated.paypalStatus, paypalBatchStatus: updated.paypalBatchStatus });
+    if (updated.status !== payout.status || (amountError && (payout.lastError as { code?: string } | null)?.code !== amountError)) {
+      await audit(db, scope, "PAYOUT_STATUS_UPDATED", "work_payout", updated.id, payable.id, { from: payout.status, to: updated.status, paypalStatus: updated.paypalStatus, paypalBatchStatus: updated.paypalBatchStatus, amountError });
     }
     return updated;
   }

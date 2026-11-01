@@ -66,7 +66,8 @@ PayPal is the central worker-payment integration. Current evidence establishes:
 - one controlled $25 Sandbox payout;
 - persisted provider identifiers and payout state;
 - provider status refresh and reconciliation to `PAID` after PayPal item `SUCCESS`;
-- duplicate payout protection.
+- duplicate payout protection;
+- one genuine GBP 121.00 Sandbox payout on Square-attributed work, reaching item `SUCCESS` and `PAID`.
 
 This evidence does not imply production capability or verification of every PayPal feature. Never represent an unverified, pending, failed, or unknown operation as successful.
 
@@ -92,7 +93,7 @@ Provider responsibilities:
 - **FairShift:** business logic, worker and shift identity, compensation, incentive, attribution eligibility, and approval.
 - **PayPal:** FairShift subscription infrastructure and worker payout.
 
-This chain states the intended path. The stages from allocation to manager review have been exercised on Square Sandbox evidence. Approval and PayPal payout on Square-attributed work are **NOT VERIFIED**. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
+This chain states the intended path. The stages from allocation to worker confirmation have been exercised locally on Square Sandbox evidence and a genuine PayPal Sandbox payout ([`docs/PAYPAL_FINAL_EVIDENCE.md`](docs/PAYPAL_FINAL_EVIDENCE.md)), on a short real shift rather than the 14:00–20:00 window. The reference-history forecast to allocation stages were not part of that one run, and nothing is deployed. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
 
 ### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
 

@@ -46,6 +46,8 @@ export type PayoutResult = {
   itemStatus?: string | null;
   transactionId?: string | null;
   itemErrorCode?: string | null;
+  // The amount PayPal holds on the item, exactly as PayPal returned it.
+  itemAmount?: { value: string; currency: string } | null;
 };
 
 export interface PayPalPayoutAdapter {
@@ -68,7 +70,7 @@ const payoutResponseSchema = z.object({
     transaction_id: z.string().optional(),
     transaction_status: z.string().optional(),
     errors: z.object({ name: z.string().optional() }).optional(),
-    payout_item: z.object({ sender_item_id: z.string().optional() }).optional(),
+    payout_item: z.object({ sender_item_id: z.string().optional(), amount: z.object({ value: z.string(), currency: z.string() }).optional() }).optional(),
   })).optional(),
 });
 const errorSchema = z.object({
@@ -99,6 +101,7 @@ function payoutResult(data: z.infer<typeof payoutResponseSchema>, senderItemId: 
     itemStatus: item?.transaction_status ?? null,
     transactionId: item?.transaction_id ?? null,
     itemErrorCode: item?.errors?.name ?? null,
+    itemAmount: item?.payout_item?.amount ?? null,
   };
 }
 

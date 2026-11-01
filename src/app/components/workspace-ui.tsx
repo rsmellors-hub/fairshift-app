@@ -132,6 +132,7 @@ const FEEDBACK: Record<string, string> = {
   "already-offered": "This person already has an offer for this shift.",
   "shift-ended": "This shift has already finished, so it can no longer be accepted.",
   "policy-incentive": "A sales target and bonus must both be set, as amounts above zero, on hourly or daily terms.",
+  "payout-already-sent": "This payment has already gone to PayPal, so no second payment was made. Its status is below.",
   "performance-required": "Confirm this shift’s sales results before approving its payment.",
   "sales-changed": "Sales for this shift changed after you opened this page. Check the new figures and confirm again.",
   "work-not-confirmed": "Confirm the work before its sales results.",

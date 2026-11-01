@@ -108,10 +108,10 @@ describe("PayPal Payouts REST client", () => {
   it("reads the item's PayPal transaction and status, and never accepts a non-Sandbox host", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/v1/oauth2/token") ? Response.json(token) : Response.json({
       batch_header: { payout_batch_id: "BATCH-1", batch_status: "SUCCESS" },
-      items: [{ payout_item_id: "ITEM-1", transaction_id: "TX-1", transaction_status: "SUCCESS", payout_item: { sender_item_id: "FSWP-I-1" } }],
+      items: [{ payout_item_id: "ITEM-1", transaction_id: "TX-1", transaction_status: "SUCCESS", payout_item: { sender_item_id: "FSWP-I-1", amount: { value: "121.00", currency: "GBP" } } }],
     }));
     expect(await new PayPalPayoutClient(config, fetchMock as typeof fetch).getPayout("BATCH-1", "FSWP-I-1"))
-      .toMatchObject({ batchId: "BATCH-1", itemId: "ITEM-1", transactionId: "TX-1", itemStatus: "SUCCESS", batchStatus: "SUCCESS" });
+      .toMatchObject({ batchId: "BATCH-1", itemId: "ITEM-1", transactionId: "TX-1", itemStatus: "SUCCESS", batchStatus: "SUCCESS", itemAmount: { value: "121.00", currency: "GBP" } });
     expect(() => new PayPalPayoutClient({ ...config, apiBaseUrl: "https://api-m.paypal.com" as never })).toThrow(/Sandbox/);
   });
 

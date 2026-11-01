@@ -71,7 +71,7 @@ const pending = (input: { senderBatchId: string }): PayoutResult => ({ batchId: 
 function fakePayPal(overrides: Partial<Record<keyof PayPalPayoutAdapter, unknown>> = {}) {
   return {
     createPayout: vi.fn(async (input: { senderBatchId: string }) => pending(input)),
-    getPayout: vi.fn(async (batchId: string): Promise<PayoutResult> => ({ batchId, itemId: "PPI-1", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-1" })),
+    getPayout: vi.fn(async (batchId: string): Promise<PayoutResult> => ({ batchId, itemId: "PPI-1", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-1", itemAmount: { value: "72.00", currency: "GBP" } })),
     ...overrides,
   } as unknown as PayPalPayoutAdapter & { createPayout: ReturnType<typeof vi.fn>; getPayout: ReturnType<typeof vi.fn> };
 }
@@ -334,7 +334,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const { payable } = await confirmedPayable(t.db, manager);
       await approveWorkPayable(t.db, manager, payable.id);
       const statuses = ["PENDING", "ONHOLD", "SUCCESS", "REVERSED"];
-      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => { const item = statuses.shift()!; return { batchId, itemId: "PPI-2", status: item, batchStatus: "SUCCESS", itemStatus: item, transactionId: "PPT-2" }; }) });
+      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => { const item = statuses.shift()!; return { batchId, itemId: "PPI-2", status: item, batchStatus: "SUCCESS", itemStatus: item, transactionId: "PPT-2", itemAmount: { value: "72.00", currency: "GBP" } }; }) });
       await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "PENDING", paidAt: null });
       expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
@@ -393,7 +393,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const owner: Scope = { ...manager, userId: await user(t.db), role: "OWNER" };
       const paypal = fakePayPal({ getPayout: vi.fn()
         .mockImplementationOnce(async (batchId: string) => ({ batchId, itemId: null, status: "PENDING", batchStatus: "PROCESSING", itemStatus: "PENDING", transactionId: null }))
-        .mockImplementation(async (batchId: string) => ({ batchId, itemId: "PPI-7", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-7" })) });
+        .mockImplementation(async (batchId: string) => ({ batchId, itemId: "PPI-7", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-7", itemAmount: { value: "72.00", currency: "GBP" } })) });
       vi.mocked(getDatabase).mockReturnValue(t.db);
       vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
       vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
