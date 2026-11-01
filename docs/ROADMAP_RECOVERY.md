@@ -2,6 +2,8 @@
 
 Package FS-ROADMAP-RESTORE-001. Baseline `main` at `94cedad`. Evidence labels follow `AGENTS.md` §8.
 
+> **Superseded for commerce.** This document records that checkpoint and is otherwise unchanged. Square Sandbox has since replaced Zettle as the active commerce provider, and Square team-member attribution has replaced imported performance in the intended Golden Path. Current authority is `AGENTS.md` §4 and `docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`.
+
 The approved product is commerce intelligence that turns into paid work:
 
 Commerce data → historical intelligence → AI-interpreted demand forecast → labour requirement → staffing recommendation → manager planning → worker opportunity → acceptance → allocation → performance → incentive → manager approval → PayPal payout → commercial outcome.

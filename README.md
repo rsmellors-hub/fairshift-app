@@ -1,6 +1,22 @@
 # FairShift
 
-FairShift is an AI-assisted workforce and transparent-payments product being built for the PayPal AI Hackathon 2026. This repository currently contains only the first executable vertical slice: a **PayPal sandbox inbound payment** becomes a persisted, reconciled FairShift sale.
+FairShift turns commerce evidence into transparent, approved worker pay. It is being built for the PayPal AI Hackathon 2026. Square Sandbox is the active commerce provider. The first slice below, where a **PayPal sandbox inbound payment** becomes a persisted, reconciled FairShift sale, remains in the repository.
+
+## Hackathon architecture
+
+Reference historical commerce → deterministic demand model → OpenAI bounded interpretation → staffing requirement → worker opportunity → Bryntum allocation → genuine Square Sandbox team-member-attributed commerce → FairShift performance/incentive → manager approval → genuine PayPal Sandbox payout → worker confirmation
+
+| Provider | Responsibility |
+| --- | --- |
+| Square | Commerce evidence |
+| OpenAI | Bounded interpretation and explanation |
+| Bryntum | Manager allocation surface |
+| FairShift | Business logic, worker and shift identity, compensation, incentive, attribution eligibility, approval |
+| PayPal | FairShift subscription infrastructure and worker payout |
+
+Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. Approval and PayPal payout on Square-attributed work are not yet verified.
+
+## PayPal Sandbox
 
 PayPal Sandbox supports an inbound sale proof and a demo shift-incentive payout path. One controlled $25 Sandbox incentive payout has been accepted and reconciled to `PAID`; payouts require a recorded target result and explicit manager approval. No production PayPal functionality is configured.
 
@@ -75,6 +91,11 @@ pnpm build
 | `PAYPAL_WEBHOOK_ID` | ID of the webhook registered for this application endpoint. |
 | `PAYPAL_SANDBOX_CURRENCY` | Must be `USD` in this package. |
 | `PAYPAL_SANDBOX_AMOUNT` | Fixed two-decimal technical proof amount; defaults to `5.00`. |
+| `COMMERCE_CREDENTIAL_KEY` | Seals commerce credentials at rest. Missing or invalid disables connections. |
+| `SQUARE_ENVIRONMENT` | Square environment; only `sandbox` is accepted. |
+| `SQUARE_ACCESS_TOKEN` | Square Sandbox access token. Used only on the server. |
+| `SQUARE_APPLICATION_ID` | Square Sandbox application ID. Used only on the server. |
+| `FAIRSHIFT_DEMO_TOOLS` | Set to `enabled` to offer the Sandbox demo tools. Needs a Sandbox connection as well. |
 
 PayPal client credentials are read only by server code. The worker enters their payout email in the worker view. Do not put real recipient details in source, tests, or documentation. The demo shift target and incentive amount are fixed in its terms; performance is recorded in integer USD cents, earned only when sales meet the target, then separately approved by the manager before a payout can be submitted.
 
@@ -135,7 +156,8 @@ All calls target `https://api-m.sandbox.paypal.com`. Production configuration ca
 | Verified, deduplicated webhook inbox | IMPLEMENTED — NOT LIVE-VERIFIED | Endpoint behavior is tested; no public PayPal delivery has reached this environment. |
 | Real PayPal sandbox order and capture evidence | IMPLEMENTED — NOT LIVE-VERIFIED | Sandbox credentials are not available in this environment. |
 | AI staffing and commercial interpretation | VERIFIED locally | Structured OpenAI assessment validated against calculated figures; see `docs/ROADMAP_RECOVERY.md`. |
-| Zettle connected commerce | IMPLEMENTED, NOT API-VERIFIED | Connection, sync and normalisation tested against a mocked client. Zettle's live token endpoint has only rejected placeholder credentials. No real merchant data has been retrieved. |
+| Square Sandbox commerce and team-member attribution | SANDBOX-CONNECTED, active provider | Genuine UK/GBP Sandbox seller, payments and `team_member_id` read back, mapped to a worker and used in the incentive calculation. The demonstrated payments explicitly supplied `team_member_id`, so a physical till identifying the logged-in worker is not verified. Genuine Square history is insufficient for the 28-day threshold, so labelled reference history remains the forecast source. See `docs/SQUARE_LIVE_EVIDENCE.md`. |
+| Zettle connected commerce | INACTIVE for the hackathon Golden Path | Connector work retained, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified. |
 | Authenticated tenancy | REPOSITORY EVIDENCE | Database sessions, Owner onboarding and invitation-derived scoped memberships; hosted verification pending. |
 | Demo shift incentive, manager approval, and PayPal Sandbox payout/status path | SANDBOX-CONNECTED | One controlled $25 Sandbox payout reached `SUCCESS`; FairShift persisted `PAID`, prevented duplicate submission, and refreshed the status. |
 
@@ -149,7 +171,7 @@ This slice is intentionally limited to one server-selected outlet, so callers ca
 
 - No real sandbox order, capture, or webhook delivery has been executed without credentials and a public webhook URL.
 - The checkout flow is fixed to one seeded outlet and one configured USD proof amount.
-- Refund lifecycle handling is not implemented. Reconciled refunded states cannot count as verified sales, leaving room for a later complete refund workflow.
+- PayPal inbound refund lifecycle handling is not implemented. Reconciled refunded states cannot count as verified sales, leaving room for a later complete refund workflow. Square refunds follow the MVP refund decision in the product specification.
 - Operational HTTP paths require authenticated memberships and organisation/location scope. Internal demo fixtures remain separate and gain no automatic account ownership.
 - Background retry processing is deferred. Valid webhook redelivery retries unfinished reconciliation; terminal unmatched events remain quarantined and are not automatically re-evaluated.
 - Hosted authentication, email delivery and organisation subscriptions require separate verification. Existing incentive payout authority remains restricted to the controlled demo; this package adds no production payment authority.

@@ -70,9 +70,44 @@ PayPal is the central worker-payment integration. Current evidence establishes:
 
 This evidence does not imply production capability or verification of every PayPal feature. Never represent an unverified, pending, failed, or unknown operation as successful.
 
-### PayPal Zettle POS — PLANNED / NEEDS VERIFICATION
+### Current hackathon architecture
 
-Zettle is the intended demo POS/sales source. It should supply factual location sales and demand input to FairShift.
+Reference historical commerce
+→ deterministic demand model
+→ OpenAI bounded interpretation
+→ staffing requirement
+→ worker opportunity
+→ Bryntum allocation
+→ genuine Square Sandbox team-member-attributed commerce
+→ FairShift performance/incentive
+→ manager approval
+→ genuine PayPal Sandbox payout
+→ worker confirmation
+
+Provider responsibilities:
+
+- **Square:** commerce evidence.
+- **OpenAI:** bounded interpretation and explanation.
+- **Bryntum:** manager allocation surface.
+- **FairShift:** business logic, worker and shift identity, compensation, incentive, attribution eligibility, and approval.
+- **PayPal:** FairShift subscription infrastructure and worker payout.
+
+This chain states the intended path. The stages from allocation to manager review have been exercised on Square Sandbox evidence. Approval and PayPal payout on Square-attributed work are **NOT VERIFIED**. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
+
+### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
+
+Evidence: [`docs/SQUARE_LIVE_EVIDENCE.md`](docs/SQUARE_LIVE_EVIDENCE.md). **VERIFIED** on Square Sandbox:
+
+- authenticated genuine UK/GBP Square Sandbox seller;
+- genuine Square Sandbox payments ingested;
+- Square `Payment.team_member_id` persisted and read back;
+- FairShift maps a Square team-member identity to a worker;
+- genuine Square Sandbox commerce can drive FairShift worker performance;
+- the existing FairShift incentive calculation operates on that attributed evidence.
+
+**Claims limit:** the demonstrated Sandbox payments explicitly supplied `team_member_id`. Do not state that a physical Square till or POS automatically identified the logged-in worker in this implementation. That, production Square, and shared logins are **NOT VERIFIED**.
+
+**Forecast:** genuine Square history is currently insufficient for the 28-day threshold, so clearly labelled reference historical commerce remains the current forecast source. Do not manufacture Square history.
 
 Keep provider payloads behind a provider ingestion/normalisation boundary:
 
@@ -81,12 +116,16 @@ POS provider
 → canonical FairShift sales records
 → forecasting and staffing
 
-Do not make forecasting depend on Zettle-specific structures. Do not claim Zettle is integrated until current official documentation and real API evidence establish authentication, merchant/data access, and retrieval. Worker-level attribution is independently unverified and must not block location-level forecasting.
+Do not make forecasting depend on provider-specific structures.
 
-### Planned sponsor integrations
+### Zettle — INACTIVE for the hackathon Golden Path
+
+Connector work is retained in the repository, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified. Do not delete it, and do not represent it as the active provider or as integrated. Evidence: [`docs/ZETTLE_LIVE_EVIDENCE.md`](docs/ZETTLE_LIVE_EVIDENCE.md).
+
+### Sponsor integrations
 
 - **AG Grid / AG Studio — PLANNED:** owner/manager operational analytics where dense data presentation materially improves comprehension.
-- **Bryntum — PLANNED:** manager workforce/resource scheduling and Shift Allocations.
+- **Bryntum — integrated, verified locally:** the manager allocation surface over authoritative FairShift state. Evidence: [`docs/BRYNTUM_UI_EVIDENCE.md`](docs/BRYNTUM_UI_EVIDENCE.md). It uses the trial package, and its licence terms are **NOT VERIFIED**.
 - **APIMatic — PLANNED / evidence required:** PayPal API development and integration support where it materially improves quality, documentation, workflow reliability, or credible sponsor evidence. It is not a user-facing module.
 
 Do not add technology merely to increase sponsor count. Overall submission quality and a working golden path outrank sponsor accumulation. Verify capability, licensing, supported environments, and fit before implementation or claims.

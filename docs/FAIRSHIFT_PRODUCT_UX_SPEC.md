@@ -15,7 +15,9 @@ The product closes an operational loop:
 
 The POS integration is the factual operational input to forecasting and staffing, not an optional reporting source. PayPal is central to worker payment. AI is central to demand interpretation and staffing decisions. Human managers retain control of staffing and financial approval, while exact financial calculations remain deterministic.
 
-[PayPal Zettle](https://developer.zettle.com) is the preferred POS provider for the hackathon demonstration. Its current status is **PLANNED / NEEDS VERIFICATION**. FairShift must not describe Zettle as integrated until real API authentication and data retrieval succeed. Exact capabilities, scopes, endpoints, merchant access, geography, and attribution behavior must be verified against current official Zettle documentation rather than inferred.
+**Square Sandbox** is FairShift's active commerce provider for the hackathon, with status **SANDBOX-CONNECTED** (section 18). It supplies commerce evidence for worker performance. Clearly labelled reference historical commerce remains the forecast source, because genuine Square history is insufficient for the 28-day threshold.
+
+Zettle connector work is retained but **inactive for the hackathon Golden Path**. It was built against documented API and mocked provider behaviour, and a genuine merchant connection is not verified. FairShift must not describe Zettle as integrated.
 
 ### Canonical hackathon demonstration vertical
 
@@ -51,12 +53,12 @@ The product architecture begins at the sales provider boundary:
 
 > POS provider → provider adapter / ingestion layer → normalised FairShift sales records → forecasting and staffing engine
 
-The exact adapter interface name is an implementation decision. The architectural contract is not: external provider payloads must be authenticated, validated, scoped, deduplicated where required, and translated into the canonical FairShift sales model before forecasting. Forecasting logic must not depend on Zettle-specific schemas, identifiers, or transport behavior. This boundary allows another POS provider to be supported later without redesigning the forecasting domain.
+The exact adapter interface name is an implementation decision. The architectural contract is not: external provider payloads must be authenticated, validated, scoped, deduplicated where required, and translated into the canonical FairShift sales model before forecasting. Forecasting logic must not depend on provider-specific schemas, identifiers, or transport behavior. This boundary allows another POS provider to be supported later without redesigning the forecasting domain.
 
 The sales data serves two distinct purposes:
 
 1. **Location / business sales** power historical demand analysis, day/time patterns, forecasts, staffing recommendations, and owner/manager reporting. Verified location-level POS sales are sufficient for the core forecast and staffing workflow.
-2. **Worker-attributed sales** may later support a worker's own aggregate performance and deterministic incentive progress or calculation. A suitable Zettle worker-attribution mechanism has not been verified. Do not assume that a POS provider exposes reliable employee or cashier attribution, and do not fabricate it. Its absence must not block location-level POS sales ingestion or forecasting. Until attribution is verified, incentives may use location, team, or shift-level sales targets and/or the existing authorised manager-recorded result workflow.
+2. **Worker-attributed sales** support a worker's own aggregate performance and deterministic incentive progress or calculation. On Square Sandbox, FairShift maps `Payment.team_member_id` to a worker. The demonstrated payments explicitly supplied that value, so this does not show that a physical till or POS identifies the logged-in worker. No Zettle worker-attribution mechanism has been verified. Do not assume that a POS provider exposes reliable employee or cashier attribution, and do not fabricate it. Its absence must not block location-level POS sales ingestion or forecasting. Imported sales remain a labelled path where no provider attribution is connected; the import is closed at a Square-connected location.
 
 Provider provenance remains attached to normalised records. Failed, partial, seeded, simulated, and provider-derived data must never be silently blended or promoted to a stronger evidence status.
 
@@ -230,10 +232,22 @@ Weekly totals may aid orientation but must not obscure daily timing and capacity
 
 ### Target golden path
 
-The strongest intended demonstration is one connected specialty-retail story:
+The strongest intended demonstration is one connected specialty-retail story. Its current hackathon architecture is:
 
-1. **A retail location records sales through Zettle.** Zettle is the preferred demonstration POS, subject to verified API access.
-2. **FairShift ingests and normalises sales.** A provider adapter converts authenticated POS data into canonical, location-scoped FairShift sales records with provenance.
+> Reference historical commerce → deterministic demand model → OpenAI bounded interpretation → staffing requirement → worker opportunity → Bryntum allocation → genuine Square Sandbox team-member-attributed commerce → FairShift performance/incentive → manager approval → genuine PayPal Sandbox payout → worker confirmation
+
+Provider responsibilities:
+
+- **Square:** commerce evidence.
+- **OpenAI:** bounded interpretation and explanation.
+- **Bryntum:** manager allocation surface.
+- **FairShift:** business logic, worker and shift identity, compensation, incentive, attribution eligibility, and approval.
+- **PayPal:** FairShift subscription infrastructure and worker payout.
+
+The story runs:
+
+1. **Reference historical commerce is the planning input.** It is clearly labelled as reference data. Square history replaces it for a location only if it meets the same 28-day threshold; no Square history is manufactured.
+2. **FairShift normalises sales.** A provider adapter converts authenticated provider data into canonical, location-scoped FairShift sales records with provenance.
 3. **Historical demand becomes visible.** Owners and managers see factual sales history separately from predictions.
 4. **AI forecasts next-week demand.** The manager sees predicted demand, uncertainty, comparable history, and an explanation.
 5. **FairShift recommends casual staffing.** Demand becomes a total staffing requirement, known full-time coverage is applied, and the casual requirement is made explicit.
@@ -241,23 +255,50 @@ The strongest intended demonstration is one connected specialty-retail story:
 7. **Manager creates and publishes a shift.** Date, time, casual requirement, offered compensation, and incentive terms are explicit and policy-valid.
 8. **Worker receives and accepts the shift.** The worker sees the complete economic terms and responds to the individual offer.
 9. **The final allocation is established.** Accepted casual workers and lightweight regular-staff coverage form the shift allocation.
-10. **Performance or the applicable result is recorded.** Authorised factual results are attached to the completed shift.
+10. **Genuine Square Sandbox sales become performance.** Eligible sales attributed through a mapped team member during the accepted shift form the worker's result, which the manager confirms after the shift.
 11. **Incentive is calculated.** Deterministic policy determines whether and how much was earned.
 12. **Manager approves the payable amount.** Base wage plus incentive is shown clearly; approval is an explicit human action.
 13. **FairShift initiates a PayPal Sandbox payout.** Provider identifiers and status are persisted with idempotent submission protection.
 14. **Worker sees payment confirmation.** FairShift reconciles provider status and presents the confirmed result in natural language.
 
-Zettle remains **PLANNED / NEEDS VERIFICATION**. Until API authentication and location-level sales retrieval succeed, this target path must not be represented as fully implemented or API-backed.
-
 ### Current verified golden path
 
-The current repository verifies a controlled path using canonical seeded sales history rather than live Zettle input:
+The Square Sandbox journey is verified locally from allocation to manager review ([`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md)):
 
-> clearly labelled seeded sales → normalised FairShift transaction records → deterministic demand forecast and staffing recommendation → structured AI operational assessment where configured → manager shift publication → worker acceptance → recorded performance → deterministic incentive calculation → manager approval → PayPal Sandbox payout → persisted `PAID` confirmation
+> labelled reference history drives the forecast → manager offer → worker acceptance → allocation → genuine Square Sandbox payments carrying `team_member_id` → mapped worker performance → deterministic incentive → manager review showing £96 base + £25 bonus = £121
 
-PayPal payout status is **SANDBOX-CONNECTED**. The current path proves the forecast-to-payment workflow and provider payout behavior, but it does not prove Zettle ingestion or worker-level POS attribution.
+**NOT VERIFIED on this path:** clicking approval, PayPal payout, and worker payment confirmation for Square-attributed work. These have no end-to-end run yet, and the path is not deployed.
 
-The currently verified demonstration uses a $650 performance target and a $25 incentive handled in integer cents. This proves a deterministic path; it is not the permanent universal incentive policy.
+PayPal payout status is separately **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
+
+### Golden Path economics
+
+| Term | Intended demonstration value |
+| --- | --- |
+| Shift | 14:00–20:00 |
+| Duration | 6 hours |
+| Base pay | £96 |
+| Sales target | £200 |
+| Fixed incentive | £25 |
+| Payable if target reached | £121 |
+
+- **Base pay basis:** £96 is the shift's base pay on daily terms, which pay a fixed amount regardless of the shift's length. Do not describe it as £12 × 8 hours. An hourly £12 policy would pay £72 for this shift, so it is not the policy for this example.
+- **Rehearsal window:** the final Golden rehearsal uses a fresh shift window that excludes old Square Sandbox gate transactions. Do not distort compensation terms to avoid historical Sandbox payments.
+- **Timing:** sales count only inside the accepted window, and work can be confirmed only after the shift has ended and Square has been checked again. A genuine 14:00–20:00 rehearsal therefore finishes after 20:00.
+
+### MVP refund decision
+
+Square refunds are retained and linked as audit evidence but do not automatically reduce worker performance or earned incentives.
+
+For the hackathon MVP:
+
+- eligible `COMPLETED` Square sales attributed during the accepted shift count toward performance, so a fully refunded sale still counts;
+- refund evidence remains visible and auditable;
+- refund team-member identity is not treated as proof of worker responsibility;
+- once performance results are confirmed, the performance snapshot is immutable;
+- once a payable is approved, later refunds do not silently rewrite approved worker earnings.
+
+More sophisticated net-sales and refund incentive policy is deferred (section 21).
 
 The final retail narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
 
@@ -575,8 +616,8 @@ Use these evidence terms consistently where applicable: **MOCKED**, **SIMULATED*
 
 PayPal may support three distinct parts of the product. Their statuses must never be conflated:
 
-1. **FairShift commerce — future / evaluate.** A business customer pays FairShift during commercial entry. No customer-billing flow is currently implemented.
-2. **Commercial intelligence — Zettle PLANNED / NEEDS VERIFICATION.** PayPal/Zettle commercial activity may feed the canonical location sales and demand layer. Zettle ingestion is not currently implemented.
+1. **FairShift subscription infrastructure.** A business customer pays FairShift during commercial entry through a PayPal Sandbox subscription boundary. See its evidence documents for what has been verified; hosted journey verification is **NOT VERIFIED**.
+2. **Commercial intelligence — not a PayPal role in the current hackathon path.** Square Sandbox supplies commerce evidence. Zettle connector work is retained but inactive, and a genuine merchant connection is not verified.
 3. **Worker reward — SANDBOX-CONNECTED.** FairShift sends a manager-approved worker incentive through PayPal and reconciles its state. This is the strongest currently verified PayPal role.
 
 ### Core product and competition integrations
@@ -588,13 +629,25 @@ PayPal may support three distinct parts of the product. Their statuses must neve
 - **Current evidence:** Sandbox OAuth succeeded; one controlled $25 payout was accepted; the PayPal item reached `SUCCESS`; FairShift persisted `PAID`; duplicate submission prevention and status refresh passed.
 - **Boundary:** This status applies to the Sandbox payout path. It does not imply production capability or live verification of every PayPal feature.
 
-#### PayPal Zettle POS — PLANNED / NEEDS VERIFICATION
+#### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
 
-- **Purpose:** Supply factual operational location sales and demand input to FairShift's forecast and staffing pipeline.
-- **Product placement:** The start of the golden path, before canonical historical sales, forecasting, staffing, and reporting.
-- **Architecture:** A Zettle adapter/ingestion layer must translate verified provider data into canonical FairShift sales records. Forecasting must not depend on Zettle payload structures.
-- **Required evidence before status promotion:** successful authentication, authorised merchant/data access, real or controlled location-level sales retrieval, input validation, scoping, provenance, persistence, and successful use by the existing forecast/staffing pipeline.
-- **Verification boundary:** Exact capabilities, scopes, endpoints, access assumptions, geography, and worker-attribution behavior must be checked against the current [official Zettle developer documentation](https://developer.zettle.com). Worker-level attribution remains separately unverified and is not required for location-level forecasting.
+- **Purpose:** Supply commerce evidence for worker performance through FairShift's canonical sales layer.
+- **Product placement:** Owner Sales for the connection and evidence, Manager Team for worker mapping, Worker Live Target, and Manager Review.
+- **Architecture:** A Square adapter translates provider data into canonical FairShift sales records. Forecasting never reads Square payloads.
+- **VERIFIED on Square Sandbox ([evidence](SQUARE_LIVE_EVIDENCE.md)):**
+  - authenticated genuine UK/GBP Square Sandbox seller;
+  - genuine Square Sandbox payments ingested;
+  - Square `Payment.team_member_id` persisted and read back;
+  - FairShift maps a Square team-member identity to a worker;
+  - genuine Square Sandbox commerce can drive FairShift worker performance;
+  - the existing FairShift incentive calculation operates on that attributed evidence.
+- **Forecast:** genuine Square history is currently insufficient for the 28-day threshold. Clearly labelled reference historical commerce remains the current forecast source. Do not manufacture Square history.
+- **Claims limit:** the demonstrated Sandbox payments explicitly supplied `team_member_id`. Do not state that a physical Square till or POS automatically identified the logged-in worker in this implementation. That, production Square, and shared logins are **NOT VERIFIED**.
+
+#### Zettle — INACTIVE for the hackathon Golden Path
+
+- **Status:** Connector work is retained, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified.
+- **Boundary:** Do not represent Zettle as the active provider or as integrated. Promoting it would need genuine authentication, merchant access, and retrieval ([evidence](ZETTLE_LIVE_EVIDENCE.md)).
 
 ### Planned sponsor integrations
 
@@ -605,12 +658,13 @@ PayPal may support three distinct parts of the product. Their statuses must neve
 - **Placement:** Owner Reporting and multi-location Forecast & Staffing; selected manager reporting where data density warrants it.
 - **Boundary:** It must support the explanatory hierarchy and drill-down rather than replace it. AG Grid-style dense analytics do not belong in the worker experience. Do not install it simply for sponsor presence.
 
-#### Bryntum — PLANNED
+#### Bryntum — integrated, verified locally, licence NOT VERIFIED
 
+- **Status:** The manager allocation surface, using the trial package ([evidence](BRYNTUM_UI_EVIDENCE.md)).
 - **Purpose:** Provide manager-facing workforce and resource scheduling for a genuine time/resource problem.
 - **Candidate uses:** weekly scheduling, workers/resources against shifts and time, Shift Allocations, and schedule visualisation.
 - **Placement:** Past/current/future Shift Allocations, with weekly and daily views, regular-staff coverage, accepted casual workers, gaps, and conflicts. It may visually continue the Fill Shifts workflow after terms and invitees are selected.
-- **Boundary:** Bryntum must consume FairShift's authoritative shift, offer, acceptance, and allocation state rather than create a parallel scheduling model. Licensing and technical fit require verification before implementation.
+- **Boundary:** Bryntum must consume FairShift's authoritative shift, offer, acceptance, and allocation state rather than create a parallel scheduling model. Licence terms still require verification.
 
 #### APIMatic — PLANNED / exact implementation evidence required
 
@@ -633,7 +687,7 @@ Use consistent, human language:
 - **Base pay** or **guaranteed pay**, **incentive**, **final payable amount**, and **payout** as distinct monetary concepts.
 - **Awaiting approval**, **Approved**, **Processing**, **Paid**, and **Needs attention** for user-facing payment state.
 - **Demo / seeded history** when data is synthetic; **PayPal Sandbox verified** only where reconciliation evidence supports it.
-- **PLANNED / NEEDS VERIFICATION** for Zettle until actual API authentication and sales retrieval succeed.
+- **SANDBOX-CONNECTED** for Square; **inactive, genuine merchant connection not verified** for Zettle.
 
 Avoid raw enum strings, database terminology, “persisted,” internal IDs, method versions in primary content, “AI score,” individual sales quota, and language that implies automatic hiring, ranking, roster publication, or payout approval.
 
@@ -667,8 +721,8 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 ### NEEDS VERIFICATION
 
-- Zettle authentication, merchant access, applicable scopes/endpoints, location-level sales retrieval, pagination/synchronisation behavior, and commercial/geographic availability against current official documentation.
-- Zettle worker-level attribution mechanism suitable for FairShift. This is separate from, and must not block, location-level sales ingestion for forecasting.
+- Whether a physical Square till or POS fills `team_member_id` from the logged-in worker, how shared logins behave, and any production Square capability.
+- Zettle genuine merchant connection and worker-level attribution, if Zettle is ever reactivated. Neither blocks the hackathon Golden Path.
 - Any provider metadata proposed as evidence of worker-attributed performance.
 - Current PayPal capability, Sandbox fit, and implementation cost for a possible lightweight commercial entry flow.
 - Bryntum and AG Grid licensing, supported package versions, and technical fit before installation.
@@ -676,6 +730,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 ### DEFERRED
 
+- Net-sales and refund incentive policy beyond the MVP refund decision (section 10).
 - Full production subscription infrastructure, including recurring billing, proration, tax, dunning, cancellation management, and production invoicing.
 - Cross-location casual-worker scheduling.
 - Full-time employee accounts.
@@ -707,7 +762,7 @@ The current implementation is valuable functional evidence. Migration should pre
 
 | Current presentation or flow | Classification | Target treatment |
 | --- | --- | --- |
-| Canonical normalised sales records and source provenance | **KEEP** | Use as the provider-independent boundary for future Zettle ingestion; do not pass Zettle payloads directly into forecasting. |
+| Canonical normalised sales records and source provenance | **KEEP** | Use as the provider-independent boundary; do not pass provider payloads directly into forecasting. |
 | Persisted commercial history, provenance, forecast range, evidence, staffing policy, and worker delta | **KEEP** | Reuse as the factual and predictive foundation for owner/manager weekly views. |
 | Structured OpenAI operational assessment with deterministic fallback | **KEEP** | Present as a bounded explanation beside, never above, the deterministic baseline. |
 | Forecast evidence table and method details | **REPOSITION** | Place summary evidence near the recommendation; move technical method metadata into expandable detail or reporting. |
@@ -731,12 +786,12 @@ Functionality that must survive redesign includes truthful provenance, validated
 
 Implementation should proceed in slices that leave a coherent product after each step:
 
-All subsequent demo work should use one coherent five-location specialty-retail scenario rather than inventing unrelated fixtures for each feature. Zettle ingestion, five-location demo data, weekly intelligence, Manager and Worker UX, worker targets, Owner economic-value analytics, Bryntum scheduling, AG Grid/Studio analytics, and final presentation evidence should describe the same fictional business once their exact fixtures are deliberately approved.
+All subsequent demo work should use one coherent five-location specialty-retail scenario rather than inventing unrelated fixtures for each feature. Square commerce evidence, five-location demo data, weekly intelligence, Manager and Worker UX, worker targets, Owner economic-value analytics, Bryntum scheduling, AG Grid/Studio analytics, and final presentation evidence should describe the same fictional business once their exact fixtures are deliberately approved.
 
 1. **Preserve the verified backend golden path.** Keep canonical sales records, forecast/staffing behavior, scheduling state, deterministic incentives, approval, PayPal idempotency, and payout reconciliation passing while presentation work proceeds.
 2. **Establish coherent product UX foundations.** Create role-specific owner, manager, and worker shells, navigation, location context, responsive patterns, and natural state language without breaking the working path.
-3. **Implement and verify Zettle POS ingestion and normalisation.** Verify official API access first, then add the provider-adapter boundary, safe synchronisation, provenance, scope, and canonical persistence. Do not make forecasting depend on Zettle-specific payloads.
-4. **Connect controlled POS input to forecasting and staffing.** Prove that authenticated, normalised location sales enter the same established pipeline and visibly drive historical evidence, forecast, and staffing output.
+3. **Implement and verify POS ingestion and normalisation.** Done for Square Sandbox: provider-adapter boundary, safe synchronisation, provenance, scope, and canonical persistence. Forecasting does not depend on provider payloads.
+4. **Connect controlled POS input to forecasting and staffing.** Sufficient connected history enters the same established pipeline. Genuine Square history is below the 28-day threshold, so labelled reference history drives the current forecast.
 5. **Implement manager and worker golden-path UX.** Build weekly Forecast & Staffing, Fill Shifts, Worker Pool, shift offers, worker Home/Schedule, Performance, Payments & Approvals, and Earnings around the verified domain flows. Leave unresolved capacity behavior unimplemented until approved.
 6. **Integrate Bryntum where scheduling benefits.** Apply it to authoritative Shift Allocations and weekly/daily resource scheduling after licensing and technical fit are confirmed.
 7. **Integrate AG Grid / AG Studio where analytics benefits.** Apply it to owner/manager multi-location sales, historical performance, forecasts, staffing recommendations, and drill-down only where density justifies it.
