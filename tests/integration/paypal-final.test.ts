@@ -301,6 +301,10 @@ describe("Square-attributed earnings to a PayPal payout", () => {
     expect(theirs).not.toContain("£121.00");
     const stranger = await business(db), strangerOwner = await stranger.ownerAt(0), strangerWorker = await stranger.invite("TEAM_MEMBER", strangerOwner);
     expect(await render(strangerWorker, () => WorkerWorkspace({ area: "earnings" }))).not.toContain("£121.00");
-    expect(await render(j.manager, () => ManagerWorkspace({ area: "review" }))).toMatch(/Square Sandbox attributed sales/);
+    const review = await render(j.manager, () => ManagerWorkspace({ area: "review" }));
+    expect(review).toMatch(/Square Sandbox attributed sales/);
+    // Every provider reference stays on the page, in the stacked reference panel.
+    expect(review).toContain("shift-terms payout-reference");
+    for (const text of ["PPB-1", "PPI-1", "PPT-1"]) expect(review).toContain(text);
   }));
 });

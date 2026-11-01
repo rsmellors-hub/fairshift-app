@@ -525,6 +525,23 @@ textarea:focus-visible {
   margin: 0;
   font-weight: 800;
 }
+/* Sits in a narrow table column, so it stacks at every width and keeps each ID whole where it fits. */
+.shift-terms.payout-reference {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+  min-width: 190px;
+}
+.payout-reference div {
+  padding: 8px 10px;
+}
+.payout-reference dt {
+  margin-bottom: 2px;
+}
+.payout-reference dd {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
 .worker-policy-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

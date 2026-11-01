@@ -216,7 +216,7 @@ function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured
     {["PROVIDER_AMOUNT_MISMATCH", "PROVIDER_AMOUNT_UNAVAILABLE"].includes(payoutReason(payout.lastError) ?? "") ? <p><small>PayPal reports this item as complete, but FairShift could not match PayPal&apos;s amount to the approved amount. It is not shown as paid. Contact your platform operator.</small></p> : null}
     {payout.status === "RECONCILIATION_REQUIRED" ? <p><small>PayPal&apos;s response was not received, so this payment is unconfirmed. Checking repeats the identical request, which PayPal pays at most once.</small></p> : null}
     {payout.status !== "FAILED" || payout.paypalBatchId ? <form action={refreshPayoutAction}>{id}<button className="secondary-button">Check payment status</button></form> : null}
-    <details><summary>PayPal Sandbox reference</summary><dl className="shift-terms">
+    <details><summary>PayPal Sandbox reference</summary><dl className="shift-terms payout-reference">
       <div><dt>Amount sent</dt><dd>{money(payout.amountMinor, payout.currencyCode)}</dd></div>
       <div><dt>Payout batch</dt><dd>{payout.paypalBatchId ?? "Not yet received"}</dd></div>
       <div><dt>Payout item</dt><dd>{payout.paypalItemId ?? "Not yet received"}</dd></div>
