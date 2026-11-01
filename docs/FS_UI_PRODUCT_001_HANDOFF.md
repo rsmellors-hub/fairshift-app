@@ -15,7 +15,7 @@ For a new session with no history. Read `AGENTS.md` first.
 ## Repository
 
 - Branch `fs-square-live-001`. Starting HEAD `8121179f49ed4c0824f3f2c3494e2848ab23d206`.
-- Ending HEAD is the same: **nothing is committed**. All work is uncommitted in the working tree, and nothing is staged. Local `HEAD` is one docs commit ahead of `origin/fs-square-live-001` (`8040c16`). `main` is not merged.
+- The UI and demo work is commit `e7fcdf9`, pushed and deployed. Later evidence commits may be local only: a push redeploys. `main` is not merged.
 - Final gates: 663 of 663 tests, typecheck, lint, production build, `git diff --check` and secret scan all pass on the final tree. Migrations: 22.
 - Don't commit `.claude/` or the generated `next-env.d.ts` change that `next dev` makes.
 - `.claude/launch.json` is untracked and has a local `ui-scratch` entry pointing at a scratchpad path. Don't commit it.
@@ -23,7 +23,7 @@ For a new session with no history. Read `AGENTS.md` first.
 
 ## Hosted
 
-Known hosted commit `8040c1620d68e07d10418d5baf7ada7ac9612019` on `fs-square-live-001`. **None of this work is deployed.** Hosted has no demo business yet. `.env.local` holds `HOSTED_DATABASE_URL` and `RENDER_API_KEY`: don't use them without explicit authorisation.
+**Hosted runs `e7fcdf9d4dad5afd9bff750c73952d9699c488ad`** on `fs-square-live-001`, with 22 migrations and Demo Access off. Hosted has no demo business yet. `getafairshift.com` is on registry `clientHold` and doesn't resolve; the service is reachable at `https://fairshift-n84v.onrender.com`. See `docs/HOSTED_REHEARSAL_EVIDENCE.md`. `.env.local` holds `HOSTED_DATABASE_URL` and `RENDER_API_KEY`: don't use them without explicit authorisation.
 
 ## Implementation
 

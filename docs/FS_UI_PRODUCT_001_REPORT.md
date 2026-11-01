@@ -1,6 +1,6 @@
 # FS-UI-PRODUCT-001: Product UI Report
 
-**Status: the final combined tree passes every gate locally. Nothing is committed, pushed or deployed, and hosted is untouched.** The owner reviews this report and the screenshots before authorising deployment.
+**Status: the final combined tree passed every gate locally, and the owner then authorised deployment.** This report describes the state at that point. What happened next is in [HOSTED_REHEARSAL_EVIDENCE.md](HOSTED_REHEARSAL_EVIDENCE.md).
 
 Every screenshot comes from a production build of the final tree, on a throwaway database with PayPal, Square and OpenAI credentials blank. None comes from hosted or from a provider.
 
