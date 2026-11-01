@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { FairShiftBrand } from "@/app/components/product-shell";
+
+// The public site: one header and footer for everything a visitor sees before signing in.
+export function PublicShell({ children }: { children: React.ReactNode }) {
+  return <div className="public-site">
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <header className="site-header"><div className="site-width site-header-row">
+      <FairShiftBrand />
+      <nav aria-label="Main" className="site-nav">
+        <Link href="/product">Product</Link>
+        <Link href="/pricing">Pricing</Link>
+        <Link href="/faq">FAQ</Link>
+        <Link href="/sign-in">Sign in</Link>
+        <Link className="primary-button button-link" href="/register">Start your business</Link>
+      </nav>
+    </div></header>
+    <main id="main-content" tabIndex={-1}>{children}</main>
+    <footer className="site-footer"><div className="site-width site-footer-row">
+      <div><FairShiftBrand /><p>AI-assisted demand intelligence, staffing and transparent worker pay.</p></div>
+      <nav aria-label="Footer"><Link href="/product">Product</Link><Link href="/pricing">Pricing</Link><Link href="/faq">FAQ</Link><Link href="/demo">Try the demo</Link><Link href="/sign-in">Sign in</Link></nav>
+      <p className="site-footer-note">This environment uses PayPal Sandbox and Square Sandbox, so no real money moves. FairShift does not run payroll or handle tax.</p>
+    </div></footer>
+  </div>;
+}
+
+// A worked example, labelled as one wherever it appears: the agreed terms of one shift.
+export function WorkedExample() {
+  return <aside className="worked-example" aria-label="Worked example of one shift">
+    <p className="eyebrow">Worked example · one shift, 14:00–20:00</p>
+    <dl className="pay-sum">
+      <div><dt>Accepted base pay</dt><dd>£96</dd></div>
+      <div><dt>Bonus · £200 attributed sales target reached</dt><dd>£25</dd></div>
+      <div className="pay-sum-total"><dt>Manager-approved earnings</dt><dd>£121</dd></div>
+    </dl>
+    <ol className="pay-steps" aria-label="What happens to that amount"><li>Approved</li><li>Sent to PayPal</li><li>Processing</li><li>Paid</li></ol>
+    <p className="note">Paid shows only once PayPal confirms it. The worker saw these terms before accepting.</p>
+  </aside>;
+}

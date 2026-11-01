@@ -1,5 +1,7 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { AcquisitionProgress } from "@/app/components/acquisition-progress";
+import { BillingToggle, PLAN_COPY, PlanPrice } from "@/app/components/plan-cards";
+import { FairShiftBrand } from "@/app/components/product-shell";
 import { redirect } from "next/navigation";
 import { and,eq } from "drizzle-orm";
 import { requireIdentity, requireOwnerCustomer } from "@/server/auth/request";
@@ -7,32 +9,37 @@ import { getDatabase } from "@/server/db/client";
 import { memberships } from "@/server/db/schema";
 import { subscriptionFor } from "@/server/billing/service";
 import { isEntitled, ownerDestination } from "@/server/billing/entitlement";
-import { commercialPlan, configuredPlan, enterpriseContact } from "@/server/billing/plans";
+import { configuredPlan, enterpriseContact } from "@/server/billing/plans";
 import { getSubscriptionAdapter } from "@/server/billing/paypal";
 import { startSubscriptionAction, refreshSubscriptionAction, signOutAction } from "@/app/auth-actions";
+export const metadata: Metadata = { title: "Choose your plan" };
 export const dynamic="force-dynamic";
-export default async function Subscribe({searchParams}:{searchParams:Promise<{period?:string;status?:string;billing?:string}>}) {
+export default async function Subscribe({searchParams}:{searchParams:Promise<{period?:string;status?:string;billing?:string;verified?:string}>}) {
  const {user}=await requireIdentity(),db=getDatabase();
  if (!user.emailVerifiedAt) redirect("/account?status=verify-email");
  const owned=await db.select().from(memberships).where(and(eq(memberships.userId,user.id),eq(memberships.role,"OWNER"),eq(memberships.state,"ACTIVE")));
  const scope=owned.length ? await requireOwnerCustomer() : null;
  const sub=scope ? await subscriptionFor(db,scope) : null;
  if (scope && isEntitled(sub)) redirect(await ownerDestination(db,scope.organisationId));
- const {period,status,billing}=await searchParams;
+ const {period,status,billing,verified}=await searchParams;
  const billingPeriod=period === "ANNUAL" ? "ANNUAL" : "MONTHLY";
  const configured=!!getSubscriptionAdapter(),contact=enterpriseContact();
- return <main className="product-page onboarding-page"><header><Link href="/account">Account & notifications</Link><h1>Choose your subscription</h1><AcquisitionProgress current="Plan"/></header>
- {status ? <p role="alert">{status === "unavailable" ? "This checkout is unavailable or a different subscription is already in progress. Your account is saved. Review its status below." : "Subscription verification could not be completed. Please try again later."}</p> : null}
- {billing === "cancelled" ? <p>PayPal approval was cancelled. You can continue when you’re ready.</p> : null}
- {sub ? <section className="panel"><h2>Subscription status</h2><p>{["UNCONFIGURED","PENDING"].includes(sub.status) ? "Choose your plan to continue." : ["APPROVAL_PENDING","APPROVED"].includes(sub.status) ? "Your subscription is awaiting confirmation." : "Your subscription needs attention. Contact FairShift for help."}</p>{sub.approvalUrl && ["APPROVAL_PENDING","APPROVED"].includes(sub.status) && safeApproval(sub.approvalUrl) ? <a className="primary-button" href={sub.approvalUrl}>Continue PayPal approval</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form>{!["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status) ? <p>Contact FairShift to review your subscription before starting another checkout.</p> : null}</section> : null}
- <nav className="inline-form" aria-label="Billing period"><Link aria-current={billingPeriod === "MONTHLY" ? "page" : undefined} href="/subscribe?period=MONTHLY">Monthly</Link><Link aria-current={billingPeriod === "ANNUAL" ? "page" : undefined} href="/subscribe?period=ANNUAL">Annual</Link></nav>
- <div className="plan-options">{(["SINGLE_OUTLET","MULTI_OUTLET"] as const).map(tier=>{
-  const terms=commercialPlan({tier,billingPeriod});
+ const awaiting=!!sub && ["APPROVAL_PENDING","APPROVED"].includes(sub.status);
+ const needsHelp=!!sub && !["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status);
+ return <main className="acquisition-shell plan-shell"><header className="acquisition-header"><FairShiftBrand /><form action={signOutAction}><button className="link-button">Sign out</button></form></header>
+ <AcquisitionProgress current="Plan"/>
+ {verified ? <p className="form-notice" role="status"><strong>Email verified.</strong> Now choose your plan.</p> : null}
+ <div className="workplace-heading"><h1>Choose your plan</h1><p>Every plan includes the full product. Choose by how many locations you run.</p></div>
+ {status ? <p className="form-alert" role="alert">{status === "unavailable" ? "That checkout isn’t available right now, or another subscription is already in progress. Your account is saved." : "We couldn’t confirm your subscription just now. Please try again shortly."}</p> : null}
+ {billing === "cancelled" ? <p className="form-notice" role="status">You cancelled the PayPal approval. Nothing was charged. Continue when you’re ready.</p> : null}
+ {awaiting || needsHelp ? <section className="panel"><h2>{needsHelp ? "Your subscription needs attention" : "Your subscription is awaiting confirmation"}</h2><p>{needsHelp ? "Contact FairShift to review it before starting another checkout." : "Finish approving it in PayPal, or check whether PayPal has already confirmed it."}</p><div className="button-row">{awaiting && sub?.approvalUrl && safeApproval(sub.approvalUrl) ? <a className="primary-button button-link" href={sub.approvalUrl}>Continue in PayPal</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form></div></section> : null}
+ <BillingToggle current={billingPeriod} basePath="/subscribe"/>
+ <div className="plan-grid">{(["SINGLE_OUTLET","MULTI_OUTLET"] as const).map(tier=>{
   const available=configured && !!configuredPlan({tier,billingPeriod});
   const locked=!!sub && sub.status !== "UNCONFIGURED" && (sub.tier !== tier || sub.billingPeriod !== billingPeriod || !["PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status));
-  return <section className="panel" key={tier}><h2>{tier === "SINGLE_OUTLET" ? "Single Outlet" : "Multi Outlet"}</h2><p>{tier === "SINGLE_OUTLET" ? "1 active location" : "2–5 locations · Up to 5 active locations"}</p><p><strong>GBP £{terms.amount.replace(".00","")}/{billingPeriod === "MONTHLY" ? "month" : "year"}</strong></p><p>{billingPeriod === "MONTHLY" ? "Monthly" : "Annual"} billing</p>{billingPeriod === "ANNUAL" ? <p>12 months for the price of 10 monthly payments.</p> : null}<p>{available ? "Review the configured subscription price and terms in PayPal before approving." : "Checkout is currently unavailable for this option."}</p><form action={startSubscriptionAction}><input type="hidden" name="tier" value={tier}/><input type="hidden" name="billingPeriod" value={billingPeriod}/><button className="primary-button" disabled={!available || locked}>Continue to PayPal Sandbox</button></form>{locked ? <p>An existing subscription needs review before you can select another plan.</p> : null}</section>;
- })}<section className="panel" id="enterprise"><h2>Enterprise</h2><p>6+ active locations · Custom commercial terms.</p>{contact ? <a href={`mailto:${contact}?subject=FairShift%20Enterprise%20enquiry`}>Contact FairShift</a> : <p>Contact FairShift directly to discuss your locations. Online enquiries are not configured for this environment.</p>}<p>Custom terms must be agreed with FairShift. Enterprise checkout is not available online.</p></section></div>
- <p>After PayPal confirms activation, you’ll enter your personal, business and workplace details. Subscription billing is separate from team member payments.</p><form action={signOutAction}><button className="secondary-button">Sign out</button></form></main>;
+  return <section className="plan-card" key={tier}><h2>{PLAN_COPY[tier].name}</h2><p className="plan-limit">{PLAN_COPY[tier].limit}</p><PlanPrice tier={tier} billingPeriod={billingPeriod}/><ul>{PLAN_COPY[tier].includes.map(line=><li key={line}>{line}</li>)}</ul><form action={startSubscriptionAction}><input type="hidden" name="tier" value={tier}/><input type="hidden" name="billingPeriod" value={billingPeriod}/><button className="primary-button" disabled={!available || locked}>Approve in PayPal</button></form>{!available ? <p className="note">Checkout isn’t available for this plan right now.</p> : locked ? <p className="note">Your existing subscription needs review before you can choose another plan.</p> : null}</section>;
+ })}<section className="plan-card" id="enterprise"><h2>Enterprise</h2><p className="plan-limit">6+ locations</p><p className="plan-price"><strong>Custom</strong></p><ul><li>Everything in Multi Outlet</li><li>Commercial terms agreed with you</li></ul>{contact ? <a className="secondary-button button-link" href={`mailto:${contact}?subject=FairShift%20Enterprise%20enquiry`}>Contact FairShift</a> : <p className="note">Contact FairShift to discuss your locations. Enterprise isn’t available through online checkout.</p>}</section></div>
+ <p className="note plan-footnote">You’ll leave FairShift to review and approve this subscription in PayPal (PayPal Sandbox in this environment), then come straight back to finish setting up. Your plan pays for FairShift; worker pay is separate.</p></main>;
 }
 
 function safeApproval(value:string) {

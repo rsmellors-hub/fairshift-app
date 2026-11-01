@@ -144,8 +144,8 @@ describe("weekly demand forecast", () => {
 
       const data = await getOwnerOverview(t.db, c.owner);
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: ownerForecastSummary(weekly) }));
-      expect(html).toContain("Forecast · 26 Oct – 1 Nov 2026 · from reference history through 28 Dec 2025");
-      expect(html).toContain("Forecast · week from 26 Oct");
+      expect(html).toContain("Next 7 days · from reference history through 28 Dec 2025");
+      expect(html).toContain("Weekly forecast");
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: null }));
       expect(html).toContain("The weekly forecast could not be loaded. No demand has been assumed.");
       expect(html).not.toContain("Forecast · week from");

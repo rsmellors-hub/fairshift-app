@@ -37,7 +37,7 @@ export function CommercialChain({ context, currency, outlet }: { context?: Comme
 // The company's week across locations, shown only where FairShift can support each figure.
 export function CommercialByLocation({ outlets, summary }: { outlets: readonly OutletStaffing[]; summary: CommercialSummary | null }) {
   return <section aria-labelledby="owner-economics-title" className="owner-staffing">
-    <div className="owner-section-heading"><div><h2 id="owner-economics-title">What this week means commercially</h2><p>Expected demand against comparable days, and what the remaining casual gap would cost to fill.</p></div></div>
+    <p className="note" id="owner-economics-title">Expected demand against comparable days, and what the remaining casual gap would cost to fill.</p>
     <div className="owner-forecast-scroll" role="region" aria-label="Commercial implication by location" tabIndex={0}><table className="owner-location-table owner-forecast-table">
       <caption className="owner-sr-only">Forecast sales, comparable sales, casual labour gap and estimated casual cost by location. Estimates, not recorded outcomes.</caption>
       <thead><tr><th scope="col">Location</th><th scope="col">Forecast sales</th><th scope="col">Against comparable</th><th scope="col">Casual gap</th><th scope="col">Estimated casual cost</th><th scope="col">Cost / forecast sales</th></tr></thead>

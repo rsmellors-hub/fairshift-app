@@ -24,7 +24,7 @@ export async function DemoReview() {
       {assignments.filter((row) => row.incentive).map((row) => <article className="panel" key={row.shift.id}><h2>{row.shift.shiftDate} · recorded team result</h2><p>{money(row.incentive!.performanceSalesMinor)} recorded against a {money(row.incentive!.targetSalesMinor)} target. Calculated incentive: {money(row.incentive!.earnedAmountMinor)}.</p><p>Source: manager-recorded shift result.</p><PaymentBadge status={row.incentive!.status} /></article>)}
       {incentive ? <Link className="text-link" href="/manager/review">Review incentive payment →</Link> : null}
 
-      <p id="incentive-review" className="method-note">Payments cover the calculated incentive only. Work earnings and gratuity settlement are not tracked by this payment rail. PayPal Sandbox is used in this environment.</p>
+      <p id="incentive-review" className="note">Payments cover the calculated incentive only. Work earnings and gratuity settlement are not tracked by this payment rail. PayPal Sandbox is used in this environment.</p>
       {!incentive ? <StatePanel title="No current incentive to approve"><Link href="/manager/review">Review performance</Link></StatePanel> : <section className="panel">
         <h2>{worker?.displayName ?? "Casual worker"} · {active?.shift.shiftDate}</h2><PaymentBadge status={incentive.status} />
         <dl className="shift-terms"><div><dt>Agreed work earnings</dt><dd>{money(active!.shift.guaranteedBasePayMinor)}</dd></div><div><dt>Calculated incentive</dt><dd>{money(incentive.earnedAmountMinor)}</dd></div><div><dt>Incentive approved for payout</dt><dd>{money(incentive.approvedAt ? incentive.earnedAmountMinor : 0)}</dd></div></dl>

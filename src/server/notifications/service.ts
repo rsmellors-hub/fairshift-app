@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { notifications, notificationDeliveries, teamInvitations } from "@/server/db/schema";
+import { demoConfig } from "@/server/demo/config";
 import { applicationOrigin, type EmailAdapter } from "./email";
 export async function notify(db:DatabaseSession,input: typeof notifications.$inferInsert) {
   const [notification] = await db.insert(notifications).values(input).onConflictDoNothing({target:notifications.eventKey}).returning();
@@ -21,6 +22,8 @@ export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:s
   const [row] = await db.select({notification:notifications,delivery:notificationDeliveries}).from(notifications).innerJoin(notificationDeliveries,eq(notificationDeliveries.notificationId,notifications.id)).where(eq(notifications.id,id));
   if (!row) return;
   const {notification:n,delivery:d} = row;
+  // The public demo's activity never becomes email.
+  if (n.organisationId && n.organisationId === demoConfig()?.organisationId) return;
   if (!secureHref && ["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD"].includes(n.kind)) return;
   const [claimed] = await db.update(notificationDeliveries).set({status:"SENDING",attemptedAt:new Date(),failureCode:null})
     .where(and(eq(notificationDeliveries.id,d.id),inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED","FAILED"]))).returning();

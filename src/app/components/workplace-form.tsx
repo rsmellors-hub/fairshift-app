@@ -38,6 +38,7 @@ export function WorkplaceForm({initial, email}: {initial: WorkplaceInput; email:
       {field("name", "Business name", "organization", 150)}
     </section>
     <section aria-labelledby="your-location"><h2 id="your-location">Your first location</h2>
+      <p className="field-intro">A location sets its own currency and time zone from its country, and has its own manager and workers.</p>
       <div className="workplace-grid">
         <div className="full-width">{field("locationName", "Location name", "section-location organization", 150)}</div>
         <div className="full-width">{field("locationAddress", "Address", "section-location street-address", 300)}</div>

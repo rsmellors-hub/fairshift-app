@@ -1,6 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthShell } from "@/app/components/auth-shell";
 import { SecureLinkForm } from "@/app/components/secure-link-form";
 import { redeemInvitationAction } from "@/app/auth-actions";
-export default async function Invite({searchParams}:{searchParams:Promise<{status?:string}>}) {
- return <main className="centered-shell"><h1>Join your FairShift organisation</h1><p>Sign in or create your own identity with the invited email, then redeem this invitation. Your role and location are assigned by the invitation.</p>{(await searchParams).status === "error" ? <p role="alert">Invitation unavailable, expired, already used, or for a different email.</p>:null}<p><Link href="/sign-in">Sign in</Link> · <Link href="/register">Create identity</Link></p><SecureLinkForm action={redeemInvitationAction} kind="invitation"/></main>;
+import { currentIdentity } from "@/server/auth/request";
+
+export const metadata: Metadata = { title: "Join your team" };
+export const dynamic = "force-dynamic";
+
+// The invitation code stays in this browser, so signing in or registering first doesn't lose it.
+export default async function Invite({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const identity = await currentIdentity();
+  const demo = !!identity?.session.demoPersona;
+  return <AuthShell title="Join your team on FairShift">
+    {(await searchParams).status === "error" ? <p className="form-alert" role="alert">That invitation has expired, was already used, or is for a different email.</p> : null}
+    {identity && !demo ? <>
+      <p>Signed in as <strong>{identity.user.email}</strong>. Your role and location come from the invitation.</p>
+      <SecureLinkForm action={redeemInvitationAction} kind="invitation" />
+    </> : <>
+      <p>Sign in, or create an account, with the email your invitation was sent to. You’ll come straight back here.</p>
+      <SecureLinkForm kind="invitation" remember />
+      <div className="button-row"><Link className="primary-button button-link" href="/register?next=invite">Create an account</Link><Link className="secondary-button button-link" href="/sign-in?next=invite">Sign in</Link></div>
+    </>}
+  </AuthShell>;
 }

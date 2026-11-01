@@ -1,0 +1,76 @@
+== forged requests
+PASS flag on: demo offers entry
+PASS demo entry sets a session and goes to Manager /manager
+PASS session is marked DEMO server-side, under ~2h MANAGER/true/true
+PASS forged persona refused, no session /demo?status=unavailable
+PASS extra org/user/role/membership fields ignored /manager
+PASS forged fields can't raise the persona MANAGER
+PASS demo refresh payout refused 303 /manager?status=demo-read-only
+PASS demo refresh payout refused (forged GET header) 303 /manager?status=demo-read-only
+PASS demo import sales refused 303 /manager?status=demo-read-only
+PASS demo import sales refused (forged GET header) 303 /manager?status=demo-read-only
+PASS demo move of the paid shift refused 303 /manager/fill?status=demo-protected
+PASS demo cancel of the paid shift refused 303 /manager/fill?status=demo-protected
+PASS evidence and provider rows unchanged after all of that
+PASS demo session refused at /api/paypal/orders 403
+PASS demo session refused at /api/paypal/orders/FAKE/capture 403
+PASS a normal session can't switch persona /demo?status=expired
+PASS a payable is awaiting approval for the replay
+PASS demo Approve refused, forged header too PENDING_REVIEW
+audit: DEMO_SESSION_ENTERED:2
+== click-through
+PASS check email: masked, no delivery internals
+PASS unverified owner route → check email /check-email
+PASS plans: verified notice and PayPal exit warning
+PASS annual equivalents
+PASS workplace form
+PASS signed out → sign in
+PASS worker cannot open Owner /account
+PASS worker cannot open Manager /account
+PASS manager cannot open Owner /account
+PASS unknown location not found
+PASS gap context carried into Fill
+PASS manager sends offer to Ben /manager/fill?date=2026-11-05&status=saved
+PASS response shown as pending
+PASS Cara unavailable on Saturday has no offer button Cara Doyle Unavailable Marked this day as unavailable|Dev Patel Aw
+PASS accept enabled only after ticking terms false
+PASS worker sees accepted, not booked
+PASS manager finalises allocation /manager/fill?date=2026-11-05&status=saved
+PASS worker now booked
+PASS Bryntum schedule shows the shift
+PASS approve button states exact amount
+PASS no PayPal action before approval on that card
+PASS approval is separate from sending /manager/review?status=saved
+PASS unconfigured PayPal: says unavailable, never Paid
+PASS worker sees £121 Paid and pending
+PASS demo: enter as Owner with no sign-up /owner
+PASS demo: Owner no overflow at 1024
+PASS demo: Owner no overflow at 768
+PASS demo: switch to Manager on the server /manager
+PASS demo: Manager Review has no approve or send forms
+PASS demo: Manager can't open Owner /manager?status=demo-read-only
+PASS demo: account page refused /manager?status=demo-read-only
+PASS demo: subscribe refused /manager?status=demo-read-only
+PASS demo: no Square tools
+PASS demo: session cookie httpOnly and short-lived
+PASS demo: switch to Worker /worker
+PASS demo: Worker sees Paid labelled as earlier
+PASS demo: Worker no overflow at 390
+PASS demo: reset completes and says so /worker?status=demo-reset
+PASS demo: Paid evidence survives reset
+PASS demo: exit ends the session /demo
+PASS demo: after exit no access /sign-in
+page exceptions: 0
+== demo writes, cap, reset
+PASS demo Manager creates a shift /manager/fill?status=saved
+PASS offer form found for the new shift
+PASS demo Manager sends an offer /manager/fill?status=saved
+PASS demo Worker accepts /worker/shifts?status=saved
+PASS demo Manager finalises /manager/fill?status=saved
+PASS open shifts are capped refused after 11 more
+PASS reset closes the writable shifts, repeat is safe /manager?status=demo-reset live=0
+PASS reset keeps Paid and acceptance evidence PAIDFIXTURE-BATCH
+PASS reset touched no other organisation
+PASS demo Worker can't open Manager page 307 /worker?status=demo-read-only
+PASS tampered cookie goes to sign-in /sign-in
+audit: DEMO_PERSONA_SWITCHED:6, DEMO_RESET:3, DEMO_SESSION_ENTERED:5

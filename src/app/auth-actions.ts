@@ -7,7 +7,9 @@ import { and, eq } from "drizzle-orm";
 import { getDatabase } from "@/server/db/client";
 import { users, outlets, memberships } from "@/server/db/schema";
 import { registerIdentity, signIn, issueSession, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
-import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE } from "@/server/auth/request";
+import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE, DEMO_COOKIE } from "@/server/auth/request";
+import { demoConfig } from "@/server/demo/config";
+import { isDemoAccount } from "@/server/demo/session";
 import { ensureCustomerOrganisation, inviteMember, redeemInvitation, revokeInvitation } from "@/server/auth/tenancy";
 import { notify, dispatchNotification, markNotificationRead, dispatchOperationalEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
@@ -28,19 +30,23 @@ async function identityEmail(user:{id:string;email:string},purpose:"VERIFY_EMAIL
 }
 export async function registerAction(form:FormData) {
  let token:string;
+ // Accepting an invitation is what verifies an invited person's address, so they go straight back to it.
+ const invited=field(form,"next") === "invite";
  try {
   await consumeLimit(getDatabase(),"registration-global",100);
   const user=await registerIdentity(getDatabase(),{email:field(form,"email"),password:field(form,"password")});
   token=await issueSession(getDatabase(),user.id);
-  await identityEmail(user,"VERIFY_EMAIL");
- } catch {redirect("/register?status=error");}
+  if (!invited) await identityEmail(user,"VERIFY_EMAIL");
+ } catch {redirect(invited ? "/register?status=error&next=invite" : "/register?status=error");}
  await setSessionCookie(token);
- redirect("/account?status=verification-requested");
+ redirect(invited ? "/invite" : "/check-email");
 }
 export async function signInAction(form:FormData) {
  let token:string;
- try {token=await signIn(getDatabase(),field(form,"email"),field(form,"password"));} catch {redirect("/sign-in?status=error");}
+ const invited=field(form,"next") === "invite";
+ try {token=await signIn(getDatabase(),field(form,"email"),field(form,"password"));} catch {redirect(invited ? "/sign-in?status=error&next=invite" : "/sign-in?status=error");}
  await setSessionCookie(token);
+ if (invited) redirect("/invite");
  const identity=await currentIdentity();
  if (identity?.user.emailVerifiedAt) {
   const rows=await getDatabase().select().from(memberships).where(and(eq(memberships.userId,identity.user.id),eq(memberships.state,"ACTIVE")));
@@ -48,17 +54,17 @@ export async function signInAction(form:FormData) {
   if (!selected) redirect("/subscribe");
   redirect(await membershipDestination(selected));
  }
- redirect("/account");
+ redirect("/check-email");
 }
 export async function signOutAction() {
  const jar=await cookies(),token=jar.get(SESSION_COOKIE)?.value;
  if (token) await revokeSession(getDatabase(),token);
- jar.delete(SESSION_COOKIE);jar.delete("fairshift_location");redirect("/sign-in");
+ jar.delete(SESSION_COOKIE);jar.delete(DEMO_COOKIE);jar.delete("fairshift_location");redirect("/sign-in");
 }
 export async function requestVerificationAction() {
  const {user}=await requireIdentity();
- try {await consumeLimit(getDatabase(),`verify:${user.id}`,3);await identityEmail(user,"VERIFY_EMAIL");} catch {redirect("/account?status=error");}
- redirect("/account?status=verification-requested");
+ try {await consumeLimit(getDatabase(),`verify:${user.id}`,3);await identityEmail(user,"VERIFY_EMAIL");} catch {redirect("/check-email?status=limited");}
+ redirect("/check-email?status=sent");
 }
 export async function verifyEmailAction(form:FormData) {
  let userId:string;
@@ -66,7 +72,7 @@ export async function verifyEmailAction(form:FormData) {
  // Keep the registration session. A forwarded verification link must not log a
  // different browser/account into the verified identity without its password.
  const current=await currentIdentity();
- if (current?.user.id === userId) redirect("/subscribe");
+ if (current?.user.id === userId) redirect("/subscribe?verified=1");
  redirect("/sign-in?status=verified");
 }
 export async function requestResetAction(form:FormData) {
@@ -74,7 +80,7 @@ export async function requestResetAction(form:FormData) {
   const email=field(form,"email").trim().toLowerCase();
   await consumeLimit(getDatabase(),`reset:${email}`,3);
   const [user]=await getDatabase().select().from(users).where(eq(users.email,email));
-  if (user) await identityEmail(user,"RESET_PASSWORD");
+  if (user && !await isDemoAccount(getDatabase(),demoConfig(),user.id)) await identityEmail(user,"RESET_PASSWORD");
  } catch {}
  redirect("/sign-in?status=reset-requested");
 }
@@ -89,7 +95,7 @@ export async function completeWorkplaceAction(_previous:WorkplaceFormState,form:
  const parsed=workplaceDetails.safeParse(input);
  if (!parsed.success) return {errors:workplaceErrors(input),message:"Check the highlighted details and try again."};
  try {await completeWorkplace(getDatabase(),scope,parsed.data);} catch (error) {return {message:error instanceof UserFacingError ? `${error.message} Your details are still here. Check the country, or contact FairShift.` : "We couldn’t save your workplace. Your details are still here. Please try again shortly."};}
- (await cookies()).delete("fairshift_location");redirect("/owner");
+ (await cookies()).delete("fairshift_location");redirect("/owner?welcome=1");
 }
 // A status check only reads/reconciles the existing subscription; it never starts checkout.
 export async function checkSubscriptionStatusAction():Promise<{destination:string|null;message?:string}> {
@@ -117,7 +123,7 @@ export async function selectMembershipAction(form:FormData) {
  redirect(await membershipDestination(member));
 }
 export async function selectLocationAction(form:FormData) {
- const scope=await requireScope(["OWNER"]);
+ const scope=await requireScope(["OWNER"],{demoWrite:true});
  const rows=await getDatabase().select().from(outlets).where(eq(outlets.organisationId,scope.organisationId));
  if (!rows.some(r => r.active && r.id === field(form,"locationId"))) throw new Error("Access denied.");
  (await cookies()).set("fairshift_location",field(form,"locationId"),{httpOnly:true,secure:process.env.NODE_ENV === "production",sameSite:"lax",path:"/"});

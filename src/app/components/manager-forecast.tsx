@@ -41,7 +41,7 @@ export function ManagerForecast({
             <DataLabel kind={SOURCE[result.source].kind}>{SOURCE[result.source].label}</DataLabel>
             <h2>{result.outletName} · {result.targetDate}</h2>
             <p>{result.timezone} · {result.staffing.policy.tradingHours}-hour trading day · {result.currency}</p>
-            <p className="method-note">{result.source === "PAYPAL_SANDBOX"
+            <p className="note">{result.source === "PAYPAL_SANDBOX"
               ? "Uses completed, reconciled PayPal sandbox sales only. Seeded transactions are excluded."
               : result.source === "IMPORTED" ? `Imported history; forecast for ${result.targetDate} from comparable weekdays in that history. This is not a live forecast.`
               : `Synthetic history; forecast for ${result.targetDate} from comparable weekdays in that history. This is not a live forecast.`}</p>
@@ -55,7 +55,7 @@ export function ManagerForecast({
           <section className="panel">
             <h2>Why this staffing level?</h2>
             <p>{money(result.forecastSalesMinor, result.currency)} ÷ ({money(result.staffing.policy.salesMinorPerLabourHour, result.currency)} sales per labour hour × {result.staffing.policy.tradingHours} hours), rounded up, with at least {result.staffing.policy.minimumWorkers} workers.</p>
-            <p className="method-note">This illustrative capacity policy assumes each worker covers the full trading day. It is not an individual quota, wage calculation, or staffing schedule.</p>
+            <p className="note">This illustrative capacity policy assumes each worker covers the full trading day. It is not an individual quota, wage calculation, or staffing schedule.</p>
             <h3>Manager action</h3>
             <p>{result.action}</p>
           </section>
@@ -74,8 +74,8 @@ export function ManagerForecast({
           <details className="panel">
             <summary>Reasoning and limits</summary>
             <ul>{result.drivers.map((driver) => <li key={driver}>{driver}</li>)}</ul>
-            <p className="method-note">History cutoff: {result.dataAsOf}. Generated: {result.generatedAt}. Method: {result.methodVersion}. Policy: {result.staffing.policy.version}.</p>
-            <p className="method-note">No weather, events, promotions, labour availability or service-time measurements are included. Confirm capacity and data completeness before acting.</p>
+            <p className="note">History cutoff: {result.dataAsOf}. Generated: {result.generatedAt}. Method: {result.methodVersion}. Policy: {result.staffing.policy.version}.</p>
+            <p className="note">No weather, events, promotions, labour availability or service-time measurements are included. Confirm capacity and data completeness before acting.</p>
           </details>
         </>
       )}

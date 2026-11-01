@@ -7,6 +7,7 @@ import { organisationEntitled, workplaceComplete } from "@/server/billing/entitl
 import { signOutAction } from "@/app/auth-actions";
 import { WorkplaceForm } from "@/app/components/workplace-form";
 import { AcquisitionProgress } from "@/app/components/acquisition-progress";
+import { FairShiftBrand } from "@/app/components/product-shell";
 export const dynamic="force-dynamic";
 export default async function Onboarding() {
   const {user}=await requireIdentity(),scope=await requireOwnerCustomer(),db=getDatabase();
@@ -16,9 +17,9 @@ export default async function Onboarding() {
   const locations=await db.select().from(outlets).where(eq(outlets.organisationId,scope.organisationId));
   const location=locations.find(row=>row.active);
   return <main className="acquisition-shell workplace-shell">
-    <header className="acquisition-header"><div className="acquisition-brand">FairShift</div><form action={signOutAction}><button className="acquisition-signout">Sign out</button></form></header>
+    <header className="acquisition-header"><FairShiftBrand /><form action={signOutAction}><button className="link-button">Sign out</button></form></header>
     <AcquisitionProgress current="Workplace"/>
-    <div className="workplace-heading"><h1>Set up your workplace</h1><p>Just a few details before you start.</p></div>
+    <div className="workplace-heading"><h1>Set up your workplace</h1><p>Your subscription is active. A few details, then your first location.</p></div>
     <WorkplaceForm email={user.email} initial={{firstName:user.firstName ?? "",surname:user.surname ?? "",position:user.position ?? "",telephone:user.telephone ?? "",
       name:business?.name ?? "",locationName:location?.name ?? "",locationAddress:location?.address ?? "",locationCity:location?.city ?? "",
       locationPostalCode:location?.postalCode ?? "",locationCountry:location?.country ?? "",sameAddress:true,

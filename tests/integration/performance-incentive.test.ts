@@ -169,7 +169,7 @@ describe("work to approved final payable", () => {
       const shift = await createRequirement(t.db, { departmentId: s.pay.department.id, policyId: s.pay.policy.id, startsAt: new Date("2026-01-19T09:00:00Z"), endsAt: new Date("2026-01-19T17:00:00Z"), requiredHeadcount: 1 }, s.manager);
       await offerAssignment(t.db, shift.id, s.worker.workerId!, s.manager);
       const page = await render(s.worker, () => WorkerWorkspace({ area: "shifts" }));
-      for (const text of ["£96.00", "£25.00 bonus", "your own sales for this shift reach £650.00", "Up to £121.00 in total", "Accept shift"]) expect(page).toContain(text);
+      for (const text of ["£96.00", "£25.00 bonus", "your own sales for this shift reach £650.00", "Up to", "£121.00", "Accept shift"]) expect(page).toContain(text);
       expect(page).not.toMatch(/team|commission/i);
     } finally { await t.close(); }
   });

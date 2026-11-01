@@ -88,7 +88,8 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
         eventRenderer: ({ eventRecord }) => {
           const event = record(eventRecord as EventModel), start = eventRecord.startDate as Date, end = eventRecord.endDate as Date;
           return { tag: "span", className: "allocation-bar", title: `${event?.workerName ?? ""} · ${eventRecord.name} · ${pad(start.getHours())}:${pad(start.getMinutes())} to ${pad(end.getHours())}:${pad(end.getMinutes())}`,
-            children: [{ tag: "strong", text: `${hourLabel(start)}–${hourLabel(end)}` }, { tag: "span", text: shortState(event) }] };
+            // A week's bar is narrow, so its hours stack rather than clip.
+            children: weekView.current ? [{ tag: "strong", text: `${hourLabel(start)}–` }, { tag: "strong", text: hourLabel(end) }, { tag: "span", text: shortState(event) }] : [{ tag: "strong", text: `${hourLabel(start)}–${hourLabel(end)}` }, { tag: "span", text: shortState(event) }] };
         },
         onEventClick: ({ eventRecord }) => setSelectedId(String(eventRecord.id)),
         onBeforeEventDrag: ({ eventRecord }) => record(eventRecord as EventModel)?.draggable === true,
@@ -144,8 +145,7 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
   const shiftWeek = (weeks: number) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + weeks * days); setDate(next.toISOString().slice(0, 10)); };
 
   return <section className="panel allocation-schedule" aria-label="Location shift schedule">
-    <h2>Weekly schedule</h2>
-    <p>Who is working, when and in what state. Times are {timeZone}.</p>
+    <div className="panel-head"><div><h2>Weekly schedule</h2><p className="panel-lede">Who is working, when and in what state. Times are {timeZone}.</p></div><Link className="secondary-button button-link" href="/manager/fill">Fill shifts</Link></div>
     <div className="allocation-controls">
       <button className="secondary-button" type="button" onClick={() => shiftWeek(-1)}>Previous</button>
       <label>Starting<input type="date" value={date} onChange={(event) => { if (event.target.value) setDate(event.target.value); }} /></label>
@@ -158,13 +158,13 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
     {load === "loading" ? <p role="status">Loading schedule timeline…</p> : null}
     {load === "error" ? <p role="alert">The timeline could not be loaded. Shift details remain available below. Reload this page to try again.</p> : null}
     {pending ? <div className="allocation-confirm" role="alertdialog" aria-labelledby="allocation-confirm-title">
-      <h3 id="allocation-confirm-title">Move this shift?</h3>
-      <p>{shown(pending.event.startDate, timeZone)} becomes {shown(`${pending.startsAt}:00Z`, "UTC")} to {pending.endsAt.slice(11)}. Workers with an offer or acceptance on this shift must accept the new times, and pay based on hours is recalculated.</p>
+      <h3 id="allocation-confirm-title">This shift has already been offered or accepted</h3>
+      <p>{shown(pending.event.startDate, timeZone)} becomes {shown(`${pending.startsAt}:00Z`, "UTC")} to {pending.endsAt.slice(11)}. Changing the time means workers with an offer or acceptance must accept the new terms, and pay based on hours is recalculated.</p>
       <div className="allocation-confirm-actions"><button className="primary-button" type="button" onClick={() => pending.resolve(true)}>Move and ask workers again</button><button className="secondary-button" type="button" onClick={() => pending.resolve(false)}>Keep current times</button></div>
     </div> : null}
     {outcome ? <p className={outcome.ok ? "allocation-outcome" : "allocation-outcome allocation-outcome-refused"} role={outcome.ok ? "status" : "alert"}>{outcome.message}{refreshing ? " Updating…" : ""}</p> : null}
     <div className="allocation-timeline" ref={host} />
-    <p className="method-note">In Week view, dragging moves a shift to another day at the same times. To change its hours, switch to Day view. Select a shift for its details. FairShift checks every change on the server, so a refused move returns to where it was. Scroll the timeline sideways on smaller screens.</p>
+    <p className="note">Select a shift for its details. In Week view, dragging moves a shift to another day at the same times; switch to Day view to change its hours. FairShift checks every change on the server, so a refused move returns to where it was.</p>
     <label>Shift details<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{schedule.events.map((event) => <option value={event.id} key={event.id}>{shown(event.startDate, timeZone)} · {event.workerName} · {event.state}</option>)}</select></label>
     {selected ? <ShiftDetail key={`${selected.id}:${selected.termsVersion}`} event={selected} timeZone={timeZone} send={send} /> : null}
   </section>;
@@ -188,17 +188,17 @@ function ShiftDetail({ event, timeZone, send }: { event: ScheduleEvent; timeZone
       <div><dt>Performance</dt><dd>{event.performanceLabel}</dd></div>
       <div><dt>Payment</dt><dd>{event.paymentLabel}</dd></div>
     </dl>
-    <p className="method-note">{HOW[event.interaction]}</p>
+    <p className="note">{HOW[event.interaction]}</p>
     <div className="allocation-links">
       {event.fillHref ? <Link href={event.fillHref}>Fill this shift</Link> : null}
-      {event.kind === "OFFER" && event.state.startsWith("Accepted") ? <form action={allocateAssignmentAction}><input type="hidden" name="offerId" value={event.id} /><input type="hidden" name="returnArea" value="allocations" /><button className="primary-button">Finalise allocation</button></form> : null}
+      {event.kind === "OFFER" && event.state.startsWith("Accepted") ? <form action={allocateAssignmentAction} data-demo-write=""><input type="hidden" name="offerId" value={event.id} /><input type="hidden" name="returnArea" value="allocations" /><button className="primary-button">Finalise allocation</button></form> : null}
       {event.kind === "OFFER" && event.interaction === "LOCKED" && event.state === "Allocated" ? <Link href="/manager/review">Review this work</Link> : null}
     </div>
     {event.interaction === "CHANGE_ONLY" ? <details className="allocation-change"><summary>Change shift</summary>
-      <form action={submit} className="workspace-form">
+      <form action={submit} className="workspace-form" data-demo-write="">
         <label>New start · {timeZone}<input name="startsAt" type="datetime-local" required defaultValue={localInput(event.startDate, timeZone)} /></label>
         <label>New end · {timeZone}<input name="endsAt" type="datetime-local" required defaultValue={localInput(event.endDate, timeZone)} /></label>
-        <label><input name="acknowledged" type="checkbox" value="yes" required /> I understand the allocated workers must accept the new terms before they’re booked again.</label>
+        <label className="acceptance-check"><input name="acknowledged" type="checkbox" value="yes" required /> I understand the allocated workers must accept the new terms before they’re booked again.</label>
         <button className="secondary-button" disabled={saving}>Change shift and ask workers again</button>
       </form></details> : null}
   </div>;

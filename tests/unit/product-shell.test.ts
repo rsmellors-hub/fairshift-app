@@ -64,7 +64,7 @@ describe("shared product shell", () => {
       amount: "5.00",
     });
 
-    const html = renderToStaticMarkup(await WorkerLayout({children:await WorkerPage()}));
+    const html = renderToStaticMarkup(await WorkerLayout({children:await WorkerPage({})}));
     expect(html).toContain("Workspace information is unavailable");
     expect(html).not.toContain("migration");
     expect(html).not.toContain("persisted");

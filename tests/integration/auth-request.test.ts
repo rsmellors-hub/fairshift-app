@@ -62,7 +62,7 @@ describe("authenticated HTTP action boundary",()=>{
    vi.mocked(getDatabase).mockReturnValue(t.db);
    const o=await bootstrap(t.db);
    const invitation=await inviteMember(t.db,o.scope,{role:"TEAM_MEMBER",email:"join@example.test",firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
-   await expect(registerAction(form({...personal,email:"join@example.test",password,role:"OWNER",organisationId:o.o.organisationId}))).rejects.toThrow("REDIRECT:/account");
+   await expect(registerAction(form({...personal,email:"join@example.test",password,role:"OWNER",organisationId:o.o.organisationId}))).rejects.toThrow("REDIRECT:/check-email");
    const [u]=await t.db.select().from(users).where(eq(users.email,"join@example.test"));
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);
    await expect(redeemInvitationAction(form({token:invitation.token,role:"OWNER",locationId:randomUUID()}))).rejects.toThrow("REDIRECT:/worker");
@@ -129,7 +129,7 @@ describe("subscription gate at real application boundaries",()=>{
    await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");
    await expect(saveBusinessAction(form({...business,name:"One",organisationId:randomUUID()}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
    const account=renderToStaticMarkup(await Account({searchParams:Promise.resolve({})}));
-   expect(account).toContain("Choose subscription");expect(account).not.toContain("Open workspace");
+   expect(account).toContain("Choose your plan");expect(account).not.toContain("Open workspace");
    await expect(refreshSubscriptionAction()).rejects.toThrow("REDIRECT:/subscribe");
    await expect(selectMembershipAction(form({membershipId:o.o.membershipId}))).rejects.toThrow("REDIRECT:/subscribe");
    const response=await createOrder(new Request("http://localhost/api/paypal/orders",{method:"POST"}));
@@ -152,7 +152,7 @@ describe("subscription gate at real application boundaries",()=>{
     const role=i.invitation.role as "MANAGER"|"TEAM_MEMBER";
     const scope=await requireMembershipScope([role]);expect(scope.organisationId).toBe(o.o.organisationId);
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/account");
-    await expect(OwnerPage()).rejects.toThrow("REDIRECT:/account");
+    await expect(OwnerPage({})).rejects.toThrow("REDIRECT:/account");
     await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const layout=role === "MANAGER" ? ManagerLayout:WorkerLayout;
     await expect(layout({children:"Protected"})).rejects.toThrow("REDIRECT:/account?status=subscription-required");
@@ -196,7 +196,7 @@ describe("subscription-first UI and verification continuation",()=>{
    await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/subscribe");
    expect(jar.get("fairshift_session")).toBe(session);
    const plans=renderToStaticMarkup(await Subscribe({searchParams:Promise.resolve({period:"ANNUAL"})}));
-   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 active location","Up to 5 active locations","Annual billing","GBP £290/year","GBP £690/year","6+ active locations","Checkout is currently unavailable"]) expect(plans).toContain(text);
+   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 location","2–5 locations","£24.17","£57.50","£290 billed annually","£690 billed annually","Save 17%","6+ locations","Checkout isn’t available"]) expect(plans).toContain(text);
    for(const name of ["firstName","businessAddress","locationName"]) expect(plans).not.toContain(`name="${name}"`);
    expect(plans).not.toContain('value="ENTERPRISE"');expect(plans).not.toContain("/owner/");
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { DatabaseSession } from "@/server/db/client";
 import { memberships, organisations, outlets, workers } from "@/server/db/schema";
 export type Role = "OWNER" | "MANAGER" | "TEAM_MEMBER";
-export type Scope = {userId:string; organisationId:string; locationId:string; workerId?:string; role:Role; organisationName:string; locationName:string};
+export type Scope = {userId:string; organisationId:string; locationId:string; workerId?:string; role:Role; organisationName:string; locationName:string; demo?:{persona:"OWNER"|"MANAGER"|"WORKER"; group:string}};
 export class AccessError extends Error { constructor() {super("Access denied.");} }
 export async function resolveScope(db: DatabaseSession, userId: string, membershipId: string, locationId?: string, roles: Role[] = ["OWNER","MANAGER","TEAM_MEMBER"]): Promise<Scope> {
   const [membership] = await db.select().from(memberships).where(and(eq(memberships.id,membershipId),eq(memberships.userId,userId),eq(memberships.state,"ACTIVE")));

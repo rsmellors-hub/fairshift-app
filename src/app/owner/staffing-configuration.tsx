@@ -22,7 +22,7 @@ export function StaffingConfiguration({ configuration, locationName }: { configu
   const resolved = locationPolicy ?? organisationPolicy;
   const mismatch = resolved && evidenceCurrency && resolved.currencyCode !== evidenceCurrency;
   return <>
-    <section className="panel" aria-labelledby="labour-policy-title"><h2 id="labour-policy-title">Labour policy</h2>
+    <section className="panel" id="labour-policy" aria-labelledby="labour-policy-title"><h2 id="labour-policy-title">Labour policy</h2>
       <p>How much forecast sales one labour hour covers in your business. FairShift converts forecast demand into required labour with this figure. It is your planning assumption, not an industry benchmark, and it is never converted between currencies.</p>
       <h3>Organisation default</h3>
       <p>{organisationPolicy ? policyText(organisationPolicy) : "Not configured. Locations without their own policy have no required labour until one is set."}</p>
@@ -34,13 +34,13 @@ export function StaffingConfiguration({ configuration, locationName }: { configu
       {locationPolicy ? <form action={clearLocationLabourPolicyAction}><button className="secondary-button">Remove location override</button></form> : null}
       {mismatch ? <p role="status">This location’s sales history is in {evidenceCurrency}, but the policy that applies is in {resolved.currencyCode}. Required labour stays unavailable until they match; nothing is converted.</p> : null}
     </section>
-    <section className="panel" aria-labelledby="regular-coverage-title"><h2 id="regular-coverage-title">Regular coverage · {locationName}</h2>
+    <section className="panel" id="regular-coverage" aria-labelledby="regular-coverage-title"><h2 id="regular-coverage-title">Regular coverage · {locationName}</h2>
       <p>Planned regular-staff hours for a normal week. Enter 0 for a day with no regular staff. Leave a day blank if it is not known: its casual labour gap then stays unavailable.</p>
       <form action={saveRegularCoverageAction} className="workspace-form form-grid">
         {WEEKDAYS.map((day, i) => <label key={day}>{day}<input name={`day${i + 1}`} inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" defaultValue={coverage[i] ? String(coverage[i]!.plannedMinutes / 60) : ""} aria-describedby="regular-coverage-state" /></label>)}
         <button className="primary-button">Save regular coverage</button>
       </form>
-      <p id="regular-coverage-state" className="method-note">{coverage.every(row => row === null) ? "Not configured for this location." : `${coverage.reduce((sum, row) => sum + (row?.plannedMinutes ?? 0), 0) === 0 ? "0 h" : labourHours(coverage.reduce((sum, row) => sum + (row?.plannedMinutes ?? 0), 0))} a week across ${coverage.filter(Boolean).length} configured days${coverage.some(row => row?.source === "REFERENCE") ? " · reference company configuration" : ""}.`}</p>
+      <p id="regular-coverage-state" className="note">{coverage.every(row => row === null) ? "Not configured for this location." : `${coverage.reduce((sum, row) => sum + (row?.plannedMinutes ?? 0), 0) === 0 ? "0 h" : labourHours(coverage.reduce((sum, row) => sum + (row?.plannedMinutes ?? 0), 0))} a week across ${coverage.filter(Boolean).length} configured days${coverage.some(row => row?.source === "REFERENCE") ? " · reference company configuration" : ""}.`}</p>
     </section>
   </>;
 }

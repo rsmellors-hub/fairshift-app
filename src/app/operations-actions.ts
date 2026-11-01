@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { clearLabourPolicy, setLabourPolicy, setRegularCoverage, type PolicyLevel } from "@/server/intelligence/business-policy";
+import { guardDemoWrite } from "@/server/demo/fixtures";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 
 async function perform(path: string, fn: () => Promise<unknown>) {
@@ -70,8 +71,9 @@ export async function createPolicyAction(form: FormData) {
   });
 }
 export async function createRequirementAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
+  const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
   return perform(planPath(form), async () => {
+    await guardDemoWrite(getDatabase(), scope, { creatingShift: true });
     // Times are wall-clock at the work location; the session decides the location.
     const timeZone = await locationTimezone(getDatabase(), scope);
     return createRequirement(getDatabase(), { departmentId: field(form, "departmentId"), policyId: field(form, "policyId"), requiredHeadcount: Number(field(form, "headcount")),
@@ -79,20 +81,22 @@ export async function createRequirementAction(form: FormData) {
   });
 }
 export async function offerAssignmentAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
+  const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
   return perform(planPath(form), async () => {
+    await guardDemoWrite(getDatabase(), scope, { shiftId: field(form,"shiftId") });
     const offer=await offerAssignment(getDatabase(),field(form,"shiftId"),field(form,"workerId"),scope);
     const [recipient]=await getDatabase().select().from(workers).where(eq(workers.id,offer.workerId));
-    if (recipient) await dispatchWorkerEmails(getDatabase(),getEmailAdapter(),recipient.id);
+    if (recipient && !scope.demo) await dispatchWorkerEmails(getDatabase(),getEmailAdapter(),recipient.id);
   });
 }
 export async function allocateAssignmentAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform(planPath(form), () => allocateAssignment(getDatabase(), field(form, "offerId"),scope));
+  const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
+  return perform(planPath(form), async () => { await guardDemoWrite(getDatabase(), scope, { offerId: field(form, "offerId") }); return allocateAssignment(getDatabase(), field(form, "offerId"),scope); });
 }
 export async function respondAssignmentAction(form: FormData) {
-  const scope=await requireScope(["TEAM_MEMBER"]);
-  return perform("/worker/shifts", () => {
+  const scope=await requireScope(["TEAM_MEMBER"],{demoWrite:true});
+  return perform("/worker/shifts", async () => {
+    await guardDemoWrite(getDatabase(), scope, { offerId: field(form, "offerId") });
     const response = field(form, "response");
     if (response !== "ACCEPTED" && response !== "DECLINED") throw new Error("Invalid response.");
     return workerRespond(getDatabase(), scope, field(form, "offerId"), Number(field(form, "termsVersion")), response, field(form, "acknowledged") === "yes");
@@ -188,12 +192,13 @@ export async function saveRegularCoverageAction(form: FormData) {
   })));
 }
 export async function changeAssignmentAction(form:FormData) {
- const scope=await requireScope(["OWNER","MANAGER"]);
+ const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
  return perform(planPath(form),async ()=>{
+  await guardDemoWrite(getDatabase(), scope, { shiftId: field(form,"shiftId") });
   const {changeAssignment}=await import("@/server/scheduling/operations");
   const timeZone = await locationTimezone(getDatabase(), scope);
   await changeAssignment(getDatabase(),scope,field(form,"shiftId"),field(form,"cancel") === "yes" ? {cancel:true}:{startsAt:localDateTimeToInstant(field(form,"startsAt"),timeZone),endsAt:localDateTimeToInstant(field(form,"endsAt"),timeZone)});
   const members=await getDatabase().select().from(workers).where(eq(workers.locationId,scope.locationId));
-  for (const member of members) await dispatchWorkerEmails(getDatabase(),getEmailAdapter(),member.id);
+  if (!scope.demo) for (const member of members) await dispatchWorkerEmails(getDatabase(),getEmailAdapter(),member.id);
  });
 }

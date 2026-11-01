@@ -34,7 +34,7 @@ function Provenance({ outlet }: { outlet: OutletWeeklyForecast }) {
 // staffing: null = failed to load (never zero coverage or zero gap).
 // assessment: the AI interpretation panel, rendered after the calculated staffing figures it interprets.
 export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: WeeklyForecast | null; staffing?: WeeklyStaffing | null; assessment?: React.ReactNode }) {
-  const header = <header className="owner-heading"><div><p className="owner-eyebrow">Demand forecast</p><h1>Weekly forecast</h1><p>Expected sales, required labour and casual labour gaps for the next seven days at each location.</p></div><Link className="owner-link" href="/owner">Back to Overview <span aria-hidden="true">→</span></Link></header>;
+  const header = <header className="owner-heading"><div><p className="eyebrow">Daily forecast · next seven days</p><h1>Weekly forecast</h1><p>Where demand is, and where regular cover falls short, at each location and on each day.</p></div></header>;
   if (!weekly) return <div className="owner-overview owner-forecast">{header}<section className="owner-empty" role="alert"><h2>Forecast could not be loaded</h2><p>No demand has been assumed. Reload to try again.</p></section></div>;
   const c = weekly.consolidated;
   const available = weekly.outlets.filter(outlet => outlet.weeklyTotalMinor !== null);
@@ -42,6 +42,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
   const imported = weekly.outlets.some(outlet => outlet.selection.status === "SELECTED" && outlet.selection.source === "IMPORTED");
   const connected = weekly.outlets.filter(outlet => outlet.selection.status === "SELECTED" && (outlet.selection.source === "ZETTLE" || outlet.selection.source === "SQUARE")).length;
   const columns = c?.days.map(row => row.targetDate) ?? null;
+  const maxGap = Math.max(0, ...(staffing?.outlets.flatMap(outlet => outlet.days.map(day => day.casualGapMinutes ?? 0)) ?? []));
   return <div className="owner-overview owner-forecast">
     {header}
     {!weekly.outlets.length ? <section className="owner-empty" role="status"><h2>No locations</h2><p>Add a location to forecast its demand.</p></section> : <>
@@ -55,25 +56,24 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
       {imported ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from imported history</span>Imported sales history supplied for this business, not verified by a payment provider. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled.</p> : null}
       {connected ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from connected commerce</span>{`${connected === weekly.outlets.length ? "Every location forecasts" : `${connected} of ${weekly.outlets.length} locations forecast`} from sales retrieved from a connected account: completed sales through yesterday, refunds not deducted.`}</p> : null}
       <section aria-labelledby="owner-forecast-table-title">
-        <div className="owner-section-heading"><div><h2 id="owner-forecast-table-title">Forecast by location</h2><p>Expected sales per day{columns ? "" : ", with each location’s own forecast dates"}. Ranges and evidence are under each location.</p></div></div>
+        <div className="owner-section-heading"><div><h2 id="owner-forecast-table-title">Forecast by location</h2><p>Each day shows forecast sales and the casual gap still to fill{columns ? "" : ", on each location’s own dates"}. Select a location to open it.</p></div></div>
         <div className="owner-forecast-scroll" role="region" aria-label="Forecast by location table" tabIndex={0}><table className="owner-location-table owner-forecast-table">
           <caption className="owner-sr-only">Seven-day sales forecast by location. Forecasts are estimates, not recorded sales.</caption>
           <thead><tr><th scope="col">Location</th>{columns ? columns.map(date => <th scope="col" key={date}>{shortDate(date)}</th>) : Array.from({ length: 7 }, (_, i) => <th scope="col" key={i}>Day {i + 1}</th>)}<th scope="col">Week</th></tr></thead>
           <tbody>{weekly.outlets.map(outlet => {
             const currency = outlet.selection.status === "SELECTED" ? outlet.selection.currency : null;
             return <tr key={outlet.outletId}><th scope="row"><Link href={`/owner/locations/${outlet.outletId}`}><strong>{outlet.outletName}</strong></Link>{c ? null : <Provenance outlet={outlet} />}</th>
-              {outlet.days.length ? outlet.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{row.forecast && currency ? whole(row.forecast.forecastSalesMinor, currency) : "Not available"}{columns ? null : <small>{shortDate(row.targetDate)}</small>}</td>)
+              {outlet.days.length ? outlet.days.map(row => { const gap = staffing?.outlets.find(item => item.outletId === outlet.outletId)?.days.find(item => item.planningDate === row.targetDate)?.casualGapMinutes ?? null; return <td key={row.targetDate} data-label={shortDate(row.targetDate)} data-heat={gap === null ? undefined : heatLevel(gap, maxGap)}>{row.forecast && currency ? whole(row.forecast.forecastSalesMinor, currency) : "Not available"}{gap === null ? null : <small className="heat-gap">{gap === 0 ? "Covered" : `${labourHours(gap)} gap`}</small>}{columns ? null : <small>{shortDate(row.targetDate)}</small>}</td>; })
                 : <td colSpan={7} data-label="Forecast">No forecast: no eligible sales history. No demand has been assumed.</td>}
               <td data-label="Week"><strong>{outlet.weeklyTotalMinor !== null && currency ? whole(outlet.weeklyTotalMinor, currency) : "Not available"}</strong></td></tr>;
           })}</tbody>
           {c ? <tfoot><tr><th scope="row">All locations</th>{c.days.map(row => <td key={row.targetDate} data-label={shortDate(row.targetDate)}>{whole(row.forecastSalesMinor, c.currency)}</td>)}<td data-label="Week"><strong>{whole(c.totalMinor, c.currency)}</strong></td></tr></tfoot> : null}
         </table></div>
       </section>
-      <StaffingByLocation staffing={staffing} />
-      {staffing?.outlets.length ? <CommercialByLocation outlets={staffing.outlets} summary={staffing.commercial} /> : null}
       {assessment}
-      <section className="owner-attention" aria-labelledby="owner-forecast-evidence-title">
-        <div className="owner-section-heading"><div><h2 id="owner-forecast-evidence-title">Ranges and evidence</h2><p>Planning ranges are not calibrated confidence intervals.</p></div></div>
+      <StaffingByLocation staffing={staffing} />
+      {staffing?.outlets.length ? <details className="panel disclosure"><summary>What this week means commercially</summary><CommercialByLocation outlets={staffing.outlets} summary={staffing.commercial} /></details> : null}
+      <details className="panel disclosure" aria-labelledby="owner-forecast-evidence-title"><summary id="owner-forecast-evidence-title">Ranges and evidence</summary><p className="note">Planning ranges are not calibrated confidence intervals.</p>
         {weekly.outlets.map(outlet => <details className="owner-forecast-detail" key={outlet.outletId}><summary><strong>{outlet.outletName}</strong> <Provenance outlet={outlet} /></summary>
           {outlet.selection.rejected.length ? <p>Not used: {outlet.selection.rejected.map(row => `${sourceLabel(row.source)} (${row.currency}): ${REJECTION[row.reason]}. ${row.detail}`).join(" ")}</p> : null}
           {outlet.days.length ? <table><caption className="owner-sr-only">{outlet.outletName} daily forecast ranges</caption><thead><tr><th scope="col">Date</th><th scope="col">Forecast</th><th scope="col">Planning range</th><th scope="col">Support</th><th scope="col">Comparable days</th></tr></thead>
@@ -83,10 +83,13 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
             })}</tbody></table> : <p>No eligible sales history, so no forecast was produced.</p>}
         </details>)}
         <p className="owner-note">Method {weekly.methodVersion}: a recency-weighted average of matching weekdays from the 56 days up to the data-through date, with isolated high days capped. Calendar events and holidays are not modelled. Source rule {weekly.ruleVersion}: provider sales replace other history only with 28 or more recent days, including three of every weekday, in the location’s planning currency, with a connected merchant account first; imported history needs the same depth and comes before reference history. No AI is used in this forecast.</p>
-      </section>
+      </details>
     </>}
   </div>;
 }
+
+// How strong a day's shading is: its gap against the week's largest. The figure is always in the cell too.
+function heatLevel(gap: number, max: number) { return gap === 0 || max === 0 ? 0 : gap / max > 2 / 3 ? 3 : gap / max > 1 / 3 ? 2 : 1; }
 
 function StaffingSummary({ staffing }: { staffing?: WeeklyStaffing | null }) {
   const c = staffing?.consolidated;
@@ -98,12 +101,13 @@ function StaffingSummary({ staffing }: { staffing?: WeeklyStaffing | null }) {
 
 function StaffingByLocation({ staffing }: { staffing?: WeeklyStaffing | null }) {
   if (staffing === undefined) return null;
-  const heading = <div className="owner-section-heading"><div><h2 id="owner-staffing-title">Staffing by location</h2><p>Demand → coverage → gap. Casual labour gap per planning day, after regular and allocated casual coverage.</p></div></div>;
+  const heading = <div className="owner-section-heading"><div><h2 id="owner-staffing-title">Staffing by location</h2><p>Demand, then coverage, then the gap. Open a location for its full day-by-day working.</p></div></div>;
   if (staffing === null) return <section aria-labelledby="owner-staffing-title" className="owner-staffing">{heading}<div className="owner-empty" role="alert"><h3>Staffing could not be loaded</h3><p>Coverage was not read, so no labour gap is shown. The forecast above is unaffected. Reload to try again.</p></div></section>;
   const dates = staffing.outlets[0]?.days.map(day => day.planningDate) ?? [];
   const aligned = staffing.outlets.every(outlet => outlet.days[0]?.planningDate === dates[0]);
-  return <section aria-labelledby="owner-staffing-title" className="owner-staffing">
-    {heading}
+  return <details className="panel disclosure">
+    <summary id="owner-staffing-title">Staffing by location</summary>
+    <p className="note">Demand, then coverage, then the gap. Open a location for its full day-by-day working.</p>
     <div className="owner-forecast-scroll" role="region" aria-label="Casual labour gap by location table" tabIndex={0}><table className="owner-location-table owner-forecast-table">
       <caption className="owner-sr-only">Casual labour gap in hours by location and planning day. Derived from forecasts and coverage; no shifts have been created.</caption>
       <thead><tr><th scope="col">Location</th>{aligned ? dates.map(date => <th scope="col" key={date}>{shortDate(date)}</th>) : Array.from({ length: 7 }, (_, i) => <th scope="col" key={i}>Day {i + 1}</th>)}<th scope="col">Week</th></tr></thead>
@@ -120,5 +124,5 @@ function StaffingByLocation({ staffing }: { staffing?: WeeklyStaffing | null }) 
       </details>)}
     </div>
     <p className="owner-note"><StaffingMethodNote policy={staffing.consolidated?.policy ?? null} varied={!staffing.consolidated && staffing.outlets.some(outlet => outlet.policy)} /> Method {staffing.methodVersion}. No AI is used in these figures.</p>
-  </section>;
+  </details>;
 }

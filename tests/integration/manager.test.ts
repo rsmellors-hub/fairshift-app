@@ -139,7 +139,7 @@ describe("persisted commercial history to manager output", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({
         databaseConfigured: false, paypalConfigured: false, paypalPayoutConfigured: false, aiConfigured: false, environment: "NOT CONFIGURED", currency: "USD", amount: "5.00",
       });
-      expect(renderToStaticMarkup(await ManagerPage())).toContain("Workspace information is unavailable");
+      expect(renderToStaticMarkup(await ManagerPage({}))).toContain("Workspace information is unavailable");
       expect(getDatabase).not.toHaveBeenCalled();
     } finally {
       vi.resetAllMocks();

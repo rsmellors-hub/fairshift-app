@@ -8,6 +8,7 @@ import { getEmailAdapter } from "@/server/notifications/email";
 import { dispatchWorkerEmails } from "@/server/notifications/service";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
+import { guardDemoWrite } from "@/server/demo/fixtures";
 import { UserFacingError } from "@/server/domain/errors";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
 import { locationTimezone, rescheduleShift } from "@/server/scheduling/operations";
@@ -24,16 +25,18 @@ const TIME_PROBLEM: Record<string, string> = {
 // session's location. The result is an answer rather than a redirect, so the timeline can
 // put a refused event back where it was and then show the server's current state.
 export async function rescheduleShiftAction(change: ScheduleChange): Promise<ScheduleResult> {
-  const scope = await requireScope(["OWNER", "MANAGER"]);
+  const scope = await requireScope(["OWNER", "MANAGER"], { demoWrite: true });
   if (!getConfigurationStatus().databaseConfigured) return { ok: false, code: "error", message: "The schedule is unavailable, so nothing was changed." };
   try {
+    await guardDemoWrite(getDatabase(), scope, { shiftId: change.shiftId });
     const timeZone = await locationTimezone(getDatabase(), scope);
     const { startsAt, endsAt, ...rest } = change;
     const result = await rescheduleShift(getDatabase(), scope, { ...rest, startsAt: localDateTimeToInstant(startsAt, timeZone), endsAt: localDateTimeToInstant(endsAt, timeZone) });
-    for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
+    // In the demo the timeline refreshes itself, so nothing re-renders inside this write.
+    if (!scope.demo) for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
     // Workers who must answer again are told, as with any other change. The shift has moved
     // by now, so a delivery problem is not reported as a failed move; the offer is on their page.
-    if (result.changed) {
+    if (result.changed && !scope.demo) {
       try {
         const members = await getDatabase().select({ id: workers.id }).from(workers).where(eq(workers.locationId, scope.locationId));
         for (const member of members) await dispatchWorkerEmails(getDatabase(), getEmailAdapter(), member.id);

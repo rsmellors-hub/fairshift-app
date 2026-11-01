@@ -271,7 +271,7 @@ describe("what the Worker sees of their shift", () => {
     vi.setSystemTime(new Date("2026-01-20T12:00:00Z"));
     await confirmWork(db, offer.id, s.manager);
     const page1 = await view(db, s.worker, "earnings");
-    for (const text of [">Earned<", ">Pending<", "Paid so far", "Base pay", "£96.00", "Not known yet", "so far", "Confirmed · awaiting approval"]) expect(page1).toContain(text);
+    for (const text of [">Earned<", ">Pending<", "Paid so far", "Base pay", "£96.00", "Not known yet", "so far", "Awaiting approval"]) expect(page1).toContain(text);
     expect(page1).not.toMatch(/>\s*Paid\s*</);
   }));
 });

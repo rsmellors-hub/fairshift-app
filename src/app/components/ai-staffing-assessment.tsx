@@ -55,7 +55,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   const keyNames = Object.fromEntries(Object.entries(view?.prepared.locationKeys ?? {}).map(([key, outletId]) => [key, names[outletId] ?? "a location"]));
   const header = <><DataLabel kind="predictive">AI-assisted interpretation</DataLabel><h2 id="ai-assessment-title">What to staff first</h2></>;
   const notices: Record<string, string> = { failed: "The AI assessment attempt failed; see below.", error: "The AI assessment could not be requested. The calculated figures are unaffected.", "not-configured": "AI assessment is not configured in this environment." };
-  const banner = notice && notices[notice] ? <p role="status" className="method-note">{notices[notice]}</p> : null;
+  const banner = notice && notices[notice] ? <p role="status" className="note">{notices[notice]}</p> : null;
   if (!view) return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}<p>AI assessment is unavailable because the staffing evidence could not be loaded. No AI interpretation is shown.</p></section>;
   if (view.state !== "CURRENT" || !view.assessment) {
     return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}{banner}
@@ -63,7 +63,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
         : view.state === "FAILED" ? <p>The latest AI assessment of this planning evidence failed: {failureText(view.record?.failureCode ?? null)}. No AI interpretation is shown. The calculated figures remain available.</p>
         : view.state === "STALE" ? <p>The planning evidence or assessment method has changed since the last AI assessment ({generated(view.record!.createdAt, timeZone)}), so it is not shown. Generate a new assessment for the current figures.</p>
         : <p>No AI assessment has been generated for the current planning evidence.</p>}
-      {!configured && view.prepared.hasEvidence ? <p className="method-note">AI assessment is not configured in this environment. The calculated forecast and staffing figures are complete without it.</p> : null}
+      {!configured && view.prepared.hasEvidence ? <p className="note">AI assessment is not configured in this environment. The calculated forecast and staffing figures are complete without it.</p> : null}
       {button(view.state === "FAILED" ? "Try the AI assessment again" : "Generate AI assessment")}
     </section>;
   }
@@ -76,7 +76,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
     metric.endsWith("Minor") ? (currency ? `${value < 0 ? "−" : ""}${wholeMoney(Math.abs(value), currency)}` : "Not available") : metric.endsWith("Bps") || metric.endsWith("BpsOfForecast") ? `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(value / 100)}%` : metric === "indicativeShifts" || metric === "recentTransactions" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
   return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">
     {header}{banner}
-    <p className="method-note">Generated {generated(view.record!.createdAt, timeZone)} ({timeZone}) by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>
+    <p className="note">Generated {generated(view.record!.createdAt, timeZone)} ({timeZone}) by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>
     <p><Prose text={a.summary} names={keyNames} /></p>
     {a.priorities.length ? <ol className="ai-priorities">{a.priorities.map(p => {
       const location = locations.get(p.locationKey)!;
@@ -91,7 +91,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
     {a.constraints.length ? <><h3>Evidence limits</h3><ul className="ai-constraints">{a.constraints.map((c, i) => <li key={i}><strong>{CONSTRAINT[c.type]}{c.locationKey ? ` · ${keyNames[c.locationKey]}` : ""}:</strong> <Prose text={c.note} names={keyNames} /></li>)}</ul></> : null}
     <h3>Commercial implication</h3><p><Prose text={a.commercialImplication} names={keyNames} /></p>
     <h3>Signal quality</h3><p><Prose text={a.signalCommentary} names={keyNames} /></p>
-    {unlisted ? <p className="method-note">{unlisted} other planning {unlisted === 1 ? "day also has" : "days also have"} a casual labour gap not listed above. See the calculated staffing figures.</p> : null}
-    <p className="method-note">Evidence values are the calculated figures for that location and day (or week), checked against the AI output before it was stored. The order of dated casual gaps is calculated. The AI&apos;s wording is its interpretation and is not checked beyond those figures and references. Managers decide what to staff.</p>
+    {unlisted ? <p className="note">{unlisted} other planning {unlisted === 1 ? "day also has" : "days also have"} a casual labour gap not listed above. See the calculated staffing figures.</p> : null}
+    <p className="note">Evidence values are the calculated figures for that location and day (or week), checked against the AI output before it was stored. The order of dated casual gaps is calculated. The AI&apos;s wording is its interpretation and is not checked beyond those figures and references. Managers decide what to staff.</p>
   </section>;
 }

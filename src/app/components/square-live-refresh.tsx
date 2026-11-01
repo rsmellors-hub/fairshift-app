@@ -27,7 +27,7 @@ export function SquareLiveRefresh({ timeZone, initial }: { timeZone: string; ini
     const timer = setInterval(() => void check(), POLL_MS);
     return () => { stopped = true; clearInterval(timer); };
   }, [router]);
-  return <p className="method-note" role={state.failed ? "alert" : "status"}>
+  return <p className="note" role={state.failed ? "alert" : "status"}>
     {state.failed ? "Square could not be checked just now. " : "Checking Square Sandbox for new sales automatically. "}
     {state.lastCheckedAt ? `Last checked ${time(state.lastCheckedAt, timeZone)}.` : "Not checked yet, so sales are not known."}
     {state.failed ? " These figures may be out of date. They do not mean no sales happened." : ""}

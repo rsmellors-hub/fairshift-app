@@ -148,6 +148,13 @@
       "when": 1793499660264,
       "tag": "0020_square_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793538240259,
+      "tag": "0021_cultured_talon",
+      "breakpoints": true
     }
   ]
 }

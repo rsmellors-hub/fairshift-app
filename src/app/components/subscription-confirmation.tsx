@@ -28,7 +28,7 @@ export function SubscriptionConfirmation() {
   return <section className="confirmation-content">
     <div className="confirmation-mark" aria-hidden="true">⋯</div>
     <h1>Setting up your FairShift account</h1>
-    <p>Your subscription has been approved. We’re confirming the details with PayPal. This normally takes a few seconds.</p>
+    <p>You’re back from PayPal. We’re confirming the details with PayPal. This normally takes a few seconds.</p>
     <p className="confirmation-status" role="status">{message || (checking ? "Checking your payment status…" : "Preparing your account…")}</p>
     {recovery ? <button type="button" className="secondary-button" disabled={checking} onClick={() => void check(true)}>{checking ? "Checking payment status…" : "Check payment status"}</button> : null}
   </section>;

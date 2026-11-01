@@ -82,7 +82,7 @@ describe("confirmation to workplace journey",()=>{
    const html=renderToStaticMarkup(await Onboarding());
    for(const name of ["firstName","surname","position","telephone","name","locationName","locationAddress","locationCity","locationPostalCode","locationCountry"]) expect(html).toContain(`name="${name}"`);
    for(const name of ["title","email","province","locationProvince","businessAddress","city","postalCode","country"]) expect(html).not.toContain(`name="${name}"`);
-   for(const value of ["Alex","River","Owner","+441234567890","River Business","owner@example.test","Continue to FairShift","Last name","Just a few details before you start."]) expect(html).toContain(value);
+   for(const value of ["Alex","River","Owner","+441234567890","River Business","owner@example.test","Continue to FairShift","Last name","A few details, then your first location."]) expect(html).toContain(value);
    expect(html).toContain('name="sameAddress"');expect(html).toContain('checked=""');expect(html).not.toContain("Team");
    const separate=renderToStaticMarkup(WorkplaceElement(false));
    for(const name of ["businessAddress","city","postalCode","country"]) expect(separate).toContain(`name="${name}"`);

@@ -21,7 +21,7 @@ export function payoutProgress(status: string | null | undefined, payout: Payout
 
 export function PayoutProgress({ status, payout }: { status?: string | null; payout?: Payout }) {
   const { steps, note } = payoutProgress(status, payout);
-  return <div className="payout-progress"><ol aria-label="Payment progress">{steps.map(step => <li key={step.label} data-state={step.state} aria-current={step.state === "current" || step.state === "problem" ? "step" : undefined}>{step.label}</li>)}</ol>{note ? <p className="method-note">{note}</p> : null}</div>;
+  return <div className="payout-progress"><ol aria-label="Payment progress">{steps.map(step => <li key={step.label} data-state={step.state} aria-current={step.state === "current" || step.state === "problem" ? "step" : undefined}>{step.label}</li>)}</ol>{note ? <p className="note">{note}</p> : null}</div>;
 }
 
 // The Manager's four decisions on finished work, with how many are waiting at each.

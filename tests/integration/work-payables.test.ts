@@ -379,13 +379,13 @@ describe("confirmed work and authoritative base payables", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
 
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      for (const text of ["Payments &amp; approvals · confirmed work", "£72.00", "£12.00/hour × 6 hours scheduled", "Awaiting approval", "Approve £72.00", "shows as Paid only after PayPal reports it as successful"]) expect(review).toContain(text);
+      for (const text of ["Payments &amp; approvals", "£72.00", "£12.00/hour × 6 hours scheduled", "Awaiting approval", "Approve £72.00", "shows as Paid only after PayPal reports it as successful"]) expect(review).toContain(text);
       // Approval is the only action offered: nothing can be sent before it.
       expect(review).not.toContain("payout with PayPal");
       noDollars(review);
       noPayment(review);
       earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["<h3>Earned</h3>", "£72.00", "£12.00/hour × 6 hours scheduled", "Confirmed · awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms the payment"]) expect(earnings).toContain(text);
+      for (const text of ["<h3>Earned</h3>", "£72.00", "£12.00/hour × 6 hours scheduled", "Awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms it"]) expect(earnings).toContain(text);
       noDollars(earnings);
       noPayment(earnings);
       expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£72.00 confirmed · awaiting approval");

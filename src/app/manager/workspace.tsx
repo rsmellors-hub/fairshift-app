@@ -15,10 +15,12 @@ import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
 import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
-import { isSyntheticSource } from "@/server/intelligence/forecast";
+import { isSyntheticSource, localDate } from "@/server/intelligence/forecast";
 import { labourHours, longDate, policyDescription, StaffingDayTable, StaffingMethodNote, wholeMoney } from "@/app/components/staffing";
 import { RequirementForm } from "./requirement-form";
-import { availabilityForShift, isOfferable, OPPORTUNITY_LABEL, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
+import { availabilityForShift, isOfferable, OPPORTUNITY_LABEL, shiftWeekdays, workerOpportunityState, type WorkerOpportunityState } from "@/server/scheduling/worker-pool";
+import { ManagerToday } from "./today";
+import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
 import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
 import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
@@ -27,8 +29,31 @@ import { DemoReview } from "./review-workspace";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
 import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
-import { getSquareFreshness } from "@/server/commerce/square-connection";
+import { getSquareFreshness, liveSquareConnection } from "@/server/commerce/square-connection";
+import { getSquareMappings } from "@/server/commerce/square-mapping";
 import { SquarePanel } from "./square-panel";
+
+const DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const INVITATION: Record<string, string> = { CREATED_NOT_SENT: "Prepared · not sent", SENT: "Invited", DELIVERY_FAILED: "Invitation couldn’t be sent", REDEEMED: "Active", REVOKED: "Invitation revoked" };
+const CANNOT_OFFER: Partial<Record<WorkerOpportunityState, string>> = { UNAVAILABLE: "Marked this day as unavailable", ALREADY_WORKING: "Has an overlapping accepted shift", AWAITING_ACTIVATION: "Hasn’t activated their account yet", INACTIVE: "No longer active" };
+const dayLabel = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone }).format(date);
+const timeRange = (start: Date, end: Date, timeZone: string) => { const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }); return `${time.format(start)}–${time.format(end)}`; };
+
+// What would stop this worker's sales counting or their pay arriving, said before the offer goes out.
+function WorkerReadiness({ worker, squareConnected, mapped, hasTarget }: { worker: { id: string; paypalPayoutEmail: string | null }; squareConnected: boolean; mapped: ReadonlySet<string>; hasTarget: boolean }) {
+  const notes = [!worker.paypalPayoutEmail ? "No PayPal email yet, so they can’t be paid until they add one" : null, squareConnected && hasTarget && !mapped.has(worker.id) ? "Not mapped to Square, so their sales won’t count towards the target" : null].filter(Boolean);
+  return notes.length ? <small className="candidate-note">{notes.join(" · ")}</small> : null;
+}
+
+// The economic terms a worker will see, always shown the same way.
+function ShiftTermsBar({ shift }: { shift: Parameters<typeof ShiftTerms>[0]["shift"] }) {
+  const base = shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor, amount = (value: number) => money(value, shift.currencyCode);
+  if (shift.earningsModel === "COMMISSION") return <dl className="terms-bar"><div><dt>Pay</dt><dd>{(shift.commissionBps ?? 0) / 100}% commission</dd></div></dl>;
+  return <dl className="terms-bar">
+    <div><dt>Base pay</dt><dd>{amount(base)}<small>{shift.earningsModel === "HOURLY" ? `${amount(shift.rateMinor ?? 0)}/hour` : "Fixed for the shift"}</small></dd></div>
+    {shift.incentiveBasis ? <><div><dt>Sales target</dt><dd>{amount(shift.incentiveTargetMinor ?? 0)}</dd></div><div><dt>Bonus</dt><dd>{amount(shift.incentiveAmountMinor)}</dd></div><div className="terms-bar-total"><dt>Up to</dt><dd>{amount(base + shift.incentiveAmountMinor)}</dd></div></> : shift.incentiveAmountMinor > 0 ? <div><dt>Potential incentive</dt><dd>{amount(shift.incentiveAmountMinor)}</dd></div> : null}
+  </dl>;
+}
 
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
@@ -38,7 +63,10 @@ export async function ManagerWorkspace({ area, status, date, department, ai, imp
   const scope=await requireScope(["OWNER","MANAGER"]);
   let data;
   try { data = await getOperations(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
-  const { team, departments, policies, requirements, offers, paymentIssues, payables, availability, timezone } = data;
+  const { team, departments, policies, paymentIssues, payables, availability, timezone } = data;
+  // A demo reset closes shifts rather than deleting their evidence, so demo views leave them out.
+  const requirements = scope.demo ? data.requirements.filter(row => row.status !== "CANCELLED") : data.requirements;
+  const offers = scope.demo ? data.offers.filter(row => requirements.some(shift => shift.id === row.offer.shiftId)) : data.offers;
   const visibleRequirements = requirements.filter(r => (!date || r.shiftDate === date) && (!department || r.departmentId === department));
   const coverage = (id: string) => {
     const rows = offers.filter(r => r.offer.shiftId === id);
@@ -46,7 +74,7 @@ export async function ManagerWorkspace({ area, status, date, department, ai, imp
   };
   // The one calculated week behind both the staffing panel and the Fill Shifts context.
   let staffing: WeeklyStaffing | null = null;
-  if (area === "plan" || area === "fill") { try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); } catch { staffing = null; } }
+  if (area === "plan" || area === "fill" || area === "overview") { try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); } catch { staffing = null; } }
   const planningOutlet = staffing?.outlets.find(row => row.outletId === scope.locationId) ?? null;
   const planningDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
   const gapDay = planningDate ? planningOutlet?.days.find(day => day.planningDate === planningDate) ?? null : null;
@@ -57,48 +85,55 @@ export async function ManagerWorkspace({ area, status, date, department, ai, imp
     conflict: offers.some(o => o.offer.workerId === worker.id && o.offer.status === "ACCEPTED" && requirements.some(s => s.id === o.offer.shiftId && s.id !== shift.id && ["PUBLISHED", "COMPLETED"].includes(s.status) && s.startsAt < shift.endsAt && s.endsAt > shift.startsAt)),
     availability: availabilityForShift(stated(worker.id), shiftWeekdays(shift, timezone)),
   });
+  const now = new Date();
+  // Square connection and mappings are read from FairShift's own records, not from Square.
+  let squareConnected = false, mappedWorkers = new Set<string>();
+  if (area === "team" || area === "fill") { try { squareConnected = !!await liveSquareConnection(getDatabase(), scope); if (squareConnected) mappedWorkers = new Set((await getSquareMappings(getDatabase(), scope)).map(row => row.workerId)); } catch { squareConnected = false; } }
+  // Finished-shift evidence for review, loaded once and used by both the sales check and the pay cards.
+  let work: Awaited<ReturnType<typeof getLocationPerformance>> | null = null;
+  if (area === "review") { try { work = await getLocationPerformance(getDatabase(), scope); } catch { work = null; } }
   return <>
-    <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Plan", fill: "Fill shifts", allocations: "Allocations", team: "Team", review: "Review" }[area]} />
+    <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Forecast & staffing", fill: "Fill shifts", allocations: "Allocations", team: "Workers", review: "Review & pay" }[area]} description={{ overview: undefined, plan: "Next week’s daily demand, what you already have covered, and what’s left to fill.", fill: "Turn a gap into a shift, then offer it to workers at this location.", allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: "Check finished work, approve what was earned, and pay it through PayPal." }[area]} />
     {area === "plan" || area === "fill" || area === "allocations" || area === "review" ? <ManagerJourney current={area} /> : null}
-    <ActionFeedback status={status} />
-    {area === "overview" ? <>
-      <section className="overview-strip"><div><span>Uncovered places</span><strong>{requirements.filter(r => r.status === "PUBLISHED").reduce((n,r) => n + Math.max(0, r.requiredHeadcount - coverage(r.id).allocated),0)}</strong></div><div><span>Awaiting response</span><strong>{offers.filter(r => r.offer.status === "OFFERED").length}</strong></div><div><span>Work to review</span><strong>{offers.filter(r => r.allocation?.state === "ALLOCATED" && !r.allocation.confirmedAt && requirements.find(s => s.id === r.offer.shiftId)!.endsAt <= new Date()).length}</strong></div></section>
-      <section className="panel"><h2>Needs attention</h2>{requirements.filter(r => r.status === "PUBLISHED" && coverage(r.id).allocated < r.requiredHeadcount).map(r => <div className="record-row" key={r.id}><span>{r.shiftDate} · {departments.find(d => d.id === r.departmentId)?.name ?? r.roleName} · {r.requiredHeadcount - coverage(r.id).allocated} uncovered</span><Link href={`/manager/fill#requirement-${r.id}`}>Fill shifts</Link></div>)}
-      {offers.some(r => r.offer.status === "ACCEPTED" && r.allocation?.state !== "ALLOCATED") ? <p><Link href="/manager/fill#work-opportunities">Accepted offers need allocation</Link></p> : null}
-      {paymentIssues.map(issue => <div className="record-row" key={issue.id}><span>{issue.workerName} · {issue.shiftDate} · {issue.status === "FAILED" ? "Payment needs attention" : "Incentive awaiting approval"}</span><Link href="/manager/review#incentive-review">Review payment</Link></div>)}
-      <Link href="/manager/review">Review completed work →</Link></section>
-    </> : null}
+    <ActionFeedback status={status} saved={area === "fill" ? "Saved. Check the shifts below for your next step" : "Changes saved"} />
+    {area === "overview" ? <ManagerToday today={localDate(now, timezone)} now={now} timezone={timezone} staffing={planningOutlet} requirements={requirements} offers={offers} payables={payables} paymentIssues={paymentIssues} departments={departments} team={team} /> : null}
     {area === "team" ? <>
-      <section className="panel"><h2>Location team · {team.length}</h2><div className="table-scroll"><table><thead><tr><th>Name</th><th>Contact</th><th>Sales attribution code</th><th>FairShift invitation</th></tr></thead><tbody>{team.map(({worker, invitation}) => <tr key={worker.id}><td>{worker.displayName}</td><td>{worker.telephone ?? "—"}<br />{worker.email ?? "—"}</td><td>{worker.attributionCode}</td><td>{invitation ? invitation.state === "CREATED_NOT_SENT" ? "Prepared · not sent" : invitation.state.replaceAll("_"," ") : "Existing profile"}{invitation && !["REDEEMED","REVOKED"].includes(invitation.state) ? <><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Revoke invite</button></form></>:null}</td></tr>)}</tbody></table></div></section>
-      <section className="panel"><h2>Add team member</h2><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p>Location: {scope.locationName}. Email is sent only when configured; invitation state is tracked separately.</p><button className="primary-button">Create & send FairShift invite</button></form></section>
+      <section className="panel"><h2>Worker pool · {team.length}</h2>{team.length ? <div className="table-frame"><table className="data-table worker-pool-table"><caption className="visually-hidden">Workers at this location</caption><thead><tr><th scope="col">Name</th><th scope="col">Availability</th><th scope="col">Shifts</th><th scope="col">Pay &amp; sales readiness</th><th scope="col">FairShift account</th></tr></thead><tbody>{team.map(({worker, invitation}) => { const days = availability.filter(row => row.workerId === worker.id && row.state === "AVAILABLE").map(row => DAY[row.isoWeekday - 1]); const open = offers.filter(o => o.offer.workerId === worker.id && o.offer.status === "OFFERED").length, booked = offers.filter(o => o.offer.workerId === worker.id && o.allocation?.state === "ALLOCATED" && requirements.find(r => r.id === o.offer.shiftId)!.endsAt > now).length; return <tr key={worker.id}><th scope="row">{worker.displayName}<small>{worker.email ?? worker.telephone ?? ""}</small><small>Sales attribution code {worker.attributionCode}</small></th><td data-label="Availability">{days.length ? days.join(" ") : "No availability set"}</td><td data-label="Shifts">{open || booked ? `${open} awaiting response · ${booked} booked` : "None"}</td><td data-label="Payment details">{worker.paypalPayoutEmail ? "Saved" : "Not added yet"}{squareConnected ? <small>{mappedWorkers.has(worker.id) ? "Mapped to a Square team member" : "Not mapped to Square: sales won’t count"}</small> : null}</td><td data-label="FairShift account">{worker.userId ? "Active" : invitation ? INVITATION[invitation.state] ?? "Invited" : "Existing profile"}{invitation && !["REDEEMED","REVOKED"].includes(invitation.state) ? <div className="button-row"><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Revoke invite</button></form></div>:null}</td></tr>; })}</tbody></table></div> : <StatePanel title="No workers yet"><p>Add the casual workers who fill your gaps. They appear here and can then be offered shifts.</p></StatePanel>}</section>
+      <details className="panel disclosure" open={!team.length}><summary>Add a worker</summary><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p className="form-span note">They join {scope.locationName} and receive an invitation by email.</p><button className="primary-button">Create & send FairShift invite</button></form></details>
     </> : null}
-    {area === "team" ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
+    {area === "team" && !scope.demo ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
     {area === "plan" ? await Staffing(scope, ai, staffing) : null}
     {area === "allocations" ? await Roster(scope, timezone) : null}
     {area === "fill" ? <>
-      <section className="panel" id="work-opportunities"><h2>Work to fill</h2><p>{scope.locationName} · times shown at this location ({timezone})</p>
-      <form method="get" action="/manager/fill" className="inline-form"><label>Trading day<input type="date" name="date" defaultValue={date} /></label><label>Department<select name="department" defaultValue={department ?? ""}><option value="">All departments</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label><button className="secondary-button">Apply</button><Link href="/manager/fill">All dates</Link></form>
+      {gapDay ? <section className="panel staffing-handoff" aria-label="Staffing requirement"><h2>{longDate(gapDay.planningDate)}</h2><p>FairShift identified a staffing requirement for {longDate(gapDay.planningDate)}. You decide what to create. Nothing is created or offered until you do.</p>
+          <ol className="demand-flow demand-flow-compact" aria-label="Why this day needs cover">
+            <li><span>Forecast demand</span><strong>{gapDay.forecastSalesMinor === null || !planningOutlet?.currency ? "Unavailable" : wholeMoney(gapDay.forecastSalesMinor, planningOutlet.currency)}</strong></li>
+            <li><span>Required labour</span><strong>{gapDay.requiredMinutes === null ? "Unavailable" : labourHours(gapDay.requiredMinutes)}</strong></li>
+            <li><span>Regular coverage</span><strong>{gapDay.regularMinutes === null ? "Not set" : labourHours(gapDay.regularMinutes)}</strong></li>
+            <li><span>Allocated casual</span><strong>{labourHours(gapDay.allocatedCasualMinutes)}</strong></li>
+            <li className="demand-flow-gap"><span>Casual labour gap</span><strong>{gapDay.casualGapMinutes === null ? "Unavailable" : labourHours(gapDay.casualGapMinutes)}</strong><small>Indicative shifts: {gapDay.indicativeShifts ?? "Unavailable"}</small></li>
+          </ol>
+          <p className="note">{planningOutlet?.policy ? `Calculated with ${policyDescription(planningOutlet.policy)}. ` : ""}{planningOutlet?.evidence ? `Sales evidence through ${longDate(planningOutlet.evidence.dataThrough)}.` : ""}</p></section> : null}
+      <details className="panel disclosure create-shift" id="add-requirement" open={(!!date && !visibleRequirements.length) || !requirements.length}><summary>Create a shift</summary>
+
+        {departments.length && policies.length ? <RequirementForm action={createRequirementAction} departments={departments.map(d => ({ id: d.id, name: d.name }))} policies={policies.map(p => ({ id: p.id, name: p.name, earningsModel: p.earningsModel, rateMinor: p.rateMinor, commissionBps: p.commissionBps, currencyCode: p.currencyCode, incentiveTargetMinor: p.incentiveTargetMinor, incentiveBonusMinor: p.incentiveBonusMinor }))} timeZone={timezone} locationName={scope.locationName}
+          defaults={{ departmentId: department, startsAt: planningDate ? `${planningDate}T09:00` : "", endsAt: planningDate ? `${planningDate}T17:00` : "", headcount: gapDay?.indicativeShifts || 1 }} context={<PlanContext date={date} department={department} />} /> : <StatePanel title="Pay terms are needed first" tone="warning"><p>The business owner must configure a department and work policy for this location before a shift can be created.</p></StatePanel>}</details>
+      <section className="panel" id="work-opportunities"><div className="panel-head"><h2>Work to fill</h2><Link className="text-link" href="/manager/allocations">See the schedule <span aria-hidden="true">→</span></Link></div><p className="panel-lede">Times shown at this location ({timezone}).</p>
+      <form method="get" action="/manager/fill" className="filter-row"><label>Trading day<input type="date" name="date" defaultValue={date} /></label><label>Department<select name="department" defaultValue={department ?? ""}><option value="">All departments</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label><button className="secondary-button">Apply</button>{date || department ? <Link className="text-link" href="/manager/fill">All dates</Link> : null}</form>
         {visibleRequirements.length ? visibleRequirements.sort((a,b) => a.startsAt.getTime() - b.startsAt.getTime()).map(r => {
           const c = coverage(r.id);
           const rows = offers.filter(o => o.offer.shiftId === r.id);
           const pool = team.filter(({worker}) => !rows.some(o => o.offer.workerId === worker.id)).map(({worker}) => ({ worker, state: poolState(worker, r) }));
           const hasCapacity = c.pending + c.accepted < r.requiredHeadcount;
-          return <article id={`requirement-${r.id}`} className="requirement" key={r.id}><h3>{dateTime(r.startsAt, timezone)} – {dateTime(r.endsAt, timezone)} · {departments.find(d => d.id === r.departmentId)?.name ?? r.roleName}</h3>
-          <p><strong>{r.earningsModel === "COMMISSION" ? `Commission ${(r.commissionBps ?? 0) / 100}%` : `${money(r.expectedEarningsMinor ?? r.guaranteedBasePayMinor, r.currencyCode)} expected earnings per worker`}</strong> · {scheduledHours(r.startsAt, r.endsAt)}</p>
-          <p>{r.requiredHeadcount} needed · {c.allocated} allocated · {c.accepted} accepted · {c.pending} awaiting response · {Math.max(0,r.requiredHeadcount-c.allocated)} still to fill</p><details><summary>Full terms · version {r.termsVersion}</summary><ShiftTerms shift={r} locationName={scope.locationName} timeZone={timezone} /></details>
-          {rows.length ? <><h4>Responses</h4>{rows.map(o => <div className="record-row" key={o.offer.id}><span>{o.workerName} · {responseLabel(o)}</span>{o.offer.status === "ACCEPTED" && o.allocation?.state !== "ALLOCATED" ? <form action={allocateAssignmentAction}><PlanContext date={date} department={department} /><input name="offerId" type="hidden" value={o.offer.id} /><button className="primary-button">Finalise allocation</button></form> : null}</div>)}</> : null}
-          {r.status === "PUBLISHED" ? <><h4>Worker pool · {scope.locationName}</h4>{pool.length ? pool.map(({worker, state}) => <div className="record-row" key={worker.id}><span>{worker.displayName} · {OPPORTUNITY_LABEL[state]}</span>{isOfferable(state) ? hasCapacity ? <form action={offerAssignmentAction}><PlanContext date={date} department={department} /><input type="hidden" name="shiftId" value={r.id} /><input type="hidden" name="workerId" value={worker.id} /><button className="secondary-button">Send offer</button></form> : <small>All places are offered</small> : null}</div>) : <p>Everyone at this location already has an offer for this work.</p>}<p className="method-note">Only workers at this location appear. Availability is what each worker has told FairShift; no reason is asked for.</p></> : null}
-          {r.status === "PUBLISHED" ? <details><summary>Change scheduled work</summary><form action={changeAssignmentAction} className="workspace-form"><PlanContext date={date} department={department}/><input name="shiftId" type="hidden" value={r.id}/><label>New start · {timezone}<input name="startsAt" type="datetime-local" required/></label><label>New end · {timezone}<input name="endsAt" type="datetime-local" required/></label><p>Material changes require renewed acceptance. Reviewed work is locked.</p><button className="secondary-button">Update schedule</button></form><form action={changeAssignmentAction}><input name="shiftId" type="hidden" value={r.id}/><input name="cancel" type="hidden" value="yes"/><label><input type="checkbox" required/> Confirm cancellation</label><button className="secondary-button">Cancel assignment</button></form></details>:null}
+          return <article id={`requirement-${r.id}`} className="shift-card" key={r.id}>
+          <header><div><h3>{dayLabel(r.startsAt, timezone)} · {timeRange(r.startsAt, r.endsAt, timezone)}</h3><p>{departments.find(d => d.id === r.departmentId)?.name ?? r.roleName} · {scope.locationName} · {scheduledHours(r.startsAt, r.endsAt)}</p></div><p className="shift-count"><strong>{Math.max(0,r.requiredHeadcount-c.allocated)} still to fill</strong><small>{r.requiredHeadcount} needed · {c.allocated} allocated · {c.accepted} accepted · {c.pending} awaiting response</small></p></header>
+          <ShiftTermsBar shift={r} />
+          {rows.length ? <><h4>Responses</h4>{rows.map(o => <div className="record-row" key={o.offer.id}><span>{o.workerName} · {responseLabel(o)}</span>{o.offer.status === "ACCEPTED" && o.allocation?.state !== "ALLOCATED" ? <form action={allocateAssignmentAction} data-demo-write=""><PlanContext date={date} department={department} /><input name="offerId" type="hidden" value={o.offer.id} /><button className="primary-button">Finalise allocation</button></form> : null}</div>)}</> : null}
+          {r.status === "PUBLISHED" ? <><h4>Worker pool · {scope.locationName}</h4>{pool.length ? <ul className="candidate-list">{pool.map(({worker, state}) => <li key={worker.id}><span><strong>{worker.displayName}</strong><StatusBadge tone={state === "AVAILABLE" ? "success" : isOfferable(state) ? "neutral" : "warning"}>{OPPORTUNITY_LABEL[state]}</StatusBadge></span>{isOfferable(state) ? hasCapacity ? <form action={offerAssignmentAction} data-demo-write=""><PlanContext date={date} department={department} /><input type="hidden" name="shiftId" value={r.id} /><input type="hidden" name="workerId" value={worker.id} /><button className="secondary-button">Send offer<span className="visually-hidden"> to {worker.displayName}</span></button></form> : <small>All places are offered</small> : <small>{CANNOT_OFFER[state]}</small>}{isOfferable(state) ? <WorkerReadiness worker={worker} squareConnected={squareConnected} mapped={mappedWorkers} hasTarget={!!r.incentiveBasis} /> : null}</li>)}</ul> : <p>{team.length ? "Everyone at this location already has an offer for this work." : "No workers at this location yet. Add them under Workers."}</p>}<p className="note">Only workers at this location appear. Availability is what each worker has told FairShift. You choose who gets an offer.</p></> : null}
+          {r.status === "PUBLISHED" ? <details className="disclosure-inline"><summary>Change scheduled work</summary><form action={changeAssignmentAction} className="workspace-form" data-demo-write=""><PlanContext date={date} department={department}/><input name="shiftId" type="hidden" value={r.id}/><label>New start · {timezone}<input name="startsAt" type="datetime-local" required/></label><label>New end · {timezone}<input name="endsAt" type="datetime-local" required/></label><p className="note">Workers who have accepted must accept the new terms. Reviewed work is locked.</p><button className="secondary-button">Update schedule</button></form><form action={changeAssignmentAction} className="workspace-form" data-demo-write=""><input name="shiftId" type="hidden" value={r.id}/><input name="cancel" type="hidden" value="yes"/><label className="acceptance-check"><input type="checkbox" required/> Confirm cancellation</label><button className="secondary-button">Cancel assignment</button></form><details className="disclosure-inline"><summary>Full terms · version {r.termsVersion}</summary><ShiftTerms shift={r} locationName={scope.locationName} timeZone={timezone} /></details></details>:null}
           </article>;
-        }) : <StatePanel title="No work opportunities yet"><p>Create one below when you are ready to fill a gap.</p></StatePanel>}
-      <p className="method-note">You can offer each piece of work to as many workers as it needs.</p></section>
-      <details className="panel" id="add-requirement" open={!!date}><summary>Create a paid work opportunity</summary>
-        {gapDay ? <section className="staffing-handoff" aria-label="Staffing requirement"><p><strong>FairShift identified a staffing requirement for {longDate(gapDay.planningDate)}.</strong> You are creating the work to address it. Nothing is created or offered until you do.</p>
-          <dl className="shift-terms"><div><dt>Required labour</dt><dd>{gapDay.requiredMinutes === null ? "Unavailable" : labourHours(gapDay.requiredMinutes)}</dd></div><div><dt>Regular coverage</dt><dd>{gapDay.regularMinutes === null ? "Not set" : labourHours(gapDay.regularMinutes)}</dd></div><div><dt>Allocated casual</dt><dd>{labourHours(gapDay.allocatedCasualMinutes)}</dd></div><div><dt>Casual labour gap</dt><dd>{gapDay.casualGapMinutes === null ? "Unavailable" : labourHours(gapDay.casualGapMinutes)}</dd></div><div><dt>Indicative shifts</dt><dd>{gapDay.indicativeShifts ?? "Unavailable"}</dd></div></dl>
-          <p className="method-note">{planningOutlet?.policy ? `Calculated with ${policyDescription(planningOutlet.policy)}. ` : ""}{planningOutlet?.evidence ? `Sales evidence through ${longDate(planningOutlet.evidence.dataThrough)}.` : ""}</p></section> : null}
-        {departments.length && policies.length ? <RequirementForm action={createRequirementAction} departments={departments.map(d => ({ id: d.id, name: d.name }))} policies={policies.map(p => ({ id: p.id, name: p.name, earningsModel: p.earningsModel, rateMinor: p.rateMinor, commissionBps: p.commissionBps, currencyCode: p.currencyCode, incentiveTargetMinor: p.incentiveTargetMinor, incentiveBonusMinor: p.incentiveBonusMinor }))} timeZone={timezone} locationName={scope.locationName}
-          defaults={{ departmentId: department, startsAt: planningDate ? `${planningDate}T09:00` : "", endsAt: planningDate ? `${planningDate}T17:00` : "", headcount: gapDay?.indicativeShifts || 1 }} context={<PlanContext date={date} department={department} />} /> : <p>The business owner must configure a department and work policy first.</p>}</details>
-      <p><Link href="/manager/allocations">See accepted and allocated work on the weekly schedule →</Link></p>
+        }) : <StatePanel title="No work opportunities yet"><p>Create one above when you are ready to fill a gap, or start from a day on <Link href="/manager/plan">Forecast &amp; staffing</Link>.</p></StatePanel>}
+      </section>
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
     {area === "review" ? <>
@@ -108,22 +143,40 @@ export async function ManagerWorkspace({ area, status, date, department, ai, imp
         { label: "Approve", waiting: payables.filter(p => p.payable.status === "PENDING_REVIEW" && !(p.payable.incentiveRequired && p.payable.incentiveAmountMinor === null)).length, href: "#base-payables" },
         { label: "Pay with PayPal", waiting: payables.filter(p => p.payable.status === "APPROVED" && (!p.payout || p.payout.status === "NOT_SENT")).length, href: "#base-payables" },
       ]} />
-      <section className="panel" id="confirm-work"><h2>Confirm work performed</h2>{offers.filter(o => o.allocation?.state === "ALLOCATED").map(o => { const r = requirements.find(r => r.id === o.offer.shiftId)!; const payable = payables.find(p => p.payable.allocationId === o.allocation!.id)?.payable; return <div className="requirement" key={o.offer.id}><h3>{o.workerName} · {r.shiftDate} · {r.roleName}</h3><ShiftTerms shift={r} locationName={scope.locationName} timeZone={timezone} />{o.allocation?.confirmedAt ? <>
+      {(() => { const allocated = offers.filter(o => o.allocation?.state === "ALLOCATED"); const isOver = (o: (typeof offers)[number]) => requirements.find(r => r.id === o.offer.shiftId)!.endsAt <= now; const waiting = allocated.filter(o => !o.allocation?.confirmedAt && isOver(o)), upcoming = allocated.filter(o => !o.allocation?.confirmedAt && !isOver(o)), done = allocated.filter(o => o.allocation?.confirmedAt);
+        const item = (o: (typeof offers)[number]) => { const r = requirements.find(r => r.id === o.offer.shiftId)!; const payable = payables.find(p => p.payable.allocationId === o.allocation!.id)?.payable; return <div className="requirement" key={o.offer.id}><h3>{o.workerName} · {dayLabel(r.startsAt, timezone)} · {timeRange(r.startsAt, r.endsAt, timezone)}</h3><ShiftTermsBar shift={r} />{o.allocation?.confirmedAt ? <>
         <p>Work confirmed {dateTime(o.allocation.confirmedAt, timezone)} ({timezone}) as scheduled.</p>
         {payable ? <p>Base payable {money(payable.baseAmountMinor, payable.currencyCode)} from the accepted terms · {payable.incentiveRequired && payable.incentiveAmountMinor === null ? <a href="#performance">Sales results needed</a> : <a href="#base-payables">{payableLabel(payable.status, payables.find(p => p.payable.id === payable.id)?.payout)}</a>}</p>
           : r.earningsModel === "COMMISSION" ? <p>Commission is not payable: verified attributed sales are required.</p>
           : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><input name="confirmed" type="hidden" value="yes" /><p>The base payable for this confirmed work has not been recorded.</p><button className="secondary-button">Calculate base payable</button></form>}
-      </> : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><label><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > new Date()}>Confirm work</button>{r.endsAt > new Date() ? <small>Available after the scheduled end.</small> : null}</form>}</div>; })}</section>
-      {await PerformanceReview(scope, payables, timezone, importResult)}
-      <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Payments &amp; approvals · confirmed work</h2>
-        <p className="method-note">Payables are calculated by FairShift: the base from the terms each worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied. Approving confirms the calculated amount; it cannot be edited. Sending the payout pays exactly the approved amount and currency through PayPal (Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
+      </> : <form action={confirmWorkAction} className="workspace-form"><input name="offerId" type="hidden" value={o.offer.id} /><label className="acceptance-check"><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > now}>Confirm work</button>{r.endsAt > now ? <small>Available after the scheduled end.</small> : null}</form>}</div>; };
+        return <section className="panel" id="confirm-work"><h2>Confirm work performed</h2>{waiting.length ? waiting.map(item) : <p className="note">No finished work is waiting to be confirmed.</p>}{upcoming.length ? <details className="disclosure-inline"><summary>Not finished yet · {upcoming.length}</summary>{upcoming.map(item)}</details> : null}{done.length ? <details className="disclosure-inline"><summary>Already confirmed · {done.length}</summary>{done.map(item)}</details> : null}</section>; })()}
+      {await PerformanceReview(scope, payables, timezone, work, importResult)}
+      <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Payments &amp; approvals</h2>
         {payables.length ? <>
           <div className="overview-strip">
             <div><span>Awaiting approval</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "PENDING_REVIEW").map(p => ({ amountMinor: finalPayableMinor(p.payable), currencyCode: p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Approved · not yet paid</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "APPROVED" && p.payout?.status !== "PAID").map(p => ({ amountMinor: p.payable.approvedAmountMinor ?? 0, currencyCode: p.payable.approvedCurrencyCode ?? p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Paid · confirmed by PayPal</span><strong>{currencyTotals(payables.filter(p => p.payout?.status === "PAID").map(p => ({ amountMinor: p.payout!.amountMinor, currencyCode: p.payout!.currencyCode }))) || "None"}</strong></div>
           </div>
-          <div className="table-scroll" role="region" aria-label="Payables and payouts" tabIndex={0}><table><thead><tr><th>Worker</th><th>Shift</th><th>Accepted terms</th><th>Confirmed · {timezone}</th><th>Payable</th><th>Status</th><th>Action</th></tr></thead><tbody>{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved }) => <tr key={payable.id}><td>{workerName}</td><td>{shiftDate} · {roleName}</td><td>{payableBasis(payable)} · version {payable.termsVersion}</td><td>{dateTime(payable.confirmedAt, timezone)}</td><td><strong>{payable.incentiveRequired && payable.incentiveAmountMinor === null ? "Total not known yet" : `Total ${money(finalPayableMinor(payable), payable.currencyCode)}`}</strong>{payable.incentiveRequired ? <><br /><small>{payable.incentiveAmountMinor === null ? `${money(finalPayableMinor(payable), payable.currencyCode)} base only · bonus not known yet` : `${money(payable.baseAmountMinor, payable.currencyCode)} base + ${money(payable.incentiveAmountMinor, payable.currencyCode)} bonus`}</small></> : null}{payable.approvedAt ? <><br /><small>Approved {dateTime(payable.approvedAt, timezone)}</small></> : null}</td><td><PayableBadge status={payable.status} payout={payout} /><PayoutProgress status={payable.status} payout={payout} /></td><td><PayableAction payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} /></td></tr>)}</tbody></table></div>
+          <div className="pay-cards">{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved }) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
+            {scope.demo ? <EarlierEvidenceLabel /> : null}
+            <header><div><h3>{workerName}</h3><p>{longDate(shiftDate)} · {roleName}</p></div><PayableBadge status={payable.status} payout={payout} /></header>
+            <dl className="pay-sum">
+              <div><dt>Accepted terms<small>{payableBasis(payable)} · version {payable.termsVersion}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
+              {payable.incentiveRequired ? <>
+                <div className="pay-sum-evidence"><dt>Attributed sales<small>{evidence?.result ? `${salesCount} ${salesCount === 1 ? "sale" : "sales"} · ${evidence.result.evidenceProvenance === "SQUARE_TEAM_MEMBER" ? "Square Sandbox attributed sales" : "Imported · not provider-verified"}` : "Not confirmed yet"}</small></dt><dd>{salesMinor === null || (!evidence?.result && salesCount === 0) ? "Not known yet" : amount(salesMinor)}</dd></div>
+                {evidence ? <div className="pay-sum-evidence"><dt>Target</dt><dd>{amount(evidence.terms.targetMinor)}</dd></div> : null}
+                <div><dt>Bonus{evidence && !unknown ? <small>{payable.incentiveAmountMinor! > 0 ? "Target reached" : "Target not reached"}</small> : null}</dt><dd>{unknown ? "Not known yet" : amount(payable.incentiveAmountMinor!)}</dd></div>
+              </> : null}
+              <div className="pay-sum-total"><dt>Total payable{payable.incentiveRequired && !unknown ? <small>{amount(payable.baseAmountMinor)} base + {amount(payable.incentiveAmountMinor!)} bonus</small> : null}</dt><dd>{unknown ? "Total not known yet" : `Total ${money(finalPayableMinor(payable), payable.currencyCode)}`.replace("Total ", "")}</dd></div>
+            </dl>
+            {unknown ? <p className="note">{amount(finalPayableMinor(payable))} base only · bonus not known yet</p> : null}
+            {payable.approvedAt ? <p className="note">Approved {dateTime(payable.approvedAt, timezone)} ({timezone})</p> : null}
+            <PayoutProgress status={payable.status} payout={payout} />
+            <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} /></div>
+          </article>; })}</div>
+          <p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
         </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
       </section>
       {scope.organisationId === DEMO_ORGANISATION_ID ? await DemoReview() : null}
@@ -150,23 +203,20 @@ function ImportOutcome({ value }: { value?: string }) {
   </StatePanel>;
 }
 // Sales evidence for incentive shifts, in aggregate: count and value, never transactions.
-async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<typeof getOperations>>["payables"], timezone: string, importResult?: string) {
-  let work: Awaited<ReturnType<typeof getLocationPerformance>>;
+async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<typeof getOperations>>["payables"], timezone: string, work: Awaited<ReturnType<typeof getLocationPerformance>> | null, importResult?: string) {
   let freshness: Awaited<ReturnType<typeof getSquareFreshness>> = null;
-  try { work = await getLocationPerformance(getDatabase(), scope); freshness = await getSquareFreshness(getDatabase(), scope); } catch { return <StatePanel title="Sales results are unavailable" tone="warning"><p>Please try again shortly. Nothing has been calculated as zero.</p></StatePanel>; }
-  return <section className="panel" id="performance" aria-labelledby="performance-title"><h2 id="performance-title">Performance · attributed sales</h2>
-    {freshness ? <>
-      <p className="method-note">Sales come from Square Sandbox payments carrying the team-member identity mapped to a worker, within their accepted shift at this location. This doesn’t show who was logged in to a till. Refunds are recorded but don’t change the result. The bonus is calculated from the accepted terms and can’t be edited.</p>
-      {work.some(item => !item.result) ? <SquareLiveRefresh timeZone={timezone} initial={{ revision: freshness.revision, failed: freshness.attention || freshness.lastFailed, lastCheckedAt: freshness.lastSuccessAt?.toISOString() ?? null }} /> : null}
-    </> : <p className="method-note">Sales are imported, matched to a worker by attribution code within their accepted shift at this location, and marked “Imported · not provider-verified”. Confirming them for payment doesn’t change that. The bonus is calculated from the accepted terms and can’t be edited.</p>}
-    <ImportOutcome value={importResult} />
-    {work.length ? work.map(item => {
+  try { freshness = await getSquareFreshness(getDatabase(), scope); } catch { work = null; }
+  if (!work) { return <StatePanel title="Sales results are unavailable" tone="warning"><p>Please try again shortly. Nothing has been calculated as zero.</p></StatePanel>; }
+  const hasPayable = (item: (typeof work)[number]) => payables.some(row => row.payable.allocationId === item.allocationId);
+  // Sales are checked after the work is confirmed, so an unconfirmed shift waits in a disclosure.
+  const open = work.filter(item => !item.result && hasPayable(item)), notYet = work.filter(item => !item.result && !hasPayable(item)), settled = work.filter(item => item.result);
+  const card = (item: (typeof work)[number]) => {
       const payable = payables.find(row => row.payable.allocationId === item.allocationId)?.payable, currency = item.terms.currencyCode, amount = (value: number) => money(value, currency);
       const square = item.result ? item.result.evidenceProvenance === "SQUARE_TEAM_MEMBER" : item.evidence === "SQUARE";
       const none = square ? "None attributed yet" : "None imported yet";
       const count = item.result?.salesCount ?? item.attributed.count, value = item.result?.salesMinor ?? item.attributed.minor, base = payable?.baseAmountMinor;
-      return <article className="requirement" key={item.allocationId}><h3>{item.workerName} · {item.shiftDate} · {item.roleName}</h3>
-        <p><StatusBadge tone="warning">{square ? "Square Sandbox attributed sales" : !item.result && item.evidence === "MIXED" ? "Square Sandbox and imported sales" : "Imported · not provider-verified"}</StatusBadge> {item.result ? <strong>Confirmed for payment</strong> : <strong>Not complete yet</strong>}</p>
+      return <article className="requirement" key={item.allocationId}><h3>{item.workerName} · {longDate(item.shiftDate)} · {item.roleName}</h3>
+        <p><StatusBadge tone="fact">{square ? "Square Sandbox attributed sales" : !item.result && item.evidence === "MIXED" ? "Square Sandbox and imported sales" : "Imported · not provider-verified"}</StatusBadge> {item.result ? <strong>Confirmed for payment</strong> : <strong>Not complete yet</strong>}</p>
         <dl className="shift-terms">
           <div><dt>Attributed sales</dt><dd>{count === 0 && !item.result ? none : count}</dd></div>
           <div><dt>Attributed sales value</dt><dd>{count === 0 && !item.result ? "Not known yet" : amount(value)}</dd></div>
@@ -176,15 +226,24 @@ async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<type
           <div><dt>Bonus earned</dt><dd>{item.result ? `${amount(item.result.earnedMinor)} · target ${item.result.earnedMinor > 0 ? "reached" : "not reached"}` : "Not known yet"}</dd></div>
           <div><dt>Final payable</dt><dd>{payable && item.result ? amount(finalPayableMinor(payable)) : "Not known yet"}</dd></div>
         </dl>
-        {item.result ? null : payable ? <form action={confirmPerformanceAction}><input type="hidden" name="allocationId" value={item.allocationId} /><input type="hidden" name="seenCount" value={item.attributed.count} /><input type="hidden" name="seenMinor" value={item.attributed.minor} />
-          <label><input type="checkbox" name="complete" value="yes" required /> {count === 0 ? "I’ve checked: this worker made no attributed sales on this shift." : "I’ve checked: these sales are complete for this shift."}</label>
+        {item.result ? null : payable ? <form action={confirmPerformanceAction} className="workspace-form"><input type="hidden" name="allocationId" value={item.allocationId} /><input type="hidden" name="seenCount" value={item.attributed.count} /><input type="hidden" name="seenMinor" value={item.attributed.minor} />
+          <label className="acceptance-check"><input type="checkbox" name="complete" value="yes" required /> {count === 0 ? "I’ve checked: this worker made no attributed sales on this shift." : "I’ve checked: these sales are complete for this shift."}</label>
           <button className="primary-button">Confirm sales results</button></form>
           : <p><small>Confirm the work above before its sales results. Allocated {dateTime(item.startsAt, timezone)}.</small></p>}
-      </article>; }) : <StatePanel title="No incentive shifts yet"><p>Allocated work with a sales target appears here.</p></StatePanel>}
+      </article>; };
+  return <section className="panel" id="performance" aria-labelledby="performance-title"><h2 id="performance-title">Sales check · attributed sales</h2>
+    {freshness ? <>
+      <p className="note">Sales come from Square Sandbox payments carrying the team-member identity mapped to a worker, within their accepted shift at this location. This doesn’t show who was logged in to a till. Refunds are recorded but don’t change the result. The bonus is calculated from the accepted terms and can’t be edited.</p>
+      {work.some(item => !item.result) && !scope.demo ? <SquareLiveRefresh timeZone={timezone} initial={{ revision: freshness.revision, failed: freshness.attention || freshness.lastFailed, lastCheckedAt: freshness.lastSuccessAt?.toISOString() ?? null }} /> : null}
+    </> : <p className="note">Sales are imported, matched to a worker by attribution code within their accepted shift at this location, and marked “Imported · not provider-verified”. Confirming them for payment doesn’t change that. The bonus is calculated from the accepted terms and can’t be edited.</p>}
+    <ImportOutcome value={importResult} />
+    {!work.length ? <StatePanel title="No incentive shifts yet"><p>Allocated work with a sales target appears here.</p></StatePanel> : open.length ? open.map(card) : <p className="note">No sales results are waiting to be checked.</p>}
+    {notYet.length ? <details className="disclosure-inline"><summary>Waiting for the work to be confirmed · {notYet.length}</summary>{notYet.map(card)}</details> : null}
+    {settled.length ? <details className="disclosure-inline"><summary>Already confirmed · {settled.length}</summary>{settled.map(card)}</details> : null}
     {freshness ? null : <details><summary>Import attributed sales</summary>
       <form action={importAttributedSalesAction} className="workspace-form">
         <label>Paste rows from your sales export<textarea name="rows" rows={6} required spellCheck={false} placeholder="transaction_id,attribution_code,occurred_at,amount,currency" /></label>
-        <p className="method-note">Columns: transaction_id, attribution_code, occurred_at (with a time zone offset, such as 2026-11-03T11:15:00+00:00), amount (such as 25.00), currency. Importing the same rows again doesn’t count them twice. Don’t include customer or product details.</p>
+        <p className="note">Columns: transaction_id, attribution_code, occurred_at (with a time zone offset, such as 2026-11-03T11:15:00+00:00), amount (such as 25.00), currency. Importing the same rows again doesn’t count them twice. Don’t include customer or product details.</p>
         <button className="secondary-button">Import sales</button>
       </form></details>}
   </section>;
@@ -197,7 +256,9 @@ function payoutReason(lastError: unknown) {
 type ManagerPayables = Awaited<ReturnType<typeof getOperations>>["payables"];
 // One next action per payable: approve, then send, then check status. Each form posts
 // only the payable ID; the server reads amount, currency and recipient itself.
-function PayableAction({ payable, payout, paymentDetailsSaved, payoutsConfigured, timezone }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { payoutsConfigured: boolean; timezone: string }) {
+function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, payoutsConfigured, timezone }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { demo?: boolean; payoutsConfigured: boolean; timezone: string }) {
+  // The public demo never reaches PayPal. It says so, and shows no action that would try.
+  if (demo && !payout) return <p className="note">Approving and paying are turned off in the public demo, so nothing here can reach PayPal.</p>;
   const id = <input name="payableId" type="hidden" value={payable.id} />;
   if (payable.status === "PENDING_REVIEW" && payable.incentiveRequired && payable.incentiveAmountMinor === null) return <a href="#performance">Confirm sales results first</a>;
   if (payable.status === "PENDING_REVIEW") return <form action={approvePayableAction}>{id}<button className="primary-button">Approve {money(finalPayableMinor(payable), payable.currencyCode)}</button></form>;
@@ -243,25 +304,25 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
   const outlet = staffing.outlets.find(row => row.outletId === scope.locationId);
   if (!outlet) return <StatePanel title="Staffing unavailable" tone="warning"><p>This location is not available for planning.</p></StatePanel>;
   const evidence = outlet.evidence;
-  return <section className="panel staffing-week" aria-labelledby="staffing-week-title">
-    <h2 id="staffing-week-title">Planning week staffing</h2>
-    <p>{scope.locationName} · Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</p>
-    {evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "SQUARE" ? "Square Sandbox sales · connected seller" : evidence.source === "ZETTLE" ? "Earlier connected-account sales" : "Verified PayPal Sandbox sales"}</DataLabel> : null}
-    <p className="method-note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
+  return <div className="staffing-week">
+    <section className="panel" aria-labelledby="week-cover-title">
+    <p className="provenance-line">{evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "SQUARE" ? "Square Sandbox sales · connected seller" : evidence.source === "ZETTLE" ? "Earlier connected-account sales" : "Verified PayPal Sandbox sales"}</DataLabel> : null}<span>Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</span></p>
+    <p className="note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
     <WeekCover outlet={outlet} />
-    {outlet.totals ? <div className="status-grid forecast-grid" aria-label="Planning week totals">
+    </section>
+    {outlet.totals ? <div className="metric-strip" aria-label="Planning week totals">
+      <article><span>Expected sales</span><strong>{outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "Not available"}</strong><small>{outlet.commercial?.comparable && outlet.currency ? `Comparable days ${wholeMoney(outlet.commercial.comparable.salesMinor, outlet.currency)}` : "Forecast, not recorded sales"}</small></article>
       <article><span>Required labour</span><strong>{labourHours(outlet.totals.requiredMinutes)}</strong><small>From forecast demand</small></article>
       <article><span>Existing coverage</span><strong>{labourHours(outlet.totals.coverageMinutes)}</strong><small>Regular {labourHours(outlet.totals.regularMinutes)} · allocated casual {labourHours(outlet.totals.allocatedCasualMinutes)}</small></article>
-      <article><span>Casual labour gap</span><strong>{labourHours(outlet.totals.casualGapMinutes)}</strong><small>Approx. {outlet.totals.indicativeShifts} shifts to fill · none created</small></article>
+      <article className="metric-gap"><span>Casual labour gap</span><strong>{labourHours(outlet.totals.casualGapMinutes)}</strong><small>Approx. {outlet.totals.indicativeShifts} shifts to fill · none created</small></article>
       <article><span>Estimated cost to fill</span><strong>{outlet.commercial?.cost && outlet.currency ? outlet.commercial.cost.lowMinor === outlet.commercial.cost.highMinor ? wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency) : `${wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency)} – ${wholeMoney(outlet.commercial.cost.highMinor, outlet.currency)}` : "Not available"}</strong><small>{outlet.commercial?.cost ? "Estimate on this location’s work policies" : "Needs a work policy in this currency"}</small></article>
-      <article><span>Expected sales</span><strong>{outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "Not available"}</strong><small>{outlet.commercial?.comparable && outlet.currency ? `Comparable days ${wholeMoney(outlet.commercial.comparable.salesMinor, outlet.currency)}` : "Forecast, not recorded sales"}</small></article>
     </div> : null}
-    <div className="history-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="history-table" planHref={fillHref} /></div>
-    <p className="method-note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>
-    <h3>AI priorities</h3>
-    <DecisionNote />
-    {await LocationAssessment(scope, staffing, aiNotice)}
-  </section>;
+    <section className="panel ai-section"><h2 className="visually-hidden">AI priorities</h2><DecisionNote />{await LocationAssessment(scope, staffing, aiNotice)}</section>
+    <details className="panel disclosure"><summary>Day-by-day figures</summary>
+    <div className="table-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="data-table" planHref={fillHref} /></div>
+    <p className="note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>
+    </details>
+  </div>;
 }
 // AI interpretation of this location's staffing week. A failure here never hides the
 // calculated figures above it.
@@ -277,5 +338,6 @@ async function Roster(scope:Scope, timeZone:string) {
   let schedule;
   try { schedule = await getAllocationSchedule(getDatabase(),scope); }
   catch { return <WorkspaceUnavailable />; }
-  return schedule.events.length ? <AllocationScheduler schedule={schedule} timeZone={timeZone} /> : <StatePanel title="No shift allocations" />;
+  if (scope.demo) { const shown = schedule.events.filter(event => event.state !== "Cancelled"); schedule = { ...schedule, events: shown, assignments: schedule.assignments.filter(row => shown.some(event => event.id === row.eventId)) }; }
+  return schedule.events.length ? <AllocationScheduler schedule={schedule} timeZone={timeZone} /> : <StatePanel title="No shift allocations yet"><p>Create a shift and send offers on <Link href="/manager/fill">Fill shifts</Link>. It appears on this schedule straight away.</p></StatePanel>;
 }

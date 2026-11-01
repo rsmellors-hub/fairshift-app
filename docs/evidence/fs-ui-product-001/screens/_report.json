@@ -1,0 +1,556 @@
+[
+ {
+  "name": "public-home",
+  "url": "/",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-home-390",
+  "url": "/",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-product",
+  "url": "/product",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-pricing",
+  "url": "/pricing",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-pricing-390",
+  "url": "/pricing",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-faq",
+  "url": "/faq",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-demo",
+  "url": "/demo",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "public-demo-390",
+  "url": "/demo",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "auth-sign-in",
+  "url": "/sign-in",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "auth-register",
+  "url": "/register",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "auth-register-390",
+  "url": "/register",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-overview",
+  "url": "/owner",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-overview-1024",
+  "url": "/owner",
+  "width": 1024,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-overview-768",
+  "url": "/owner",
+  "width": 768,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-overview-390",
+  "url": "/owner",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-sales",
+  "url": "/owner/reporting",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-forecast",
+  "url": "/owner/forecast",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-forecast-1024",
+  "url": "/owner/forecast",
+  "width": 1024,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-forecast-390",
+  "url": "/owner/forecast",
+  "width": 390,
+  "overflow": false,
+  "off": [
+   "TABLE.",
+   "THEAD.",
+   "TR."
+  ],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-location-leeds",
+  "url": "/owner/locations/ec5379a8-c3ef-4062-8c09-ca7350908dcf",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-location-390",
+  "url": "/owner/locations/ec5379a8-c3ef-4062-8c09-ca7350908dcf",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-locations",
+  "url": "/owner/locations",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-managers",
+  "url": "/owner/workforce",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-compensation",
+  "url": "/owner/policies",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-payments",
+  "url": "/owner/payments",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-settings",
+  "url": "/owner/settings",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-today",
+  "url": "/manager",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-today-1024",
+  "url": "/manager",
+  "width": 1024,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-forecast",
+  "url": "/manager/plan",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-fill",
+  "url": "/manager/fill",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-fill-gap",
+  "url": "/manager/fill?date=2026-11-07",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-fill-768",
+  "url": "/manager/fill",
+  "width": 768,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-allocations",
+  "url": "/manager/allocations",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-allocations-1024",
+  "url": "/manager/allocations",
+  "width": 1024,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-workers",
+  "url": "/manager/team",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-review",
+  "url": "/manager/review",
+  "width": 1440,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-review-390",
+  "url": "/manager/review",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-home-target-390",
+  "url": "/worker",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-shifts-390",
+  "url": "/worker/shifts",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-earnings-paid-390",
+  "url": "/worker/earnings",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-profile-390",
+  "url": "/worker/profile",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-availability-390",
+  "url": "/worker/availability",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-offer-390",
+  "url": "/worker/shifts",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-home-offer-390",
+  "url": "/worker",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "worker-earnings-desktop",
+  "url": "/worker/earnings",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-check-email",
+  "url": "/check-email",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-check-email-390",
+  "url": "/check-email",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-plans",
+  "url": "/subscribe?verified=1",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-plans-annual",
+  "url": "/subscribe?verified=1&period=ANNUAL",
+  "width": 1024,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-workplace",
+  "url": "/onboarding",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "onboarding-workplace-390",
+  "url": "/onboarding",
+  "width": 390,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "account",
+  "url": "/account",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-today-768",
+  "url": "/manager",
+  "width": 768,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "owner-forecast-1366",
+  "url": "/owner/forecast",
+  "width": 1366,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ },
+ {
+  "name": "manager-allocations-768",
+  "url": "/manager/allocations",
+  "width": 768,
+  "overflow": false,
+  "off": [],
+  "errors": [],
+  "copy": [],
+  "small": []
+ }
+]

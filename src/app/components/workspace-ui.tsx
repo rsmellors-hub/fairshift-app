@@ -7,7 +7,7 @@ export { money, scheduledHours };
 
 // Always the work location's time: there is deliberately no default zone.
 export function dateTime(value: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short", timeZone }).format(value);
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone }).format(value);
 }
 
 export function paymentLabel(status?: string | null) {
@@ -113,6 +113,7 @@ const FEEDBACK: Record<string, string> = {
   "square-demo-unmapped": "Map this worker to a Square team member first.",
   "square-demo-refused": "Square did not create this Sandbox payment. Nothing was recorded.",
   "square-demo-shift": "That demo shift could not be offered. Check the worker and the time.",
+  "demo-reset": "The prepared demonstration state is back. Earlier completed evidence was not changed.",
   "square-sale-recorded": "Square created the Sandbox payment. It counts once FairShift has read it back from Square, within about 30 seconds.",
   "square-demo-shift-created": "Demo shift offered. The worker accepts it on their Shifts page, then you finalise it in Allocations.",
   "sales-evidence-incomplete": "Square hasn’t been checked since this shift ended, so these sales may be incomplete. Try again shortly.",
@@ -138,11 +139,16 @@ const FEEDBACK: Record<string, string> = {
   "work-not-confirmed": "Confirm the work before its sales results.",
   "import-format": "The first line must be: transaction_id,attribution_code,occurred_at,amount,currency. An import can have at most 2,000 rows.",
   "terms-changed": "The details of this work changed. Check the new details before responding.",
+  "demo-read-only": "This part of the public demo can’t be changed. Provider actions and account settings are turned off here.",
+  "demo-protected": "This is prepared demonstration evidence, so it can’t be changed.",
+  "demo-full": "The demo schedule is full. Use Reset demo to restore the prepared state.",
+  "demo-limit": "The demo is busy. Wait a few minutes and try again.",
+  "demo-unavailable": "The demo isn’t available right now.",
 };
 
-export function ActionFeedback({ status }: { status?: string }) {
+export function ActionFeedback({ status, saved = "Changes saved" }: { status?: string; saved?: string }) {
   if (!status) return null;
-  const done = status === "saved" ? "Changes saved" : DONE[status];
+  const done = status === "saved" ? saved : status === "demo-reset" ? "Demo restored" : DONE[status];
   return <StatePanel title={done ?? "Action could not be completed"} tone={done ? "success" : "warning"}>
     {status !== "saved" ? <p>{FEEDBACK[status] ?? "Reload this page and check the current state before trying again. No payment confirmation is implied."}</p> : null}
   </StatePanel>;

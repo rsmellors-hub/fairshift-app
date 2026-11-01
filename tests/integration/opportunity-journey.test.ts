@@ -112,6 +112,8 @@ describe("opportunity to allocation, across roles", () => {
       const context = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
       // £2,000 at £100 an hour is 20 h; 8 h regular leaves 12 h: approximately 2 eight-hour shifts.
       for (const text of ["FairShift identified a staffing requirement for Mon, 19 Jan 2026", "Required labour", "20 h", "Regular coverage", "8 h", "Casual labour gap", "12 h", "Indicative shifts", "this business’s configured assumption", "Sales evidence through", "Nothing is created or offered until you do", `value="${monday}T09:00"`, "Europe/London"]) expect(context).toContain(text);
+      // The gap stays in view even when the Create panel is closed.
+      expect(context.indexOf("FairShift identified")).toBeLessThan(context.indexOf('id="add-requirement"'));
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
 
       // A UK Manager's 10:00 is 10:00 in the UK.
@@ -151,7 +153,7 @@ describe("opportunity to allocation, across roles", () => {
       // The Manager sees the acceptance and finalises it.
       page = await render(manager, () => ManagerWorkspace({ area: "fill" }));
       expect(page).toContain("Accepted · ready to allocate");
-      expect(await render(manager, () => ManagerWorkspace({ area: "overview" }))).toContain("Accepted offers need allocation");
+      expect(await render(manager, () => ManagerWorkspace({ area: "overview" }))).toContain("Finalise");
       expect(await act(manager, allocateAssignmentAction, { offerId: offer.id })).toContain("status=saved");
       expect(await act(manager, allocateAssignmentAction, { offerId: offer.id })).toContain("status=saved");
       const allocations = await t.db.select().from(workAllocations).where(eq(workAllocations.offerId, offer.id));
@@ -283,7 +285,7 @@ describe("worker pool and offers", () => {
       const article = page.split("<article").find(a => a.includes(`requirement-${shift.id}`))!;
       const pool = article.slice(article.indexOf("Worker pool"));
       for (const [name, state] of [["Free", "Availability not provided"], ["Away", "Unavailable"], ["Yes", "Available"], ["Busy", "Already working"], ["Invited", "Awaiting activation"], ["Off", "Inactive"]]) {
-        expect(pool).toMatch(new RegExp(`${name} [^<]*· ${state}<`));
+        expect(pool).toMatch(new RegExp(`<strong>${name}[^<]*</strong><span class="status-badge[^"]*">${state}<`));
       }
       expect(pool.match(/Send offer/g)).toHaveLength(2);
       // The reason a worker is away is never asked for or shown.
@@ -543,7 +545,7 @@ describe("payment truthfulness and downstream regression", () => {
       for (const text of ["£0.10", "£1,234,567.89", "Weekend visual merchandising", "Northern Quarter"]) expect(page).toContain(text);
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).toContain("You have 2 new shift offers");
       const availability = await render(worker, () => WorkerWorkspace({ area: "availability" }));
-      for (const text of ["When can you work?", "Monday", "Sunday", "Can’t work", "Not sure", "You don’t need to give a reason"]) expect(availability).toContain(text);
+      for (const text of ["When can you work?", "Monday", "Sunday", "Unavailable", "Not set", "You don’t need to give a reason"]) expect(availability).toContain(text);
     } finally { await t.close(); }
   });
 });

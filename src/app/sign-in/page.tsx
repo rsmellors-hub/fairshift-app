@@ -1,6 +1,35 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signInAction, requestResetAction } from "@/app/auth-actions";
-export default async function SignIn({searchParams}:{searchParams:Promise<{status?:string}>}) {
- const {status}=await searchParams;
- return <main className="centered-shell"><h1>Sign in to FairShift</h1>{status === "error" ? <p role="alert">Email or password was not accepted, or attempts are temporarily limited.</p>:null}{status === "verified" ? <p>Email verified. Sign in to continue securely on this browser.</p>:null}{status === "reset-requested" ? <p>If an account exists and email delivery is available, a reset link has been requested.</p>:null}<form action={signInAction} className="workspace-form"><label>Email<input name="email" type="email" required autoComplete="email" /></label><label>Password<input name="password" type="password" required maxLength={128} autoComplete="current-password" /></label><button className="primary-button">Sign in</button></form><Link href="/register">Create an identity</Link><details><summary>Reset password</summary><form action={requestResetAction} className="workspace-form"><label>Email<input name="email" type="email" required /></label><button className="secondary-button">Request reset link</button></form></details></main>;
+import { AuthShell } from "@/app/components/auth-shell";
+import { PasswordField } from "@/app/components/password-field";
+
+export const metadata: Metadata = { title: "Sign in" };
+
+const NOTICE: Record<string, string> = {
+  verified: "Email verified. Sign in to continue on this browser.",
+  "reset-requested": "If that email has an account, we’ve sent a password reset link.",
+  "password-reset": "Your password has been changed. Sign in with your new password.",
+};
+
+export default async function SignIn({ searchParams }: { searchParams: Promise<{ status?: string; next?: string }> }) {
+  const { status, next } = await searchParams;
+  const invited = next === "invite";
+  return <AuthShell title="Sign in to FairShift">
+    {status === "error" ? <p className="form-alert" role="alert">That email or password wasn’t accepted, or there have been too many attempts. Try again shortly.</p> : null}
+    {status && NOTICE[status] ? <p className="form-notice" role="status">{NOTICE[status]}</p> : null}
+    <form action={signInAction} className="stack-form">
+      {invited ? <input type="hidden" name="next" value="invite" /> : null}
+      <label>Email<input name="email" type="email" required autoComplete="email" /></label>
+      <PasswordField label="Password" autoComplete="current-password" />
+      <button className="primary-button">Sign in</button>
+    </form>
+    <details className="auth-disclosure"><summary>Forgotten your password?</summary>
+      <form action={requestResetAction} className="stack-form">
+        <label>Email<input name="email" type="email" required autoComplete="email" /></label>
+        <button className="secondary-button">Send reset link</button>
+      </form>
+    </details>
+    <p className="auth-switch">New to FairShift? <Link href={invited ? "/register?next=invite" : "/register"}>Create an account</Link></p>
+  </AuthShell>;
 }

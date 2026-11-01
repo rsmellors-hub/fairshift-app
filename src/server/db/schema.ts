@@ -26,7 +26,11 @@ export const sessions = pgTable("auth_sessions", {
   id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(), expiresAt: timestamp("expires_at", {withTimezone:true}).notNull(),
   membershipId: uuid("membership_id"), createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
-}, t => [uniqueIndex("auth_sessions_token_unique").on(t.tokenHash), index("auth_sessions_user_idx").on(t.userId)]);
+  // Set only by public demo entry. A session with a persona stays a demo session for its whole life.
+  demoPersona: text("demo_persona"), demoGroup: uuid("demo_group"),
+}, t => [uniqueIndex("auth_sessions_token_unique").on(t.tokenHash), index("auth_sessions_user_idx").on(t.userId),
+  check("auth_sessions_demo_persona_check", sql`${t.demoPersona} is null or ${t.demoPersona} in ('OWNER','MANAGER','WORKER')`),
+  check("auth_sessions_demo_group_check", sql`(${t.demoPersona} is null) = (${t.demoGroup} is null)`)]);
 export const identityTokens = pgTable("identity_tokens", {
   id: uuid("id").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id), tokenHash: text("token_hash").notNull(),
   purpose: text("purpose").notNull(), expiresAt: timestamp("expires_at", {withTimezone:true}).notNull(), usedAt: timestamp("used_at", {withTimezone:true}),

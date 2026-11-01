@@ -1,0 +1,38 @@
+/* Public demo only: the demo bar, and hiding what a demo session can't do. */
+.demo-bar { padding: 8px 16px; border-bottom: 1px solid #e3c98f; background: #fdf6e7; color: var(--ink); font-size: 13px; }
+.demo-bar p { margin: 4px 0 0; color: #5d4a1f; line-height: 1.4; }
+.demo-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.demo-personas { display: inline-flex; border: 1px solid #c9ad6c; border-radius: 8px; overflow: hidden; background: #fff; }
+.demo-personas form { margin: 0; }
+.demo-personas button { min-height: 36px; padding: 6px 12px; border: 0; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.demo-personas button[aria-current] { background: var(--ink); color: #fff; font-weight: 650; }
+.demo-reset { position: relative; }
+.demo-reset summary { display: flex; align-items: center; min-height: 36px; font-weight: 600; cursor: pointer; }
+.demo-reset > div { position: absolute; z-index: 40; top: 100%; left: 0; width: min(320px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(16, 42, 46, .14); }
+.demo-reset p { margin: 0 0 10px; color: var(--ink); }
+.demo-reset form button, .demo-exit { min-height: 36px; padding: 6px 12px; border: 1px solid #c9ad6c; border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+.demo-bar-row > form { margin: 0 0 0 auto; }
+.demo-evidence { margin: 0 0 8px; padding: 8px 10px; border-left: 3px solid #c9ad6c; background: #fdf6e7; color: #5d4a1f; font-size: 13px; line-height: 1.4; }
+
+/* The server refuses these anyway. A form stays visible only if it is marked as allowed. */
+.demo-session .product-main form:not([data-demo-write], [method="get"]) { display: none; }
+.demo-session .product-main details:has(form):not(:has(form[data-demo-write], form[method="get"])) { display: none; }
+
+@media (max-width: 640px) {
+  .demo-bar { padding: 6px 12px; }
+  .demo-bar > .demo-bar-row { gap: 4px 8px; }
+  .demo-bar-row > strong { display: none; }
+  .demo-personas button { padding: 6px 8px; font-size: 12px; }
+  .demo-reset summary { font-size: 12px; }
+  .demo-exit { padding: 6px 8px; font-size: 12px; }
+  .demo-bar p { font-size: 12px; }
+  .demo-bar-more { display: none; }
+}
+
+.demo-entry { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.demo-entry form { margin: 0; }
+.demo-entry button { display: grid; gap: 4px; width: 100%; height: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.demo-entry button:hover { border-color: var(--primary, #0e7c66); }
+.demo-entry strong { font-size: 16px; }
+.demo-entry small { color: var(--muted); line-height: 1.4; }
+@media (max-width: 640px) { .demo-entry { grid-template-columns: 1fr; } }

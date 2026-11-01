@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getDatabase } from "@/server/db/client";
@@ -6,14 +6,37 @@ import { memberships, sessions } from "@/server/db/schema";
 import { resolveSession } from "./identity";
 import { resolveScope, type Role } from "./access";
 import { organisationEntitled, workplaceComplete } from "@/server/billing/entitlement";
+import { REQUEST_METHOD_HEADER } from "@/lib/request-method";
+import { DEMO_HOME, DEMO_MEMBERSHIP_ROLE, demoConfig, demoPersona } from "@/server/demo/config";
 export const SESSION_COOKIE = "fairshift_session";
+export const DEMO_COOKIE = "fairshift_demo";
 export async function currentIdentity() {
   return resolveSession(getDatabase(),(await cookies()).get(SESSION_COOKIE)?.value);
 }
-export async function requireIdentity() {
+async function signedIn() {
   const identity=await currentIdentity();
-  if (!identity) redirect("/sign-in");
+  if (!identity) redirect((await cookies()).get(DEMO_COOKIE)?.value ? "/demo?status=expired" : "/sign-in");
   return identity;
+}
+// Account, onboarding and billing. A demo session never reaches any of them.
+export async function requireIdentity() {
+  const identity=await signedIn();
+  if (identity.session.demoPersona) redirect(`${DEMO_HOME[demoPersona.parse(identity.session.demoPersona)]}?status=demo-read-only`);
+  return identity;
+}
+// A demo session is valid only while public demo access is on and still names its configured
+// membership. On anything but a plain read it is refused, unless the action opted in: a new
+// action is closed to the demo by default. A missing method header counts as a write.
+async function demoScope(session:{demoPersona:string|null;demoGroup:string|null;membershipId:string|null},userId:string,roles:Role[],demoWrite:boolean) {
+  const config=demoConfig(),persona=demoPersona.safeParse(session.demoPersona);
+  if (!config || !persona.success || !session.demoGroup || session.membershipId !== config[persona.data]) redirect("/demo?status=unavailable");
+  const home=DEMO_HOME[persona.data];
+  if (!roles.includes(DEMO_MEMBERSHIP_ROLE[persona.data] as Role)) redirect(`${home}?status=demo-read-only`);
+  if (!demoWrite && !["GET","HEAD"].includes((await headers()).get(REQUEST_METHOD_HEADER) ?? "")) redirect(`${home}?status=demo-read-only`);
+  const locationId=persona.data === "OWNER" ? (await cookies()).get("fairshift_location")?.value : undefined;
+  const scope=await resolveScope(getDatabase(),userId,session.membershipId!,locationId,roles);
+  if (scope.organisationId !== config.organisationId) redirect("/demo?status=unavailable");
+  return {...scope,demo:{persona:persona.data,group:session.demoGroup}};
 }
 // Account/onboarding/billing only. Operational entry points must use requireScope.
 export async function requireMembershipScope(roles:Role[]) {
@@ -33,8 +56,9 @@ export async function requireOwnerCustomer() {
   if (!member) redirect("/subscribe");
   return {userId:user.id,organisationId:member.organisationId,role:member.role};
 }
-export async function requireScope(roles:Role[]) {
-  const {user,session}=await requireIdentity();
+export async function requireScope(roles:Role[],options:{demoWrite?:boolean}={}) {
+  const {user,session}=await signedIn();
+  if (session.demoPersona) return demoScope(session,user.id,roles,!!options.demoWrite);
   const rows=await getDatabase().select().from(memberships).where(and(eq(memberships.userId,user.id),eq(memberships.state,"ACTIVE")));
   const selected=rows.find(m=>m.id === session.membershipId);
   const member=selected && roles.includes(selected.role as Role) ? selected : rows.find(m=>roles.includes(m.role as Role));
@@ -45,8 +69,8 @@ export async function requireScope(roles:Role[]) {
   const locationId=(await cookies()).get("fairshift_location")?.value;
   return resolveScope(getDatabase(),user.id,member.id,member.role === "OWNER" ? locationId : undefined,roles);
 }
-export async function setSessionCookie(token:string) {
-  (await cookies()).set(SESSION_COOKIE,token,{httpOnly:true,secure:process.env.NODE_ENV === "production",sameSite:"lax",path:"/",maxAge:7*86400});
+export async function setSessionCookie(token:string,expiresAt?:Date) {
+  (await cookies()).set(SESSION_COOKIE,token,{httpOnly:true,secure:process.env.NODE_ENV === "production",sameSite:"lax",path:"/",...(expiresAt ? {expires:expiresAt} : {maxAge:7*86400})});
 }
 export async function selectMembership(id:string) {
   const {user,session}=await requireIdentity();

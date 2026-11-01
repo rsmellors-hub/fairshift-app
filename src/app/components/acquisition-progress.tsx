@@ -1,5 +1,5 @@
-export function AcquisitionProgress({current}: {current: "Plan" | "Workplace"}) {
-  const steps = ["Account", "Plan", "Workplace", "Ready"];
+export function AcquisitionProgress({current}: {current: "Account" | "Verify" | "Plan" | "Workplace"}) {
+  const steps = ["Account", "Verify", "Plan", "Workplace", "Ready"];
   const active = steps.indexOf(current);
   return <ol className="acquisition-progress" aria-label="Setup progress">
     {steps.map((step, index) => <li key={step} aria-current={index === active ? "step" : undefined} className={index < active ? "complete" : undefined}>

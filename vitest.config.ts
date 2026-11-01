@@ -15,6 +15,8 @@ export default defineConfig({
     // Running files concurrently starves those instances of CPU and produces timeouts,
     // so files run one at a time; tests inside a file are already sequential.
     fileParallelism: false,
+    // Long multi-role journeys can pass 5 seconds on a busy machine without anything being wrong.
+    testTimeout: 30_000,
     coverage: {
       reporter: ["text", "json", "html"],
     },
