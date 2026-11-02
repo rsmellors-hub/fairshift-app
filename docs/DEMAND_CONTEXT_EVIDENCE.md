@@ -36,7 +36,7 @@ The workload policy, reference history, coverage and forecast parameters were no
 
 **Nation.** Holidays differ by nation, so one is resolved only when the location record states England, Wales, Scotland or Northern Ireland. A county, a blank or another country reads "unknown". FairShift doesn't guess from a city.
 
-A missing signal is shown as unknown, never as normal. With no signal for a day the model isn't called. Signals never edit sales history. Weather, school holidays, event feeds and bookings are **not implemented**.
+A missing signal is shown as unknown, never as normal. With no signal for a day the model isn't called. Signals never edit sales history. School holidays are **not implemented**. Weather, event feeds and bookings were not implemented in this package, and were added by [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
 
 ## 4. Genuine AI run
 

@@ -4,10 +4,12 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -60,11 +62,20 @@ export const outlets = pgTable(
     timezone: text("timezone").notNull(),
     address: text("address"), city: text("city"), province: text("province"),
     postalCode: text("postal_code"), country: text("country"),
+    // Context for reasoning about local signals, never a coefficient. Null means unknown. The
+    // source says whether an Owner stated these or they are reference-company configuration.
+    venueProfile: text("venue_profile"), latitude: doublePrecision("latitude"), longitude: doublePrecision("longitude"),
+    venueContextSource: text("venue_context_source"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("outlets_organisation_idx").on(table.organisationId)],
+  (table) => [
+    index("outlets_organisation_idx").on(table.organisationId),
+    check("outlets_venue_profile_check", sql`${table.venueProfile} is null or ${table.venueProfile} in ('STADIUM_DISTRICT', 'WATERFRONT_OUTDOOR', 'BUSINESS_DISTRICT', 'STATION_COMMUTER', 'SHOPPING_CENTRE')`),
+    check("outlets_coordinates_check", sql`(${table.latitude} is null and ${table.longitude} is null) or (${table.latitude} between -90 and 90 and ${table.longitude} between -180 and 180)`),
+    check("outlets_venue_context_source_check", sql`${table.venueContextSource} is null or ${table.venueContextSource} in ('REFERENCE', 'CONFIGURED')`),
+  ],
 );
 
 export const paypalConnections = pgTable(
@@ -934,6 +945,9 @@ export const demandContextSignals = pgTable("demand_context_signals", {
   signalType: text("signal_type").notNull(),
   validFrom: date("valid_from", { mode: "string" }).notNull(),
   validTo: date("valid_to", { mode: "string" }).notNull(),
+  // Minutes after local midnight, when the signal concerns part of a day.
+  periodStart: integer("period_start"),
+  periodEnd: integer("period_end"),
   direction: text("direction").notNull(),
   provenance: text("provenance").notNull(),
   sourceLabel: text("source_label").notNull(),
@@ -946,12 +960,30 @@ export const demandContextSignals = pgTable("demand_context_signals", {
   withdrawnBy: uuid("withdrawn_by").references(() => users.id),
 }, (t) => [
   index("demand_context_signals_scope_idx").on(t.organisationId, t.outletId, t.validTo),
-  check("demand_context_signals_type_check", sql`${t.signalType} in ('MOMENTUM', 'MANAGER_ENTERED', 'BANK_HOLIDAY')`),
+  check("demand_context_signals_type_check", sql`${t.signalType} in ('MOMENTUM', 'MANAGER_ENTERED', 'BANK_HOLIDAY', 'WEATHER_FORECAST', 'BOOKINGS', 'LOCAL_EVENT', 'PROMOTION')`),
   check("demand_context_signals_direction_check", sql`${t.direction} in ('UP', 'DOWN', 'FLAT', 'UNSPECIFIED')`),
   check("demand_context_signals_provenance_check", sql`(${t.signalType} = 'MOMENTUM' and ${t.provenance} = 'DETERMINISTIC_CALCULATION')
-    or (${t.signalType} = 'MANAGER_ENTERED' and ${t.provenance} = 'MANAGER_ENTERED' and ${t.enteredBy} is not null)
-    or (${t.signalType} = 'BANK_HOLIDAY' and ${t.provenance} = 'OFFICIAL_SNAPSHOT')`),
+    or (${t.signalType} in ('MANAGER_ENTERED', 'BOOKINGS', 'LOCAL_EVENT', 'PROMOTION') and ${t.provenance} = 'MANAGER_ENTERED' and ${t.enteredBy} is not null)
+    or (${t.signalType} = 'LOCAL_EVENT' and ${t.provenance} = 'PROVIDER_EVENT')
+    or (${t.signalType} = 'BANK_HOLIDAY' and ${t.provenance} = 'OFFICIAL_SNAPSHOT')
+    or (${t.signalType} = 'WEATHER_FORECAST' and ${t.provenance} = 'PROVIDER_FORECAST')`),
   check("demand_context_signals_period_check", sql`${t.validTo} >= ${t.validFrom}`),
+  check("demand_context_signals_time_check", sql`(${t.periodStart} is null and ${t.periodEnd} is null) or (${t.periodStart} >= 0 and ${t.periodEnd} <= 1440 and ${t.periodStart} < ${t.periodEnd})`),
+]);
+
+// The latest state of an automatic feed at one location. A failed fetch updates only the attempt
+// and failure fields, so the last good signals stay current and are shown with their age.
+export const demandContextFeeds = pgTable("demand_context_feeds", {
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  feed: text("feed").notNull(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastFailureCode: text("last_failure_code"),
+  currentSignalIds: jsonb("current_signal_ids").notNull().default([]),
+}, (t) => [
+  primaryKey({ columns: [t.outletId, t.feed] }),
+  check("demand_context_feeds_feed_check", sql`${t.feed} in ('WEATHER', 'EVENTS')`),
 ]);
 
 // A bounded AI scenario for one location and date. A proposal changes nothing by itself. The
@@ -973,6 +1005,9 @@ export const demandContextProposals = pgTable("demand_context_proposals", {
   status: text("status").notNull(),
   failureCode: text("failure_code"),
   scenario: text("scenario"),
+  // The part of the trading day the scenario applies to, on planning-block boundaries. Null is the whole day.
+  periodStart: integer("period_start"),
+  periodEnd: integer("period_end"),
   citedSignalIds: jsonb("cited_signal_ids"),
   reason: text("reason"),
   requestedBy: uuid("requested_by").references(() => users.id),
@@ -983,6 +1018,7 @@ export const demandContextProposals = pgTable("demand_context_proposals", {
   check("demand_context_proposals_status_check", sql`(${t.status} = 'AVAILABLE' and ${t.scenario} in ('NONE', 'MINOR_UP', 'MODERATE_UP', 'MINOR_DOWN', 'MODERATE_DOWN') and ${t.citedSignalIds} is not null and ${t.reason} is not null and ${t.failureCode} is null and ${t.responseModel} is not null)
     or (${t.status} = 'FAILED' and ${t.scenario} is null and ${t.citedSignalIds} is null and ${t.reason} is null and ${t.failureCode} is not null)`),
   check("demand_context_proposals_fingerprint_check", sql`${t.inputFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check("demand_context_proposals_period_check", sql`(${t.periodStart} is null and ${t.periodEnd} is null) or (${t.status} = 'AVAILABLE' and ${t.periodStart} >= 0 and ${t.periodEnd} <= 1440 and ${t.periodStart} < ${t.periodEnd})`),
 ]);
 
 // A person's decision on a proposal, append-only. The latest for a location and date stands,
@@ -997,6 +1033,8 @@ export const demandContextDecisions = pgTable("demand_context_decisions", {
   action: text("action").notNull(),
   scenario: text("scenario").notNull(),
   adjustmentBps: integer("adjustment_bps").notNull(),
+  periodStart: integer("period_start"),
+  periodEnd: integer("period_end"),
   policyVersion: text("policy_version").notNull(),
   inputFingerprint: text("input_fingerprint").notNull(),
   outputFingerprint: text("output_fingerprint").notNull(),
@@ -1046,7 +1084,7 @@ export const schema = {
   commerceWorkerIdentities,
   providerEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies, workloadPolicies, outletTradingHours, regularCoverageWindows,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, demandContextSignals, demandContextProposals, demandContextDecisions, attributedSales, workPerformanceResults,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, demandContextSignals, demandContextFeeds, demandContextProposals, demandContextDecisions, attributedSales, workPerformanceResults,
   shifts,
   shiftOpportunityEvidence,
   shiftOffers,

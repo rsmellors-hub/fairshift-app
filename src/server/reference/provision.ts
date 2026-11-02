@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { persistCanonicalRows, type CanonicalRow } from "@/server/commerce/ingestion";
 import { writeWorkloadPolicyVersion } from "@/server/intelligence/business-policy";
-import { and, eq, inArray, isNull, like, not, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
 import { organisations, outletTradingHours, outlets, regularCoverageWindows, saleTransactions, workloadPolicies } from "@/server/db/schema";
 import { localDate, shiftDate } from "@/server/intelligence/forecast";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_WORKLOAD_POLICY, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-hospitality";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_VENUE_CONTEXT, REFERENCE_WORKLOAD_POLICY, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-hospitality";
 
 const inputSchema = z.object({
   organisationId: z.string().uuid(),
@@ -100,6 +100,11 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
     const coverage = perWeekday(referenceCoverage, "REFCOVER");
     await tx.insert(regularCoverageWindows).values(coverage).onConflictDoUpdate({
       target: [regularCoverageWindows.outletId, regularCoverageWindows.isoWeekday], set: { windows: sql`excluded.windows`, updatedAt: new Date() }, setWhere: sql`${regularCoverageWindows.source} = 'REFERENCE'` });
+    // Venue profile and approximate coordinates, labelled reference, unless an Owner stated their own.
+    for (const { code, outletId } of mapping) {
+      const { venueProfile, latitude, longitude } = REFERENCE_VENUE_CONTEXT[code];
+      await tx.update(outlets).set({ venueProfile, latitude, longitude, venueContextSource: "REFERENCE" }).where(and(eq(outlets.id, outletId), or(isNull(outlets.venueContextSource), eq(outlets.venueContextSource, "REFERENCE"))));
+    }
     const [existingPolicy] = await tx.select({ id: workloadPolicies.id }).from(workloadPolicies)
       .where(and(eq(workloadPolicies.organisationId, input.organisationId), isNull(workloadPolicies.outletId), eq(workloadPolicies.status, "ACTIVE")));
     if (!existingPolicy) await writeWorkloadPolicyVersion(tx, { organisationId: input.organisationId, outletId: null, ...REFERENCE_WORKLOAD_POLICY, source: "REFERENCE", createdBy: null });

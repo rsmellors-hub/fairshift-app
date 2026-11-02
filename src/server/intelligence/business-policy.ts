@@ -4,7 +4,8 @@ import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, outletTradingHours, outlets, regularCoverageWindows, workloadPolicies } from "@/server/db/schema";
+import { auditEvents, demandContextFeeds, outletTradingHours, outlets, regularCoverageWindows, workloadPolicies } from "@/server/db/schema";
+import { venueContextSchema } from "@/server/intelligence/venue-profile";
 import { coverageWindowsSchema, tradingWindowsSchema, workloadPolicyInputSchema, type CoverageWindow, type TradingWindow } from "@/server/intelligence/workload";
 
 // A business's own workload inputs: its service-capacity policy, trading hours and regular
@@ -87,13 +88,30 @@ export async function setRegularCoverage(db: Database, scope: OwnerScope, week: 
   });
 }
 
+// The selected location's venue profile and coordinates. New coordinates drop the forecast and
+// events fetched for the old ones, so they can't be read as this location's, and the next
+// planning page fetches afresh.
+export async function setVenueContext(db: Database, scope: OwnerScope, input: unknown) {
+  await authoriseOwner(db, scope);
+  const value = venueContextSchema.parse(input);
+  return db.transaction(async tx => {
+    const [before] = await tx.select({ latitude: outlets.latitude, longitude: outlets.longitude }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId))).for("update");
+    if (!before) throw new Error("Location not found.");
+    await tx.update(outlets).set({ ...value, venueContextSource: "CONFIGURED", updatedAt: new Date() }).where(eq(outlets.id, scope.locationId));
+    if (before.latitude !== value.latitude || before.longitude !== value.longitude) await tx.update(demandContextFeeds).set({ currentSignalIds: [], lastSuccessAt: null, lastFailureCode: null, lastAttemptAt: new Date(0) }).where(eq(demandContextFeeds.outletId, scope.locationId));
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "VENUE_CONTEXT_SET", entityType: "outlet", entityId: scope.locationId, correlationId: `venue-context:${scope.locationId}`, metadata: { actorUserId: scope.userId, ...value } });
+  });
+}
+
 // What the Owner sees and edits for the selected location.
 export async function getStaffingConfiguration(db: DatabaseSession, scope: OwnerScope) {
   await authoriseOwner(db, scope);
   const policies = await db.select().from(workloadPolicies).where(and(eq(workloadPolicies.organisationId, scope.organisationId), eq(workloadPolicies.status, "ACTIVE")));
   const trading = await db.select().from(outletTradingHours).where(and(eq(outletTradingHours.organisationId, scope.organisationId), eq(outletTradingHours.outletId, scope.locationId)));
   const coverage = await db.select().from(regularCoverageWindows).where(and(eq(regularCoverageWindows.organisationId, scope.organisationId), eq(regularCoverageWindows.outletId, scope.locationId)));
+  const [venue] = await db.select({ venueProfile: outlets.venueProfile, latitude: outlets.latitude, longitude: outlets.longitude, source: outlets.venueContextSource }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
   return {
+    venue: venue ?? { venueProfile: null, latitude: null, longitude: null, source: null },
     organisationPolicy: policies.find(row => row.outletId === null) ?? null,
     locationPolicy: policies.find(row => row.outletId === scope.locationId) ?? null,
     trading: Array.from({ length: 7 }, (_, i) => { const row = trading.find(item => item.isoWeekday === i + 1); return row ? { windows: tradingWindowsSchema.parse(row.windows) as TradingWindow[], source: row.source } : null; }),

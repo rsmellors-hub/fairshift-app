@@ -1,0 +1,589 @@
+{
+ "kind": "GENUINE PROVIDER RESPONSES on a throwaway database, labelled synthetic reference history. No Manager-entered signal. Ticketmaster names, venues and identifiers removed; each reference is keyed with a discarded secret.",
+ "rulesRecordedBeforeRefresh": [
+  "Recorded 2026-11-02T21:28:49Z, before the refresh.",
+  "Selection rules: as FS-CONTEXT-SIGNALS-CLOSEOUT-001 section 3.",
+  "Acceptance rule, set before any answer: accept a proposal if it is valid and its scenario is not NONE, and record the figures as they fall. NONE or a failure is recorded and left.",
+  "A Run 2 that selects the same venue-day as Run 1 reuses that evidence, so no second model call is made."
+ ],
+ "selection": {
+  "selectedAt": "2026-11-02T21:35:40.932Z",
+  "refreshedAt": "2026-11-02T21:35:35.965Z",
+  "run1": {
+   "code": "UK01",
+   "venue": "Leeds",
+   "date": "2026-11-04",
+   "maxRainChance": 57,
+   "retainedEvents": 1
+  },
+  "run2": {
+   "code": "UK03",
+   "venue": "Birmingham",
+   "date": "2026-11-03",
+   "maxRainChance": 2,
+   "retainedEvents": 2
+  },
+  "sameVenueDay": false,
+  "tiedAtTop": 1,
+  "table": [
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-03",
+    "maxRainChance": 8,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-04",
+    "maxRainChance": 57,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-05",
+    "maxRainChance": 2,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-06",
+    "maxRainChance": 6,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-07",
+    "maxRainChance": 20,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-08",
+    "maxRainChance": 5,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-09",
+    "maxRainChance": 15,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-03",
+    "maxRainChance": 0,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-04",
+    "maxRainChance": 8,
+    "retainedEvents": 2
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-05",
+    "maxRainChance": 0,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-06",
+    "maxRainChance": 7,
+    "retainedEvents": 2
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-07",
+    "maxRainChance": 14,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-08",
+    "maxRainChance": 3,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK02",
+    "venue": "Manchester",
+    "date": "2026-11-09",
+    "maxRainChance": 19,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-03",
+    "maxRainChance": 2,
+    "retainedEvents": 2
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-04",
+    "maxRainChance": 0,
+    "retainedEvents": 6
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-05",
+    "maxRainChance": 0,
+    "retainedEvents": 4
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-06",
+    "maxRainChance": 4,
+    "retainedEvents": 9
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-07",
+    "maxRainChance": 8,
+    "retainedEvents": 9
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-08",
+    "maxRainChance": 4,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-09",
+    "maxRainChance": 19,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-03",
+    "maxRainChance": 43,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-04",
+    "maxRainChance": 0,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-05",
+    "maxRainChance": 0,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-06",
+    "maxRainChance": 12,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-07",
+    "maxRainChance": 14,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-08",
+    "maxRainChance": 7,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK04",
+    "venue": "Brighton",
+    "date": "2026-11-09",
+    "maxRainChance": 22,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-03",
+    "maxRainChance": 39,
+    "retainedEvents": 0
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-04",
+    "maxRainChance": 2,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-05",
+    "maxRainChance": 0,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-06",
+    "maxRainChance": 11,
+    "retainedEvents": 1
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-07",
+    "maxRainChance": 11,
+    "retainedEvents": 2
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-08",
+    "maxRainChance": 2,
+    "retainedEvents": 3
+   },
+   {
+    "code": "UK05",
+    "venue": "London Stratford",
+    "date": "2026-11-09",
+    "maxRainChance": 21,
+    "retainedEvents": 0
+   }
+  ],
+  "fetch": {
+   "Leeds": {
+    "code": "UK01",
+    "weather": "REFRESHED",
+    "events": "REFRESHED",
+    "kept": 3,
+    "excluded": {
+     "DUPLICATE": 1,
+     "OUTSIDE_RADIUS": 0,
+     "OVER_DAY_LIMIT": 0,
+     "CANCELLED_OR_MOVED": 0,
+     "OUTSIDE_PLANNING_WEEK": 0,
+     "OUTSIDE_TRADING_HOURS": 27,
+     "STANDING_OR_LONG_RUNNING": 0
+    },
+    "listed": 31
+   },
+   "Manchester": {
+    "code": "UK02",
+    "weather": "REFRESHED",
+    "events": "REFRESHED",
+    "kept": 9,
+    "excluded": {
+     "DUPLICATE": 0,
+     "OUTSIDE_RADIUS": 0,
+     "OVER_DAY_LIMIT": 0,
+     "CANCELLED_OR_MOVED": 0,
+     "OUTSIDE_PLANNING_WEEK": 0,
+     "OUTSIDE_TRADING_HOURS": 0,
+     "STANDING_OR_LONG_RUNNING": 0
+    },
+    "listed": 9
+   },
+   "Birmingham": {
+    "code": "UK03",
+    "weather": "REFRESHED",
+    "events": "REFRESHED",
+    "kept": 34,
+    "excluded": {
+     "DUPLICATE": 0,
+     "OUTSIDE_RADIUS": 0,
+     "OVER_DAY_LIMIT": 0,
+     "CANCELLED_OR_MOVED": 2,
+     "OUTSIDE_PLANNING_WEEK": 0,
+     "OUTSIDE_TRADING_HOURS": 2,
+     "STANDING_OR_LONG_RUNNING": 7
+    },
+    "listed": 45
+   },
+   "Brighton": {
+    "code": "UK04",
+    "weather": "REFRESHED",
+    "events": "REFRESHED",
+    "kept": 11,
+    "excluded": {
+     "DUPLICATE": 0,
+     "OUTSIDE_RADIUS": 0,
+     "OVER_DAY_LIMIT": 0,
+     "CANCELLED_OR_MOVED": 0,
+     "OUTSIDE_PLANNING_WEEK": 0,
+     "OUTSIDE_TRADING_HOURS": 0,
+     "STANDING_OR_LONG_RUNNING": 7
+    },
+    "listed": 18
+   },
+   "London Stratford": {
+    "code": "UK05",
+    "weather": "REFRESHED",
+    "events": "REFRESHED",
+    "kept": 8,
+    "excluded": {
+     "DUPLICATE": 4,
+     "OUTSIDE_RADIUS": 0,
+     "OVER_DAY_LIMIT": 0,
+     "CANCELLED_OR_MOVED": 0,
+     "OUTSIDE_PLANNING_WEEK": 0,
+     "OUTSIDE_TRADING_HOURS": 0,
+     "STANDING_OR_LONG_RUNNING": 0
+    },
+    "listed": 12
+   }
+  },
+  "baselineBeforeAnyDecision": {
+   "casualHours": 64.25,
+   "windows": 32,
+   "locationDaysWithRequirement": 20,
+   "locationDays": 35
+  }
+ },
+ "runs": [
+  {
+   "run": "RUN 1 weather",
+   "target": {
+    "code": "UK01",
+    "venue": "Leeds",
+    "date": "2026-11-04",
+    "maxRainChance": 57,
+    "retainedEvents": 1
+   },
+   "generated": true,
+   "status": "AVAILABLE",
+   "failureCode": null,
+   "scenario": "MINOR_UP",
+   "periodStart": 960,
+   "periodEnd": 1020,
+   "reason": "A nearby provider-listed event may bring some pre-event trade during the closing part of the trading day, though attendance is unknown.",
+   "model": "gpt-6-luna",
+   "responseModel": "gpt-6-luna",
+   "providerResponseId": "resp_0c97ab2d0d9f963d016ae903c1a9c087d2a612e76abedbf019",
+   "inputVersion": "fs-demand-context-input-v3",
+   "outputSchemaVersion": "fs-demand-context-output-v3",
+   "inputFingerprint": "738c223ba8d126544b39b407368929378a225d427c368cf2243643922beb88a4",
+   "venueProfile": "BUSINESS_DISTRICT",
+   "supplied": [
+    {
+     "id": "ctx_4dc795da360fbabc5e6db430",
+     "type": "WEATHER_FORECAST",
+     "provenance": "PROVIDER_FORECAST",
+     "startTime": null,
+     "influenceWindow": null,
+     "cited": false,
+     "summary": "Rain likely 10:00–15:00 (up to 57%), top 11.3°C"
+    },
+    {
+     "id": "ctx_b6b7551f0ffd311f65017731",
+     "type": "MOMENTUM",
+     "provenance": "DETERMINISTIC_CALCULATION",
+     "startTime": null,
+     "influenceWindow": null,
+     "cited": false,
+     "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before."
+    },
+    {
+     "id": "listing_8804576791516e52",
+     "type": "LOCAL_EVENT",
+     "provenance": "PROVIDER_EVENT",
+     "startTime": "18:30",
+     "influenceWindow": {
+      "end": "21:30",
+      "start": "16:30"
+     },
+     "cited": true,
+     "distanceBand": "under 1 km"
+    }
+   ],
+   "citedCount": 1,
+   "decision": "ACCEPTED",
+   "before": {
+    "expectedTransactions": 154.527,
+    "requiredHours": 26.75,
+    "casualHours": 4.75,
+    "venueWeekCasualHours": 20.25,
+    "periodExpectedTransactions": 3.25,
+    "periodRequiredHours": 2,
+    "periodCasualHours": 0
+   },
+   "after": {
+    "expectedTransactions": 154.69,
+    "requiredHours": 26.75,
+    "casualHours": 4.75,
+    "venueWeekCasualHours": 20.25,
+    "periodExpectedTransactions": 3.413,
+    "periodRequiredHours": 2,
+    "periodCasualHours": 0
+   }
+  },
+  {
+   "run": "RUN 2 provider event",
+   "target": {
+    "code": "UK03",
+    "venue": "Birmingham",
+    "date": "2026-11-03",
+    "maxRainChance": 2,
+    "retainedEvents": 2
+   },
+   "generated": true,
+   "status": "FAILED",
+   "failureCode": "VALIDATION_NUMBER_IN_REASON",
+   "scenario": null,
+   "periodStart": null,
+   "periodEnd": null,
+   "reason": null,
+   "model": "gpt-6-luna",
+   "responseModel": "gpt-6-luna",
+   "providerResponseId": "resp_00e996187926e6bf016ae903cca28487d28ba9c65209cadf6f",
+   "inputVersion": "fs-demand-context-input-v3",
+   "outputSchemaVersion": "fs-demand-context-output-v3",
+   "inputFingerprint": "d7fa7cdeacc95cf2b84f075f61ad25a73bb8de4ceaee297aab88fce068b356ee",
+   "venueProfile": "SHOPPING_CENTRE",
+   "supplied": [
+    {
+     "id": "ctx_32c46b04db2d9d861bd1cf6d",
+     "type": "WEATHER_FORECAST",
+     "provenance": "PROVIDER_FORECAST",
+     "startTime": null,
+     "influenceWindow": null,
+     "cited": false,
+     "summary": "Low chance of rain (up to 2%), top 11.1°C"
+    },
+    {
+     "id": "listing_3555557b7df5bd82",
+     "type": "LOCAL_EVENT",
+     "provenance": "PROVIDER_EVENT",
+     "startTime": "20:00",
+     "influenceWindow": {
+      "end": "23:00",
+      "start": "18:00"
+     },
+     "cited": false,
+     "distanceBand": "1 to 3 km"
+    },
+    {
+     "id": "listing_db6c3ccfef7e4940",
+     "type": "LOCAL_EVENT",
+     "provenance": "PROVIDER_EVENT",
+     "startTime": "19:00",
+     "influenceWindow": {
+      "end": "22:00",
+      "start": "17:00"
+     },
+     "cited": false,
+     "distanceBand": "under 1 km"
+    },
+    {
+     "id": "ctx_f408b69ebf7623f6654af3aa",
+     "type": "MOMENTUM",
+     "provenance": "DETERMINISTIC_CALCULATION",
+     "startTime": null,
+     "influenceWindow": null,
+     "cited": false,
+     "summary": "Transactions per trading day were 4.7% higher over the latest 28 days against the 28 before."
+    }
+   ],
+   "citedCount": 0,
+   "decision": null,
+   "before": {
+    "expectedTransactions": 116.11,
+    "requiredHours": 23.5,
+    "casualHours": 0,
+    "venueWeekCasualHours": 9.75
+   },
+   "after": null
+  }
+ ],
+ "rederivedFromPreviousFetch": {
+  "note": "FairShift processing re-run offline over the saved responses of the 2 Nov 19:20 UTC fetch. No Ticketmaster call.",
+  "counts": {
+   "Leeds": {
+    "listed": 31,
+    "OUTSIDE_PLANNING_WEEK": 0,
+    "CANCELLED_OR_MOVED": 0,
+    "OUTSIDE_RADIUS": 0,
+    "STANDING_OR_LONG_RUNNING": 0,
+    "OUTSIDE_TRADING_HOURS": 27,
+    "DUPLICATE": 1,
+    "OVER_DAY_LIMIT": 0,
+    "kept": 3,
+    "withEnd": 0,
+    "withMulti": 0
+   },
+   "Manchester": {
+    "listed": 9,
+    "OUTSIDE_PLANNING_WEEK": 0,
+    "CANCELLED_OR_MOVED": 0,
+    "OUTSIDE_RADIUS": 0,
+    "STANDING_OR_LONG_RUNNING": 0,
+    "OUTSIDE_TRADING_HOURS": 0,
+    "DUPLICATE": 0,
+    "OVER_DAY_LIMIT": 0,
+    "kept": 9,
+    "withEnd": 0,
+    "withMulti": 0
+   },
+   "Birmingham": {
+    "listed": 45,
+    "OUTSIDE_PLANNING_WEEK": 0,
+    "CANCELLED_OR_MOVED": 2,
+    "OUTSIDE_RADIUS": 0,
+    "STANDING_OR_LONG_RUNNING": 7,
+    "OUTSIDE_TRADING_HOURS": 2,
+    "DUPLICATE": 0,
+    "OVER_DAY_LIMIT": 0,
+    "kept": 34,
+    "withEnd": 0,
+    "withMulti": 0
+   },
+   "Brighton": {
+    "listed": 18,
+    "OUTSIDE_PLANNING_WEEK": 0,
+    "CANCELLED_OR_MOVED": 0,
+    "OUTSIDE_RADIUS": 0,
+    "STANDING_OR_LONG_RUNNING": 7,
+    "OUTSIDE_TRADING_HOURS": 0,
+    "DUPLICATE": 0,
+    "OVER_DAY_LIMIT": 0,
+    "kept": 11,
+    "withEnd": 0,
+    "withMulti": 0
+   },
+   "London Stratford": {
+    "listed": 12,
+    "OUTSIDE_PLANNING_WEEK": 0,
+    "CANCELLED_OR_MOVED": 0,
+    "OUTSIDE_RADIUS": 0,
+    "STANDING_OR_LONG_RUNNING": 0,
+    "OUTSIDE_TRADING_HOURS": 0,
+    "DUPLICATE": 4,
+    "OVER_DAY_LIMIT": 0,
+    "kept": 8,
+    "withEnd": 0,
+    "withMulti": 0
+   }
+  }
+ }
+}

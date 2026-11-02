@@ -6,17 +6,19 @@ import { UK_BANK_HOLIDAYS, type BankHolidayDivision } from "@/server/reference/u
 // baseline. Each carries where it came from. A signal never edits sales history and never
 // changes staffing by itself. A missing signal means unknown, never normal conditions.
 
-export const SIGNAL_TYPES = ["MOMENTUM", "MANAGER_ENTERED", "BANK_HOLIDAY"] as const;
+export const SIGNAL_TYPES = ["MOMENTUM", "MANAGER_ENTERED", "BANK_HOLIDAY", "WEATHER_FORECAST", "BOOKINGS", "LOCAL_EVENT", "PROMOTION"] as const;
 export type SignalType = typeof SIGNAL_TYPES[number];
 export const SIGNAL_DIRECTIONS = ["UP", "DOWN", "FLAT", "UNSPECIFIED"] as const;
 export type SignalDirection = typeof SIGNAL_DIRECTIONS[number];
-export type SignalProvenance = "DETERMINISTIC_CALCULATION" | "MANAGER_ENTERED" | "OFFICIAL_SNAPSHOT";
+export type SignalProvenance = "DETERMINISTIC_CALCULATION" | "MANAGER_ENTERED" | "OFFICIAL_SNAPSHOT" | "PROVIDER_FORECAST" | "PROVIDER_EVENT";
+// Minutes after local midnight, when a signal concerns part of a day.
+export type SignalPeriod = { start: number; end: number };
 
 export type ContextSignal = {
   id: string; organisationId: string; outletId: string; type: SignalType;
-  validFrom: string; validTo: string; direction: SignalDirection;
+  validFrom: string; validTo: string; period: SignalPeriod | null; direction: SignalDirection;
   provenance: SignalProvenance; sourceLabel: string; sourceRef: string | null;
-  summary: string; metadata: Record<string, string | number | boolean | null>;
+  summary: string; metadata: Record<string, unknown>;
   enteredBy: string | null; createdAt: Date | null; withdrawnAt: Date | null;
 };
 
@@ -51,7 +53,7 @@ export function momentumSignal(input: { organisationId: string; outletId: string
   return {
     id: signalId("MOMENTUM", input.outletId, input.dataThrough, input.source, MOMENTUM_METHOD_VERSION, recentTransactions, recent.length, priorTransactions, prior.length),
     organisationId: input.organisationId, outletId: input.outletId, type: "MOMENTUM",
-    validFrom: shiftDate(input.dataThrough, 1), validTo: shiftDate(input.dataThrough, MOMENTUM_VALID_DAYS), direction,
+    validFrom: shiftDate(input.dataThrough, 1), validTo: shiftDate(input.dataThrough, MOMENTUM_VALID_DAYS), period: null, direction,
     provenance: "DETERMINISTIC_CALCULATION", sourceLabel: `Calculated by FairShift from ${label}`, sourceRef: MOMENTUM_METHOD_VERSION,
     summary: direction === "FLAT"
       ? `Transactions per trading day were about level (${changeBps < 0 ? "down" : "up"} ${percent(changeBps)}%) over the latest 28 days against the 28 before.`
@@ -82,7 +84,7 @@ export function bankHolidaySignal(input: { organisationId: string; outletId: str
   return {
     id: signalId("BANK_HOLIDAY", input.outletId, input.division, input.date, UK_BANK_HOLIDAYS.retrievedOn),
     organisationId: input.organisationId, outletId: input.outletId, type: "BANK_HOLIDAY",
-    validFrom: input.date, validTo: input.date, direction: "UNSPECIFIED",
+    validFrom: input.date, validTo: input.date, period: null, direction: "UNSPECIFIED",
     provenance: "OFFICIAL_SNAPSHOT", sourceLabel: `GOV.UK bank holidays, snapshot of ${UK_BANK_HOLIDAYS.retrievedOn}`, sourceRef: UK_BANK_HOLIDAYS.source,
     summary: `Bank holiday in ${NATION_LABEL[input.division]}: ${event.title}${event.notes ? ` (${event.notes})` : ""}.`,
     metadata: { division: input.division, title: event.title, snapshotRetrievedOn: UK_BANK_HOLIDAYS.retrievedOn },

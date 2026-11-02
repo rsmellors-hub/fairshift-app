@@ -1,0 +1,1612 @@
+{
+  "redaction": "Ticketmaster listing names, venue names, identifiers, descriptions and exact distances were removed on 2 Nov 2026 (FS-CONTEXT-SIGNALS-CLOSEOUT-001). Each reference is keyed with a secret that was discarded, so it cannot be matched to a listing. Commit c567f2e still holds the original data. See CONTEXT_SIGNALS_EVIDENCE.md.",
+  "kind": "GENUINE PROVIDER RESPONSES on a throwaway database, labelled synthetic reference history",
+  "retrieved": "2026-11-02",
+  "fetch": {
+    "Leeds": {
+      "listedByProvider": 31,
+      "openMeteoHttp": 200,
+      "ticketmasterHttp": 200,
+      "openMeteoHours": 192
+    },
+    "Manchester": {
+      "listedByProvider": 9,
+      "openMeteoHttp": 200,
+      "ticketmasterHttp": 200,
+      "openMeteoHours": 192
+    },
+    "Birmingham": {
+      "listedByProvider": 45,
+      "openMeteoHttp": 200,
+      "ticketmasterHttp": 200,
+      "openMeteoHours": 192
+    },
+    "Brighton": {
+      "listedByProvider": 18,
+      "openMeteoHttp": 200,
+      "ticketmasterHttp": 200,
+      "openMeteoHours": 192
+    },
+    "London Stratford": {
+      "listedByProvider": 12,
+      "openMeteoHttp": 200,
+      "ticketmasterHttp": 200,
+      "openMeteoHours": 192
+    }
+  },
+  "currentSignals": [
+    {
+      "location": "Birmingham",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_fd1bf7d431162d20",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_9b6fe1e189346ddb",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_b0165cafe85d2efe",
+      "startTime": "20:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-03",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_084378e35eb3fe4b",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_7099e5a6b374228e",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_432987bd54577039",
+      "startTime": "17:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c7a04590f2e281e0",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_dfb88e7b900754e5",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c156c3e7b816d27e",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_a85a3bc313b3bf5c",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-04",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_1943c7e63a6ba60e",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_36e87ef2aedd1a77",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_755e8d4214fda934",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_a3a96300584cdd2f",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_755c8a47b0a69e46",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-05",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 8°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_cce903a0f6e66cfa",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_3df7f9afd0ff94d7",
+      "startTime": "20:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_2adce1a5fce569e1",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_5eac6961d6cb48d4",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_03633693f1b39109",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_0ea84f585522cde1",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_796d8e969e4b1ab6",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_85ab1bebeb4ad812",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_5c445419c47f367d",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_b1a8611364d4ba4e",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-06",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_975c04fd6fb70d65",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_d84806bedd5cd614",
+      "startTime": "15:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c94d353ff998158d",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_a90ead8121e4b21d",
+      "startTime": "18:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_79bc8433bcb98be6",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_75ddd9a51d47e082",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_fea7668ce42fd3ad",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_d27e45f4f44d7f60",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_b3654a0627b6e9e5",
+      "startTime": "15:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_7e81d2bd1402aeb8",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-07",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_549129e992e80e13",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c26b532417cc3399",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_cca78da6dc8ef280",
+      "startTime": "14:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_464d5b63eea5ae45",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-08",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_7d240139f49db342",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_1ded065eae433c03",
+      "startTime": "09:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_b351734956b2e3d4",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_78c37dee84d2f09a",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Birmingham",
+      "date": "2026-11-09",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 6°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_69344bf3122ea813",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-03",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Rain possible 12:00–17:00 (up to 40%), top 12°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_80b13193d80fc069",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-04",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_971793893b087868",
+      "startTime": "20:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_5464c6b0da21d42b",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_8ca0328964a2c259",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_43398fbc7ba0d686",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-05",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_352ad27830a5a8f4",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_75148c82335e7767",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_27f1630977d6b84b",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_e31019365898f1ad",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-06",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_e0d7e07871f247b8",
+      "startTime": "20:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_f2663f9abf24cd56",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-07",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_020761c92001de92",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c999e92f63dfca9d",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_2ed27cc96536cb80",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_f01dbc32d61dfe36",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-08",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_59a3816f1788e2c6",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_f786336a35bea8c1",
+      "startTime": "10:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Brighton",
+      "date": "2026-11-09",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_d29b08bf689a6e3d",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_74d4dd037f61d1ff",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-03",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_5caa7dc279d70b18",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-03",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_498f969aa8b22c16",
+      "startTime": "18:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_f57c36c756059acb",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_76fc19d6318799be",
+      "startTime": "23:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-04",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Rain likely 09:00–16:00 (up to 60%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_eff2ab1ac3694f5a",
+      "startTime": "23:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_38c9d252b3d0b52d",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_4c9a5dc976ab5ade",
+      "startTime": "20:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-05",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_9f4cbb7ada18a4e9",
+      "startTime": "23:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_f88a8825a8b75601",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_329d925f6aa51330",
+      "startTime": "18:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_7f204fe011552cc7",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_18fcb48f0ea141ea",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_bde3a82c3775c89f",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-06",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_65a7da0b17f347c9",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_3109d95ce9e7e949",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_0d6610af5b275413",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_a356502f679b64ce",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-07",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_388426b259c1a270",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_755e642621d9f365",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_1b80fd04a32c08c4",
+      "startTime": "18:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_c4dcd1dc73a4a828",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_ba40a69ff640f5c7",
+      "startTime": "15:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_138dc09e0db6930e",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-08",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_da052ecacd3aaf1b",
+      "startTime": "19:30",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_0c247ecd0b78c96d",
+      "startTime": "19:30",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-09",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_38598f262b1ee5bf",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Leeds",
+      "date": "2026-11-09",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 8°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-03",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Rain possible 14:00–17:00 (up to 40%), top 12°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_a168edcc0d91d4bf",
+      "startTime": "19:45",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-04",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 12°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_745d8cc542c686e2",
+      "startTime": "19:45",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-05",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_85ed77fdff953193",
+      "startTime": "19:45",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-06",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_d307e076c7ad2766",
+      "startTime": "15:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_3e760329c3a008e2",
+      "startTime": "19:45",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-07",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_e039c129af9fbeae",
+      "startTime": "18:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_82c9c363b4138f29",
+      "startTime": "13:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_2939676960d8ac93",
+      "startTime": "14:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-08",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "London Stratford",
+      "date": "2026-11-09",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-03",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 12°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_5352401aa61dfe04",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-04",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_381a5b39b4f8298a",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-04",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 12°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-05",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_81059a99bfcb5bac",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-05",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_b17f6d330e583748",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-06",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_23698e2ba963630b",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-06",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 11°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-07",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_3089c5eedd57fa98",
+      "startTime": "19:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-07",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 10%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_fb4ec58b2acb0d8e",
+      "startTime": "16:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_520814c1b34c8844",
+      "startTime": "19:00",
+      "distanceBand": "1 to 3 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-08",
+      "type": "LOCAL_EVENT",
+      "provenance": "PROVIDER_EVENT",
+      "reference": "listing_9a88b810a5647f9a",
+      "startTime": "20:00",
+      "distanceBand": "under 1 km"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-08",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 0%), top 10°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    },
+    {
+      "location": "Manchester",
+      "date": "2026-11-09",
+      "type": "WEATHER_FORECAST",
+      "provenance": "PROVIDER_FORECAST",
+      "summary": "Low chance of rain (up to 20%), top 9°C",
+      "source_ref": "https://api.open-meteo.com/v1/forecast"
+    }
+  ],
+  "proposal": [
+    {
+      "target_date": "2026-11-04",
+      "status": "AVAILABLE",
+      "scenario": "MINOR_UP",
+      "period_start": 720,
+      "period_end": 840,
+      "cited_signal_ids": [
+        "ctx_30a3225f2a46e978e7dba60b"
+      ],
+      "reason": "A manager-entered note describes a nearby trade conference during the midday period, which could bring additional visitors to this business-district location. The event and its potential effect are unverified.",
+      "model": "gpt-6-luna",
+      "response_model": "gpt-6-luna",
+      "provider_response_id": "resp_01804b71b160a7d7016ae8e7d9277487d28f41ac9efe8bb4b1",
+      "input_version": "fs-demand-context-input-v2",
+      "output_schema_version": "fs-demand-context-output-v2",
+      "input_fingerprint": "543a1b32cd482a6a88374b0abab9f2a8328f4ac3ece56dd46f0f4cb761e00d6a",
+      "input": {
+        "signals": [
+          {
+            "id": "ctx_30a3225f2a46e978e7dba60b",
+            "type": "LOCAL_EVENT",
+            "period": {
+              "end": "14:00",
+              "start": "12:00"
+            },
+            "summary": "Local event: Rehearsal trade conference next door, 12:00–14:00, under 1 km away, 1,000 to 10,000 attending.",
+            "validTo": "2026-11-04",
+            "metadata": {
+              "name": "Rehearsal trade conference next door",
+              "distanceBand": "UNDER_1KM",
+              "attendanceBand": "1000_TO_10000"
+            },
+            "direction": "UNSPECIFIED",
+            "validFrom": "2026-11-04",
+            "provenance": "MANAGER_ENTERED"
+          },
+          {
+            "id": "ctx_570a414850d6c50ff5bc27dd",
+            "type": "WEATHER_FORECAST",
+            "period": {
+              "end": "17:00",
+              "start": "07:00"
+            },
+            "summary": "Rain likely 09:00–16:00 (up to 60%), top 11°C",
+            "validTo": "2026-11-04",
+            "metadata": {
+              "hours": [
+                {
+                  "time": "07:00",
+                  "rainMm": 0,
+                  "temperatureC": 9,
+                  "rainChancePercent": 30
+                },
+                {
+                  "time": "08:00",
+                  "rainMm": 0,
+                  "temperatureC": 8,
+                  "rainChancePercent": 40
+                },
+                {
+                  "time": "09:00",
+                  "rainMm": 0.5,
+                  "temperatureC": 8,
+                  "rainChancePercent": 50
+                },
+                {
+                  "time": "10:00",
+                  "rainMm": 0,
+                  "temperatureC": 9,
+                  "rainChancePercent": 50
+                },
+                {
+                  "time": "11:00",
+                  "rainMm": 0.5,
+                  "temperatureC": 9,
+                  "rainChancePercent": 60
+                },
+                {
+                  "time": "12:00",
+                  "rainMm": 0,
+                  "temperatureC": 10,
+                  "rainChancePercent": 60
+                },
+                {
+                  "time": "13:00",
+                  "rainMm": 0,
+                  "temperatureC": 11,
+                  "rainChancePercent": 60
+                },
+                {
+                  "time": "14:00",
+                  "rainMm": 0,
+                  "temperatureC": 11,
+                  "rainChancePercent": 50
+                },
+                {
+                  "time": "15:00",
+                  "rainMm": 0,
+                  "temperatureC": 11,
+                  "rainChancePercent": 50
+                },
+                {
+                  "time": "16:00",
+                  "rainMm": 0,
+                  "temperatureC": 11,
+                  "rainChancePercent": 30
+                }
+              ]
+            },
+            "direction": "UNSPECIFIED",
+            "validFrom": "2026-11-04",
+            "provenance": "PROVIDER_FORECAST"
+          },
+          {
+            "id": "ctx_6640c5b097fe15ed3d2c16c4",
+            "type": "MOMENTUM",
+            "period": null,
+            "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before.",
+            "validTo": "2026-11-15",
+            "metadata": {
+              "method": "transactions-28-v-prior-28-v1",
+              "source": "REFERENCE",
+              "priorTo": "2026-10-04",
+              "recentTo": "2026-11-01",
+              "changeBps": 232,
+              "priorDays": 28,
+              "priorFrom": "2026-09-07",
+              "synthetic": true,
+              "recentDays": 28,
+              "recentFrom": "2026-10-05",
+              "priorTransactions": 3451,
+              "recentTransactions": 3531
+            },
+            "direction": "UP",
+            "validFrom": "2026-11-02",
+            "provenance": "DETERMINISTIC_CALCULATION"
+          },
+          {
+            "id": "listing_c26fdd0f9b4fdcae",
+            "type": "LOCAL_EVENT",
+            "period": null,
+            "validTo": "2026-11-04",
+            "metadata": {
+              "startTime": "18:30",
+              "distanceBand": "under 1 km"
+            },
+            "direction": "UNSPECIFIED",
+            "validFrom": "2026-11-04",
+            "provenance": "PROVIDER_EVENT",
+            "reference": "listing_498f969aa8b22c16"
+          },
+          {
+            "id": "listing_a1aa19030e871f5a",
+            "type": "LOCAL_EVENT",
+            "period": null,
+            "validTo": "2026-11-04",
+            "metadata": {
+              "startTime": "23:30",
+              "distanceBand": "under 1 km"
+            },
+            "direction": "UNSPECIFIED",
+            "validFrom": "2026-11-04",
+            "provenance": "PROVIDER_EVENT",
+            "reference": "listing_76fc19d6318799be"
+          },
+          {
+            "id": "listing_c62e670818fe886b",
+            "type": "LOCAL_EVENT",
+            "period": null,
+            "validTo": "2026-11-04",
+            "metadata": {
+              "startTime": "19:00",
+              "distanceBand": "under 1 km"
+            },
+            "direction": "UNSPECIFIED",
+            "validFrom": "2026-11-04",
+            "provenance": "PROVIDER_EVENT",
+            "reference": "listing_f57c36c756059acb"
+          }
+        ],
+        "weekday": "WEDNESDAY",
+        "baseline": {
+          "byHour": [
+            {
+              "end": "08:00",
+              "start": "07:00",
+              "expectedTransactions": 12
+            },
+            {
+              "end": "09:00",
+              "start": "08:00",
+              "expectedTransactions": 22
+            },
+            {
+              "end": "10:00",
+              "start": "09:00",
+              "expectedTransactions": 15
+            },
+            {
+              "end": "11:00",
+              "start": "10:00",
+              "expectedTransactions": 9
+            },
+            {
+              "end": "12:00",
+              "start": "11:00",
+              "expectedTransactions": 13
+            },
+            {
+              "end": "13:00",
+              "start": "12:00",
+              "expectedTransactions": 30
+            },
+            {
+              "end": "14:00",
+              "start": "13:00",
+              "expectedTransactions": 32
+            },
+            {
+              "end": "15:00",
+              "start": "14:00",
+              "expectedTransactions": 13
+            },
+            {
+              "end": "16:00",
+              "start": "15:00",
+              "expectedTransactions": 6
+            },
+            {
+              "end": "17:00",
+              "start": "16:00",
+              "expectedTransactions": 3
+            }
+          ],
+          "support": "MODERATE",
+          "evidence": {
+            "source": "REFERENCE",
+            "synthetic": true,
+            "dataThrough": "2026-11-01"
+          },
+          "lowerTransactions": 98,
+          "upperTransactions": 211,
+          "expectedTransactions": 155
+        },
+        "scenarios": [
+          {
+            "scenario": "NONE",
+            "planningAssumptionPercent": 0
+          },
+          {
+            "scenario": "MINOR_UP",
+            "planningAssumptionPercent": 5
+          },
+          {
+            "scenario": "MODERATE_UP",
+            "planningAssumptionPercent": 10
+          },
+          {
+            "scenario": "MINOR_DOWN",
+            "planningAssumptionPercent": -5
+          },
+          {
+            "scenario": "MODERATE_DOWN",
+            "planningAssumptionPercent": -10
+          }
+        ],
+        "targetDate": "2026-11-04",
+        "locationKey": "L1",
+        "inputVersion": "fs-demand-context-input-v2",
+        "venueProfile": "BUSINESS_DISTRICT",
+        "policyVersion": "fs-demand-context-policy-v1",
+        "eventsFreshness": {
+          "stale": false,
+          "fetchedHoursAgo": 0
+        },
+        "weatherFreshness": {
+          "stale": false,
+          "fetchedHoursAgo": 0
+        },
+        "bankHolidayStatus": "NO_HOLIDAY_ON_DATE"
+      }
+    }
+  ],
+  "decision": [
+    {
+      "action": "ACCEPTED",
+      "scenario": "MINOR_UP",
+      "adjustment_bps": 500,
+      "period_start": 720,
+      "period_end": 840,
+      "decided_by_role": "MANAGER",
+      "policy_version": "fs-demand-context-policy-v1",
+      "input_fingerprint": "543a1b32cd482a6a88374b0abab9f2a8328f4ac3ece56dd46f0f4cb761e00d6a"
+    }
+  ],
+  "providerEventSignalsByDate": {
+    "Birmingham": {
+      "2026-11-03": 3,
+      "2026-11-04": 7,
+      "2026-11-05": 5,
+      "2026-11-06": 10,
+      "2026-11-07": 10,
+      "2026-11-08": 4,
+      "2026-11-09": 4
+    },
+    "Brighton": {
+      "2026-11-03": 1,
+      "2026-11-04": 1,
+      "2026-11-05": 4,
+      "2026-11-06": 4,
+      "2026-11-07": 2,
+      "2026-11-08": 4,
+      "2026-11-09": 2
+    },
+    "Leeds": {
+      "2026-11-03": 3,
+      "2026-11-04": 3,
+      "2026-11-05": 3,
+      "2026-11-06": 6,
+      "2026-11-07": 4,
+      "2026-11-08": 6,
+      "2026-11-09": 3
+    },
+    "London Stratford": {
+      "2026-11-04": 1,
+      "2026-11-05": 1,
+      "2026-11-06": 1,
+      "2026-11-07": 2,
+      "2026-11-08": 3
+    },
+    "Manchester": {
+      "2026-11-04": 2,
+      "2026-11-05": 1,
+      "2026-11-06": 2,
+      "2026-11-07": 1,
+      "2026-11-08": 3
+    }
+  }
+}

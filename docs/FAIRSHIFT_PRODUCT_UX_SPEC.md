@@ -99,6 +99,12 @@ The three components have distinct sources.
 | After Manager approval | Preserve the approved payable. Do not introduce a payout hold or rewrite approved earnings. Record the later refund or change as an exception/audit/reconciliation event. |
 | After PayPal initiation or completion | Preserve historical payout evidence. No automatic clawback. |
 
+**Addendum, 2 November 2026 (FS-CONTEXT-SIGNALS-001). Documentation only, nothing implemented.**
+
+Refunds and tips: any refund recorded before Manager approval removes the whole tip on that payment. Partial refunds are not apportioned. Refunds after approval follow the existing exception rule (recorded, no hold, no change to the payout).
+
+Open for FS-HOSPITALITY-EARNINGS-001: Square Sandbox `tip_money` behaviour must be verified first, and the tip window must be the same window used for sales performance attribution.
+
 **Claims firewall.** FairShift must not claim to be a UK payroll engine, a tax engine, a statutory tronc service, a complete time-and-attendance system, or legally compliant merely because a Sandbox payout occurred. The policy demonstrated by the fictional company must not be described as legally fair or UK-compliant unless separately verified.
 
 ### Owner decision FS-DEMAND-CONTEXT-DEC-001: bounded contextual-demand scenarios
@@ -121,10 +127,56 @@ Rules as implemented:
 
 - **Baseline first.** The deterministic baseline stays canonical and visible. Before a Manager accepts, only the baseline drives staffing.
 - **Target.** An accepted scenario scales expected transactions by planning block. Commercial sales, capacity, minimum cover and regular coverage aren't changed, and the frozen workload policy converts the result.
-- **Signals.** Momentum (latest 28 days against the prior 28, calculated), Manager-entered context (labelled as such, never as verified), and UK bank holidays from a dated GOV.UK snapshot, where the location record states its nation. A missing signal means unknown, not normal. Weather, school holidays, events and bookings aren't implemented.
+- **Signals.** Momentum (latest 28 days against the prior 28, calculated), Manager-entered context (labelled as such, never as verified), and UK bank holidays from a dated GOV.UK snapshot, where the location record states its nation. A missing signal means unknown, not normal. School holidays aren't implemented. Weather, events, bookings and promotions are added by FS-CONTEXT-SIGNALS-DEC-001, below.
 - **Human control.** A Manager accepts or dismisses, and can withdraw a decision. A business owner acting on their selected location can do the same under the existing location scope, and the role is recorded.
 - **Staleness.** A decision applies only while the demand baseline, signals and policy it was made on are unchanged. Otherwise the day returns to its baseline and says so. Regular cover and allocated shifts don't invalidate it, because the scenario is a view about demand.
 - **Failure.** Any AI failure or rejected output falls back to the baseline. Forecast, staffing, Opportunity Demand and Fill Shifts carry on.
+
+### Owner decision FS-CONTEXT-SIGNALS-DEC-001: sourced local context signals
+
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with genuine Open-Meteo, Ticketmaster and OpenAI responses. Not deployed.** Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+
+**Authority.** The package FS-CONTEXT-SIGNALS-001 names this as the dated amendment required by "D-W11". It explicitly supersedes FS-HACK-MASTER-001 §6.4, "External factors ... NOT AUTHORISED", **for the signal classes listed here only**. It also narrows the earlier "not authorised" line in this section: Manager-entered bookings and expected covers are allowed as contextual signals. Reservation-platform integrations stay not authorised, and covers stay outside the workload calculation, which still uses transactions.
+
+**D-S1 Venue profile.** Each location may carry one venue profile from a closed set: `STADIUM_DISTRICT`, `WATERFRONT_OUTDOOR`, `BUSINESS_DISTRICT`, `STATION_COMMUTER`, `SHOPPING_CENTRE`. It is set by the Owner. No profile means unknown, never assumed. The reference company's five venues take the profiles already defined in `uk-hospitality.ts` (A–E), labelled reference configuration. The profile is passed to the AI as an enum, never as free text. It is product context for reasoning, not a coefficient: no code applies a weather or event effect by profile.
+
+**D-S2 Authorised signal classes.** Existing, unchanged: `MOMENTUM`, `BANK_HOLIDAY`, `MANAGER_ENTERED`. New:
+
+- `WEATHER_FORECAST`: fetched automatically per location from a public forecast provider.
+- `BOOKINGS`: Manager-entered, structured.
+- `LOCAL_EVENT`: Manager-entered, structured; optionally also provider-fetched (D-S4).
+- `PROMOTION`: Manager-entered, structured.
+
+Not authorised: school holidays, footfall feeds, reservation-platform integrations, social media, news, traffic.
+
+**D-S3 Time-targeted scenarios.** A scenario may apply to the whole trading day, as now, or to one contiguous period within the day's trading hours, on planning-block boundaries. The percentages are unchanged: `NONE` 0, `MINOR_UP` +5, `MODERATE_UP` +10, `MINOR_DOWN` −5, `MODERATE_DOWN` −10. Code applies the fixed percentage only to expected transactions inside the chosen period.
+
+**D-S4 Provider events (optional, key-gated).** If `TICKETMASTER_API_KEY` is configured, FairShift fetches events within 3 km of each location for the next seven days. 3 km is a product setting recorded here, not tuned against results. Without a key, provider events are unavailable, and Manager-entered events still work.
+
+**Unchanged.** The frozen workload policy, coverage, reference commerce and forecast parameters. AI chooses a scenario and cites signals, code owns the arithmetic, and only a person's acceptance changes staffing. Measured or learned weather or event effects remain prohibited claims.
+
+### Owner decision FS-CONTEXT-SIGNALS-DEC-002: event influence window, listing filter, weather bands
+
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally. Not deployed.** It amends D-S3's overlap rule for events only. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+
+**Event influence window.**
+
+- An event's influence window runs from 2 hours before its start time to 1 hour after its end time. If no end time is given, it runs to 3 hours after the start time.
+- A time-targeted scenario citing an event must overlap that event's influence window.
+- The rule applies identically to Manager-entered and Ticketmaster events.
+- An event with no start time can support only a whole-day scenario.
+- Weather keeps the existing rule: the period must overlap the forecast hours the signal describes.
+- Reason: pre-event and post-event trade happens outside the event's own hours. These durations are product settings chosen from that reasoning, not from resulting gaps, and must not be adjusted after seeing results.
+
+**Listing filter (provider events).** A Ticketmaster listing is excluded from signals when any of these holds, and each exclusion is counted by reason in the evidence:
+
+- its influence window does not overlap the venue's trading hours that day;
+- it is a standing attraction or a multi-day or long-running listing rather than a dated event, by the provider's classification and date fields;
+- it duplicates another listing at the same venue and start time (existing rule).
+
+Listings are not filtered by event size, genre or name keywords chosen to shape results.
+
+**Weather bands.** For the input fingerprint only, weather is compared in bands: precipitation probability in steps of 10 percentage points, precipitation amount in steps of 0.5 mm, temperature in steps of 2°C. The full-precision values are still stored and shown. A change within the same band does not make an accepted proposal stale, and a band change does.
 
 ## 2. Product principles
 
@@ -361,6 +413,8 @@ The story runs:
 The Square Sandbox journey is verified locally from allocation to worker payment confirmation ([`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md), [`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)):
 
 > labelled reference history drives the forecast → manager offer → worker acceptance → allocation → genuine Square Sandbox payments carrying `team_member_id` → mapped worker performance → deterministic incentive → manager approval of £96 base + £25 bonus = £121 → genuine PayPal Sandbox payout of GBP 121.00 → item `SUCCESS` → persisted `PAID` → worker confirmation
+
+**Context signals, FS-CONTEXT-SIGNALS-001:** weather, listed events and structured Manager signals, with time-targeted scenarios, are verified locally through to Fill Shifts ([`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md)). The one genuine answer cited a Manager-entered event, not a provider signal.
 
 **Limits of that run:** it used a short real shift on the same terms, not the 14:00–20:00 window. The 14:00–20:00 rehearsal has not been run, and the path is not deployed.
 

@@ -88,9 +88,9 @@ export function outletStaffing(organisationId: string, forecast: OutletWeeklyFor
     const planningDate = shiftDate(firstDate, i);
     const commercial = forecast.days.find(day => day.targetDate === planningDate)?.forecast ?? null;
     const weekday = isoWeekday(planningDate);
-    const build = (demandAdjustmentBps?: number): Omit<StaffingDay, "context"> => {
+    const build = (demandAdjustmentBps?: number, demandAdjustmentPeriod?: TradingWindow | null): Omit<StaffingDay, "context"> => {
       const workload: DayWorkload = calculateDayWorkload({ date: planningDate, timezone: forecast.timezone, trading: inputs.trading.get(weekday)?.windows ?? null, coverage: inputs.coverage.get(weekday)?.windows ?? null,
-        policy, slots: inputs.slots, dataThrough: selected?.dataThrough ?? null, allocated: inputs.allocated, demandAdjustmentBps });
+        policy, slots: inputs.slots, dataThrough: selected?.dataThrough ?? null, allocated: inputs.allocated, demandAdjustmentBps, demandAdjustmentPeriod });
       // Without stated trading hours the only knowable casual figure is the whole local day's.
       const dayStart = startOfLocalDay(planningDate, forecast.timezone), dayEnd = startOfLocalDay(shiftDate(planningDate, 1), forecast.timezone);
       const allocatedCasualMinutes = workload.closed === null ? inputs.allocated.reduce((sum, shift) => { const shared = Math.min(shift.endsAt.getTime(), dayEnd.getTime()) - Math.max(shift.startsAt.getTime(), dayStart.getTime()); return sum + (shared > 0 ? Math.floor(shared / 60_000) : 0); }, 0) : workload.allocatedCasualMinutes;
@@ -99,7 +99,7 @@ export function outletStaffing(organisationId: string, forecast: OutletWeeklyFor
         coverageMinutes: workload.unavailable || workload.regularMinutes === null ? null : workload.regularMinutes + allocatedCasualMinutes, casualGapMinutes: remainingMinutes };
     };
     const applied = inputs.accepted?.get(planningDate);
-    return applied ? { ...build(applied.adjustmentBps), context: { ...applied, baseline: build() } } : build();
+    return applied ? { ...build(applied.adjustmentBps, applied.period), context: { ...applied, baseline: build() } } : build();
   });
   const complete = days.every(day => !day.unavailable);
   const weekTotals = (rows: readonly Omit<StaffingDay, "context">[]) => sumTotals(rows.map(day => ({ forecastSalesMinor: day.forecastSalesMinor ?? 0, expectedMilliTransactions: day.expectedMilliTransactions ?? 0, requiredMinutes: day.requiredMinutes ?? 0, regularMinutes: day.regularMinutes ?? 0,
@@ -166,24 +166,24 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
       policies: policyRows, slots, dataset, allocated: allocatedRows.filter(row => row.outletId === outlet.outletId),
     };
     const rates = rateRows.filter(row => row.outletId === outlet.outletId);
-    result.push(withDemandContext(scope.organisationId, outlet, inputs, rates, stored));
+    result.push(withDemandContext(scope.organisationId, outlet, inputs, rates, stored, now));
   }
   return { methodVersion: STAFFING_METHOD_VERSION, workloadMethodVersion: WORKLOAD_FORECAST_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result), commercial: consolidateCommercial(result) };
 }
 
 // The baseline first, always from the same calculation. Accepted scenarios and previews are then
 // the same calculation again with the fixed policy assumption, so there is no second model.
-function withDemandContext(organisationId: string, forecast: OutletWeeklyForecast, inputs: WorkloadInputs, rates: readonly WorkRate[], stored: StoredContext | null): OutletStaffing {
+function withDemandContext(organisationId: string, forecast: OutletWeeklyForecast, inputs: WorkloadInputs, rates: readonly WorkRate[], stored: StoredContext | null, now: Date): OutletStaffing {
   const baseline = outletStaffing(organisationId, forecast, inputs, rates);
   if (!stored) return baseline;
   let context: OutletDemandContext;
-  try { context = resolveOutletContext({ organisationId, outletId: forecast.outletId, stored, days: baseline.days, evidence: baseline.evidence && { source: baseline.evidence.source, dataThrough: baseline.evidence.dataThrough }, evidenceDays: forecast.evidenceDays }); }
+  try { context = resolveOutletContext({ organisationId, outletId: forecast.outletId, stored, days: baseline.days, evidence: baseline.evidence && { source: baseline.evidence.source, dataThrough: baseline.evidence.dataThrough }, evidenceDays: forecast.evidenceDays, now }); }
   catch { console.error("Demand context could not be resolved; planning continues from the baseline."); return baseline; }
   const final = context.accepted.size ? outletStaffing(organisationId, forecast, { ...inputs, accepted: context.accepted }, rates) : baseline;
   const previewOf = (day: ContextDay): ContextDay["preview"] => {
     if (!day.proposal || day.state === "NO_SIGNAL") return null;
-    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, accepted: new Map([[day.date, { scenario: day.proposal.scenario, adjustmentBps: SCENARIO_ADJUSTMENT_BPS[day.proposal.scenario], decisionId: "", proposalId: day.proposal.id, policyVersion: "", citedSignalIds: [] }]]) }).days.find(row => row.planningDate === day.date);
-    return adjusted ? { expectedMilliTransactions: adjusted.expectedMilliTransactions, requiredMinutes: adjusted.requiredMinutes, casualGapMinutes: adjusted.casualGapMinutes } : null;
+    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, accepted: new Map([[day.date, { scenario: day.proposal.scenario, adjustmentBps: SCENARIO_ADJUSTMENT_BPS[day.proposal.scenario], period: day.proposal.period, decisionId: "", proposalId: day.proposal.id, policyVersion: "", citedSignalIds: [] }]]) }).days.find(row => row.planningDate === day.date);
+    return adjusted ? { expectedMilliTransactions: adjusted.expectedMilliTransactions, requiredMinutes: adjusted.requiredMinutes, casualGapMinutes: adjusted.casualGapMinutes, blocks: adjusted.blocks } : null;
   };
   return { ...final, demandContext: { ...context, days: context.days.map(day => ({ ...day, preview: previewOf(day) })) } };
 }

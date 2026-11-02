@@ -14,7 +14,7 @@ export type OpportunityDemand = {
   workloadMethodVersion: string; staffingMethodVersion: string; workloadPolicyVersion: string;
   provenance: { source: string; synthetic: boolean; dataset: string | null; dataThrough: string } | null;
   // Set only when this window's figures include a Manager-accepted contextual scenario.
-  acceptedContext?: { scenario: string; adjustmentBps: number; decisionId: string; proposalId: string; policyVersion: string; citedSignalIds: string[] };
+  acceptedContext?: { scenario: string; adjustmentBps: number; period?: { start: number; end: number } | null; decisionId: string; proposalId: string; policyVersion: string; citedSignalIds: string[] };
 };
 
 function toOpportunity(outlet: OutletStaffing, day: StaffingDay, period: ServicePeriod): OpportunityDemand {
@@ -27,7 +27,8 @@ function toOpportunity(outlet: OutletStaffing, day: StaffingDay, period: Service
     requiredMinutes: period.requiredMinutes, regularMinutes: period.regularMinutes, allocatedCasualMinutes: period.allocatedCasualMinutes, remainingCasualMinutes: period.remainingMinutes, peakCasualStaff: period.peakCasualStaff,
     workloadMethodVersion: WORKLOAD_FORECAST_METHOD_VERSION, staffingMethodVersion: STAFFING_METHOD_VERSION, workloadPolicyVersion: outlet.policy!.version,
     provenance: outlet.evidence && { source: outlet.evidence.source, synthetic: outlet.evidence.source === "REFERENCE" || outlet.evidence.source === "DEMO_SEEDED", dataset: outlet.evidence.dataset, dataThrough: outlet.evidence.dataThrough },
-    ...(day.context ? { acceptedContext: { scenario: day.context.scenario, adjustmentBps: day.context.adjustmentBps, decisionId: day.context.decisionId, proposalId: day.context.proposalId, policyVersion: day.context.policyVersion, citedSignalIds: day.context.citedSignalIds } } : {}),
+    // A time-targeted scenario is named only on the windows whose figures it actually changed.
+    ...(day.context && (!day.context.period || (period.start < day.context.period.end && period.end > day.context.period.start)) ? { acceptedContext: { scenario: day.context.scenario, adjustmentBps: day.context.adjustmentBps, period: day.context.period, decisionId: day.context.decisionId, proposalId: day.context.proposalId, policyVersion: day.context.policyVersion, citedSignalIds: day.context.citedSignalIds } } : {}),
   };
 }
 

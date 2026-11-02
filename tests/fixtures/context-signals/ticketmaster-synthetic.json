@@ -1,0 +1,799 @@
+{
+ "_synthetic": "Invented listings for tests, in the shape of the provider's response. No real event, venue or identifier.",
+ "_embedded": {
+  "events": [
+   {
+    "id": "SYNTHETIC-PACKAGE",
+    "name": "Synthetic Show - Synthetic Premium Package",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-04",
+      "localTime": "19:45:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Hall",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-SHOW-1",
+    "name": "Synthetic Show",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-04",
+      "localTime": "19:45:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Hall",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-SHOW-2",
+    "name": "Synthetic Show",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-05",
+      "localTime": "19:45:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Hall",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-END-EQUALS-START",
+    "name": "Synthetic Band",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-06",
+      "localTime": "19:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false,
+     "end": {
+      "localTime": "19:00:00",
+      "dateTime": "2026-11-06T23:00:00Z",
+      "approximate": false,
+      "noSpecificTime": false
+     }
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Room",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-REAL-END",
+    "name": "Synthetic Matinee",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-07",
+      "localTime": "13:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false,
+     "end": {
+      "localTime": "15:30:00",
+      "noSpecificTime": false
+     }
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Arts & Theatre"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Room",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-MATCH",
+    "name": "Synthetic United v Synthetic Town",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-08",
+      "localTime": "14:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Sports"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Ground",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ONE-DAY-FAIR",
+    "name": "Synthetic Winter Fair",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-08",
+      "localTime": "11:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Park",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-3",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-03",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-4",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-04",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-5",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-05",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-6",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-06",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-7",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-07",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-8",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-08",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-ATTRACTION-9",
+    "name": "Synthetic Aquarium - Standard Entry",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-09",
+      "localTime": "09:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Miscellaneous"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Aquarium",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-SPANS",
+    "name": "Synthetic Exhibition",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-05",
+      "localTime": "10:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": true
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Arts & Theatre"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Gallery",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-LONG-END",
+    "name": "Synthetic Residency",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-05",
+      "localTime": "12:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false,
+     "end": {
+      "localDate": "2026-11-30",
+      "localTime": "18:00:00"
+     }
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Arts & Theatre"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Gallery",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-NO-TIME",
+    "name": "Synthetic Open Day",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-06",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": true,
+      "noSpecificTime": true
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Undefined"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Park",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-LATE",
+    "name": "Synthetic Late Night",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-06",
+      "localTime": "23:30:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "onsale"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Club",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "SYNTHETIC-MOVED",
+    "name": "Synthetic Moved Show",
+    "type": "event",
+    "test": false,
+    "dates": {
+     "start": {
+      "localDate": "2026-11-07",
+      "localTime": "19:00:00",
+      "dateTBD": false,
+      "dateTBA": false,
+      "timeTBA": false,
+      "noSpecificTime": false
+     },
+     "timezone": "Europe/London",
+     "status": {
+      "code": "rescheduled"
+     },
+     "spanMultipleDays": false
+    },
+    "classifications": [
+     {
+      "primary": true,
+      "segment": {
+       "name": "Music"
+      },
+      "family": false
+     }
+    ],
+    "_embedded": {
+     "venues": [
+      {
+       "name": "Synthetic Hall",
+       "location": {
+        "longitude": "-0.0100",
+        "latitude": "51.5390"
+       }
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { shiftDate } from "@/server/intelligence/forecast";
+import type { VenueProfile } from "@/server/intelligence/venue-profile";
 import type { CoverageWindow, TradingWindow } from "@/server/intelligence/workload";
 
 // Fictional five-location UK fast-casual café and dining group: the current reference company
@@ -28,6 +29,17 @@ export const REFERENCE_WORKLOAD_POLICY = { transactionsPerStaffHour: 7, minimumS
 
 export const REFERENCE_STORE_CODES = ["UK01", "UK02", "UK03", "UK04", "UK05"] as const;
 export type ReferenceStoreCode = typeof REFERENCE_STORE_CODES[number];
+
+// Each venue's profile, from its design below, and an approximate public-area coordinate
+// consistent with it. Fictional venues: these place a forecast, and aren't real premises. Chosen
+// from the profile alone (docs/CONTEXT_SIGNALS_EVIDENCE.md), never by looking at a result.
+export const REFERENCE_VENUE_CONTEXT: Readonly<Record<ReferenceStoreCode, { venueProfile: VenueProfile; latitude: number; longitude: number; area: string }>> = {
+  UK01: { venueProfile: "BUSINESS_DISTRICT", latitude: 53.7975, longitude: -1.545, area: "Leeds city centre, around Park Row" },
+  UK02: { venueProfile: "STADIUM_DISTRICT", latitude: 53.465, longitude: -2.288, area: "Old Trafford stadium area, Manchester" },
+  UK03: { venueProfile: "SHOPPING_CENTRE", latitude: 52.4775, longitude: -1.8936, area: "Bullring area, Birmingham" },
+  UK04: { venueProfile: "WATERFRONT_OUTDOOR", latitude: 50.8192, longitude: -0.142, area: "Brighton seafront, around King’s Road" },
+  UK05: { venueProfile: "STATION_COMMUTER", latitude: 51.5416, longitude: -0.0034, area: "Stratford station area, London" },
+};
 
 type HourCurve = Readonly<Record<number, number>>;
 type DayShape = { open: number; close: number; curve: HourCurve };

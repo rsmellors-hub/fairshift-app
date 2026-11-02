@@ -11,6 +11,7 @@ import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/ope
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
 import { publishDemoShiftAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
+import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
 import { getAllocationSchedule } from "@/server/scheduling/allocations";
@@ -29,7 +30,8 @@ import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { AllocationScheduler } from "./allocation-scheduler";
 import { DemoReview } from "./review-workspace";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
-import { DemandContextPanel, scenarioLabel } from "./demand-context";
+import { refreshContextFeedsIfDue } from "@/server/intelligence/demand-context-service";
+import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
 import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
 import { getSquareFreshness, liveSquareConnection } from "@/server/commerce/square-connection";
@@ -77,6 +79,9 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
   };
   // The one calculated week behind both the staffing panel and the Fill Shifts context.
   let staffing: WeeklyStaffing | null = null;
+  // Opening the plan brings weather and listed events up to date when they're due. It waits a few
+  // seconds at most, a failure changes nothing, and a public demo never reaches a provider.
+  if (area === "plan" && !scope.demo) { try { await refreshContextFeedsIfDue(getDatabase(), scope); } catch { console.error("Context feeds could not be checked; planning continues."); } }
   if (area === "plan" || area === "fill" || area === "overview") { try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); } catch { staffing = null; } }
   const planningOutlet = staffing?.outlets.find(row => row.outletId === scope.locationId) ?? null;
   const planningDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
@@ -130,7 +135,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             <li className="demand-flow-gap"><span>Casual requirement</span><strong>{gapDay.casualGapMinutes === null ? "Unavailable" : labourHours(gapDay.casualGapMinutes)}</strong></li>
           </ol>}
           {openWindows.length > 1 ? <p className="opportunity-switch">Other times this day: {openWindows.filter(row => row !== opportunity).map(row => <Link key={row.windowStart} className="text-link" href={fillHref(row.localDate, windowParam(row))}>{row.windowStart}–{row.windowEnd} · {labourHours(row.remainingCasualMinutes)}</Link>)}</p> : null}
-          <p className="note">{opportunity?.commercial ? `Expected sales in this time ${wholeMoney(opportunity.commercial.expectedSalesMinor, opportunity.commercial.currency)}: commercial context only, it doesn’t set staffing. ` : ""}{gapDay.context ? `Includes the accepted scenario ${scenarioLabel(gapDay.context.scenario, gapDay.context.adjustmentBps)}: this day’s expected transactions are ${transactions(gapDay.expectedMilliTransactions)}, against ${transactions(gapDay.context.baseline.expectedMilliTransactions)} on the baseline. ` : ""}{planningOutlet?.policy ? `Calculated with ${policyDescription(planningOutlet.policy)}. ` : ""}{planningOutlet?.evidence ? `Sales evidence through ${longDate(planningOutlet.evidence.dataThrough)}.` : ""}</p></section> : null}
+          <p className="note">{opportunity?.commercial ? `Expected sales in this time ${wholeMoney(opportunity.commercial.expectedSalesMinor, opportunity.commercial.currency)}: commercial context only, it doesn’t set staffing. ` : ""}{gapDay.context ? `Includes the accepted scenario ${scenarioLabel(gapDay.context.scenario, gapDay.context.adjustmentBps)} for ${periodLabel(gapDay.context.period)}: this day’s expected transactions are ${transactions(gapDay.expectedMilliTransactions)}, against ${transactions(gapDay.context.baseline.expectedMilliTransactions)} on the baseline. ` : ""}{planningOutlet?.policy ? `Calculated with ${policyDescription(planningOutlet.policy)}. ` : ""}{planningOutlet?.evidence ? `Sales evidence through ${longDate(planningOutlet.evidence.dataThrough)}.` : ""}</p></section> : null}
       <details className="panel disclosure create-shift" id="add-requirement" open={(!!date && !visibleRequirements.length) || !requirements.length}><summary>Create a shift</summary>
 
         {departments.length && policies.length ? <RequirementForm action={createRequirementAction} departments={departments.map(d => ({ id: d.id, name: d.name }))} policies={policies.map(p => ({ id: p.id, name: p.name, earningsModel: p.earningsModel, rateMinor: p.rateMinor, commissionBps: p.commissionBps, currencyCode: p.currencyCode, incentiveTargetMinor: p.incentiveTargetMinor, incentiveBonusMinor: p.incentiveBonusMinor }))} timeZone={timezone} locationName={scope.locationName}
@@ -331,7 +336,7 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
     <WeekCover outlet={outlet} />
     </section>
     <OpportunityList outlet={outlet} act />
-    <DemandContextPanel outlet={outlet} selectedDate={contextDate} notice={contextNotice} aiConfigured={getConfigurationStatus().aiConfigured} />
+    <DemandContextPanel outlet={outlet} selectedDate={contextDate} notice={contextNotice} aiConfigured={getConfigurationStatus().aiConfigured} eventsConfigured={!!getTicketmasterApiKey()} />
     {outlet.baselineTotals ? <p className="note context-week-note" role="status">This week includes {outlet.days.filter(day => day.context).length === 1 ? "one accepted scenario" : `${outlet.days.filter(day => day.context).length} accepted scenarios`}. Casual requirement {labourHours(outlet.totals?.casualGapMinutes ?? 0)}, against {labourHours(outlet.baselineTotals.casualGapMinutes)} on the baseline.</p> : null}
     {outlet.totals ? <div className="metric-strip" aria-label="Planning week totals">
       <article><span>Expected transactions</span><strong>{transactions(outlet.totals.expectedMilliTransactions)}</strong><small>Sets the staff capacity needed</small></article>

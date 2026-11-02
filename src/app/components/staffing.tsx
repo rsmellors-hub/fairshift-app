@@ -44,6 +44,7 @@ export function WorkloadSetupNotice({ outlets, owner }: { outlets: readonly Outl
 }
 
 // A Manager accepted this policy assumption. It is never shown as a measured effect.
+const contextPeriod = (period?: { start: number; end: number } | null) => period ? `, ${formatClock(period.start)}–${formatClock(period.end)}` : "";
 const contextAssumption = (bps: number) => bps === 0 ? "0%" : `${bps > 0 ? "+" : "−"}${Math.abs(bps) / 100}%`;
 // Says plainly when a total includes a scenario a Manager accepted, and what the baseline was.
 export function AcceptedContextNote({ outlets }: { outlets: readonly OutletStaffing[] }) {
@@ -60,7 +61,7 @@ export function StaffingDayTable({ outlet, className, planHref }: { outlet: Outl
     <caption className="owner-sr-only">{outlet.outletName}: expected transactions, required staff capacity, existing coverage and casual requirement by planning day, with expected sales as commercial context</caption>
     <thead><tr><th scope="col">Planning day</th><th scope="col">Expected transactions</th><th scope="col">Required staff capacity</th><th scope="col">Regular coverage</th><th scope="col">Allocated casual coverage</th><th scope="col">Casual requirement</th><th scope="col">Expected sales</th></tr></thead>
     <tbody>{outlet.days.map(day => <tr key={day.planningDate}>
-      <th scope="row">{planningDay(day.planningDate)}{day.closed ? <small>Closed</small> : day.unavailable ? <small>{STAFFING_UNAVAILABLE[day.unavailable]}</small> : null}{day.context ? <small>Includes accepted scenario {contextAssumption(day.context.adjustmentBps)}</small> : null}</th>
+      <th scope="row">{planningDay(day.planningDate)}{day.closed ? <small>Closed</small> : day.unavailable ? <small>{STAFFING_UNAVAILABLE[day.unavailable]}</small> : null}{day.context ? <small>Includes accepted scenario {contextAssumption(day.context.adjustmentBps)}{contextPeriod(day.context.period)}</small> : null}</th>
       <td data-label="Expected transactions">{day.closed === null ? "Not available" : transactions(day.expectedMilliTransactions)}</td>
       <td data-label="Required staff capacity">{cell(day, day.requiredMinutes, labourHours)}</td>
       <td data-label="Regular coverage">{day.regularMinutes === null ? "Not set" : labourHours(day.regularMinutes)}</td>
@@ -135,7 +136,7 @@ export function OpportunityList({ outlet, act }: { outlet: OutletStaffing; act: 
   if (!open.length) return null;
   return <section className="opportunity-list" aria-labelledby="opportunity-title"><h3 id="opportunity-title">Where casual cover is needed</h3><ul>{open.map(row => <li key={`${row.localDate}-${row.windowStart}`}>
     <span className="opportunity-when"><strong>{planningDay(row.localDate)}</strong> {row.windowStart}–{row.windowEnd}</span>
-    <span className="opportunity-figures">{row.expectedTransactions} expected transactions · {labourHours(row.requiredMinutes)} needed · {labourHours(row.regularMinutes + row.allocatedCasualMinutes)} covered{row.acceptedContext ? ` · includes accepted scenario ${contextAssumption(row.acceptedContext.adjustmentBps)}` : ""}</span>
+    <span className="opportunity-figures">{row.expectedTransactions} expected transactions · {labourHours(row.requiredMinutes)} needed · {labourHours(row.regularMinutes + row.allocatedCasualMinutes)} covered{row.acceptedContext ? ` · includes accepted scenario ${contextAssumption(row.acceptedContext.adjustmentBps)}${contextPeriod(row.acceptedContext.period)}` : ""}</span>
     <strong className="opportunity-gap">{labourHours(row.remainingCasualMinutes)} to fill</strong>
     {act ? <Link className="secondary-button button-link" href={`/manager/fill?date=${row.localDate}&window=${windowParam(row)}#add-requirement`}>Fill shifts</Link> : null}
   </li>)}</ul></section>;
@@ -143,5 +144,5 @@ export function OpportunityList({ outlet, act }: { outlet: OutletStaffing; act: 
 
 // The frozen reason a shift was created. Never a live figure, and pay doesn't read it.
 export function WhyThisShift({ evidence }: { evidence: OpportunityDemand }) {
-  return <details className="disclosure-inline why-shift"><summary>Why this shift was created</summary><p>Created for {longDate(evidence.localDate)} {evidence.windowStart}–{evidence.windowEnd}: {evidence.expectedTransactions} expected transactions needed {labourHours(evidence.requiredMinutes)} of staff capacity, with {labourHours(evidence.regularMinutes)} regular and {labourHours(evidence.allocatedCasualMinutes)} allocated casual cover, leaving {labourHours(evidence.remainingCasualMinutes)} to fill.{evidence.acceptedContext ? ` Those figures include a contextual scenario a Manager accepted (${contextAssumption(evidence.acceptedContext.adjustmentBps)}, a planning assumption).` : ""}</p><p className="note">Figures as they stood when the shift was created. Policy {evidence.workloadPolicyVersion} · method {evidence.workloadMethodVersion}{evidence.provenance ? ` · ${evidence.provenance.synthetic ? "synthetic reference history" : "recorded sales history"} through ${longDate(evidence.provenance.dataThrough)}` : ""}. These figures don’t affect pay.</p></details>;
+  return <details className="disclosure-inline why-shift"><summary>Why this shift was created</summary><p>Created for {longDate(evidence.localDate)} {evidence.windowStart}–{evidence.windowEnd}: {evidence.expectedTransactions} expected transactions needed {labourHours(evidence.requiredMinutes)} of staff capacity, with {labourHours(evidence.regularMinutes)} regular and {labourHours(evidence.allocatedCasualMinutes)} allocated casual cover, leaving {labourHours(evidence.remainingCasualMinutes)} to fill.{evidence.acceptedContext ? ` Those figures include a contextual scenario a Manager accepted (${contextAssumption(evidence.acceptedContext.adjustmentBps)}${contextPeriod(evidence.acceptedContext.period)}, a planning assumption).` : ""}</p><p className="note">Figures as they stood when the shift was created. Policy {evidence.workloadPolicyVersion} · method {evidence.workloadMethodVersion}{evidence.provenance ? ` · ${evidence.provenance.synthetic ? "synthetic reference history" : "recorded sales history"} through ${longDate(evidence.provenance.dataThrough)}` : ""}. These figures don’t affect pay.</p></details>;
 }

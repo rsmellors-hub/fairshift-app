@@ -1,4 +1,5 @@
-import { clearLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, saveOrganisationWorkloadPolicyAction, saveRegularCoverageAction, saveTradingHoursAction } from "@/app/operations-actions";
+import { VENUE_PROFILES, VENUE_PROFILE_LABEL } from "@/server/intelligence/venue-profile";
+import { saveVenueContextAction, clearLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, saveOrganisationWorkloadPolicyAction, saveRegularCoverageAction, saveTradingHoursAction } from "@/app/operations-actions";
 import { policySummary } from "@/app/components/staffing";
 import type { getStaffingConfiguration } from "@/server/intelligence/business-policy";
 import { formatCoverageText, formatTradingText } from "@/server/intelligence/workload";
@@ -24,7 +25,7 @@ const stateOf = (rows: readonly ({ source: string } | null)[], word: string) => 
 
 // A business's own staffing inputs. FairShift supplies no value and doesn't suggest one.
 export function StaffingConfiguration({ configuration, locationName }: { configuration: Configuration; locationName: string }) {
-  const { organisationPolicy, locationPolicy, trading, coverage } = configuration;
+  const { organisationPolicy, locationPolicy, trading, coverage, venue } = configuration;
   return <>
     <section className="panel" id="workload-policy" aria-labelledby="workload-policy-title"><h2 id="workload-policy-title">Service capacity and minimum cover</h2>
       <p>FairShift turns expected transactions into the staff capacity you need using these two figures. They’re your own policy. FairShift doesn’t know the right values and sets none for you. Sales value isn’t part of this.</p>
@@ -44,6 +45,16 @@ export function StaffingConfiguration({ configuration, locationName }: { configu
         <button className="primary-button">Save trading hours</button>
       </form>
       <p id="trading-hours-state" className="note">{stateOf(trading, "planning")}</p>
+    </section>
+    <section className="panel" id="venue-context" aria-labelledby="venue-context-title"><h2 id="venue-context-title">Venue context · {locationName}</h2>
+      <p>What kind of place this is and where it is, so FairShift can fetch its weather and listed events, and AI can reason about them. This sets no effect on demand. Left blank, it stays unknown, and FairShift doesn’t guess.</p>
+      <form action={saveVenueContextAction} className="workspace-form form-grid">
+        <label>Venue type<select name="venueProfile" defaultValue={venue.venueProfile ?? ""}><option value="">Not set</option>{VENUE_PROFILES.map(profile => <option key={profile} value={profile}>{VENUE_PROFILE_LABEL[profile]}</option>)}</select></label>
+        <label>Latitude<input name="latitude" inputMode="decimal" defaultValue={venue.latitude ?? ""} /></label>
+        <label>Longitude<input name="longitude" inputMode="decimal" defaultValue={venue.longitude ?? ""} /></label>
+        <button className="primary-button">Save venue context</button>
+      </form>
+      <p className="note">{venue.source === "REFERENCE" ? "Reference company configuration: an approximate public-area coordinate, not real premises." : venue.source === "CONFIGURED" ? "Set by the business owner." : "Not set for this location."}</p>
     </section>
     <section className="panel" id="regular-coverage" aria-labelledby="regular-coverage-title"><h2 id="regular-coverage-title">Regular coverage · {locationName}</h2>
       <p>How many regular staff are in at each time of a normal week. This is capacity for planning, not a roster. Write <code>07:00-12:00 x3, 12:00-15:00 x4</code>, and <code>none</code> for a day with no regular staff. A blank day isn’t the same as none: its casual requirement stays unavailable.</p>

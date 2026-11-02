@@ -8,8 +8,8 @@ import { calculateDayWorkload, type TransactionSlot } from "@/server/intelligenc
 import { UK_BANK_HOLIDAYS } from "@/server/reference/uk-bank-holidays";
 
 const ORG = "org-1", OUTLET = "outlet-1", DATE = "2026-11-06";
-const signal = (over: Partial<ContextSignal> = {}): ContextSignal => ({ id: `ctx_${"a".repeat(24)}`, organisationId: ORG, outletId: OUTLET, type: "MANAGER_ENTERED", validFrom: DATE, validTo: DATE, direction: "UP", provenance: "MANAGER_ENTERED", sourceLabel: "Manager entered, not independently verified", sourceRef: null, summary: "Market outside", metadata: {}, enteredBy: "user-1", createdAt: null, withdrawnAt: null, ...over });
-const validate = (raw: unknown, signals: ContextSignal[] = [signal()], fingerprints = { inputFingerprint: "f", currentFingerprint: "f" }) => validateContextOutput(raw, { organisationId: ORG, outletId: OUTLET, date: DATE, signals, ...fingerprints });
+const signal = (over: Partial<ContextSignal> = {}): ContextSignal => ({ id: `ctx_${"a".repeat(24)}`, organisationId: ORG, outletId: OUTLET, type: "MANAGER_ENTERED", validFrom: DATE, validTo: DATE, period: null, direction: "UP", provenance: "MANAGER_ENTERED", sourceLabel: "Manager entered, not independently verified", sourceRef: null, summary: "Market outside", metadata: {}, enteredBy: "user-1", createdAt: null, withdrawnAt: null, ...over });
+const validate = (raw: unknown, signals: ContextSignal[] = [signal()], fingerprints = { inputFingerprint: "f", currentFingerprint: "f" }) => validateContextOutput(raw, { organisationId: ORG, outletId: OUTLET, date: DATE, signals, blocks: [{ start: 720, end: 780 }], ...fingerprints });
 const output = (over: Record<string, unknown> = {}) => ({ scenario: "MINOR_UP", citedSignalIds: [signal().id], reason: "The market outside is likely to bring extra footfall.", ...over });
 const codeOf = (result: ReturnType<typeof validate>) => result.ok ? "OK" : result.code;
 
@@ -106,9 +106,9 @@ describe("the output validator", () => {
     expect(codeOf(validate(output(), [signal()], { inputFingerprint: "old", currentFingerprint: "new" }))).toBe("STALE_INPUT");
   });
   it("sends a strict schema closed to this request's signals, with no field for a number", () => {
-    const schema = contextJsonSchema({ signals: [{ id: signal().id }] as never });
+    const schema = contextJsonSchema({ signals: [{ id: signal().id }], baseline: { byHour: [{ start: "12:00", end: "13:00" }] } } as never);
     expect(schema.additionalProperties).toBe(false);
-    expect(Object.keys(schema.properties).sort()).toEqual(["citedSignalIds", "reason", "scenario"]);
+    expect(Object.keys(schema.properties).sort()).toEqual(["citedSignalIds", "period", "reason", "scenario"]);
     expect(schema.properties.scenario.enum).toEqual([...DEMAND_SCENARIOS]);
     expect(schema.properties.citedSignalIds.items.enum).toEqual([signal().id]);
     expect(JSON.stringify(schema)).not.toMatch(/number|integer/);
