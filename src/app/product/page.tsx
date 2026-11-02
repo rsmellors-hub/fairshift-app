@@ -6,8 +6,8 @@ export const metadata: Metadata = { title: "How it works" };
 
 const STEPS = [
   ["Commerce intelligence", "FairShift keeps each location’s sales in one standard record, with its source attached. Square Sandbox sales, imported history and clearly labelled reference data are shown separately and never blended."],
-  ["Daily forecast", "For each location, FairShift forecasts sales for each of the next seven days, comparing like with like: Saturdays with Saturdays. Every forecast has a planning range, and older evidence is called out."],
-  ["Staffing requirement", "The forecast becomes labour hours using a sales-per-labour-hour figure you set. FairShift subtracts your regular cover and any allocated casual shifts. What remains is the gap to fill."],
+  ["Sales and workload forecast", "For each location, FairShift forecasts sales for each of the next seven days and expected transactions by time of day, comparing like with like: Saturdays with Saturdays. Every forecast has a planning range, and older evidence is called out."],
+  ["Staffing requirement", "Expected transactions become staff hours, hour by hour, using the service capacity and minimum cover you set. Sales value isn’t part of this. FairShift subtracts your regular cover and any allocated casual shifts. What remains is the gap to fill."],
   ["AI-assisted prioritisation", "AI reads the calculated week and suggests what to staff first, and why. Any figure it cites must match FairShift’s own numbers, or the answer is discarded. It never books a shift, chooses a worker or changes pay."],
   ["Shift opportunities", "A manager creates the shift for a gap, within the pay terms the Owner has set. Managers can’t change those rates."],
   ["Worker acceptance", "Available workers at that location receive an offer showing the date, times, base pay, sales target and bonus. Those terms are fixed for that shift once they accept."],

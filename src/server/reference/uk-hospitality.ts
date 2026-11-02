@@ -2,24 +2,29 @@ import { createHash } from "node:crypto";
 import { shiftDate } from "@/server/intelligence/forecast";
 import type { CoverageWindow, TradingWindow } from "@/server/intelligence/workload";
 
-// Fictional five-location UK casual-dining and café group: the current reference company
+// Fictional five-location UK fast-casual café and dining group: the current reference company
 // used to develop, test and demonstrate FairShift. Codes and cities are anchors, not real
 // premises. Everything here is labelled synthetic REFERENCE input with documented, hand-set
 // characteristics. Application logic derives its outputs from the resulting rows like any
 // source; FairShift learns nothing causal from them.
 //
-// Deliberately absent: service capacity and minimum cover, which the Owner hasn't decided,
-// so this company has no workload policy until one is configured. Also absent: events,
-// weather, bookings, covers, tables and menu items. A transaction is one bill.
+// Deliberately absent: events, weather, bookings, covers, tables and menu items. A
+// transaction is one bill, the MVP proxy for workload.
 export const REFERENCE_DATASET = {
   version: "uk-hospitality-v1",
-  label: "UK reference casual-dining and café group",
+  label: "UK reference fast-casual café and dining group",
   currency: "GBP",
   timezone: "Europe/London",
   // 65 complete Monday–Sunday weeks. Dates still ahead of the clock are never loaded.
   firstDate: "2025-11-03",
   lastDate: "2027-01-31",
 } as const;
+
+// This fictional company's own operating assumptions, decided by the Owner on 2 Nov 2026
+// (docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md). Sustainable busy-service transactions per
+// operational staff-hour, and the fewest operational staff while open. Not an industry
+// standard, not a legal requirement, and not learned from data.
+export const REFERENCE_WORKLOAD_POLICY = { transactionsPerStaffHour: 7, minimumStaffWhileOpen: 2 } as const;
 
 export const REFERENCE_STORE_CODES = ["UK01", "UK02", "UK03", "UK04", "UK05"] as const;
 export type ReferenceStoreCode = typeof REFERENCE_STORE_CODES[number];
@@ -53,7 +58,7 @@ export const REFERENCE_STORES: readonly ReferenceVenue[] = [
       saturday: { open: 9, close: 16, curve: { 9: 0.7, 10: 1, 11: 1.2, 12: 1.5, 13: 1.4, 14: 0.9, 15: 0.5 } },
       sunday: { open: 10, close: 15, curve: { 10: 0.8, 11: 1.1, 12: 1.4, 13: 1.2, 14: 0.6 } },
     },
-    coverage: { weekday: [[7, 11, 2], [11, 15, 3], [15, 17, 1]], saturday: [[9, 16, 2]], sunday: [[10, 15, 1]] } },
+    coverage: { weekday: [[7, 11, 2], [11, 15, 3], [15, 17, 2]], saturday: [[9, 16, 2]], sunday: [[10, 15, 2]] } },
   { code: "UK02", city: "Manchester", profile: "A", profileName: "Stadium district", design: "Evening-led with strong Friday and Saturday trade. Later context package may apply nearby events; none are generated here.",
     baseDailyBills: 110, meanBillMinor: 2_100, billByHour: evening,
     dayFactor: [0.72, 0.75, 0.85, 0.95, 1.3, 1.55, 0.9], season: [0.95, 0.95, 0.98, 1, 1, 1.02, 0.98, 0.98, 1.02, 1.02, 1, 1.1], holidayFactor: 1.1, volatility: 0.09,

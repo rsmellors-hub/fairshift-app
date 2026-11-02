@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import { getDatabaseConfig } from "../src/server/config/env";
 import * as schema from "../src/server/db/schema";
 import { provisionReferenceHistory } from "../src/server/reference/provision";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_STORES } from "../src/server/reference/uk-hospitality";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_STORES, REFERENCE_WORKLOAD_POLICY } from "../src/server/reference/uk-hospitality";
 
 const usage = `Load labelled synthetic REFERENCE sales history into one organisation.
 
@@ -17,8 +17,9 @@ const usage = `Load labelled synthetic REFERENCE sales history into one organisa
 Venues: ${REFERENCE_STORES.map(store => `${store.code} ${store.city}`).join(", ")}.
 Range: ${REFERENCE_DATASET.firstDate} to ${REFERENCE_DATASET.lastDate} (${REFERENCE_DATASET.currency}), and never beyond the latest completed day.
 Dataset: ${REFERENCE_DATASET.version} (${REFERENCE_DATASET.label}).
-Also sets each venue's trading hours and standing regular cover. Sets no workload policy:
-service capacity and minimum cover remain the Owner's to configure.
+Also sets each venue's trading hours and standing regular cover, and the company's reference
+workload policy (${REFERENCE_WORKLOAD_POLICY.transactionsPerStaffHour} transactions per operational staff-hour, minimum ${REFERENCE_WORKLOAD_POLICY.minimumStaffWhileOpen} staff while open)
+unless the organisation already has its own.
 Outlets must already be ${REFERENCE_DATASET.timezone} locations.
 This is fictional reference data, never provider (Square, Zettle or PayPal) sales.`;
 
@@ -37,7 +38,7 @@ try {
   const result = await provisionReferenceHistory(drizzle(pool, { schema }), {
     organisationId: values.organisation, outlets: mapping, from: values.from, through: values.through,
   });
-  console.log(`REFERENCE (${result.dataset}, ${result.currency}): ${result.inserted} of ${result.expected} synthetic transactions inserted; existing rows were kept. Trading hours and regular cover set for ${result.regularCoverageRows / 7} venues. No workload policy set.`);
+  console.log(`REFERENCE (${result.dataset}, ${result.currency}): ${result.inserted} of ${result.expected} synthetic transactions inserted; existing rows were kept. Trading hours and regular cover set for ${result.regularCoverageRows / 7} venues. Reference workload policy applies unless the organisation has its own.`);
   for (const store of result.stores) console.log(`  ${store.code} → outlet ${store.outletId}: ${store.transactions ?? 0} reference transactions, data through ${store.dataThrough ?? "none"}`);
 } catch (error) {
   // Validation refusals happen before any write; the load itself is one transaction.

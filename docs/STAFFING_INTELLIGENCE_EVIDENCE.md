@@ -1,5 +1,7 @@
 # FS-STAFF-001 Evidence
 
+> **Later change:** the revenue-based method described here is retired from the active path. See `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md` and `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.
+
 Evidence for coverage-aware staffing: forecast demand → required labour hours
 → existing coverage → casual labour-hour gap → indicative shifts. Status terms
 follow `AGENTS.md` §8.

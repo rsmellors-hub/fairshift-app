@@ -1,5 +1,7 @@
 # Hosted Rehearsal Evidence (FS-HOSTED-REHEARSAL-001)
 
+> **Later change:** its next steps predate the hospitality reference company. See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.
+
 **Status: the release is deployed and healthy, and the rehearsal is blocked.** `getafairshift.com` doesn't resolve because the domain is on registry hold. No demo business exists, and no genuine Golden Path run has happened on this release.
 
 All of this is **HOSTED EVIDENCE**, except where marked. It contains no **GENUINE PROVIDER** transaction evidence: no Square payment, PayPal payout, PayPal subscription or OpenAI generation was started.

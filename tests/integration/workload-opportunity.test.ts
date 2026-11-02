@@ -10,9 +10,9 @@ import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { memberships, organisations, outlets, saleTransactions, shiftOpportunityEvidence, shifts, subscriptions, users, workAcceptances, workloadPolicies } from "@/server/db/schema";
+import { memberships, organisations, outlets, saleTransactions, shiftOpportunityEvidence, shifts, subscriptions, users, workAcceptances } from "@/server/db/schema";
 import { prepareAssessmentInput, ASSESSMENT_INSTRUCTIONS, assessmentJsonSchema } from "@/server/intelligence/ai-staffing-contract";
-import { setWorkloadPolicy } from "@/server/intelligence/business-policy";
+import { clearWorkloadPolicy, setWorkloadPolicy } from "@/server/intelligence/business-policy";
 import { dayOpportunities, windowParam } from "@/server/intelligence/opportunity";
 import { createShiftFromOpportunity, getShiftOpportunityEvidence } from "@/server/intelligence/opportunity-shifts";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
@@ -57,10 +57,10 @@ async function configured(db: Db, c: Awaited<ReturnType<typeof business>>, outle
   await ingestTimedBills(db, { organisationId: c.organisationId, outletId, through: "2026-10-18", bills: () => 12, at: "13:10:00Z", now: NOW, billMinor: 2_500, sourceSystem: `till-${outletId}` });
   await configureFixture(db, { organisationId: c.organisationId, outletId, policy: policy ? FIXTURE_POLICY : null, trading: [{ start: 12 * 60, end: 20 * 60 }], coverage: [hours(12, 20, 1)] });
 }
-// The Golden Path terms: £16 an hour for six hours, £25 at a £200 individual target.
+// The historical locked terms, used only to prove pay stays untouched: daily £96, £25 at a £200 individual target.
 async function goldenTerms(db: Db, scope: Scope) {
   const [department] = await createDepartment(db, `Front of house ${randomUUID().slice(0, 4)}`, scope);
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_600, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Casual shift", scope);
+  const [policy] = await createWorkPolicy(db, { earningsModel: "DAILY", rateMinor: 9_600, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Casual shift", scope);
   return { department, policy };
 }
 const pages = (db: Db, scope: Scope) => {
@@ -71,29 +71,36 @@ const pages = (db: Db, scope: Scope) => {
 const SHIFT = { startsAt: new Date(`${FRIDAY}T14:00:00Z`), endsAt: new Date(`${FRIDAY}T20:00:00Z`), requiredHeadcount: 2 };
 
 describe("reference company baseline", () => {
-  it("shows five hospitality venues' demand and cover, with the requirement awaiting the Owner's policy", async () => {
+  it("shows five hospitality venues under the frozen policy, and is unavailable again if the policy is removed", async () => {
     const t = await createTestDatabase();
     try {
       const c = await business(t.db, "Reference", 5);
       const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, c.rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
       await provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: mapping, from: "2026-09-28", through: "2026-10-18" });
-      expect(await t.db.select().from(workloadPolicies)).toEqual([]);
       const owner = c.scope(c.rows[0].id, "OWNER");
       pages(t.db, owner);
-      const forecast = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
-      for (const text of ["Configuration required", "service capacity and minimum cover", "doesn’t mean no staff are needed", "doesn’t assume a value", "Set up staffing inputs", "Expected sales by location", "Expected transactions by location", "Casual requirement by location", "Busiest ", "Reference sales history"]) expect(forecast).toContain(text);
-      // The requirement never reads as zero while it can't be calculated.
-      expect(forecast.slice(forecast.indexOf("Casual requirement by location"), forecast.indexOf("Staffing working by location"))).not.toMatch(/>0 h<|Covered/);
+      let forecast = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
+      for (const text of ["Expected sales by location", "Expected transactions by location", "Casual requirement by location", "Busiest ", "Reference sales history"]) expect(forecast).toContain(text);
+      expect(forecast).not.toContain("Configuration required");
       const page = renderToStaticMarkup(await OwnerLocationPage({ params: Promise.resolve({ locationId: c.rows[0].id }) }));
-      for (const text of ["By time of day", "Expected transactions", "Regular coverage", "Configuration required", "Service capacity not set"]) expect(page).toContain(text);
-      expect(page).not.toMatch(/>0 h<\/strong><small>By time/);
+      for (const text of ["By time of day", "Expected transactions", "Regular coverage", "7 transactions per staff hour, at least 2 staff while open"]) expect(page).toContain(text);
       const policies = renderToStaticMarkup(await OwnerWorkspace({ area: "policies" }));
-      expect(policies).toContain("Not set. Locations without their own policy have no staff requirement until one is set.");
-      expect(policies).toContain("reference company configuration");
+      for (const text of ["7 transactions per staff hour, at least 2 staff while open", "reference company configuration"]) expect(policies).toContain(text);
       pages(t.db, c.scope());
       const plan = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
-      for (const text of ["Configuration required", "Ask the business owner", "By time of day", "Reference sales history · synthetic"]) expect(plan).toContain(text);
-      expect(plan).not.toContain("Where casual cover is needed");
+      for (const text of ["By time of day", "Reference sales history · synthetic", "Where casual cover is needed"]) expect(plan).toContain(text);
+      expect(plan).not.toContain("Configuration required");
+
+      // Removing the policy never reads as zero or as no staff needed.
+      await clearWorkloadPolicy(t.db, owner, "ORGANISATION");
+      pages(t.db, owner);
+      forecast = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
+      for (const text of ["Configuration required", "service capacity and minimum cover", "doesn’t mean no staff are needed", "doesn’t assume a value", "Set up staffing inputs"]) expect(forecast).toContain(text);
+      expect(forecast.slice(forecast.indexOf("Casual requirement by location"), forecast.indexOf("Staffing working by location"))).not.toMatch(/>0 h<|Covered/);
+      pages(t.db, c.scope());
+      const unset = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
+      expect(unset).toContain("Ask the business owner");
+      expect(unset).not.toContain("Where casual cover is needed");
     } finally { await t.close(); }
   }, 180_000);
 });
@@ -152,7 +159,7 @@ describe("forecast into Fill Shifts", () => {
       const moved = (await getWeeklyStaffing(t.db, manager, NOW)).outlets[0].days.find(day => day.planningDate === FRIDAY)!;
       expect(moved.requiredMinutes).toBeGreaterThan(480);
       const [after] = await t.db.select().from(shifts).where(eq(shifts.id, shift.id));
-      expect(after).toMatchObject({ expectedEarningsMinor: 9_600, incentiveAmountMinor: 2_500, incentiveTargetMinor: 20_000, rateMinor: 1_600, termsVersion: 1 });
+      expect(after).toMatchObject({ expectedEarningsMinor: 9_600, incentiveAmountMinor: 2_500, incentiveTargetMinor: 20_000, rateMinor: 9_600, termsVersion: 1 });
       expect(after.expectedEarningsMinor! + after.incentiveAmountMinor).toBe(12_100); // £96 + £25 = £121.
       expect((await t.db.select().from(workAcceptances).where(eq(workAcceptances.offerId, offer.id)))[0].snapshot).toEqual(before.snapshot);
       expect((await getShiftOpportunityEvidence(t.db, manager, [shift.id])).get(shift.id)).toEqual(evidenceBefore);

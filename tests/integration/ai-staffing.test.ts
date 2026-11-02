@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
-import { configureFixture, TEST_FIXTURE_POLICY } from "../helpers/workload";
 import { entitled } from "../helpers/onboarding";
 import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
@@ -47,7 +46,6 @@ async function referenceCompany(db: Db, { history = true } = {}) {
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} store`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   if (history) await provisionReferenceHistory(db, { organisationId, outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as never, from: "2026-09-21", through: "2026-10-18" });
-  if (history) await configureFixture(db, { organisationId, outletId: rows[0].id, policy: TEST_FIXTURE_POLICY, trading: null, coverage: null });
   const base = { organisationName: "AI company", locationName: rows[0].name };
   const owner: Scope = { userId: await user(db), organisationId, locationId: rows[0].id, role: "OWNER", ...base };
   const manager = async (i: number): Promise<Scope> => ({ userId: await user(db), organisationId, locationId: rows[i].id, role: "MANAGER", ...base, locationName: rows[i].name });

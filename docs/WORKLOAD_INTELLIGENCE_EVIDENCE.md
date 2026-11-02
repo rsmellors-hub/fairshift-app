@@ -1,5 +1,7 @@
 # Workload Intelligence Evidence (FS-WORKLOAD-INTELLIGENCE-001)
 
+> **Later change:** the Owner has since set the reference policy and corrected the Leeds rota. See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.
+
 **Status: implemented and verified locally. Not deployed.** FairShift now forecasts each location's sales and its transaction workload by time of day, and compares that workload with the business's own policy and regular cover. The reference company is now hospitality. Its service capacity and minimum cover are **awaiting an Owner decision**, so its casual requirement correctly shows as "Configuration required". Status terms follow `AGENTS.md` §8. Reference data is **SIMULATED**.
 
 ## 1. Preflight

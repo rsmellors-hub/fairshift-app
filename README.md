@@ -14,6 +14,8 @@ Reference historical commerce → deterministic demand model → OpenAI bounded 
 | FairShift | Business logic, worker and shift identity, compensation, incentive, attribution eligibility, approval |
 | PayPal | FairShift subscription infrastructure and worker payout |
 
+The reference company is a fictional five-location UK fast-casual cafe and dining group with synthetic, labelled history. Staffing comes from expected transactions by time of day and the business's own capacity policy, not from sales value. Tips and contextual AI are authorised direction, not implemented. Retail material in `docs/` is historical evidence.
+
 Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. One genuine GBP 121.00 PayPal Sandbox payout on Square-attributed work has completed locally; see `docs/PAYPAL_FINAL_EVIDENCE.md`.
 
 ## PayPal Sandbox

@@ -25,7 +25,7 @@ const TOPICS = [
     ["What happens with refunds?", "Refunds are kept and linked for audit. They don’t identify who is responsible and don’t automatically change a worker’s result or earnings."],
   ]],
   ["Forecasts and AI", [
-    ["How does the forecast work?", "It forecasts each location’s sales for each of the next seven days from that location’s sales history, using matching weekdays, and shows a planning range. The forecast is daily, not hourly."],
+    ["How does the forecast work?", "From each location’s history, using matching weekdays, it forecasts sales for each of the next seven days and expected transactions by time of day, with a planning range. Staffing comes from the transactions and the service capacity and minimum cover you set, not from sales value. Transactions are an approximate measure of workload: not every bill takes the same work."],
     ["What does the AI do?", "It reads the calculated week and suggests what to staff first, with a reason for each suggestion. It doesn’t calculate the figures, book shifts, choose workers, set pay or approve anything."],
   ]],
   ["For workers", [

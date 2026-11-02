@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
-import { configureFixture, TEST_FIXTURE_POLICY } from "../helpers/workload";
 import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
@@ -14,7 +13,7 @@ import { shiftDate } from "@/server/intelligence/forecast";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { calculateDayWorkload, type TransactionSlot } from "@/server/intelligence/workload";
 import { provisionReferenceHistory } from "@/server/reference/provision";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions } from "@/server/reference/uk-hospitality";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_WORKLOAD_POLICY, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions } from "@/server/reference/uk-hospitality";
 import { allocateAssignment, changeAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { OwnerOverview } from "@/app/owner/overview";
@@ -34,14 +33,13 @@ type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const NOW = new Date("2026-10-25T10:00:00Z");
 const WEEK = Array.from({ length: 7 }, (_, i) => shiftDate("2026-10-26", i));
 
-async function referenceCompany(db: Db, from = "2026-09-21", policy = true) {
+async function referenceCompany(db: Db, from = "2026-09-21") {
   const organisationId = randomUUID();
   await db.insert(organisations).values({ id: organisationId, name: "Staffing company", country: "United Kingdom" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} venue`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
   await provisionReferenceHistory(db, { organisationId, outlets: mapping, from, through: "2026-10-18" });
-  if (policy) await configureFixture(db, { organisationId, outletId: rows[0].id, policy: TEST_FIXTURE_POLICY, trading: null, coverage: null });
   const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Staffing company", locationName: rows[0].name };
   return { organisationId, rows, mapping, owner };
 }
@@ -64,7 +62,7 @@ async function allocated(db: Db, scope: { organisationId: string; locationId: st
 }
 
 describe("coverage-aware weekly staffing", () => {
-  it("derives a five-location week by time of day from transactions and fixture policy, with no stored outputs", async () => {
+  it("derives a five-location week by time of day from transactions and the reference policy, with no stored outputs", async () => {
     const t = await createTestDatabase();
     try {
       const c = await referenceCompany(t.db);
@@ -72,7 +70,7 @@ describe("coverage-aware weekly staffing", () => {
       expect(staffing.outlets).toHaveLength(5);
       for (const [i, outlet] of staffing.outlets.entries()) {
         const code = REFERENCE_STORE_CODES[i];
-        expect(outlet).toMatchObject({ currency: "GBP", policy: { ...TEST_FIXTURE_POLICY, source: "CONFIGURED", level: "ORGANISATION", version: "organisation-v1" }, regularCoverage: "REFERENCE", tradingHours: "REFERENCE", timezone: "Europe/London",
+        expect(outlet).toMatchObject({ currency: "GBP", policy: { ...REFERENCE_WORKLOAD_POLICY, source: "REFERENCE", level: "ORGANISATION", version: "organisation-v1" }, regularCoverage: "REFERENCE", tradingHours: "REFERENCE", timezone: "Europe/London",
           evidence: { source: "REFERENCE", kind: "HISTORICAL", dataThrough: "2026-10-18", ageDays: 8, dataset: REFERENCE_DATASET.version } });
         expect(outlet.days.map(day => day.planningDate)).toEqual(WEEK);
         // Independent derivation: generator bills → time slots → the pure calculation.
@@ -86,7 +84,7 @@ describe("coverage-aware weekly staffing", () => {
         }
         for (const day of outlet.days) {
           const weekday = new Date(`${day.planningDate}T12:00:00Z`).getUTCDay() || 7;
-          const expected = calculateDayWorkload({ date: day.planningDate, timezone: "Europe/London", trading: referenceTradingHours(code)[weekday - 1], coverage: referenceCoverage(code)[weekday - 1], policy: TEST_FIXTURE_POLICY, slots: [...slots.values()], dataThrough: "2026-10-18", allocated: [] });
+          const expected = calculateDayWorkload({ date: day.planningDate, timezone: "Europe/London", trading: referenceTradingHours(code)[weekday - 1], coverage: referenceCoverage(code)[weekday - 1], policy: REFERENCE_WORKLOAD_POLICY, slots: [...slots.values()], dataThrough: "2026-10-18", allocated: [] });
           expect(day).toMatchObject({ requiredMinutes: expected.requiredMinutes, regularMinutes: expected.regularMinutes, casualGapMinutes: expected.remainingMinutes, expectedMilliTransactions: expected.expectedMilliTransactions, periods: expected.periods, unavailable: null });
         }
       }
@@ -228,7 +226,7 @@ describe("coverage-aware weekly staffing", () => {
       let html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
       for (const text of ["Planning week", "Mon, 26 Oct 2026 – Sun, 1 Nov 2026", "Historical evidence through Sun, 18 Oct 2026", "Commercial", "Operational", "Staffing and opportunity", "Expected sales by location", "Expected transactions by location", "Casual requirement by location",
         "Required staff capacity", "Regular coverage", "Allocated casual coverage", "Spare cover at one time doesn’t offset a shortage at another",
-        "Workload policy: 4 transactions per staff hour, at least 0 staff while open, this business’s configured policy", "No shifts have been created or offered", "standing cover (synthetic input)"]) expect(html).toContain(text);
+        "Workload policy: 7 transactions per staff hour, at least 2 staff while open, the reference company’s configured policy", "No shifts have been created or offered", "standing cover (synthetic input)"]) expect(html).toContain(text);
       expect(html).not.toContain("$");
       expect(html).not.toMatch(/live demand|real-time|optimal|workers required|AI says|shifts created/i);
 

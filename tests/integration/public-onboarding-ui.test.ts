@@ -105,7 +105,7 @@ describe("public pages", () => {
       expect(html).not.toMatch(/hourly forecast/i);
     }
     expect(pages[0]).toContain("The right people. The right place. The right time. The right pay.");
-    expect(pages[2]).toContain("The forecast is daily, not hourly");
+    expect(pages[2]).toContain("expected transactions by time of day");
   });
 
   it("orders the home page's calls to action as start, demo, sign in", () => {

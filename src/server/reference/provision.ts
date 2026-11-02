@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { persistCanonicalRows, type CanonicalRow } from "@/server/commerce/ingestion";
-import { and, eq, inArray, like, not, sql } from "drizzle-orm";
+import { writeWorkloadPolicyVersion } from "@/server/intelligence/business-policy";
+import { and, eq, inArray, isNull, like, not, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
-import { organisations, outletTradingHours, outlets, regularCoverageWindows, saleTransactions } from "@/server/db/schema";
+import { organisations, outletTradingHours, outlets, regularCoverageWindows, saleTransactions, workloadPolicies } from "@/server/db/schema";
 import { localDate, shiftDate } from "@/server/intelligence/forecast";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-hospitality";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_WORKLOAD_POLICY, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-hospitality";
 
 const inputSchema = z.object({
   organisationId: z.string().uuid(),
@@ -36,10 +37,10 @@ export async function referenceDataThrough(db: Pick<Database, "select">, outletI
 }
 
 // Loads labelled synthetic reference sales into explicitly mapped outlets of one
-// organisation, through the canonical commerce boundary, with this company's trading hours
-// and standing cover as explicit reference configuration. Idempotent: deterministic
-// references make a rerun insert nothing, and anything the business configured itself is
-// kept. It sets no workload policy: service capacity and minimum cover are the Owner's.
+// organisation, through the canonical commerce boundary, with this company's trading hours,
+// standing cover and workload policy as explicit reference configuration. Idempotent:
+// deterministic references make a rerun insert nothing, and anything the business configured
+// itself is kept. No location override is created.
 // A day that hasn't finished yet is refused, so no sale can be dated in the future.
 export async function provisionReferenceHistory(db: Database, rawInput: ReferenceProvisionInput, now = new Date()) {
   const parsed = inputSchema.parse(rawInput);
@@ -99,6 +100,9 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
     const coverage = perWeekday(referenceCoverage, "REFCOVER");
     await tx.insert(regularCoverageWindows).values(coverage).onConflictDoUpdate({
       target: [regularCoverageWindows.outletId, regularCoverageWindows.isoWeekday], set: { windows: sql`excluded.windows`, updatedAt: new Date() }, setWhere: sql`${regularCoverageWindows.source} = 'REFERENCE'` });
+    const [existingPolicy] = await tx.select({ id: workloadPolicies.id }).from(workloadPolicies)
+      .where(and(eq(workloadPolicies.organisationId, input.organisationId), isNull(workloadPolicies.outletId), eq(workloadPolicies.status, "ACTIVE")));
+    if (!existingPolicy) await writeWorkloadPolicyVersion(tx, { organisationId: input.organisationId, outletId: null, ...REFERENCE_WORKLOAD_POLICY, source: "REFERENCE", createdBy: null });
     return { inserted, expected, regularCoverageRows: coverage.length };
   });
   const through = await referenceDataThrough(db, mapping.map(row => row.outletId));

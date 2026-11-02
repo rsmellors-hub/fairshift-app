@@ -4,11 +4,16 @@
 
 FairShift is an AI-assisted multi-outlet workforce planning and transparent worker-payment platform being developed for the PayPal AI Hackathon.
 
-Use these authority boundaries:
+Use this authority order:
 
-1. **Repository implementation state:** the current repository and reproducible runtime evidence are authoritative.
-2. **Product and UX direction:** [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md) is the current authoritative product/UX specification.
-3. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources are authoritative. Repository copies of transient competition details may become stale.
+1. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources. Repository copies of transient competition details may become stale.
+2. **FS-HACK-MASTER-001:** the historical Phase 0 baseline. It is not held in this repository.
+3. **Approved dated Owner amendments,** with the newest applicable amendment prevailing. These are recorded in [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), the current authoritative product/UX specification.
+4. **Repository reality** for implementation state: the current repository and reproducible runtime evidence.
+5. **The current authorised work package.**
+6. **Implementation preference.**
+
+AUTHORISED ≠ IMPLEMENTED ≠ VERIFIED ≠ DEMO-READY. An Owner decision is not a claim that functionality exists.
 
 Do not infer implementation status from product copy, prototypes, plans, or prior conversation. Do not treat planned behavior as implemented.
 
@@ -21,12 +26,12 @@ Protect this operational loop:
 POS sales
 → FairShift ingestion and normalisation
 → canonical historical sales
-→ AI demand forecast
-→ staffing recommendation
+→ deterministic commercial and operational forecast
+→ staffing requirement and Opportunity Demand
 → manager scheduling
-→ worker shift and target acceptance
-→ performance
-→ deterministic incentive calculation
+→ worker shift acceptance
+→ performance evidence
+→ deterministic earnings calculation
 → manager approval
 → PayPal payout
 → confirmation
@@ -44,6 +49,7 @@ If implementation requires a material product decision not resolved there, stop 
 Do not resolve OPEN, NEEDS VERIFICATION, or DEFERRED decisions inside this file. These include, among others:
 
 - permanent incentive formula;
+- hospitality tip allocation method;
 - fairness or matching weighting;
 - over-invitation and capacity behavior;
 - invitation transport;
@@ -56,7 +62,18 @@ Do not resolve OPEN, NEEDS VERIFICATION, or DEFERRED decisions inside this file.
 
 Use the product specification for their current authoritative status.
 
-## 4. Current integration strategy
+## 4. Current reference company and integration strategy
+
+### Active reference company
+
+The reference company is one fictional five-location UK fast-casual cafe and dining group, defined in the product specification, section 1. Hospitality is the demo vertical, not an architectural restriction. Retail reference work is historical evidence.
+
+- Staffing comes from expected **transactions by time of day**, the business's capacity and minimum cover, and coverage. **Sales value does not set staffing.** The £100-per-labour-hour method is retired.
+- Reference policy: **7 transactions per operational staff-hour, minimum 2 operational staff while open**, organisation level. This is a fictional-company assumption, never a benchmark or legal requirement, and never learned from data.
+- Transactions are an MVP workload proxy. Do not claim they capture covers, item complexity, kitchen bottlenecks or queue length. Do not add those variables, or role-specific forecasting, before submission.
+- **Golden Path anti-tuning:** discover the example from accepted rules. Never select or alter rules, reference demand, capacity, regular cover or forecast parameters to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a hospitality target.
+- **Earnings:** the authorised direction is base + variable tips = total approved earnings. This is **not implemented** and the tip allocation method is open. Do not implement or claim tips without a work package.
+- **Contextual AI (FS-DEMAND-CONTEXT-001) is not implemented.** The baseline is deterministic, and AI explains and ranks only.
 
 ### PayPal — SANDBOX-CONNECTED
 
@@ -121,7 +138,7 @@ Do not make forecasting depend on provider-specific structures.
 
 ### Zettle — INACTIVE for the hackathon Golden Path
 
-Connector work is retained in the repository, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified. Do not delete it, and do not represent it as the active provider or as integrated. Evidence: [`docs/ZETTLE_LIVE_EVIDENCE.md`](docs/ZETTLE_LIVE_EVIDENCE.md).
+Connector work is retained in the repository, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified. Do not delete it, extend it, or represent it as the active provider or as integrated. No new Zettle implementation is authorised before submission. Evidence: [`docs/ZETTLE_LIVE_EVIDENCE.md`](docs/ZETTLE_LIVE_EVIDENCE.md).
 
 ### Sponsor integrations
 

@@ -3,15 +3,15 @@ import { PublicShell, WorkedExample } from "@/app/components/public-shell";
 
 const LOOP = [
   ["Commerce", "Sales history for each location"],
-  ["Forecast", "Expected sales for each of the next seven days"],
-  ["Staffing gap", "Labour needed, minus the cover you already have"],
+  ["Forecast", "Expected sales and transactions for the next seven days"],
+  ["Staffing gap", "Staff capacity needed by time of day, minus the cover you already have"],
   ["Shift offer", "Clear terms, sent to available workers"],
   ["Performance", "Attributed sales against an agreed target"],
   ["PayPal payment", "Base plus bonus, once a manager approves"],
 ] as const;
 
 const JOBS = [
-  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Daily forecast with a planning range", "Labour needed, minus regular cover, equals the gap", "AI-assisted priorities with the reason for each"]],
+  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Sales and transaction forecast with a planning range", "Staff capacity needed, minus regular cover, equals the gap", "AI-assisted priorities with the reason for each"]],
   ["Staff", "Managers turn a gap into a shift and offer it to available workers at their location.", ["Every offer shows times, base pay, target and bonus", "Terms are fixed once a worker accepts", "One timeline shows who is working when"]],
   ["Track", "Workers follow their own progress towards an agreed sales target during the shift.", ["Sales attributed to the worker, within the shift", "Refunds are kept for audit and don’t change the result", "Workers see only their own figures"]],
   ["Pay", "After the shift, a manager checks the work and sales, approves the total, and it goes to the worker’s PayPal account.", ["Base pay plus any bonus earned, calculated by rule", "Nothing is sent without a manager’s approval", "Marked Paid only when PayPal confirms it"]],
@@ -35,7 +35,7 @@ export default function Home() {
     <section className="home-hero"><div className="site-width home-hero-grid">
       <div>
         <h1>The right people. The right place. The right time. The right pay.</h1>
-        <p className="lede">FairShift turns your sales history into a daily forecast and a clear staffing gap. Managers fill it with transparent shift terms, and approved earnings reach workers through PayPal.</p>
+        <p className="lede">FairShift turns your sales history into a forecast by time of day and a clear staffing gap. Managers fill it with transparent shift terms, and approved earnings reach workers through PayPal.</p>
         <div className="cta-row">
           <Link className="primary-button button-link" href="/register">Start your business</Link>
           <Link className="secondary-button button-link" href="/demo">Try the demo</Link>

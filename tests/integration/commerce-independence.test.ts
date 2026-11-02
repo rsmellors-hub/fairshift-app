@@ -235,20 +235,20 @@ describe("dataset substitution", () => {
 
   it("keeps company identity, rates and dates out of production intelligence source and the AI task", async () => {
     const files = ["src/server/intelligence/ai-staffing-contract.ts", "src/server/intelligence/ai-staffing.ts", "src/server/intelligence/business-policy.ts", "src/server/intelligence/sales-history.ts", "src/server/intelligence/staffing.ts", "src/server/intelligence/workload.ts", "src/server/intelligence/opportunity.ts", "src/server/intelligence/opportunity-shifts.ts", "src/server/intelligence/weekly.ts", "src/server/commerce/ingestion.ts",
-      "src/app/components/ai-staffing-assessment.tsx", "src/app/owner/weekly-forecast.tsx", "src/app/owner/staffing-configuration.tsx"];
+      "src/app/components/staffing.tsx", "src/app/components/ai-staffing-assessment.tsx", "src/app/owner/weekly-forecast.tsx", "src/app/owner/staffing-configuration.tsx"];
     // Fallbacks and fixed rates, not display locales or unrelated limits.
-    const forbidden = /Leeds|Manchester|Birmingham|Brighton|Stratford|UK0[1-5]|uk-retail|uk-hospitality|reference\/|reference retailer|(\?\?|\?|:|[^=!]=) "GBP"|Europe\/London|[Tt]ransactionsPerStaffHour: *\d|minimumStaffWhileOpen: *\d|Breakfast|[Pp]erLabourHour/;
+    const forbidden = /Leeds|Manchester|Birmingham|Brighton|Stratford|UK0[1-5]|uk-retail|uk-hospitality|reference\/|reference retailer|(\?\?|\?|:|[^=!]=) "GBP"|Europe\/London|[Tt]ransactionsPerStaffHour: *\d|minimumStaffWhileOpen: *\d|[Pp]erLabourHour/;
     for (const file of files) expect({ file, match: forbidden.exec(await readFile(file, "utf8"))?.[0] ?? null }).toEqual({ file, match: null });
     expect(ASSESSMENT_INSTRUCTIONS).not.toMatch(/Leeds|Manchester|Birmingham|Brighton|Stratford|GBP|£|\b(five|5) (stores?|locations?)\b/i);
     // Hospitality wording is display only: names of parts of the day never reach the calculation.
     expect(await readFile("src/server/intelligence/workload.ts", "utf8")).not.toMatch(/breakfast|lunch|dinner|[^a-z]evening/i);
-    // No company-specific capacity anywhere: the reference company has none until an Owner decides.
-    expect(await readFile("src/server/reference/provision.ts", "utf8")).not.toMatch(/orkloadPolic|abourPolic/);
+    // The reference company's policy enters only as its own configuration, never as a production default.
+    expect(await readFile("src/server/reference/provision.ts", "utf8")).toContain("REFERENCE_WORKLOAD_POLICY");
   });
 });
 
 describe("provenance and truthful product states", () => {
-  it("keeps reference provisioning reproducible, keeps a business's own configuration, and sets no workload policy", async () => {
+  it("keeps reference provisioning reproducible as explicit configuration", async () => {
     const t = await createTestDatabase();
     try {
       const organisationId = randomUUID();
@@ -263,8 +263,8 @@ describe("provenance and truthful product states", () => {
       expect(first.inserted).toBe(first.expected);
       const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Reference", locationName: "Store" };
       const staffing = await getWeeklyStaffing(t.db, owner, NOW);
-      expect(staffing.outlets[0]).toMatchObject({ regularCoverage: "REFERENCE", tradingHours: "REFERENCE", policy: null, evidence: { source: "REFERENCE", dataset: "uk-hospitality-v1" } });
-      expect(staffing.outlets[0].days[0]).toMatchObject({ unavailable: "NO_WORKLOAD_POLICY", requiredMinutes: null, casualGapMinutes: null });
+      expect(staffing.outlets[0]).toMatchObject({ regularCoverage: "REFERENCE", tradingHours: "REFERENCE", policy: { source: "REFERENCE", transactionsPerStaffHour: 7, minimumStaffWhileOpen: 2, version: "organisation-v1" }, evidence: { source: "REFERENCE", dataset: "uk-hospitality-v1" } });
+      expect(staffing.outlets[0].days[0]).toMatchObject({ unavailable: null });
       expect(staffing.outlets[0].days[0].expectedMilliTransactions).toBeGreaterThan(0);
       expect(prepareAssessmentInput(staffing, "ORGANISATION").input.locations[0]).toMatchObject({ evidence: { synthetic: true, stale: true }, flags: expect.arrayContaining(["SYNTHETIC_REFERENCE_DATA", "HISTORICAL_EVIDENCE_STALE"]) });
       // A rerun changes nothing, through the same duplicate-safe boundary.
@@ -313,7 +313,7 @@ describe("provenance and truthful product states", () => {
 
       // The Owner configures it in business language; a Manager page offers no such form.
       const policies = await render(c.owner(), () => OwnerWorkspace({ area: "policies" }));
-      for (const text of ["Service capacity and minimum cover", "How many completed transactions can one staff member typically support in an hour?", "Minimum staff required while this location is open.", "FairShift doesn’t know the right values and sets none for you", "Organisation default", "Quay Street override", "Trading hours · Quay Street", "Regular coverage · Quay Street", "<code>none</code> for a day with no regular staff"]) expect(policies).toContain(text);
+      for (const text of ["Service capacity and minimum cover", "How many completed transactions can one staff member sustainably support in a normally busy hour, counting everyone working in the venue?", "Minimum staff working while this location is open to customers.", "FairShift doesn’t know the right values and sets none for you", "Organisation default", "Quay Street override", "Trading hours · Quay Street", "Regular coverage · Quay Street", "<code>none</code> for a day with no regular staff"]) expect(policies).toContain(text);
       expect(plan).not.toContain("Save organisation default");
       expect(await render(manager, () => ManagerWorkspace({ area: "review" }))).not.toContain("Service capacity and minimum cover");
     } finally { await t.close(); }

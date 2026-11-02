@@ -1,5 +1,7 @@
 # FS-INTEL-CORRECT-001 Evidence
 
+> **Later change:** the labour policy described here is retired from the active path. See `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md` and `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.
+
 Commerce intelligence independence and business policy hardening. Evidence labels follow
 `AGENTS.md` §8. Times are UTC unless stated otherwise.
 

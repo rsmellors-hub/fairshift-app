@@ -5,7 +5,7 @@ type Tier = PlanSelection["tier"];
 type Period = PlanSelection["billingPeriod"];
 
 export const PLAN_COPY: Record<Tier, { name: string; limit: string; includes: string[] }> = {
-  SINGLE_OUTLET: { name: "Single Outlet", limit: "1 location", includes: ["Daily forecast and staffing gap", "AI-assisted priorities", "Shift offers and live targets", "Approved pay through PayPal"] },
+  SINGLE_OUTLET: { name: "Single Outlet", limit: "1 location", includes: ["Forecast by time of day and staffing gap", "AI-assisted priorities", "Shift offers and live targets", "Approved pay through PayPal"] },
   MULTI_OUTLET: { name: "Multi Outlet", limit: "2–5 locations", includes: ["Everything in Single Outlet", "Owner view across every location", "Managers scoped to their location", "One payments list for the business"] },
 };
 

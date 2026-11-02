@@ -18,17 +18,11 @@ function hourShare(code: ReferenceStoreCode, match: (i: number) => boolean) {
 const billsPerDay = (code: ReferenceStoreCode, i: number) => { const days = WINDOW.filter(d => weekday(d) === i); return days.reduce((sum, d) => sum + referenceTransactions(code, d).length, 0) / days.length; };
 
 describe("hospitality reference dataset", () => {
-  it("is one versioned, GBP, five-venue company with the five authorised profiles", () => {
+  it("is one versioned, GBP, five-venue fast-casual company with the five authorised profiles", () => {
     expect(REFERENCE_DATASET).toMatchObject({ version: "uk-hospitality-v1", currency: "GBP", timezone: "Europe/London" });
     expect(REFERENCE_STORE_CODES).toEqual(["UK01", "UK02", "UK03", "UK04", "UK05"]);
     expect(new Set(REFERENCE_STORES.map(store => store.profile))).toEqual(new Set(["A", "B", "C", "D", "E"]));
     expect(REFERENCE_STORES.map(store => store.profileName).sort()).toEqual(["Central business district", "Shopping centre", "Stadium district", "Station and commuter", "Waterfront and outdoor"]);
-  });
-  it("carries no service capacity, minimum cover or brand name", async () => {
-    const source = await readFile("src/server/reference/uk-hospitality.ts", "utf8");
-    expect(source).not.toMatch(/transactionsPerStaffHour|minimumStaffWhileOpen|salesMinorPerLabourHour/);
-    const provision = await readFile("src/server/reference/provision.ts", "utf8");
-    expect(provision).not.toMatch(/writeWorkloadPolicyVersion|workloadPolicies|labourPolicies/);
   });
   it("is deterministic and reproducible", () => {
     for (const code of REFERENCE_STORE_CODES) for (const date of ["2025-11-03", "2026-07-11", "2026-10-30"]) {

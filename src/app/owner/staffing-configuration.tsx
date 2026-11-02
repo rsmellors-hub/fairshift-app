@@ -10,8 +10,8 @@ const policyText = (policy: NonNullable<Policy>) => `${policySummary(policy)} ·
 
 function PolicyForm({ action, policy, label }: { action: (form: FormData) => void | Promise<void>; policy: Policy; label: string }) {
   return <form action={action} className="workspace-form form-grid">
-    <label>Service capacity<span className="field-hint">How many completed transactions can one staff member typically support in an hour?</span><input name="transactionsPerStaffHour" inputMode="numeric" pattern="[0-9]+" defaultValue={policy ? String(policy.transactionsPerStaffHour) : ""} required /></label>
-    <label>Minimum coverage<span className="field-hint">Minimum staff required while this location is open.</span><input name="minimumStaffWhileOpen" inputMode="numeric" pattern="[0-9]+" defaultValue={policy ? String(policy.minimumStaffWhileOpen) : ""} required /></label>
+    <label>Service capacity<span className="field-hint">How many completed transactions can one staff member sustainably support in a normally busy hour, counting everyone working in the venue?</span><input name="transactionsPerStaffHour" inputMode="numeric" pattern="[0-9]+" defaultValue={policy ? String(policy.transactionsPerStaffHour) : ""} required /></label>
+    <label>Minimum coverage<span className="field-hint">Minimum staff working while this location is open to customers.</span><input name="minimumStaffWhileOpen" inputMode="numeric" pattern="[0-9]+" defaultValue={policy ? String(policy.minimumStaffWhileOpen) : ""} required /></label>
     <button className="secondary-button">{label}</button>
   </form>;
 }

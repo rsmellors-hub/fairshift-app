@@ -1,5 +1,7 @@
 # FS-UI-PRODUCT-001 Handoff
 
+> **Superseded for the reference company and demo path.** See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This handoff is otherwise unchanged.
+
 For a new session with no history. Read `AGENTS.md` first.
 
 ## Project

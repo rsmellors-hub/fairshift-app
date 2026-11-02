@@ -7,23 +7,23 @@
 
 ## 1. Product thesis
 
-FairShift connects a business's factual POS sales activity to workforce decisions and payment. It ingests and normalises sales, uses that history and AI to predict casual labour demand, helps managers offer the right shifts, measures performance against transparent incentives, and turns approved work into PayPal-powered payments.
+FairShift connects a business's factual POS sales activity to workforce decisions and payment. It ingests and normalises sales, forecasts commercial and operational demand deterministically from that history, explains it with AI, helps managers offer the right shifts, measures performance against transparent incentives, and turns approved work into PayPal-powered payments.
 
 The product closes an operational loop:
 
-> POS / sales provider → FairShift sales ingestion and normalisation → canonical historical sales dataset → AI demand forecast → staffing recommendation → manager scheduling and Fill Shifts → worker shift and target acceptance → final shift allocation → work and performance → deterministic incentive calculation → manager approval → PayPal payout → confirmation
+> POS / sales provider → FairShift sales ingestion and normalisation → canonical historical sales dataset → deterministic commercial and operational forecast → staffing requirement and Opportunity Demand → manager scheduling and Fill Shifts → worker shift acceptance → final shift allocation → work and performance evidence → deterministic earnings calculation → manager approval → PayPal payout → confirmation
 
-The POS integration is the factual operational input to forecasting and staffing, not an optional reporting source. PayPal is central to worker payment. AI is central to demand interpretation and staffing decisions. Human managers retain control of staffing and financial approval, while exact financial calculations remain deterministic.
+The POS integration is the factual operational input to forecasting and staffing, not an optional reporting source. PayPal is central to worker payment. AI interprets the calculated figures for managers and does not set baseline demand. Human managers retain control of staffing and financial approval, while exact financial calculations remain deterministic.
 
 **Square Sandbox** is FairShift's active commerce provider for the hackathon, with status **SANDBOX-CONNECTED** (section 18). It supplies commerce evidence for worker performance. Clearly labelled reference historical commerce remains the forecast source, because genuine Square history is insufficient for the 28-day threshold.
 
-Zettle connector work is retained but **inactive for the hackathon Golden Path**. It was built against documented API and mocked provider behaviour, and a genuine merchant connection is not verified. FairShift must not describe Zettle as integrated.
+Zettle connector work is retained but **inactive for the hackathon Golden Path, and no new Zettle implementation is authorised before submission**. It was built against documented API and mocked provider behaviour, and a genuine merchant connection is not verified. FairShift must not describe Zettle as integrated.
 
 ### Canonical hackathon demonstration vertical
 
 **Owner amendment, FS-WORKLOAD-INTELLIGENCE-001, 2 November 2026.** This replaces the earlier specialty-retail reference scenario, which remains historical evidence in `docs/REFERENCE_REFRESH_EVIDENCE.md`.
 
-FairShift remains a cross-industry product for organisations with variable demand and flexible workforce requirements. The canonical PayPal AI Hackathon demonstration uses **one fictional five-location casual-dining and café group**. Hospitality is the reference vertical, not an architectural restriction. Brand names remain an open decision.
+FairShift remains a cross-industry product for organisations with variable demand and flexible workforce requirements. The canonical PayPal AI Hackathon demonstration uses **one fictional five-location UK fast-casual café and dining group**. Hospitality is the reference vertical, not an architectural restriction. Brand names remain an open decision.
 
 > commerce data → historical data → demand intelligence → staffing recommendation → Fill Shifts → worker opportunity → acceptance → allocation → performance → incentive → manager approval → PayPal payout → confirmation
 
@@ -37,9 +37,23 @@ Rules established by the amendment:
 - AI doesn't determine baseline demand. A later package (FS-DEMAND-CONTEXT-001) may propose bounded contextual adjustments; a Manager must accept one before it affects staffing.
 - Worker matching, roles, attribution, incentives, approval and PayPal payout are unchanged.
 
+**Opportunity Demand** means expected operational workload → required capacity → regular coverage → allocated casual coverage → remaining casual-work requirement, for one location and time window.
+
 Not authorised: covers, reservations or booking integration, tables, menus, kitchen inventory, tip pooling, role-based forecasting, AI or performance worker matching, monitoring daemons, alerts and autonomous schedule changes.
 
 Historical facts, deterministic forecasts, AI interpretation, manager decisions and outcomes must remain distinguishable.
+
+**Owner decisions, FS-HOSPITALITY-POLICY-FREEZE-001, 2 November 2026.** These refine the amendment above. Evidence: [`HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`](HOSPITALITY_POLICY_FREEZE_EVIDENCE.md).
+
+- **Service model:** all five venues are all-day fast-casual cafe/dining. Customers order and pay at the counter or POS, drinks and simple items may be collected, prepared food may be delivered to tables, and operational staff clear and reset customer areas. This is not full table service. Differences in transaction value come from product mix, daypart, transaction composition and location behaviour.
+- **Operational staff:** everyone on duty and actively contributing to venue service capacity, including preparation and support staff and a Manager while working operationally. It excludes off-site management, purely administrative time and non-operational company staff. The model is total operational capacity. No front-of-house, kitchen or role-specific demand forecasting is authorised, and shift role stays Manager-selected.
+- **Reference capacity: 7 completed transactions per operational staff-hour** of sustainable busy service, as one organisation-level policy with no location overrides. That is about 8.6 labour minutes per transaction across the whole team, not one person's time on one bill. It is a **reference-company assumption**: not an industry standard, a legal requirement, a measured customer benchmark, or anything learned by AI or from the synthetic data.
+- **Reference minimum cover: 2 operational staff** whenever open to customers. This is the fictional company's operating policy, not a universal legal requirement.
+- **Transaction proxy:** transactions are the MVP workload proxy. FairShift does not claim that every transaction takes identical labour, or that transaction count captures covers, item complexity, kitchen bottlenecks or queue length.
+- **Rota rulings:** Leeds' single-person regular periods are corrected to two people. Birmingham's Saturday/Sunday difference and Stratford's Saturday/Sunday and commuter pattern are justified reference characteristics.
+- **Earnings direction (authorised, NOT implemented):** the active hospitality path will use base earnings + variable tip earnings = total approved earnings. Targeted sales incentives are not its intended variable-earnings mechanism. The tip allocation method is OPEN. Generic incentive capability remains in the product, and the £200 target, £25 bonus and £121 payout remain truthful historical evidence.
+
+**Golden Path anti-tuning rule.** The Golden Path example must be discovered from accepted product rules. Product rules, reference demand, capacity, regular coverage and forecast parameters must not be selected or altered to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a target for the hospitality workload model.
 
 ## 2. Product principles
 
@@ -223,11 +237,11 @@ A lightweight genuine PayPal-powered commercial entry flow may be evaluated late
 
 Weekly planning is the primary owner and manager planning frame.
 
-AI produces next-week staffing recommendations for seven days per outlet. The owner can view all five outlets consolidated, compare individual outlets, then drill into one outlet and day. A manager sees the same next-week model for the current authorised location.
+FairShift calculates next-week staffing requirements for seven days per outlet, by time of day, and AI explains them. The owner can view all five outlets consolidated, compare individual outlets, then drill into one outlet and day. A manager sees the same next-week model for the current authorised location.
 
 Each day communicates:
 
-- forecast demand or sales;
+- expected transactions by time of day, with expected sales shown separately as commercial context;
 - forecast range or uncertainty;
 - historical evidence and provenance;
 - existing full-time coverage;
@@ -259,8 +273,8 @@ The story runs:
 1. **Reference historical commerce is the planning input.** It is clearly labelled as reference data. Square history replaces it for a location only if it meets the same 28-day threshold; no Square history is manufactured.
 2. **FairShift normalises sales.** A provider adapter converts authenticated provider data into canonical, location-scoped FairShift sales records with provenance.
 3. **Historical demand becomes visible.** Owners and managers see factual sales history separately from predictions.
-4. **AI forecasts next-week demand.** The manager sees predicted demand, uncertainty, comparable history, and an explanation.
-5. **FairShift recommends casual staffing.** Demand becomes a total staffing requirement, known full-time coverage is applied, and the casual requirement is made explicit.
+4. **FairShift forecasts next-week demand deterministically.** The manager sees expected transactions by time, expected sales as separate context, uncertainty and comparable history. AI explains these figures and does not set them. Contextual AI (FS-DEMAND-CONTEXT-001) is authorised direction, not implemented.
+5. **FairShift identifies Opportunity Demand.** Expected transactions become a required capacity under the business's own policy, regular and allocated casual coverage are applied, and the remaining casual requirement is made explicit by time window.
 6. **Manager reviews the recommendation.** The manager remains responsible for the staffing decision.
 7. **Manager creates and publishes a shift.** Date, time, casual requirement, offered compensation, and incentive terms are explicit and policy-valid.
 8. **Worker receives and accepts the shift.** The worker sees the complete economic terms and responds to the individual offer.
@@ -282,6 +296,8 @@ The Square Sandbox journey is verified locally from allocation to worker payment
 PayPal payout status is **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
 
 ### Golden Path economics
+
+**Historical evidence, not the hospitality target (section 1).** The table below records the proven retail-era example. It is not a staffing window to recreate, and the active hospitality earnings direction is base + tips, which is not yet implemented.
 
 | Term | Intended demonstration value |
 | --- | --- |
@@ -367,8 +383,8 @@ The final demonstration narrative should also visibly demonstrate at least one s
 ### Manager: Forecast & Staffing
 
 - **Purpose:** Explain next-week demand and turn it into a manager-controlled staffing decision.
-- **Primary user question:** “How many people are likely needed, why, and what should I do?”
-- **Key information:** historical evidence, predicted sales, range, data quality, total requirement, full-time coverage, casual gap, key drivers, AI interpretation, and saved decision state.
+- **Primary user question:** “When is more cover needed, why, and what should I do?”
+- **Key information:** historical evidence, expected transactions by time, expected sales as context, range, data quality, required capacity, regular coverage, casual requirement, key drivers, AI interpretation, and saved decision state.
 - **Primary actions:** inspect a day, adjust or accept a staffing decision, and continue to Fill Shifts.
 - **State and feedback:** history, deterministic result, AI interpretation, and manager decision have distinct labels; unavailable AI does not remove the deterministic baseline.
 - **Data restrictions:** current authorised location; no worker ranking.
@@ -721,7 +737,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 ### OPEN
 
 - Final fictional hospitality group brand and venue names.
-- Reference-company service capacity and minimum cover. Both remain unset until the Owner supplies them.
+- Hospitality tip allocation method, tip terms and refund treatment (section 1). Nothing about tips is implemented.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.

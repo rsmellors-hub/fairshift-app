@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createTestDatabase } from "../helpers/database";
-import { configureFixture, TEST_FIXTURE_POLICY } from "../helpers/workload";
 import type { Scope } from "@/server/auth/access";
 import { CommerceIngestionError, ingestCommerceObservations, ingestConnectedObservations } from "@/server/commerce/ingestion";
 import { organisations, outlets, regularCoverageWindows, saleTransactions } from "@/server/db/schema";
@@ -30,29 +29,22 @@ async function company(db: Db, timezone = "Europe/London") {
 const count = async (db: Db) => (await db.select({ n: sql<number>`count(*)::int` }).from(saleTransactions))[0].n;
 
 describe("current reference history", () => {
-  it("plans the coming week from history that ends just before it, unavailable until the Owner sets a policy", async () => {
+  it("plans the coming week from history that ends just before it, under the reference policy", async () => {
     const t = await createTestDatabase();
     try {
       const c = await company(t.db);
       const load = await provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: c.mapping, ...RECENT }, NOW);
       expect(load).toMatchObject({ dataset: "uk-hospitality-v1", provenance: "REFERENCE", requested: { through: "2026-10-31" } });
       expect(load.stores.every(store => store.dataThrough === "2026-10-31")).toBe(true);
-      let staffing = await getWeeklyStaffing(t.db, c.owner, NOW);
+      const staffing = await getWeeklyStaffing(t.db, c.owner, NOW);
       const at = (code: typeof REFERENCE_STORE_CODES[number]) => staffing.outlets.find(row => row.outletId === c.mapping[code])!;
       for (const code of REFERENCE_STORE_CODES) {
-        expect(at(code)).toMatchObject({ currency: "GBP", regularCoverage: "REFERENCE", tradingHours: "REFERENCE", policy: null, totals: null,
+        expect(at(code)).toMatchObject({ currency: "GBP", regularCoverage: "REFERENCE", tradingHours: "REFERENCE", policy: { transactionsPerStaffHour: 7, minimumStaffWhileOpen: 2, source: "REFERENCE" },
           evidence: { source: "REFERENCE", kind: "HISTORICAL", dataThrough: "2026-10-31", ageDays: 2, dataset: "uk-hospitality-v1" } });
         expect(at(code).days[0].planningDate).toBe("2026-11-02");
         expect(at(code).days[6].planningDate).toBe("2026-11-08");
-        // Demand and regular cover are known. The requirement is unavailable, never zero.
-        expect(at(code).days.every(day => day.unavailable === "NO_WORKLOAD_POLICY" && day.requiredMinutes === null && day.casualGapMinutes === null && day.expectedMilliTransactions! > 0 && day.regularMinutes! > 0 && day.forecastSalesMinor! > 0)).toBe(true);
+        expect(at(code).days.every(day => day.unavailable === null && day.support === "MODERATE" && day.expectedMilliTransactions! > 0 && day.regularMinutes! > 0 && day.forecastSalesMinor! > 0)).toBe(true);
       }
-      expect(staffing.consolidated).toBeNull();
-
-      // With a clearly labelled fixture policy the same evidence yields time-aware requirements.
-      await configureFixture(t.db, { organisationId: c.organisationId, outletId: c.rows[0].id, policy: TEST_FIXTURE_POLICY, trading: null, coverage: null });
-      staffing = await getWeeklyStaffing(t.db, c.owner, NOW);
-      for (const code of REFERENCE_STORE_CODES) expect(at(code).days.every(day => day.unavailable === null && day.support === "MODERATE")).toBe(true);
       expect(staffing.consolidated).toMatchObject({ currency: "GBP", firstDate: "2026-11-02", lastDate: "2026-11-08" });
       // Venues have different busy times, not one clone scaled.
       const busiestHour = (code: typeof REFERENCE_STORE_CODES[number]) => at(code).days[1].blocks.reduce((best, block) => block.expectedMilliTransactions! > best.expectedMilliTransactions! ? block : best).start;
@@ -173,7 +165,6 @@ describe("current reference history", () => {
     try {
       const c = await company(t.db);
       await provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: c.mapping, from: "2026-10-05", through: "2026-10-31" }, NOW);
-      await configureFixture(t.db, { organisationId: c.organisationId, outletId: c.rows[0].id, policy: TEST_FIXTURE_POLICY, trading: null, coverage: null });
       const uk01 = c.mapping.UK01, uk02 = c.mapping.UK02;
       const at = async (id: string) => (await getWeeklyStaffing(t.db, c.owner, NOW)).outlets.find(row => row.outletId === id)!;
       await t.db.delete(regularCoverageWindows).where(eq(regularCoverageWindows.outletId, uk01));
