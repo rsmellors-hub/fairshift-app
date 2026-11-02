@@ -4,6 +4,7 @@
 
 **Scope:** FairShift customer product, worker experience, and bounded FairShift operator surface
 **Implementation note:** The current manager and worker pages are functional scaffolding. They demonstrate working data and state transitions but are not the approved target experience.
+**Historical baseline:** [`FS-HACK-MASTER-001.md`](FS-HACK-MASTER-001.md) is the Phase 0 Master Project Plan. Dated Owner decisions in this specification prevail where they apply.
 
 ## 1. Product thesis
 
@@ -51,9 +52,54 @@ Historical facts, deterministic forecasts, AI interpretation, manager decisions 
 - **Reference minimum cover: 2 operational staff** whenever open to customers. This is the fictional company's operating policy, not a universal legal requirement.
 - **Transaction proxy:** transactions are the MVP workload proxy. FairShift does not claim that every transaction takes identical labour, or that transaction count captures covers, item complexity, kitchen bottlenecks or queue length.
 - **Rota rulings:** Leeds' single-person regular periods are corrected to two people. Birmingham's Saturday/Sunday difference and Stratford's Saturday/Sunday and commuter pattern are justified reference characteristics.
-- **Earnings direction (authorised, NOT implemented):** the active hospitality path will use base earnings + variable tip earnings = total approved earnings. Targeted sales incentives are not its intended variable-earnings mechanism. The tip allocation method is OPEN. Generic incentive capability remains in the product, and the £200 target, £25 bonus and £121 payout remain truthful historical evidence.
+- **Superseded by FS-TIP-DEC-001 below, retained as the record of the earlier direction. Earnings direction (authorised, NOT implemented):** the active hospitality path will use base earnings + variable tip earnings = total approved earnings. Targeted sales incentives are not its intended variable-earnings mechanism. The tip allocation method is OPEN. Generic incentive capability remains in the product, and the £200 target, £25 bonus and £121 payout remain truthful historical evidence.
 
 **Golden Path anti-tuning rule.** The Golden Path example must be discovered from accepted product rules. Product rules, reference demand, capacity, regular coverage and forecast parameters must not be selected or altered to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a target for the hospitality workload model.
+
+### Owner decision FS-TIP-DEC-001: hospitality earnings
+
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: NOT IMPLEMENTED.** FS-HOSPITALITY-EARNINGS-001 is not yet authorised (section 24).
+
+The active hospitality reference path retains performance incentives. Total approved earnings are:
+
+> GUARANTEED BASE EARNINGS + PERFORMANCE INCENTIVE + ALLOCATED TIPS = TOTAL APPROVED EARNINGS
+
+**Supersession.** This decision explicitly supersedes the earlier hospitality shorthand "base + variable tips = total approved earnings" for the active Golden Path earnings model, including the statement that targeted sales incentives are not its intended variable-earnings mechanism. The corrected active formula is **BASE + PERFORMANCE INCENTIVE + ALLOCATED TIPS = TOTAL APPROVED EARNINGS**. The earlier direction stays visible in this section and in `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` as history.
+
+The three components have distinct sources.
+
+**A. Base earnings**
+
+- Derived from accepted shift terms.
+- Guaranteed according to the applicable accepted terms.
+
+**B. Performance incentive**
+
+- Retains the FairShift product thesis of measuring worker performance against transparent incentives.
+- Calculated from the authorised incentive policy and verified performance inputs.
+- Historical incentive architecture remains preserved.
+- The historical £121 PayPal Sandbox payout remains truthful historical evidence and must not be rewritten.
+
+**C. Allocated tips**
+
+- Based only on genuine Square Sandbox card-tip evidence for the hackathon reference path.
+- FairShift applies a deterministic written employer/company tipping-policy rule. The policy rule, not Square itself, creates entitlement.
+- Square `team_member_id` is evidence/input only and must not automatically be represented as tip ownership.
+- The Manager may approve or decline/hold the calculated payable but may not type or alter the calculated tip amount.
+- Card-processing fees are not deducted from the allocated tip.
+- Out of scope: cash tips, service charges, venue-wide tronc/tip pooling, and hours-based pooling.
+
+**AI has no role in** tip amount, tip allocation, incentive arithmetic, earnings arithmetic, manager approval, or PayPal payout.
+
+**Refund rule**
+
+| When the refund or source change happens | Treatment |
+| --- | --- |
+| Before Manager approval | Recalculate or exclude the affected tip before approval. |
+| After Manager approval | Preserve the approved payable. Do not introduce a payout hold or rewrite approved earnings. Record the later refund or change as an exception/audit/reconciliation event. |
+| After PayPal initiation or completion | Preserve historical payout evidence. No automatic clawback. |
+
+**Claims firewall.** FairShift must not claim to be a UK payroll engine, a tax engine, a statutory tronc service, a complete time-and-attendance system, or legally compliant merely because a Sandbox payout occurred. The policy demonstrated by the fictional company must not be described as legally fair or UK-compliant unless separately verified.
 
 ## 2. Product principles
 
@@ -297,7 +343,7 @@ PayPal payout status is **SANDBOX-CONNECTED**. An earlier controlled path, on se
 
 ### Golden Path economics
 
-**Historical evidence, not the hospitality target (section 1).** The table below records the proven retail-era example. It is not a staffing window to recreate, and the active hospitality earnings direction is base + tips, which is not yet implemented.
+**Historical evidence, not the hospitality target (section 1).** The table below records the proven retail-era example. It is not a staffing window to recreate, and the active hospitality earnings model is base + performance incentive + allocated tips (FS-TIP-DEC-001, section 1), which is not yet implemented.
 
 | Term | Intended demonstration value |
 | --- | --- |
@@ -324,7 +370,7 @@ For the hackathon MVP:
 - once performance results are confirmed, the performance snapshot is immutable;
 - once a payable is approved, later refunds do not silently rewrite approved worker earnings.
 
-More sophisticated net-sales and refund incentive policy is deferred (section 21).
+More sophisticated net-sales and refund incentive policy is deferred (section 21). This decision covers performance and incentives. The refund treatment of allocated tips is set by FS-TIP-DEC-001 (section 1).
 
 The final demonstration narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
 
@@ -737,7 +783,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 ### OPEN
 
 - Final fictional hospitality group brand and venue names.
-- Hospitality tip allocation method, tip terms and refund treatment (section 1). Nothing about tips is implemented.
+- The exact wording of the written tipping-policy rule and the tip terms. FS-TIP-DEC-001 (section 1) settles the earnings formula, tip evidence, exclusions, Manager limits and refund treatment, but doesn't state the rule itself. Nothing about tips is implemented.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.
@@ -810,6 +856,22 @@ The current implementation is valuable functional evidence. Migration should pre
 Functionality that must survive redesign includes truthful provenance, validated forecast and AI contracts, server-side scope, explicit manager control, exact monetary arithmetic, acceptance persistence, incentive state transitions, approval before payout, PayPal idempotency, provider status reconciliation, and clear failure states.
 
 ## 24. Implementation sequencing recommendation
+
+### Current authorised package order
+
+Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
+
+1. FS-AUTHORITY-REPAIR-001
+2. FS-DEMAND-CONTEXT-001
+3. Contextual-AI verification and Golden Path integration
+4. FS-HOSPITALITY-EARNINGS-001
+5. Full Golden Path rehearsal and hardening
+
+This records order only. Each later package still needs its own authorisation. Contextual AI and hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**.
+
+The workload model stays frozen as set out in section 1: 7 completed transactions per operational staff-hour, minimum 2 operational staff while open, one organisation-level policy with no reference-location overrides, a transaction-count workload proxy, and financial sales kept separate from operational demand.
+
+### General sequencing
 
 Implementation should proceed in slices that leave a coherent product after each step:
 

@@ -7,7 +7,7 @@ FairShift is an AI-assisted multi-outlet workforce planning and transparent work
 Use this authority order:
 
 1. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources. Repository copies of transient competition details may become stale.
-2. **FS-HACK-MASTER-001:** the historical Phase 0 baseline. It is not held in this repository.
+2. **FS-HACK-MASTER-001:** the historical Phase 0 baseline, held at [`docs/FS-HACK-MASTER-001.md`](docs/FS-HACK-MASTER-001.md).
 3. **Approved dated Owner amendments,** with the newest applicable amendment prevailing. These are recorded in [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), the current authoritative product/UX specification.
 4. **Repository reality** for implementation state: the current repository and reproducible runtime evidence.
 5. **The current authorised work package.**
