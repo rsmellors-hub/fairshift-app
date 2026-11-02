@@ -35,7 +35,7 @@ Rules established by the amendment:
 - Required capacity is deterministic: the larger of minimum cover and transaction workload, less regular and allocated casual cover, per time window. Surplus in one window doesn't cancel a shortage in another.
 - Service capacity and minimum cover are Owner policy. FairShift has **no default** for either. Missing configuration is unavailable, never zero.
 - Reference history is synthetic and labelled so. It is never presented as genuine Square Sandbox evidence, and it contains no invented events, weather or bookings.
-- AI doesn't determine baseline demand. A later package (FS-DEMAND-CONTEXT-001) may propose bounded contextual adjustments; a Manager must accept one before it affects staffing.
+- AI doesn't determine baseline demand. FS-DEMAND-CONTEXT-001 lets it propose a bounded scenario (FS-DEMAND-CONTEXT-DEC-001, below); a Manager must accept one before it affects staffing.
 - Worker matching, roles, attribution, incentives, approval and PayPal payout are unchanged.
 
 **Opportunity Demand** means expected operational workload → required capacity → regular coverage → allocated casual coverage → remaining casual-work requirement, for one location and time window.
@@ -100,6 +100,31 @@ The three components have distinct sources.
 | After PayPal initiation or completion | Preserve historical payout evidence. No automatic clawback. |
 
 **Claims firewall.** FairShift must not claim to be a UK payroll engine, a tax engine, a statutory tronc service, a complete time-and-attendance system, or legally compliant merely because a Sandbox payout occurred. The policy demonstrated by the fictional company must not be described as legally fair or UK-compliant unless separately verified.
+
+### Owner decision FS-DEMAND-CONTEXT-DEC-001: bounded contextual-demand scenarios
+
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with a genuine model call. Not deployed.** Evidence: [`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md).
+
+AI may select only from this closed set. Code, not AI, maps each scenario to its percentage:
+
+| Scenario | Planning assumption |
+| --- | --- |
+| `NONE` | 0% |
+| `MINOR_UP` | +5% |
+| `MODERATE_UP` | +10% |
+| `MINOR_DOWN` | −5% |
+| `MODERATE_DOWN` | −10% |
+
+These percentages are planning assumptions and versioned product policy (`fs-demand-context-policy-v1`). They are not learned effects, forecast accuracy, model-generated percentages, or claims about the measured impact of any event, weather or holiday. AI must never emit or control a free numeric demand adjustment.
+
+Rules as implemented:
+
+- **Baseline first.** The deterministic baseline stays canonical and visible. Before a Manager accepts, only the baseline drives staffing.
+- **Target.** An accepted scenario scales expected transactions by planning block. Commercial sales, capacity, minimum cover and regular coverage aren't changed, and the frozen workload policy converts the result.
+- **Signals.** Momentum (latest 28 days against the prior 28, calculated), Manager-entered context (labelled as such, never as verified), and UK bank holidays from a dated GOV.UK snapshot, where the location record states its nation. A missing signal means unknown, not normal. Weather, school holidays, events and bookings aren't implemented.
+- **Human control.** A Manager accepts or dismisses, and can withdraw a decision. A business owner acting on their selected location can do the same under the existing location scope, and the role is recorded.
+- **Staleness.** A decision applies only while the demand baseline, signals and policy it was made on are unchanged. Otherwise the day returns to its baseline and says so. Regular cover and allocated shifts don't invalidate it, because the scenario is a view about demand.
+- **Failure.** Any AI failure or rejected output falls back to the baseline. Forecast, staffing, Opportunity Demand and Fill Shifts carry on.
 
 ## 2. Product principles
 
@@ -338,6 +363,8 @@ The Square Sandbox journey is verified locally from allocation to worker payment
 > labelled reference history drives the forecast → manager offer → worker acceptance → allocation → genuine Square Sandbox payments carrying `team_member_id` → mapped worker performance → deterministic incentive → manager approval of £96 base + £25 bonus = £121 → genuine PayPal Sandbox payout of GBP 121.00 → item `SUCCESS` → persisted `PAID` → worker confirmation
 
 **Limits of that run:** it used a short real shift on the same terms, not the 14:00–20:00 window. The 14:00–20:00 rehearsal has not been run, and the path is not deployed.
+
+**Contextual demand, FS-DEMAND-CONTEXT-001:** verified locally with a genuine OpenAI call on labelled reference history and a Manager-entered note, through to Fill Shifts ([`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md)). That run stopped at shift creation. It is not part of the Square and PayPal run above, the chain has not been run end to end in one sitting, and it is not deployed.
 
 PayPal payout status is **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
 
@@ -867,7 +894,7 @@ Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
 4. FS-HOSPITALITY-EARNINGS-001
 5. Full Golden Path rehearsal and hardening
 
-This records order only. Each later package still needs its own authorisation. Contextual AI and hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**.
+This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-DEMAND-CONTEXT-001 is implemented and verified locally, not deployed (section 1).
 
 The workload model stays frozen as set out in section 1: 7 completed transactions per operational staff-hour, minimum 2 operational staff while open, one organisation-level policy with no reference-location overrides, a transaction-count workload proxy, and financial sales kept separate from operational demand.
 

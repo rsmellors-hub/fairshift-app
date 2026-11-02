@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
+import { canonicalJson } from "@/server/domain/canonical-json";
 import { isSyntheticSource, type SalesSource } from "@/server/intelligence/forecast";
 import { outletOpportunities } from "@/server/intelligence/opportunity";
 import type { OutletStaffing, WeeklyStaffing } from "@/server/intelligence/staffing";
@@ -32,7 +33,7 @@ type CommercialMetric = typeof COMMERCIAL_METRICS[number];
 export type EvidenceMetric = typeof EVIDENCE_METRICS[number];
 type Flag = typeof LOCATION_FLAGS[number];
 
-export type AssessmentDay = { date: string; weekday: typeof WEEKDAYS[number]; support: "LOW" | "MODERATE" | null; unavailable: string | null } & { [K in DayMetric]: number | null };
+export type AssessmentDay = { date: string; weekday: typeof WEEKDAYS[number]; support: "LOW" | "MODERATE" | null; unavailable: string | null; acceptedContextScenario?: string } & { [K in DayMetric]: number | null };
 export type AssessmentOpportunity = { date: string; start: string; end: string; state: "OPEN" | "FILLED"; expectedTransactions: number; lowerTransactions: number; upperTransactions: number; requiredMinutes: number; regularMinutes: number; allocatedCasualMinutes: number; remainingCasualMinutes: number };
 export type AssessmentLocation = {
   key: string;
@@ -84,6 +85,8 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
     date: day.planningDate, weekday: weekday(day.planningDate), support: day.support, unavailable: day.unavailable,
     forecastSalesMinor: day.forecastSalesMinor, expectedTransactions: day.expectedMilliTransactions === null ? null : transactionCount(day.expectedMilliTransactions), requiredMinutes: day.requiredMinutes, regularMinutes: day.regularMinutes,
     allocatedCasualMinutes: day.allocatedCasualMinutes, coverageMinutes: day.coverageMinutes, casualGapMinutes: day.casualGapMinutes, indicativeShifts: day.indicativeShifts,
+    // Only on a day a Manager's accepted scenario applies to, so a baseline week's input is unchanged.
+    ...(day.context ? { acceptedContextScenario: day.context.scenario } : {}),
   }));
   const flags: Flag[] = [];
   if (evidence?.synthetic) flags.push("SYNTHETIC_REFERENCE_DATA");
@@ -96,13 +99,6 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
   const week = outlet.totals && (({ expectedMilliTransactions, ...rest }) => ({ ...rest, expectedTransactions: transactionCount(expectedMilliTransactions) }))(outlet.totals);
   const opportunities = outletOpportunities(outlet).map((row): AssessmentOpportunity => ({ date: row.localDate, start: row.windowStart, end: row.windowEnd, state: row.state, expectedTransactions: row.expectedTransactions, lowerTransactions: row.lowerTransactions, upperTransactions: row.upperTransactions, requiredMinutes: row.requiredMinutes, regularMinutes: row.regularMinutes, allocatedCasualMinutes: row.allocatedCasualMinutes, remainingCasualMinutes: row.remainingCasualMinutes }));
   return { key, currency: outlet.currency, workloadPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week, commercial: commercialInput(outlet.commercial), days, opportunities };
-}
-
-// JSON with object keys sorted, so equal evidence always hashes equally.
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
-  return JSON.stringify(value);
 }
 
 // Deterministic: the same planning evidence always yields the same input and
@@ -124,7 +120,7 @@ export function prepareAssessmentInput(staffing: Pick<WeeklyStaffing, "methodVer
   return {
     input, locationKeys,
     // The task is part of the fingerprint: changed instructions supersede older assessments.
-    fingerprint: createHash("sha256").update(canonical({ input, locationKeys, instructions: ASSESSMENT_INSTRUCTIONS })).digest("hex"),
+    fingerprint: createHash("sha256").update(canonicalJson({ input, locationKeys, instructions: ASSESSMENT_INSTRUCTIONS })).digest("hex"),
     evidenceThrough: through[0] ?? null,
     hasEvidence: locations.some(location => location.days.some(day => day.requiredMinutes !== null)),
   };

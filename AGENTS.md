@@ -72,8 +72,8 @@ The reference company is one fictional five-location UK fast-casual cafe and din
 - Reference policy: **7 transactions per operational staff-hour, minimum 2 operational staff while open**, organisation level. This is a fictional-company assumption, never a benchmark or legal requirement, and never learned from data.
 - Transactions are an MVP workload proxy. Do not claim they capture covers, item complexity, kitchen bottlenecks or queue length. Do not add those variables, or role-specific forecasting, before submission.
 - **Golden Path anti-tuning:** discover the example from accepted rules. Never select or alter rules, reference demand, capacity, regular cover or forecast parameters to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a hospitality target.
-- **Earnings:** the authorised direction is base + variable tips = total approved earnings. This is **not implemented** and the tip allocation method is open. Do not implement or claim tips without a work package.
-- **Contextual AI (FS-DEMAND-CONTEXT-001) is not implemented.** The baseline is deterministic, and AI explains and ranks only.
+- **Earnings (FS-TIP-DEC-001):** the authorised formula is guaranteed base earnings + performance incentive + allocated tips = total approved earnings. This is **not implemented**, and the exact written tip-allocation rule remains open for FS-HOSPITALITY-EARNINGS-001. Do not implement or claim tips without a work package.
+- **Contextual AI (FS-DEMAND-CONTEXT-001, FS-DEMAND-CONTEXT-DEC-001) is implemented and verified locally with a genuine model call, and not deployed.** The baseline stays deterministic and canonical. AI chooses a named scenario from a closed set and cites supplied signals, code owns the fixed percentages, and only a Manager's acceptance changes staffing. Evidence: [`docs/DEMAND_CONTEXT_EVIDENCE.md`](docs/DEMAND_CONTEXT_EVIDENCE.md).
 
 ### PayPal — SANDBOX-CONNECTED
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { SalesSource } from "@/server/intelligence/forecast";
 import type { OutletWeeklyForecast, SourceRejection, WeeklyForecast } from "@/server/intelligence/weekly";
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
-import { labourHours, policyDescription, STAFFING_UNAVAILABLE, StaffingDayTable, StaffingMethodNote, transactions, WorkloadSetupNotice } from "@/app/components/staffing";
+import { AcceptedContextNote, labourHours, policyDescription, STAFFING_UNAVAILABLE, StaffingDayTable, StaffingMethodNote, transactions, WorkloadSetupNotice } from "@/app/components/staffing";
 import { formatClock } from "@/server/intelligence/workload";
 import { isSyntheticSource } from "@/server/intelligence/forecast";
 import { CommercialByLocation } from "@/app/owner/commerce-labour";
@@ -55,6 +55,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
         <StaffingSummary staffing={staffing} />
       </section>
       {staffing ? <WorkloadSetupNotice outlets={staffing.outlets} owner /> : null}
+      {staffing ? <AcceptedContextNote outlets={staffing.outlets} /> : null}
       {historical.length ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from historical evidence</span>{`${historical.map(sourceLabel).join(" and ")} ${historical.length > 1 ? "are" : "is"} labelled synthetic input${c ? `, through ${longDate(c.dataThrough)}` : ""}. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled. It does not describe current trading or any provider’s sales.`}</p> : null}
       {imported ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from imported history</span>Imported sales history supplied for this business, not verified by a payment provider. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled.</p> : null}
       {connected ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from connected commerce</span>{`${connected === weekly.outlets.length ? "Every location forecasts" : `${connected} of ${weekly.outlets.length} locations forecast`} from sales retrieved from a connected account: completed sales through yesterday, refunds not deducted.`}</p> : null}

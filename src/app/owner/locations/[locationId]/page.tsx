@@ -5,7 +5,7 @@ import { selectLocationAction } from "@/app/auth-actions";
 import { WorkspaceUnavailable } from "@/app/components/workspace-ui";
 import { DataLabel } from "@/app/components/product-ui";
 import { money } from "@/app/components/format";
-import { labourHours, longDate, policyDescription, policySummary, ServiceDays, STAFFING_UNAVAILABLE, StaffingDayTable, transactions, wholeMoney, WorkloadSetupNotice } from "@/app/components/staffing";
+import { AcceptedContextNote, labourHours, longDate, policyDescription, policySummary, ServiceDays, STAFFING_UNAVAILABLE, StaffingDayTable, transactions, wholeMoney, WorkloadSetupNotice } from "@/app/components/staffing";
 import { WeekCover } from "@/app/manager/plan-week";
 import { CommercialChain } from "@/app/owner/commerce-labour";
 import { SALES_SOURCE } from "@/app/owner/sales";
@@ -50,6 +50,7 @@ export default async function OwnerLocationPage({ params }: { params: Promise<{ 
         <li className="demand-flow-gap"><span>Casual requirement</span><strong>{outlet.totals ? labourHours(outlet.totals.casualGapMinutes) : "Not available"}</strong><small>{outlet.totals ? "By time of day · no shifts created" : "Can’t be calculated yet"}</small></li>
       </ol>
       <p className="note">Expected sales {outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "not available"} in the next 7 days: commercial context, not part of the staffing figures.</p>
+      <AcceptedContextNote outlets={[outlet]} />
       <section className="panel" aria-labelledby="location-service-title"><h2 id="location-service-title">By time of day</h2><p className="panel-lede">When each day is covered and when it isn’t. No shifts are created here.</p><ServiceDays outlet={outlet} /></section>
       <section className="panel" aria-label="Staffing by day"><WeekCover outlet={outlet} act={false} /></section>
       <section aria-labelledby="location-source-title" className="panel"><h2 id="location-source-title">Commerce evidence</h2>

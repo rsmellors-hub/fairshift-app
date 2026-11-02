@@ -925,6 +925,94 @@ export const aiStaffingAssessments = pgTable("ai_staffing_assessments", {
   check("ai_staffing_assessments_fingerprint_check", sql`${t.inputFingerprint} ~ '^[0-9a-f]{64}$'`),
 ]);
 
+// A contextual signal known about one location and period. Sales history is never touched by
+// one. Manager-entered text is provenance-labelled and never treated as externally verified.
+export const demandContextSignals = pgTable("demand_context_signals", {
+  id: text("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  signalType: text("signal_type").notNull(),
+  validFrom: date("valid_from", { mode: "string" }).notNull(),
+  validTo: date("valid_to", { mode: "string" }).notNull(),
+  direction: text("direction").notNull(),
+  provenance: text("provenance").notNull(),
+  sourceLabel: text("source_label").notNull(),
+  sourceRef: text("source_ref"),
+  summary: text("summary").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  enteredBy: uuid("entered_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  withdrawnBy: uuid("withdrawn_by").references(() => users.id),
+}, (t) => [
+  index("demand_context_signals_scope_idx").on(t.organisationId, t.outletId, t.validTo),
+  check("demand_context_signals_type_check", sql`${t.signalType} in ('MOMENTUM', 'MANAGER_ENTERED', 'BANK_HOLIDAY')`),
+  check("demand_context_signals_direction_check", sql`${t.direction} in ('UP', 'DOWN', 'FLAT', 'UNSPECIFIED')`),
+  check("demand_context_signals_provenance_check", sql`(${t.signalType} = 'MOMENTUM' and ${t.provenance} = 'DETERMINISTIC_CALCULATION')
+    or (${t.signalType} = 'MANAGER_ENTERED' and ${t.provenance} = 'MANAGER_ENTERED' and ${t.enteredBy} is not null)
+    or (${t.signalType} = 'BANK_HOLIDAY' and ${t.provenance} = 'OFFICIAL_SNAPSHOT')`),
+  check("demand_context_signals_period_check", sql`${t.validTo} >= ${t.validFrom}`),
+]);
+
+// A bounded AI scenario for one location and date. A proposal changes nothing by itself. The
+// model's scenario, citations and reason are stored only after validation.
+export const demandContextProposals = pgTable("demand_context_proposals", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  targetDate: date("target_date", { mode: "string" }).notNull(),
+  policyVersion: text("policy_version").notNull(),
+  inputVersion: text("input_version").notNull(),
+  outputSchemaVersion: text("output_schema_version").notNull(),
+  inputFingerprint: text("input_fingerprint").notNull(),
+  input: jsonb("input").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  responseModel: text("response_model"),
+  providerResponseId: text("provider_response_id"),
+  status: text("status").notNull(),
+  failureCode: text("failure_code"),
+  scenario: text("scenario"),
+  citedSignalIds: jsonb("cited_signal_ids"),
+  reason: text("reason"),
+  requestedBy: uuid("requested_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("demand_context_proposals_scope_idx").on(t.organisationId, t.outletId, t.targetDate, t.createdAt),
+  uniqueIndex("demand_context_proposals_current_unique").on(t.outletId, t.targetDate, t.inputFingerprint).where(sql`${t.status} = 'AVAILABLE'`),
+  check("demand_context_proposals_status_check", sql`(${t.status} = 'AVAILABLE' and ${t.scenario} in ('NONE', 'MINOR_UP', 'MODERATE_UP', 'MINOR_DOWN', 'MODERATE_DOWN') and ${t.citedSignalIds} is not null and ${t.reason} is not null and ${t.failureCode} is null and ${t.responseModel} is not null)
+    or (${t.status} = 'FAILED' and ${t.scenario} is null and ${t.citedSignalIds} is null and ${t.reason} is null and ${t.failureCode} is not null)`),
+  check("demand_context_proposals_fingerprint_check", sql`${t.inputFingerprint} ~ '^[0-9a-f]{64}$'`),
+]);
+
+// A person's decision on a proposal, append-only. The latest for a location and date stands,
+// and it applies only while the evidence it was made on is still the current evidence.
+export const demandContextDecisions = pgTable("demand_context_decisions", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  targetDate: date("target_date", { mode: "string" }).notNull(),
+  sequence: integer("sequence").notNull(),
+  proposalId: uuid("proposal_id").notNull().references(() => demandContextProposals.id, { onDelete: "restrict" }),
+  action: text("action").notNull(),
+  scenario: text("scenario").notNull(),
+  adjustmentBps: integer("adjustment_bps").notNull(),
+  policyVersion: text("policy_version").notNull(),
+  inputFingerprint: text("input_fingerprint").notNull(),
+  outputFingerprint: text("output_fingerprint").notNull(),
+  signalIds: jsonb("signal_ids").notNull(),
+  decidedBy: uuid("decided_by").notNull().references(() => users.id),
+  decidedByRole: text("decided_by_role").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("demand_context_decisions_sequence_unique").on(t.outletId, t.targetDate, t.sequence),
+  index("demand_context_decisions_scope_idx").on(t.organisationId, t.outletId, t.targetDate),
+  check("demand_context_decisions_action_check", sql`${t.action} in ('ACCEPTED', 'DISMISSED', 'WITHDRAWN')`),
+  check("demand_context_decisions_scenario_check", sql`(${t.scenario} = 'NONE' and ${t.adjustmentBps} = 0) or (${t.scenario} = 'MINOR_UP' and ${t.adjustmentBps} = 500)
+    or (${t.scenario} = 'MODERATE_UP' and ${t.adjustmentBps} = 1000) or (${t.scenario} = 'MINOR_DOWN' and ${t.adjustmentBps} = -500) or (${t.scenario} = 'MODERATE_DOWN' and ${t.adjustmentBps} = -1000)`),
+  check("demand_context_decisions_role_check", sql`${t.decidedByRole} in ('OWNER', 'MANAGER')`),
+]);
+
 export const auditEvents = pgTable(
   "audit_events",
   {
@@ -958,7 +1046,7 @@ export const schema = {
   commerceWorkerIdentities,
   providerEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies, workloadPolicies, outletTradingHours, regularCoverageWindows,
-  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales, workPerformanceResults,
+  departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, demandContextSignals, demandContextProposals, demandContextDecisions, attributedSales, workPerformanceResults,
   shifts,
   shiftOpportunityEvidence,
   shiftOffers,

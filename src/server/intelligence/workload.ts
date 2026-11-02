@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
+import { applyDemandAdjustment } from "@/server/intelligence/demand-context-policy";
 import { LOOKBACK_DAYS, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 
 // Operational demand: how many transactions (bills) are expected and when, what that asks
@@ -219,6 +220,10 @@ export function calculateDayWorkload(input: {
   slots: readonly TransactionSlot[];
   dataThrough: string | null;
   allocated: readonly { startsAt: Date; endsAt: Date }[];
+  // A Manager-accepted contextual scenario, as its policy assumption. It scales expected
+  // transactions by block and nothing else: sales stay as forecast, and capacity, minimum
+  // cover and coverage apply exactly as they do to the baseline.
+  demandAdjustmentBps?: number;
 }): DayWorkload {
   const empty = { blocks: [], periods: [], support: null, outsideHoursMilliTransactions: null, expectedMilliTransactions: null, lowerMilliTransactions: null, upperMilliTransactions: null, requiredMinutes: null, regularMinutes: null, allocatedCasualMinutes: 0, casualNeedMinutes: null, remainingMinutes: null, indicativeShifts: null };
   if (input.trading === null) return { ...empty, closed: null, unavailable: !input.dataThrough ? "NO_FORECAST" : "TRADING_HOURS_NOT_SET" };
@@ -230,7 +235,8 @@ export function calculateDayWorkload(input: {
     const startsAt = localInstant(input.date, window.start, input.timezone), endsAt = localInstant(input.date, window.end, input.timezone);
     const regularMinutes = input.coverage ? regularMinutesWithin(window, input.coverage) : null;
     const allocatedCasualMinutes = casualMinutesWithin({ startsAt, endsAt }, input.allocated);
-    const expected = forecast?.windows[i] ?? null;
+    const forecasted = forecast?.windows[i] ?? null;
+    const expected = forecasted && input.demandAdjustmentBps ? { ...forecasted, expectedMilliTransactions: applyDemandAdjustment(forecasted.expectedMilliTransactions, input.demandAdjustmentBps), lowerMilliTransactions: applyDemandAdjustment(forecasted.lowerMilliTransactions, input.demandAdjustmentBps), upperMilliTransactions: applyDemandAdjustment(forecasted.upperMilliTransactions, input.demandAdjustmentBps) } : forecasted;
     const capacity = expected && input.policy && regularMinutes !== null
       ? calculateWindowCapacity({ expectedMilliTransactions: expected.expectedMilliTransactions, openMinutes: window.end - window.start, regularMinutes, allocatedCasualMinutes, policy: input.policy }) : null;
     const requiredOnly = expected && input.policy && regularMinutes === null

@@ -1,0 +1,573 @@
+[
+    {
+        "input": {
+            "signals": [
+                {
+                    "id": "ctx_15430bc88f799b7c0f70d440",
+                    "type": "MANAGER_ENTERED",
+                    "summary": "Rehearsal note (fictional company): trade conference at the hall next door, organisers expect a lunchtime crowd.",
+                    "validTo": "2026-11-04",
+                    "metadata": {
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-04",
+                    "provenance": "MANAGER_ENTERED"
+                },
+                {
+                    "id": "ctx_c3ec89b8fe79942f21daf705",
+                    "type": "MOMENTUM",
+                    "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before.",
+                    "validTo": "2026-11-15",
+                    "metadata": {
+                        "method": "transactions-28-v-prior-28-v1",
+                        "source": "REFERENCE",
+                        "priorTo": "2026-10-04",
+                        "recentTo": "2026-11-01",
+                        "changeBps": 232,
+                        "priorDays": 28,
+                        "priorFrom": "2026-09-07",
+                        "synthetic": true,
+                        "recentDays": 28,
+                        "recentFrom": "2026-10-05",
+                        "priorTransactions": 3451,
+                        "recentTransactions": 3531
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-02",
+                    "provenance": "DETERMINISTIC_CALCULATION"
+                }
+            ],
+            "weekday": "WEDNESDAY",
+            "baseline": {
+                "byHour": [
+                    {
+                        "end": "08:00",
+                        "start": "07:00",
+                        "expectedTransactions": 12
+                    },
+                    {
+                        "end": "09:00",
+                        "start": "08:00",
+                        "expectedTransactions": 22
+                    },
+                    {
+                        "end": "10:00",
+                        "start": "09:00",
+                        "expectedTransactions": 15
+                    },
+                    {
+                        "end": "11:00",
+                        "start": "10:00",
+                        "expectedTransactions": 9
+                    },
+                    {
+                        "end": "12:00",
+                        "start": "11:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "13:00",
+                        "start": "12:00",
+                        "expectedTransactions": 30
+                    },
+                    {
+                        "end": "14:00",
+                        "start": "13:00",
+                        "expectedTransactions": 32
+                    },
+                    {
+                        "end": "15:00",
+                        "start": "14:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "16:00",
+                        "start": "15:00",
+                        "expectedTransactions": 6
+                    },
+                    {
+                        "end": "17:00",
+                        "start": "16:00",
+                        "expectedTransactions": 3
+                    }
+                ],
+                "support": "MODERATE",
+                "evidence": {
+                    "source": "REFERENCE",
+                    "synthetic": true,
+                    "dataThrough": "2026-11-01"
+                },
+                "lowerTransactions": 98,
+                "upperTransactions": 211,
+                "expectedTransactions": 155
+            },
+            "scenarios": [
+                {
+                    "scenario": "NONE",
+                    "planningAssumptionPercent": 0
+                },
+                {
+                    "scenario": "MINOR_UP",
+                    "planningAssumptionPercent": 5
+                },
+                {
+                    "scenario": "MODERATE_UP",
+                    "planningAssumptionPercent": 10
+                },
+                {
+                    "scenario": "MINOR_DOWN",
+                    "planningAssumptionPercent": -5
+                },
+                {
+                    "scenario": "MODERATE_DOWN",
+                    "planningAssumptionPercent": -10
+                }
+            ],
+            "targetDate": "2026-11-04",
+            "locationKey": "L1",
+            "inputVersion": "fs-demand-context-input-v1",
+            "policyVersion": "fs-demand-context-policy-v1",
+            "bankHolidayStatus": "NO_HOLIDAY_ON_DATE"
+        },
+        "reason": null,
+        "status": "FAILED",
+        "provider": "OPENAI",
+        "scenario": null,
+        "targetDate": "2026-11-04",
+        "failureCode": "HTTP_401",
+        "inputVersion": "fs-demand-context-input-v1",
+        "policyVersion": "fs-demand-context-policy-v1",
+        "responseModel": null,
+        "citedSignalIds": null,
+        "requestedModel": "gpt-6-luna",
+        "inputFingerprint": "a3c709d8cd807b045347c3bb36b9b097372ed79fb8d81c576a8ac7c889aca98a",
+        "providerResponseId": null
+    },
+    {
+        "input": {
+            "signals": [
+                {
+                    "id": "ctx_15430bc88f799b7c0f70d440",
+                    "type": "MANAGER_ENTERED",
+                    "summary": "Rehearsal note (fictional company): trade conference at the hall next door, organisers expect a lunchtime crowd.",
+                    "validTo": "2026-11-04",
+                    "metadata": {
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-04",
+                    "provenance": "MANAGER_ENTERED"
+                },
+                {
+                    "id": "ctx_c3ec89b8fe79942f21daf705",
+                    "type": "MOMENTUM",
+                    "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before.",
+                    "validTo": "2026-11-15",
+                    "metadata": {
+                        "method": "transactions-28-v-prior-28-v1",
+                        "source": "REFERENCE",
+                        "priorTo": "2026-10-04",
+                        "recentTo": "2026-11-01",
+                        "changeBps": 232,
+                        "priorDays": 28,
+                        "priorFrom": "2026-09-07",
+                        "synthetic": true,
+                        "recentDays": 28,
+                        "recentFrom": "2026-10-05",
+                        "priorTransactions": 3451,
+                        "recentTransactions": 3531
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-02",
+                    "provenance": "DETERMINISTIC_CALCULATION"
+                }
+            ],
+            "weekday": "WEDNESDAY",
+            "baseline": {
+                "byHour": [
+                    {
+                        "end": "08:00",
+                        "start": "07:00",
+                        "expectedTransactions": 12
+                    },
+                    {
+                        "end": "09:00",
+                        "start": "08:00",
+                        "expectedTransactions": 22
+                    },
+                    {
+                        "end": "10:00",
+                        "start": "09:00",
+                        "expectedTransactions": 15
+                    },
+                    {
+                        "end": "11:00",
+                        "start": "10:00",
+                        "expectedTransactions": 9
+                    },
+                    {
+                        "end": "12:00",
+                        "start": "11:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "13:00",
+                        "start": "12:00",
+                        "expectedTransactions": 30
+                    },
+                    {
+                        "end": "14:00",
+                        "start": "13:00",
+                        "expectedTransactions": 32
+                    },
+                    {
+                        "end": "15:00",
+                        "start": "14:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "16:00",
+                        "start": "15:00",
+                        "expectedTransactions": 6
+                    },
+                    {
+                        "end": "17:00",
+                        "start": "16:00",
+                        "expectedTransactions": 3
+                    }
+                ],
+                "support": "MODERATE",
+                "evidence": {
+                    "source": "REFERENCE",
+                    "synthetic": true,
+                    "dataThrough": "2026-11-01"
+                },
+                "lowerTransactions": 98,
+                "upperTransactions": 211,
+                "expectedTransactions": 155
+            },
+            "scenarios": [
+                {
+                    "scenario": "NONE",
+                    "planningAssumptionPercent": 0
+                },
+                {
+                    "scenario": "MINOR_UP",
+                    "planningAssumptionPercent": 5
+                },
+                {
+                    "scenario": "MODERATE_UP",
+                    "planningAssumptionPercent": 10
+                },
+                {
+                    "scenario": "MINOR_DOWN",
+                    "planningAssumptionPercent": -5
+                },
+                {
+                    "scenario": "MODERATE_DOWN",
+                    "planningAssumptionPercent": -10
+                }
+            ],
+            "targetDate": "2026-11-04",
+            "locationKey": "L1",
+            "inputVersion": "fs-demand-context-input-v1",
+            "policyVersion": "fs-demand-context-policy-v1",
+            "bankHolidayStatus": "NO_HOLIDAY_ON_DATE"
+        },
+        "reason": "The manager-entered note describes a trade conference next door with an expected lunchtime crowd, a specific reason for higher demand on this date. The note is unverified, so the smaller adjustment is appropriate.",
+        "status": "AVAILABLE",
+        "provider": "OPENAI",
+        "scenario": "MINOR_UP",
+        "targetDate": "2026-11-04",
+        "failureCode": null,
+        "inputVersion": "fs-demand-context-input-v1",
+        "policyVersion": "fs-demand-context-policy-v1",
+        "responseModel": "gpt-6-luna",
+        "citedSignalIds": [
+            "ctx_15430bc88f799b7c0f70d440"
+        ],
+        "requestedModel": "gpt-6-luna",
+        "inputFingerprint": "a3c709d8cd807b045347c3bb36b9b097372ed79fb8d81c576a8ac7c889aca98a",
+        "providerResponseId": "resp_0656ca4c4bec304a016ae8ccc2c12887d2bd640207f9f6fb29"
+    },
+    {
+        "input": {
+            "signals": [
+                {
+                    "id": "ctx_c3ec89b8fe79942f21daf705",
+                    "type": "MOMENTUM",
+                    "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before.",
+                    "validTo": "2026-11-15",
+                    "metadata": {
+                        "method": "transactions-28-v-prior-28-v1",
+                        "source": "REFERENCE",
+                        "priorTo": "2026-10-04",
+                        "recentTo": "2026-11-01",
+                        "changeBps": 232,
+                        "priorDays": 28,
+                        "priorFrom": "2026-09-07",
+                        "synthetic": true,
+                        "recentDays": 28,
+                        "recentFrom": "2026-10-05",
+                        "priorTransactions": 3451,
+                        "recentTransactions": 3531
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-02",
+                    "provenance": "DETERMINISTIC_CALCULATION"
+                }
+            ],
+            "weekday": "FRIDAY",
+            "baseline": {
+                "byHour": [
+                    {
+                        "end": "08:00",
+                        "start": "07:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "09:00",
+                        "start": "08:00",
+                        "expectedTransactions": 22
+                    },
+                    {
+                        "end": "10:00",
+                        "start": "09:00",
+                        "expectedTransactions": 15
+                    },
+                    {
+                        "end": "11:00",
+                        "start": "10:00",
+                        "expectedTransactions": 10
+                    },
+                    {
+                        "end": "12:00",
+                        "start": "11:00",
+                        "expectedTransactions": 12
+                    },
+                    {
+                        "end": "13:00",
+                        "start": "12:00",
+                        "expectedTransactions": 25
+                    },
+                    {
+                        "end": "14:00",
+                        "start": "13:00",
+                        "expectedTransactions": 26
+                    },
+                    {
+                        "end": "15:00",
+                        "start": "14:00",
+                        "expectedTransactions": 12
+                    },
+                    {
+                        "end": "16:00",
+                        "start": "15:00",
+                        "expectedTransactions": 5
+                    },
+                    {
+                        "end": "17:00",
+                        "start": "16:00",
+                        "expectedTransactions": 4
+                    }
+                ],
+                "support": "MODERATE",
+                "evidence": {
+                    "source": "REFERENCE",
+                    "synthetic": true,
+                    "dataThrough": "2026-11-01"
+                },
+                "lowerTransactions": 87,
+                "upperTransactions": 203,
+                "expectedTransactions": 145
+            },
+            "scenarios": [
+                {
+                    "scenario": "NONE",
+                    "planningAssumptionPercent": 0
+                },
+                {
+                    "scenario": "MINOR_UP",
+                    "planningAssumptionPercent": 5
+                },
+                {
+                    "scenario": "MODERATE_UP",
+                    "planningAssumptionPercent": 10
+                },
+                {
+                    "scenario": "MINOR_DOWN",
+                    "planningAssumptionPercent": -5
+                },
+                {
+                    "scenario": "MODERATE_DOWN",
+                    "planningAssumptionPercent": -10
+                }
+            ],
+            "targetDate": "2026-11-06",
+            "locationKey": "L1",
+            "inputVersion": "fs-demand-context-input-v1",
+            "policyVersion": "fs-demand-context-policy-v1",
+            "bankHolidayStatus": "NO_HOLIDAY_ON_DATE"
+        },
+        "reason": "Recent transaction activity was slightly higher, but this momentum signal partly restates the baseline and is not strong enough to justify an adjustment.",
+        "status": "AVAILABLE",
+        "provider": "OPENAI",
+        "scenario": "NONE",
+        "targetDate": "2026-11-06",
+        "failureCode": null,
+        "inputVersion": "fs-demand-context-input-v1",
+        "policyVersion": "fs-demand-context-policy-v1",
+        "responseModel": "gpt-6-luna",
+        "citedSignalIds": [
+            "ctx_c3ec89b8fe79942f21daf705"
+        ],
+        "requestedModel": "gpt-6-luna",
+        "inputFingerprint": "2afef5fe8ccbed5ed09e3fcff03333028589e588def557cf6b7616cdd24f7fcf",
+        "providerResponseId": "resp_00e5ae5753edf29e016ae8ccc8a78487d29a4337c186bb9d65"
+    },
+    {
+        "input": {
+            "signals": [
+                {
+                    "id": "ctx_c3ec89b8fe79942f21daf705",
+                    "type": "MOMENTUM",
+                    "summary": "Transactions per trading day were 2.3% higher over the latest 28 days against the 28 before.",
+                    "validTo": "2026-11-15",
+                    "metadata": {
+                        "method": "transactions-28-v-prior-28-v1",
+                        "source": "REFERENCE",
+                        "priorTo": "2026-10-04",
+                        "recentTo": "2026-11-01",
+                        "changeBps": 232,
+                        "priorDays": 28,
+                        "priorFrom": "2026-09-07",
+                        "synthetic": true,
+                        "recentDays": 28,
+                        "recentFrom": "2026-10-05",
+                        "priorTransactions": 3451,
+                        "recentTransactions": 3531
+                    },
+                    "direction": "UP",
+                    "validFrom": "2026-11-02",
+                    "provenance": "DETERMINISTIC_CALCULATION"
+                },
+                {
+                    "id": "ctx_d4fbc033315e9f5375cb9da1",
+                    "type": "MANAGER_ENTERED",
+                    "summary": "Rehearsal note (fictional company): the road outside is closed to through traffic for resurfacing all day.",
+                    "validTo": "2026-11-05",
+                    "metadata": {
+                    },
+                    "direction": "DOWN",
+                    "validFrom": "2026-11-05",
+                    "provenance": "MANAGER_ENTERED"
+                }
+            ],
+            "weekday": "THURSDAY",
+            "baseline": {
+                "byHour": [
+                    {
+                        "end": "08:00",
+                        "start": "07:00",
+                        "expectedTransactions": 12
+                    },
+                    {
+                        "end": "09:00",
+                        "start": "08:00",
+                        "expectedTransactions": 22
+                    },
+                    {
+                        "end": "10:00",
+                        "start": "09:00",
+                        "expectedTransactions": 14
+                    },
+                    {
+                        "end": "11:00",
+                        "start": "10:00",
+                        "expectedTransactions": 8
+                    },
+                    {
+                        "end": "12:00",
+                        "start": "11:00",
+                        "expectedTransactions": 15
+                    },
+                    {
+                        "end": "13:00",
+                        "start": "12:00",
+                        "expectedTransactions": 34
+                    },
+                    {
+                        "end": "14:00",
+                        "start": "13:00",
+                        "expectedTransactions": 29
+                    },
+                    {
+                        "end": "15:00",
+                        "start": "14:00",
+                        "expectedTransactions": 13
+                    },
+                    {
+                        "end": "16:00",
+                        "start": "15:00",
+                        "expectedTransactions": 5
+                    },
+                    {
+                        "end": "17:00",
+                        "start": "16:00",
+                        "expectedTransactions": 4
+                    }
+                ],
+                "support": "MODERATE",
+                "evidence": {
+                    "source": "REFERENCE",
+                    "synthetic": true,
+                    "dataThrough": "2026-11-01"
+                },
+                "lowerTransactions": 100,
+                "upperTransactions": 215,
+                "expectedTransactions": 158
+            },
+            "scenarios": [
+                {
+                    "scenario": "NONE",
+                    "planningAssumptionPercent": 0
+                },
+                {
+                    "scenario": "MINOR_UP",
+                    "planningAssumptionPercent": 5
+                },
+                {
+                    "scenario": "MODERATE_UP",
+                    "planningAssumptionPercent": 10
+                },
+                {
+                    "scenario": "MINOR_DOWN",
+                    "planningAssumptionPercent": -5
+                },
+                {
+                    "scenario": "MODERATE_DOWN",
+                    "planningAssumptionPercent": -10
+                }
+            ],
+            "targetDate": "2026-11-05",
+            "locationKey": "L1",
+            "inputVersion": "fs-demand-context-input-v1",
+            "policyVersion": "fs-demand-context-policy-v1",
+            "bankHolidayStatus": "NO_HOLIDAY_ON_DATE"
+        },
+        "reason": "The manager-entered note reports an all-day road closure that could reduce visits; this is an unverified, date-specific reason to expect somewhat lower demand.",
+        "status": "AVAILABLE",
+        "provider": "OPENAI",
+        "scenario": "MINOR_DOWN",
+        "targetDate": "2026-11-05",
+        "failureCode": null,
+        "inputVersion": "fs-demand-context-input-v1",
+        "policyVersion": "fs-demand-context-policy-v1",
+        "responseModel": "gpt-6-luna",
+        "citedSignalIds": [
+            "ctx_d4fbc033315e9f5375cb9da1"
+        ],
+        "requestedModel": "gpt-6-luna",
+        "inputFingerprint": "a4de439d904a5009804f6caabb8172fdfcf5b9f201e275b36c67d2b8c70fe230",
+        "providerResponseId": "resp_004e2f1f97dc8613016ae8cccf004087d2bc2a156b6699d2fb"
+    }
+]

@@ -2,6 +2,8 @@ import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
 import { outletTradingHours, outlets, regularCoverageWindows, shiftOffers, shifts, workAllocations, workers, workloadPolicies, workPolicies } from "@/server/db/schema";
+import { loadStoredContext, resolveOutletContext, UNAVAILABLE_CONTEXT, type AppliedContext, type ContextDay, type OutletDemandContext, type StoredContext } from "@/server/intelligence/demand-context";
+import { SCENARIO_ADJUSTMENT_BPS } from "@/server/intelligence/demand-context-policy";
 import { commercialContext, consolidateCommercial, type CommercialContext, type WorkRate } from "@/server/intelligence/commerce-labour";
 import { LOOKBACK_DAYS, shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
 import { loadTransactionSlots, referenceDatasetOf } from "@/server/intelligence/sales-history";
@@ -34,6 +36,9 @@ export type StaffingDay = {
   blocks: PlanningBlock[];
   periods: ServicePeriod[];
   unavailable: StaffingUnavailableReason | null;
+  // Present only when a Manager's accepted scenario applies to this day. The figures above then
+  // include it, and the baseline is kept beside them. Sales are never adjusted.
+  context?: AppliedContext & { baseline: Omit<StaffingDay, "context"> };
 };
 type Totals = { forecastSalesMinor: number; expectedMilliTransactions: number; requiredMinutes: number; regularMinutes: number; allocatedCasualMinutes: number; coverageMinutes: number; casualGapMinutes: number; indicativeShifts: number };
 export type OutletEvidence = { source: SalesSource; kind: "PROVIDER" | "HISTORICAL"; dataThrough: string; ageDays: number; dataset: string | null };
@@ -46,6 +51,10 @@ export type OutletStaffing = {
   days: StaffingDay[];
   totals: Totals | null;
   commercial?: CommercialContext;
+  // The week's casual requirement before any accepted scenario, when one applies.
+  baselineTotals?: Totals | null;
+  // Always set by the planning week; absent only on a hand-built record.
+  demandContext?: OutletDemandContext;
 };
 
 // What a week needs for one location, once read from storage.
@@ -56,6 +65,8 @@ export type WorkloadInputs = {
   slots: readonly TransactionSlot[];
   allocated: readonly { startsAt: Date; endsAt: Date }[];
   dataset?: string | null;
+  // Accepted scenarios by planning date. Without one a day is its baseline.
+  accepted?: ReadonlyMap<string, AppliedContext>;
 };
 
 const isoWeekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() || 7;
@@ -77,16 +88,22 @@ export function outletStaffing(organisationId: string, forecast: OutletWeeklyFor
     const planningDate = shiftDate(firstDate, i);
     const commercial = forecast.days.find(day => day.targetDate === planningDate)?.forecast ?? null;
     const weekday = isoWeekday(planningDate);
-    const workload: DayWorkload = calculateDayWorkload({ date: planningDate, timezone: forecast.timezone, trading: inputs.trading.get(weekday)?.windows ?? null, coverage: inputs.coverage.get(weekday)?.windows ?? null,
-      policy, slots: inputs.slots, dataThrough: selected?.dataThrough ?? null, allocated: inputs.allocated });
-    // Without stated trading hours the only knowable casual figure is the whole local day's.
-    const dayStart = startOfLocalDay(planningDate, forecast.timezone), dayEnd = startOfLocalDay(shiftDate(planningDate, 1), forecast.timezone);
-    const allocatedCasualMinutes = workload.closed === null ? inputs.allocated.reduce((sum, shift) => { const shared = Math.min(shift.endsAt.getTime(), dayEnd.getTime()) - Math.max(shift.startsAt.getTime(), dayStart.getTime()); return sum + (shared > 0 ? Math.floor(shared / 60_000) : 0); }, 0) : workload.allocatedCasualMinutes;
-    const { remainingMinutes, ...rest } = workload;
-    return { ...rest, planningDate, forecastSalesMinor: commercial?.forecastSalesMinor ?? null, support: workload.support ?? commercial?.support ?? null, allocatedCasualMinutes,
-      coverageMinutes: workload.unavailable || workload.regularMinutes === null ? null : workload.regularMinutes + allocatedCasualMinutes, casualGapMinutes: remainingMinutes };
+    const build = (demandAdjustmentBps?: number): Omit<StaffingDay, "context"> => {
+      const workload: DayWorkload = calculateDayWorkload({ date: planningDate, timezone: forecast.timezone, trading: inputs.trading.get(weekday)?.windows ?? null, coverage: inputs.coverage.get(weekday)?.windows ?? null,
+        policy, slots: inputs.slots, dataThrough: selected?.dataThrough ?? null, allocated: inputs.allocated, demandAdjustmentBps });
+      // Without stated trading hours the only knowable casual figure is the whole local day's.
+      const dayStart = startOfLocalDay(planningDate, forecast.timezone), dayEnd = startOfLocalDay(shiftDate(planningDate, 1), forecast.timezone);
+      const allocatedCasualMinutes = workload.closed === null ? inputs.allocated.reduce((sum, shift) => { const shared = Math.min(shift.endsAt.getTime(), dayEnd.getTime()) - Math.max(shift.startsAt.getTime(), dayStart.getTime()); return sum + (shared > 0 ? Math.floor(shared / 60_000) : 0); }, 0) : workload.allocatedCasualMinutes;
+      const { remainingMinutes, ...rest } = workload;
+      return { ...rest, planningDate, forecastSalesMinor: commercial?.forecastSalesMinor ?? null, support: workload.support ?? commercial?.support ?? null, allocatedCasualMinutes,
+        coverageMinutes: workload.unavailable || workload.regularMinutes === null ? null : workload.regularMinutes + allocatedCasualMinutes, casualGapMinutes: remainingMinutes };
+    };
+    const applied = inputs.accepted?.get(planningDate);
+    return applied ? { ...build(applied.adjustmentBps), context: { ...applied, baseline: build() } } : build();
   });
   const complete = days.every(day => !day.unavailable);
+  const weekTotals = (rows: readonly Omit<StaffingDay, "context">[]) => sumTotals(rows.map(day => ({ forecastSalesMinor: day.forecastSalesMinor ?? 0, expectedMilliTransactions: day.expectedMilliTransactions ?? 0, requiredMinutes: day.requiredMinutes ?? 0, regularMinutes: day.regularMinutes ?? 0,
+    allocatedCasualMinutes: day.allocatedCasualMinutes, coverageMinutes: day.coverageMinutes ?? 0, casualGapMinutes: day.casualGapMinutes ?? 0, indicativeShifts: day.indicativeShifts ?? 0 })));
   return {
     organisationId, outletId: forecast.outletId, outletName: forecast.outletName, timezone: forecast.timezone,
     currency: selected?.currency ?? null, policy,
@@ -94,8 +111,9 @@ export function outletStaffing(organisationId: string, forecast: OutletWeeklyFor
       ageDays: Math.round((Date.parse(`${firstDate}T12:00:00Z`) - Date.parse(`${selected.dataThrough}T12:00:00Z`)) / 86_400_000) },
     regularCoverage: provenance(inputs.coverage), tradingHours: provenance(inputs.trading),
     days,
-    totals: complete ? sumTotals(days.map(day => ({ forecastSalesMinor: day.forecastSalesMinor ?? 0, expectedMilliTransactions: day.expectedMilliTransactions ?? 0, requiredMinutes: day.requiredMinutes ?? 0, regularMinutes: day.regularMinutes ?? 0,
-      allocatedCasualMinutes: day.allocatedCasualMinutes, coverageMinutes: day.coverageMinutes ?? 0, casualGapMinutes: day.casualGapMinutes ?? 0, indicativeShifts: day.indicativeShifts ?? 0 }))) : null,
+    totals: complete ? weekTotals(days) : null,
+    ...(days.some(day => day.context) ? { baselineTotals: complete ? weekTotals(days.map(day => day.context?.baseline ?? day)) : null } : {}),
+    demandContext: UNAVAILABLE_CONTEXT,
     ...(rates ? { commercial: commercialContext(forecast, days, rates, selected?.currency ?? null) } : {}),
   };
 }
@@ -131,19 +149,43 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
     db.select({ outletId: workPolicies.outletId, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor, currencyCode: workPolicies.currencyCode })
       .from(workPolicies).where(inArray(workPolicies.outletId, outletIds)),
   ]);
+  // The contextual layer falls back to the baseline: if it can't be read, planning still works.
+  const firstDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 1)).sort()[0], lastDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 7)).sort().at(-1)!;
+  let stored: StoredContext | null = null;
+  try { stored = await loadStoredContext(db, scope.organisationId, outletIds, firstDate, lastDate); }
+  catch { console.error("Demand context unavailable; planning continues from the baseline."); }
   const result: OutletStaffing[] = [];
   for (const outlet of weekly.outlets) {
     const selected = outlet.selection.status === "SELECTED" ? outlet.selection : null;
     // One location's own chosen history only: sources and currencies are never mixed.
     const slots = selected ? await loadTransactionSlots(db, outlet.outletId, selected.source, selected.currency, shiftDate(selected.dataThrough, -(LOOKBACK_DAYS - 1)), selected.dataThrough) : [];
     const dataset = selected?.source === "REFERENCE" ? await referenceDatasetOf(db, outlet.outletId) : null;
-    result.push(outletStaffing(scope.organisationId, outlet, {
+    const inputs: WorkloadInputs = {
       trading: new Map(tradingRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, { windows: tradingWindowsSchema.parse(row.windows), source: row.source }])),
       coverage: new Map(coverageRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, { windows: coverageWindowsSchema.parse(row.windows), source: row.source }])),
       policies: policyRows, slots, dataset, allocated: allocatedRows.filter(row => row.outletId === outlet.outletId),
-    }, rateRows.filter(row => row.outletId === outlet.outletId)));
+    };
+    const rates = rateRows.filter(row => row.outletId === outlet.outletId);
+    result.push(withDemandContext(scope.organisationId, outlet, inputs, rates, stored));
   }
   return { methodVersion: STAFFING_METHOD_VERSION, workloadMethodVersion: WORKLOAD_FORECAST_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result), commercial: consolidateCommercial(result) };
+}
+
+// The baseline first, always from the same calculation. Accepted scenarios and previews are then
+// the same calculation again with the fixed policy assumption, so there is no second model.
+function withDemandContext(organisationId: string, forecast: OutletWeeklyForecast, inputs: WorkloadInputs, rates: readonly WorkRate[], stored: StoredContext | null): OutletStaffing {
+  const baseline = outletStaffing(organisationId, forecast, inputs, rates);
+  if (!stored) return baseline;
+  let context: OutletDemandContext;
+  try { context = resolveOutletContext({ organisationId, outletId: forecast.outletId, stored, days: baseline.days, evidence: baseline.evidence && { source: baseline.evidence.source, dataThrough: baseline.evidence.dataThrough }, evidenceDays: forecast.evidenceDays }); }
+  catch { console.error("Demand context could not be resolved; planning continues from the baseline."); return baseline; }
+  const final = context.accepted.size ? outletStaffing(organisationId, forecast, { ...inputs, accepted: context.accepted }, rates) : baseline;
+  const previewOf = (day: ContextDay): ContextDay["preview"] => {
+    if (!day.proposal || day.state === "NO_SIGNAL") return null;
+    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, accepted: new Map([[day.date, { scenario: day.proposal.scenario, adjustmentBps: SCENARIO_ADJUSTMENT_BPS[day.proposal.scenario], decisionId: "", proposalId: day.proposal.id, policyVersion: "", citedSignalIds: [] }]]) }).days.find(row => row.planningDate === day.date);
+    return adjusted ? { expectedMilliTransactions: adjusted.expectedMilliTransactions, requiredMinutes: adjusted.requiredMinutes, casualGapMinutes: adjusted.casualGapMinutes } : null;
+  };
+  return { ...final, demandContext: { ...context, days: context.days.map(day => ({ ...day, preview: previewOf(day) })) } };
 }
 
 // Company totals only when every outlet has a complete week on the same dates, in the same

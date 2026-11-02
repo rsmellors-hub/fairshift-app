@@ -739,3 +739,28 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
   .opportunity-figures { grid-column: 1 / -1; grid-row: 2; }
   .opportunity-list .button-link { grid-column: 1 / -1; text-align: center; }
 }
+
+/* Contextual demand: baseline first, then context, proposal and decision. */
+.demand-context h3 { margin-top: 22px; }
+.context-notice { padding: 10px 12px; background: var(--info-soft); border-radius: 8px; color: var(--ink); }
+.context-week-note { margin: 12px 0 0; }
+.context-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.context-days a { display: grid; gap: 2px; padding: 8px 6px; min-height: 52px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-decoration: none; text-align: center; font-size: 13px; }
+.context-days a small { color: var(--muted); font-size: 11px; line-height: 1.2; }
+.context-days a[aria-current="true"] { border-color: var(--primary); background: var(--primary-soft); }
+.context-baseline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0 0; }
+.context-baseline > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.context-baseline dt { color: var(--muted); font-size: 13px; }
+.context-baseline dd { margin: 2px 0 0; font-size: 20px; font-weight: 650; }
+.context-baseline small { color: var(--muted); }
+.context-signals { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.context-signal { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.context-signal p { margin: 4px 0; }
+.context-signal form { margin-top: 8px; }
+.context-proposal { padding: 12px 14px; border: 1px solid var(--primary); border-radius: 8px; overflow-wrap: anywhere; }
+.context-proposal p { margin: 6px 0; }
+.context-cited { margin: 4px 0 8px; padding-left: 18px; font-size: 14px; }
+.context-compare { margin-top: 8px; }
+@media (max-width: 640px) {
+  .context-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
