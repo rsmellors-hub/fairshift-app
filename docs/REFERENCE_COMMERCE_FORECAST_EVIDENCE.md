@@ -3,6 +3,10 @@
 Evidence for the five-location reference sales history and the deterministic
 weekly demand forecast. Status terms follow `AGENTS.md` §8.
 
+> **Later change:** the dataset described here (`uk-specialty-retail-v1`) has been
+> replaced. See `docs/REFERENCE_REFRESH_EVIDENCE.md`, then `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md`
+> for the current hospitality dataset. This record is otherwise unchanged.
+
 ## 1. What is implemented
 
 | Capability | Where | Status |

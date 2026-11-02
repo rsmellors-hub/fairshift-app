@@ -10,7 +10,7 @@ const prediction = (minor: number): SalesForecast => ({ forecastSalesMinor: mino
 const week = (forecastMinor: number | null, evidence: DailySales[]): OutletWeeklyForecast => ({ outletId: "o", outletName: "A", timezone: "UTC", today: "2026-10-26",
   selection: { status: "SELECTED", source: "IMPORTED", currency: "GBP", kind: "HISTORICAL", dataThrough: THROUGH, firstTarget: FIRST, rejected: [] },
   days: Array.from({ length: 7 }, (_, i) => ({ targetDate: shiftDate(FIRST, i), forecast: forecastMinor === null ? null : prediction(forecastMinor) })), weeklyTotalMinor: forecastMinor === null ? null : forecastMinor * 7, evidenceDays: evidence });
-const day = (over: Partial<StaffingDay> = {}): StaffingDay => ({ planningDate: FIRST, forecastSalesMinor: 100_000, support: "MODERATE", requiredMinutes: 600, regularMinutes: 480, allocatedCasualMinutes: 60, coverageMinutes: 540, casualGapMinutes: 60, indicativeShifts: 1, unavailable: null, ...over });
+const day = (over: Partial<StaffingDay> = {}): StaffingDay => ({ planningDate: FIRST, forecastSalesMinor: 100_000, support: "MODERATE", closed: false, expectedMilliTransactions: 1000, lowerMilliTransactions: 800, upperMilliTransactions: 1200, outsideHoursMilliTransactions: 0, requiredMinutes: 600, regularMinutes: 480, allocatedCasualMinutes: 60, coverageMinutes: 540, casualNeedMinutes: 120, casualGapMinutes: 60, indicativeShifts: 1, blocks: [], periods: [], unavailable: null, ...over });
 const days = (over: Partial<StaffingDay> = {}) => Array.from({ length: 7 }, () => day(over));
 const hourly = { earningsModel: "HOURLY", rateMinor: 1500, currencyCode: "GBP" };
 const flat = () => history(() => 100_000);
@@ -28,7 +28,7 @@ describe("commerce to labour economics", () => {
   });
   it("a calculated zero gap is a zero cost; a missing gap is no cost at all", () => {
     expect(commercialContext(week(100_000, flat()), days({ casualGapMinutes: 0, indicativeShifts: 0 }), [hourly], "GBP").cost).toMatchObject({ lowMinor: 0, highMinor: 0 });
-    const missing = commercialContext(week(100_000, flat()), days({ unavailable: "REGULAR_COVERAGE_NOT_SET", regularMinutes: null, coverageMinutes: null, casualGapMinutes: null, indicativeShifts: null }), [hourly], "GBP");
+    const missing = commercialContext(week(100_000, flat()), days({ unavailable: "REGULAR_COVERAGE_NOT_SET", regularMinutes: null, coverageMinutes: null, casualNeedMinutes: null, casualGapMinutes: null, indicativeShifts: null }), [hourly], "GBP");
     expect(missing).toMatchObject({ cost: null, costUnavailable: "GAP_UNAVAILABLE", casual: null, plannedSalesPerHourMinor: null });
   });
   it("never invents a rate: no policy, a commission policy or another currency gives no cost", () => {
@@ -77,7 +77,7 @@ describe("forecast backtest", () => {
 });
 
 describe("company consolidation", () => {
-  const outlet = (currency: string | null, source: "IMPORTED" | "REFERENCE", gap = 60): OutletStaffing => ({ outletId: currency ?? "x", outletName: "A", timezone: "UTC", currency, policy: null, evidence: { source, kind: "HISTORICAL", dataThrough: THROUGH, ageDays: 2 }, regularCoverage: "CONFIGURED", days: days({ casualGapMinutes: gap }), totals: null,
+  const outlet = (currency: string | null, source: "IMPORTED" | "REFERENCE", gap = 60): OutletStaffing => ({ organisationId: "org", outletId: currency ?? "x", outletName: "A", timezone: "UTC", currency, policy: null, tradingHours: null, evidence: { source, kind: "HISTORICAL", dataThrough: THROUGH, ageDays: 2, dataset: null }, regularCoverage: "CONFIGURED", days: days({ casualGapMinutes: gap }), totals: null,
     commercial: commercialContext(week(100_000, flat()), days({ casualGapMinutes: gap }), [hourly], currency) });
   it("sums only when every location shares a currency, and says if evidence is mixed", () => {
     expect(consolidateCommercial([outlet("GBP", "IMPORTED"), outlet("GBP", "IMPORTED")])).toMatchObject({ currency: "GBP", singleSource: true, forecast: { totalMinor: 1_400_000 } });

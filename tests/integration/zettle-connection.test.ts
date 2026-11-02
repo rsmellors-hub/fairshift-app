@@ -12,7 +12,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { auditEvents, commerceConnections, commerceSyncRuns, memberships, organisations, outlets, saleTransactions, subscriptions, users } from "@/server/db/schema";
 import { prepareAssessmentInput } from "@/server/intelligence/ai-staffing-contract";
-import { setLabourPolicy, setRegularCoverage } from "@/server/intelligence/business-policy";
+import { setRegularCoverage, setTradingHours, setWorkloadPolicy } from "@/server/intelligence/business-policy";
 import { shiftDate } from "@/server/intelligence/forecast";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
@@ -262,8 +262,9 @@ describe("connected commerce drives the established pipeline", () => {
   const weekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
   const seedImported = (db: Db, b: Awaited<ReturnType<typeof business>>) => ingestCommerceObservations(db, { organisationId: b.organisationId, source: "IMPORTED", sourceSystem: "file", now: NOW, observations: Array.from({ length: 56 }, (_, i) => { const date = shiftDate(YESTERDAY, -i); return { outletId: b.outletId, sourceTransactionId: date, occurredAt: `${date}T12:00:00Z`, currencyCode: "GBP", grossAmountMinor: 100_000, status: "COMPLETED" }; }) });
   const configure = async (db: Db, b: Awaited<ReturnType<typeof business>>) => {
-    await setLabourPolicy(db, b.scope, "ORGANISATION", { currencyCode: "GBP", salesMinorPerLabourHour: 10_000 });
-    await setRegularCoverage(db, b.scope, Array(7).fill(60));
+    await setWorkloadPolicy(db, b.scope, "ORGANISATION", { transactionsPerStaffHour: 10, minimumStaffWhileOpen: 0 });
+    await setTradingHours(db, b.scope, Array(7).fill([{ start: 0, end: 1440 }]));
+    await setRegularCoverage(db, b.scope, Array(7).fill([{ start: 720, end: 780, headcount: 1 }]));
   };
   it("thin connected sales change nothing; sufficient ones replace the forecast, labour and AI input with no other change", () => withDb(async db => {
     const b = await business(db);
@@ -271,7 +272,7 @@ describe("connected commerce drives the established pipeline", () => {
     await configure(db, b);
     const before = await getWeeklyStaffing(db, b.scope, NOW);
     expect(before.outlets[0].evidence?.source).toBe("IMPORTED");
-    expect(before.outlets[0].days[0]).toMatchObject({ forecastSalesMinor: 100_000, requiredMinutes: 600, casualGapMinutes: 540 });
+    expect(before.outlets[0].days[0]).toMatchObject({ forecastSalesMinor: 100_000, expectedMilliTransactions: 1000, requiredMinutes: 15 });
     const fingerprint = prepareAssessmentInput(before, "ORGANISATION").fingerprint;
     const sales = (date: string) => weekday(date) === 1 ? 400_000 : 200_000;
 
@@ -284,7 +285,8 @@ describe("connected commerce drives the established pipeline", () => {
     await syncZettle(db, b.scope, b.outletId, fakeClient([dailyPurchases(56, sales)]), NOW);
     const after = await getWeeklyStaffing(db, b.scope, NOW);
     expect(after.outlets[0].evidence).toMatchObject({ source: "ZETTLE", kind: "PROVIDER", dataThrough: YESTERDAY });
-    expect(after.outlets[0].days[0]).toMatchObject({ planningDate: MONDAY, forecastSalesMinor: 400_000, requiredMinutes: 2400, casualGapMinutes: 2340 });
+    expect(after.outlets[0].days[0]).toMatchObject({ planningDate: MONDAY, forecastSalesMinor: 400_000, expectedMilliTransactions: 1000, requiredMinutes: 15 });
+    // Four times the sales value on the same number of bills: the commercial figure moved, staffing didn't.
     expect(prepareAssessmentInput(after, "ORGANISATION").fingerprint).not.toBe(fingerprint);
   }));
   it("a fresh business forecasts from connected sales alone, in the provider's values", () => withDb(async db => {
@@ -300,7 +302,7 @@ describe("connected commerce drives the established pipeline", () => {
     expect(input.locations[0].flags).not.toContain("SYNTHETIC_REFERENCE_DATA");
     expect(staffing.outlets[0].commercial?.recent).toMatchObject({ transactions: 7 });
     // Missing inputs stay missing even with genuine sales: no policy means no labour figures.
-    expect(staffing.outlets[0].days[0]).toMatchObject({ requiredMinutes: null, unavailable: "NO_LABOUR_POLICY" });
+    expect(staffing.outlets[0].days[0]).toMatchObject({ requiredMinutes: null, unavailable: "TRADING_HOURS_NOT_SET" });
     expect(staffing.outlets[0].commercial).toMatchObject({ cost: null, costUnavailable: "GAP_UNAVAILABLE" });
   }));
   it("another tenant's connected sales never appear", () => withDb(async db => {

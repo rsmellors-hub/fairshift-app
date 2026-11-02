@@ -5,7 +5,7 @@ import { selectLocationAction } from "@/app/auth-actions";
 import { WorkspaceUnavailable } from "@/app/components/workspace-ui";
 import { DataLabel } from "@/app/components/product-ui";
 import { money } from "@/app/components/format";
-import { labourHours, longDate, policyDescription, STAFFING_UNAVAILABLE, staffingAssumption, StaffingDayTable, wholeMoney } from "@/app/components/staffing";
+import { labourHours, longDate, policyDescription, policySummary, ServiceDays, STAFFING_UNAVAILABLE, StaffingDayTable, transactions, wholeMoney, WorkloadSetupNotice } from "@/app/components/staffing";
 import { WeekCover } from "@/app/manager/plan-week";
 import { CommercialChain } from "@/app/owner/commerce-labour";
 import { SALES_SOURCE } from "@/app/owner/sales";
@@ -42,20 +42,23 @@ export default async function OwnerLocationPage({ params }: { params: Promise<{ 
     <header className="owner-heading"><div><p className="eyebrow"><Link href="/owner/locations">All locations</Link>{outlet ? ` · Planning week ${longDate(outlet.days[0].planningDate)} – ${longDate(outlet.days[6].planningDate)}` : ""}</p><h1>{location.name}</h1><p>Times at this location: {location.timezone}</p></div>
       {outlet?.totals?.casualGapMinutes ? <form action={selectLocationAction}><input type="hidden" name="locationId" value={location.id} /><input type="hidden" name="next" value="plan" /><button className="primary-button">Plan shifts at {location.name}</button></form> : null}</header>
     {!outlet ? <section className="owner-empty" role="alert"><h2>Planning figures could not be loaded</h2><p>No demand or labour has been assumed. Reload to try again.</p></section> : <>
-      <ol className="demand-flow" aria-label="From forecast demand to the remaining gap">
-        <li><span>Forecast demand</span><strong>{outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "Not available"}</strong><small>Expected sales, next 7 days</small></li>
-        <li><span>Labour needed</span><strong>{outlet.totals ? labourHours(outlet.totals.requiredMinutes) : "Not available"}</strong><small>{outlet.policy ? staffingAssumption(outlet.policy) : "No labour policy"}</small></li>
-        <li><span>Existing coverage</span><strong>{outlet.totals ? labourHours(outlet.totals.coverageMinutes) : "Not available"}</strong><small>{outlet.totals ? `Regular ${labourHours(outlet.totals.regularMinutes)} · allocated casual ${labourHours(outlet.totals.allocatedCasualMinutes)}` : "Regular coverage not set"}</small></li>
-        <li className="demand-flow-gap"><span>Remaining gap</span><strong>{outlet.totals ? labourHours(outlet.totals.casualGapMinutes) : "Not available"}</strong><small>{outlet.totals ? `Approx. ${outlet.totals.indicativeShifts} ${outlet.totals.indicativeShifts === 1 ? "shift" : "shifts"} to fill · none created` : "Can’t be calculated yet"}</small></li>
+      <WorkloadSetupNotice outlets={[outlet]} owner />
+      <ol className="demand-flow" aria-label="From expected transactions to the remaining requirement">
+        <li><span>Expected transactions</span><strong>{outlet.days.every(day => day.expectedMilliTransactions !== null) ? transactions(outlet.days.reduce((sum, day) => sum + day.expectedMilliTransactions!, 0)) : "Not available"}</strong><small>Next 7 days, inside trading hours</small></li>
+        <li><span>Staff capacity needed</span><strong>{outlet.totals ? labourHours(outlet.totals.requiredMinutes) : "Not available"}</strong><small>{outlet.policy ? policySummary(outlet.policy) : "Service capacity not set"}</small></li>
+        <li><span>Existing coverage</span><strong>{outlet.totals ? labourHours(outlet.totals.coverageMinutes) : "Not available"}</strong><small>{outlet.totals ? `Regular ${labourHours(outlet.totals.regularMinutes)} · allocated casual ${labourHours(outlet.totals.allocatedCasualMinutes)}` : outlet.regularCoverage ? "Regular coverage is set" : "Regular coverage not set"}</small></li>
+        <li className="demand-flow-gap"><span>Casual requirement</span><strong>{outlet.totals ? labourHours(outlet.totals.casualGapMinutes) : "Not available"}</strong><small>{outlet.totals ? "By time of day · no shifts created" : "Can’t be calculated yet"}</small></li>
       </ol>
+      <p className="note">Expected sales {outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "not available"} in the next 7 days: commercial context, not part of the staffing figures.</p>
+      <section className="panel" aria-labelledby="location-service-title"><h2 id="location-service-title">By time of day</h2><p className="panel-lede">When each day is covered and when it isn’t. No shifts are created here.</p><ServiceDays outlet={outlet} /></section>
       <section className="panel" aria-label="Staffing by day"><WeekCover outlet={outlet} act={false} /></section>
       <section aria-labelledby="location-source-title" className="panel"><h2 id="location-source-title">Commerce evidence</h2>
         {outlet.evidence ? <><DataLabel kind={isSyntheticSource(outlet.evidence.source) ? "demo" : "fact"}>{SALES_SOURCE[outlet.evidence.source]}</DataLabel><p>Data through {longDate(outlet.evidence.dataThrough)} · {outlet.evidence.ageDays} days before the planning week starts{outlet.evidence.kind === "HISTORICAL" ? ". Historical evidence mapped onto planning weekdays, not current trading." : "."}</p></> : <p>No eligible sales history, so no demand or labour requirement has been assumed.</p>}
         <p>Square Sandbox: {connections === null ? "status could not be loaded" : !connection ? "not connected at this location" : connection.status === "AUTH_FAILED" ? "connection needs attention" : connection.lastSuccess ? `connected · last completed sync ${connection.lastSuccess.startedAt.toISOString().slice(0, 10)}` : "connected · not synced yet"}. <Link href="/owner/reporting">Manage sales sources <span aria-hidden="true">→</span></Link></p>
       </section>
-      <section aria-labelledby="location-days-title" className="owner-staffing"><div className="owner-section-heading"><div><h2 id="location-days-title">Day by day</h2><p>Demand, coverage and the remaining casual gap. No shifts are created here.</p></div></div>
+      <section aria-labelledby="location-days-title" className="owner-staffing"><div className="owner-section-heading"><div><h2 id="location-days-title">Day by day</h2><p>Demand, coverage and the remaining casual requirement. No shifts are created here.</p></div></div>
         <div className="owner-forecast-scroll-inner table-frame" role="region" aria-label={`${location.name} staffing by day`} tabIndex={0}><StaffingDayTable outlet={outlet} className="owner-location-table" /></div>
-        <p className="note">{outlet.policy ? `Staffing assumption: ${policyDescription(outlet.policy)}. ` : ""}{firstUnavailable ? `${STAFFING_UNAVAILABLE[firstUnavailable]}. ` : ""}</p>
+        <p className="note">{outlet.policy ? `Workload policy: ${policyDescription(outlet.policy)}. ` : ""}{firstUnavailable ? `${STAFFING_UNAVAILABLE[firstUnavailable]}. ` : ""}</p>
       </section>
       <details className="panel disclosure"><summary id="location-chain-title">From commerce to labour: the full working</summary>
         <CommercialChain context={outlet.commercial} currency={outlet.currency} outlet={outlet} />

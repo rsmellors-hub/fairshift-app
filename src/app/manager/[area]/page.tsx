@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ManagerWorkspace, managerAreas, type ManagerArea } from "@/app/manager/workspace";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export default async function ManagerAreaPage({ params, searchParams }: { params: Promise<{ area: string }>; searchParams: Promise<{ status?: string; date?: string; department?: string; ai?: string; importResult?: string }> }) {
+export default async function ManagerAreaPage({ params, searchParams }: { params: Promise<{ area: string }>; searchParams: Promise<{ status?: string; date?: string; window?: string; department?: string; ai?: string; importResult?: string }> }) {
   const { area } = await params;
   const legacy: Record<string, string> = { forecast: "plan", "fill-shifts": "fill", workers: "team", performance: "review", payments: "review" };
   if (legacy[area]) redirect(`/manager/${legacy[area]}`);

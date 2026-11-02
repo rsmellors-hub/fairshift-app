@@ -12,7 +12,7 @@ import { registerIdentity } from "@/server/auth/identity";
 import { createOrganisation } from "../helpers/onboarding";
 import { getOwnerWorkspace } from "@/server/product/workspace";
 import { provisionReferenceHistory } from "@/server/reference/provision";
-import { REFERENCE_STORE_CODES } from "@/server/reference/uk-retail";
+import { REFERENCE_STORE_CODES } from "@/server/reference/uk-hospitality";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -32,7 +32,7 @@ describe("Owner pages with reference sales history", () => {
       // A United Kingdom location gets its time zone from its country, not from the loader.
       expect(first.timezone).toBe("Europe/London");
       const rows = [first, ...extra];
-      const loaded = await provisionReferenceHistory(t.db, { organisationId, from: "2025-12-22", through: "2025-12-28",
+      const loaded = await provisionReferenceHistory(t.db, { organisationId, from: "2026-10-12", through: "2026-10-18",
         outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string> });
 
       const workspace = await getOwnerWorkspace(t.db, organisationId);
@@ -46,7 +46,7 @@ describe("Owner pages with reference sales history", () => {
       const reporting = renderToStaticMarkup(await OwnerWorkspace({ area: "reporting" }));
       expect(reporting).toContain("Reference sales history · synthetic");
       expect(reporting.match(/Reference sales history · synthetic/g)).toHaveLength(5);
-      expect(reporting).toContain("6 trading days, 2025-12-22 to 2025-12-28");
+      expect(reporting).toContain("7 trading days, 2026-10-12 to 2026-10-18");
       expect(reporting).toContain("£");
       expect(reporting).not.toContain("No commercial history available");
       const locations = renderToStaticMarkup(await OwnerWorkspace({ area: "locations" }));

@@ -37,11 +37,11 @@ const scopeKey = (kind: AssessmentKind, scope: AssessmentScope) => kind === "ORG
 function authorise(kind: AssessmentKind, scope: AssessmentScope) {
   assertRole(scope as Scope, kind === "ORGANISATION" ? ["OWNER"] : ["OWNER", "MANAGER"]);
 }
-function scopedStaffing(staffing: Pick<WeeklyStaffing, "methodVersion" | "outlets">, kind: AssessmentKind, scope: AssessmentScope) {
+function scopedStaffing(staffing: Pick<WeeklyStaffing, "methodVersion" | "workloadMethodVersion" | "outlets">, kind: AssessmentKind, scope: AssessmentScope) {
   return kind === "ORGANISATION" ? staffing : { ...staffing, outlets: staffing.outlets.filter(outlet => outlet.outletId === scope.locationId) };
 }
 
-export async function getStaffingAssessmentView(db: DatabaseSession, scope: AssessmentScope, kind: AssessmentKind, staffing: Pick<WeeklyStaffing, "methodVersion" | "outlets">): Promise<AssessmentView> {
+export async function getStaffingAssessmentView(db: DatabaseSession, scope: AssessmentScope, kind: AssessmentKind, staffing: Pick<WeeklyStaffing, "methodVersion" | "workloadMethodVersion" | "outlets">): Promise<AssessmentView> {
   authorise(kind, scope);
   const prepared = prepareAssessmentInput(scopedStaffing(staffing, kind, scope), kind);
   const rows = await db.select().from(aiStaffingAssessments)

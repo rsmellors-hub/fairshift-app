@@ -21,15 +21,25 @@ Zettle connector work is retained but **inactive for the hackathon Golden Path**
 
 ### Canonical hackathon demonstration vertical
 
-FairShift remains a cross-industry product for organisations with variable demand and flexible workforce requirements. The canonical PayPal AI Hackathon demonstration uses a **fictional five-location specialty retailer**, with **consumer electronics retail** as the preferred vertical. The retailer's final brand and store locations remain open decisions.
+**Owner amendment, FS-WORKLOAD-INTELLIGENCE-001, 2 November 2026.** This replaces the earlier specialty-retail reference scenario, which remains historical evidence in `docs/REFERENCE_REFRESH_EVIDENCE.md`.
 
-This scenario makes the complete proposition easy to follow:
+FairShift remains a cross-industry product for organisations with variable demand and flexible workforce requirements. The canonical PayPal AI Hackathon demonstration uses **one fictional five-location casual-dining and café group**. Hospitality is the reference vertical, not an architectural restriction. Brand names remain an open decision.
 
-> retail commercial activity → POS sales history → demand forecast → staffing recommendation → manager scheduling → flexible sales-floor worker → performance or target result → deterministic incentive → manager approval → PayPal payout
+> commerce data → historical data → demand intelligence → staffing recommendation → Fill Shifts → worker opportunity → acceptance → allocation → performance → incentive → manager approval → PayPal payout → confirmation
 
-The demonstration business has location-specific sales and demand history, variable demand between stores and days, existing staffing coverage, and flexible or casual sales-floor workers who close staffing gaps. Managers make operational staffing decisions; the Owner/Admin needs both consolidated and per-location intelligence; workers receive clear shift terms and incentive opportunities; and approved incentives can be paid through PayPal.
+Rules established by the amendment:
 
-Specialty retail gives demand, sales-floor coverage, performance, and incentive economics an understandable relationship. Weekday/weekend variation, location differences, promotions or commercial peaks, and seasonality are relevant scenario context only where supported by actual data or implementation. Their presence in the scenario does not imply that FairShift currently models them. Historical facts, deterministic forecasts, AI interpretation, manager decisions, and outcomes must remain distinguishable.
+- The operational workload unit is the **transaction (bill)**, not revenue, covers or guest count. Commercial sales value is forecast alongside it and does not directly set the staffing requirement.
+- Planning is time-aware. Calculations use real start and end times and overlap. Names such as "lunch" are display labels only.
+- Required capacity is deterministic: the larger of minimum cover and transaction workload, less regular and allocated casual cover, per time window. Surplus in one window doesn't cancel a shortage in another.
+- Service capacity and minimum cover are Owner policy. FairShift has **no default** for either. Missing configuration is unavailable, never zero.
+- Reference history is synthetic and labelled so. It is never presented as genuine Square Sandbox evidence, and it contains no invented events, weather or bookings.
+- AI doesn't determine baseline demand. A later package (FS-DEMAND-CONTEXT-001) may propose bounded contextual adjustments; a Manager must accept one before it affects staffing.
+- Worker matching, roles, attribution, incentives, approval and PayPal payout are unchanged.
+
+Not authorised: covers, reservations or booking integration, tables, menus, kitchen inventory, tip pooling, role-based forecasting, AI or performance worker matching, monitoring daemons, alerts and autonomous schedule changes.
+
+Historical facts, deterministic forecasts, AI interpretation, manager decisions and outcomes must remain distinguishable.
 
 ## 2. Product principles
 
@@ -232,7 +242,7 @@ Weekly totals may aid orientation but must not obscure daily timing and capacity
 
 ### Target golden path
 
-The strongest intended demonstration is one connected specialty-retail story. Its current hackathon architecture is:
+The strongest intended demonstration is one connected hospitality story (section 1). Its current hackathon architecture is:
 
 > Reference historical commerce → deterministic demand model → OpenAI bounded interpretation → staffing requirement → worker opportunity → Bryntum allocation → genuine Square Sandbox team-member-attributed commerce → FairShift performance/incentive → manager approval → genuine PayPal Sandbox payout → worker confirmation
 
@@ -300,7 +310,7 @@ For the hackathon MVP:
 
 More sophisticated net-sales and refund incentive policy is deferred (section 21).
 
-The final retail narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
+The final demonstration narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
 
 ## 11. Key screen specifications
 
@@ -710,7 +720,8 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 ### OPEN
 
-- Final fictional specialty-retailer brand and exact five store locations.
+- Final fictional hospitality group brand and venue names.
+- Reference-company service capacity and minimum cover. Both remain unset until the Owner supplies them.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.
@@ -786,7 +797,7 @@ Functionality that must survive redesign includes truthful provenance, validated
 
 Implementation should proceed in slices that leave a coherent product after each step:
 
-All subsequent demo work should use one coherent five-location specialty-retail scenario rather than inventing unrelated fixtures for each feature. Square commerce evidence, five-location demo data, weekly intelligence, Manager and Worker UX, worker targets, Owner economic-value analytics, Bryntum scheduling, AG Grid/Studio analytics, and final presentation evidence should describe the same fictional business once their exact fixtures are deliberately approved.
+All subsequent demo work should use one coherent five-location hospitality scenario rather than inventing unrelated fixtures for each feature. Square commerce evidence, five-location demo data, weekly intelligence, Manager and Worker UX, worker targets, Owner economic-value analytics, Bryntum scheduling, AG Grid/Studio analytics, and final presentation evidence should describe the same fictional business once their exact fixtures are deliberately approved.
 
 1. **Preserve the verified backend golden path.** Keep canonical sales records, forecast/staffing behavior, scheduling state, deterministic incentives, approval, PayPal idempotency, and payout reconciliation passing while presentation work proceeds.
 2. **Establish coherent product UX foundations.** Create role-specific owner, manager, and worker shells, navigation, location context, responsive patterns, and natural state language without breaking the working path.

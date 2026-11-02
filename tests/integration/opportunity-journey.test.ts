@@ -14,7 +14,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { memberships, organisations, outlets, shiftOffers, shifts, subscriptions, users, workAcceptances, workAllocations, workPayables, workPayouts, workPolicies, workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
-import { setLabourPolicy, setRegularCoverage } from "@/server/intelligence/business-policy";
+import { setRegularCoverage, setTradingHours, setWorkloadPolicy } from "@/server/intelligence/business-policy";
 import { shiftDate } from "@/server/intelligence/forecast";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 import { allocateAssignment, changeAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, getOperations, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
@@ -99,19 +99,21 @@ describe("opportunity to allocation, across roles", () => {
       const manager = await c.manager(), worker = await c.worker(manager);
       const pay = await terms(t.db, c.ownerScope);
       // Commerce evidence, labour policy and rota, through the supported business paths.
-      await ingestCommerceObservations(t.db, { organisationId: c.organisationId, source: "IMPORTED", sourceSystem: "till", now: NOW, observations: Array.from({ length: 56 }, (_, i) => ({
-        outletId: location, sourceTransactionId: `D${i}`, occurredAt: `${shiftDate("2026-01-14", -i)}T12:00:00Z`, currencyCode: "GBP", grossAmountMinor: 200_000, status: "COMPLETED" })) });
-      await setLabourPolicy(t.db, c.ownerScope, "ORGANISATION", { currencyCode: "GBP", salesMinorPerLabourHour: 10_000 });
-      await setRegularCoverage(t.db, c.ownerScope, Array(7).fill(480));
+      await ingestCommerceObservations(t.db, { organisationId: c.organisationId, source: "IMPORTED", sourceSystem: "till", now: NOW, observations: Array.from({ length: 56 }, (_, i) => Array.from({ length: 12 }, (_, n) => ({
+        outletId: location, sourceTransactionId: `D${i}:${n}`, occurredAt: `${shiftDate("2026-01-14", -i)}T12:${String(n).padStart(2, "0")}:00Z`, currencyCode: "GBP", grossAmountMinor: 5_000, status: "COMPLETED" }))).flat() });
+      // Test-fixture policy and hours, set through the Owner's supported path.
+      await setWorkloadPolicy(t.db, c.ownerScope, "ORGANISATION", { transactionsPerStaffHour: 4, minimumStaffWhileOpen: 1 });
+      await setTradingHours(t.db, c.ownerScope, Array(7).fill([{ start: 600, end: 1080 }]));
+      await setRegularCoverage(t.db, c.ownerScope, Array(7).fill([{ start: 600, end: 1080, headcount: 1 }]));
 
       // The Manager sees the gap and opens Fill Shifts with its context, on the page of their one location.
       const plan = await render(manager, () => ManagerWorkspace({ area: "plan" }));
       const monday = "2026-01-19";
-      expect(plan).toContain(`/manager/fill?date=${monday}#add-requirement`);
+      expect(plan).toContain(`/manager/fill?date=${monday}&amp;window=12:00-13:00#add-requirement`);
       expect(plan).not.toContain('name="locationId"');
       const context = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
-      // £2,000 at £100 an hour is 20 h; 8 h regular leaves 12 h: approximately 2 eight-hour shifts.
-      for (const text of ["FairShift identified a staffing requirement for Mon, 19 Jan 2026", "Required labour", "20 h", "Regular coverage", "8 h", "Casual labour gap", "12 h", "Indicative shifts", "this business’s configured assumption", "Sales evidence through", "Nothing is created or offered until you do", `value="${monday}T09:00"`, "Europe/London"]) expect(context).toContain(text);
+      // 12 bills at 4 per staff hour need 3 h; 1 h of regular cover leaves 2 h, 12:00–13:00 only.
+      for (const text of ["FairShift identified a casual requirement for Mon, 19 Jan 2026, 12:00–13:00", "Expected transactions", "12", "Required staff capacity", "3 h", "Regular coverage", "1 h", "Casual requirement", "2 h", "Up to 2 people at once", "this business’s configured policy", "commercial context only", "Sales evidence through", "Nothing is created or offered until you do", `value="${monday}T12:00"`, `value="${monday}T13:00"`, "Europe/London"]) expect(context).toContain(text);
       // The gap stays in view even when the Create panel is closed.
       expect(context.indexOf("FairShift identified")).toBeLessThan(context.indexOf('id="add-requirement"'));
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
@@ -124,7 +126,8 @@ describe("opportunity to allocation, across roles", () => {
       // The worker appears in the pool, and an offer is sent.
       let page = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
       expect(page).toContain("Availability not provided");
-      expect(page).toContain("£96.00 expected earnings per worker");
+      expect(page).toContain("expected earnings per worker");
+      expect(page).toContain("£96.00");
       expect(await act(manager, offerAssignmentAction, { shiftId: shift.id, workerId: worker.workerId!, planDate: monday })).toContain("status=saved");
       const [offer] = await t.db.select().from(shiftOffers).where(eq(shiftOffers.shiftId, shift.id));
       expect(offer).toMatchObject({ workerId: worker.workerId, status: "OFFERED" });
@@ -170,7 +173,7 @@ describe("opportunity to allocation, across roles", () => {
       // Allocated labour reduces the gap the Manager started from: same underlying record.
       expect(await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }))).toContain("Allocated casual");
       const owner = await render(c.ownerScope, () => OwnerWorkspace({ area: "forecast" }));
-      expect(owner).toContain("the rota configured for this location");
+      expect(owner).toContain("as configured for this location");
       expect(await t.db.select().from(workPayables)).toEqual([]);
     } finally { await t.close(); }
   });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { labourHours } from "@/app/components/staffing";
+import { labourHours, STAFFING_UNAVAILABLE } from "@/app/components/staffing";
 import type { OutletStaffing, StaffingDay } from "@/server/intelligence/staffing";
 
 const STEPS = [["plan", "Forecast"], ["fill", "Fill"], ["allocations", "Allocate"], ["review", "Review"]] as const;
@@ -18,12 +18,13 @@ export function busiestDay(days: readonly StaffingDay[]) {
   return days.reduce<StaffingDay | null>((best, day) => (day.casualGapMinutes ?? 0) > (best?.casualGapMinutes ?? 0) ? day : best, null);
 }
 
-export function fillHref(date: string) { return `/manager/fill?date=${date}#add-requirement`; }
+export function fillHref(date: string, window?: string) { return `/manager/fill?date=${date}${window ? `&window=${window}` : ""}#add-requirement`; }
 
 // Where the week's cover comes from. Parts of one whole, so a stacked bar; a day with no
 // known requirement says so rather than drawing as an empty, zero-looking bar.
 function CoverBar({ day, scale, act }: { day: StaffingDay; scale: number; act: boolean }) {
-  if (day.requiredMinutes === null || day.casualGapMinutes === null || day.regularMinutes === null) return <div className="cover-row"><span className="cover-day">{shortDay(day.planningDate)}</span><span className="cover-unavailable">Not available</span></div>;
+  if (day.closed) return <div className="cover-row"><span className="cover-day">{shortDay(day.planningDate)}</span><span className="cover-unavailable">Closed</span></div>;
+  if (day.requiredMinutes === null || day.casualGapMinutes === null || day.regularMinutes === null) return <div className="cover-row"><span className="cover-day">{shortDay(day.planningDate)}</span><span className="cover-unavailable">{day.unavailable ? STAFFING_UNAVAILABLE[day.unavailable] : "Not available"}</span></div>;
   const parts = [["regular", "Regular staff", day.regularMinutes], ["casual", "Allocated casual", day.allocatedCasualMinutes], ["gap", "Gap to fill", day.casualGapMinutes]] as const;
   return <div className="cover-row">
     <span className="cover-day">{shortDay(day.planningDate)}</span>
@@ -44,6 +45,7 @@ export function WeekCover({ outlet, act = true }: { outlet: OutletStaffing; act?
       <p>{labourHours(busiest.regularMinutes ?? 0)} regular staff{busiest.allocatedCasualMinutes ? ` + ${labourHours(busiest.allocatedCasualMinutes)} allocated casual` : ""} + <strong>{labourHours(busiest.casualGapMinutes ?? 0)} gap to fill</strong></p>
       {act ? <Link className="primary-button button-link" href={fillHref(busiest.planningDate)}>Fill {weekday(busiest.planningDate)} gap</Link> : null}
     </div> : <h3 id="week-cover-title">{outlet.days.some(day => day.casualGapMinutes === 0) ? "No casual gap in the days we can calculate" : "Cover can’t be calculated yet"}</h3>}
+    {busiest ? <p className="note">Worked out by time of day: spare cover at one time doesn’t offset a shortage at another.</p> : null}
     <ul className="cover-legend" aria-label="Chart key"><li><i className="cover-regular" />Regular staff</li><li><i className="cover-casual" />Allocated casual</li><li><i className="cover-gap-key" />Gap to fill</li></ul>
     <div className="cover-chart">{outlet.days.map(day => <CoverBar key={day.planningDate} day={day} scale={scale} act={act} />)}</div>
   </section>;

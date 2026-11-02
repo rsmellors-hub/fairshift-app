@@ -16,7 +16,7 @@ const CONSTRAINT: Record<string, string> = {
   HIGH_CASUAL_REQUIREMENT: "High casual requirement", CONCENTRATED_DEMAND: "Concentrated demand", ADEQUATELY_COVERED: "Already covered", FORECAST_UNAVAILABLE: "Forecast unavailable",
 };
 const METRIC: Record<EvidenceMetric, string> = {
-  forecastSalesMinor: "Forecast sales", requiredMinutes: "Required labour", regularMinutes: "Regular coverage", allocatedCasualMinutes: "Allocated casual",
+  forecastSalesMinor: "Forecast sales", expectedTransactions: "Expected transactions", requiredMinutes: "Required staff capacity", regularMinutes: "Regular coverage", allocatedCasualMinutes: "Allocated casual",
   coverageMinutes: "Existing coverage", casualGapMinutes: "Casual labour gap", indicativeShifts: "Indicative shifts", evidenceAgeDays: "Evidence age",
   recentSalesMinor: "Latest seven days’ sales", recentTransactions: "Latest seven days’ transactions", comparableSalesMinor: "Comparable sales", forecastDeltaMinor: "Forecast against comparable", forecastLowerMinor: "Forecast range low", forecastUpperMinor: "Forecast range high",
   casualCostLowMinor: "Estimated casual cost, low", casualCostHighMinor: "Estimated casual cost, high", casualCostHighBpsOfForecast: "Casual cost against forecast sales", backtestErrorBps: "Backtest error",
@@ -59,7 +59,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   if (!view) return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}<p>AI assessment is unavailable because the staffing evidence could not be loaded. No AI interpretation is shown.</p></section>;
   if (view.state !== "CURRENT" || !view.assessment) {
     return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">{header}{banner}
-      {!view.prepared.hasEvidence ? <p>{view.prepared.input.locations.some(location => location.flags.includes("NO_LABOUR_ASSUMPTION")) ? "Required labour is unavailable because no compatible labour policy is configured, so there is nothing for AI to interpret." : "There is no forecast staffing evidence to interpret, so no AI assessment is available."}</p>
+      {!view.prepared.hasEvidence ? <p>{view.prepared.input.locations.some(location => location.flags.includes("NO_WORKLOAD_POLICY")) ? "Required staff capacity is unavailable because service capacity and minimum cover aren’t configured, so there is nothing for AI to interpret." : "There is no forecast staffing evidence to interpret, so no AI assessment is available."}</p>
         : view.state === "FAILED" ? <p>The latest AI assessment of this planning evidence failed: {failureText(view.record?.failureCode ?? null)}. No AI interpretation is shown. The calculated figures remain available.</p>
         : view.state === "STALE" ? <p>The planning evidence or assessment method has changed since the last AI assessment ({generated(view.record!.createdAt, timeZone)}), so it is not shown. Generate a new assessment for the current figures.</p>
         : <p>No AI assessment has been generated for the current planning evidence.</p>}
@@ -73,7 +73,7 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
   const listed = new Set(a.priorities.map(p => `${p.locationKey}:${p.date}`));
   const unlisted = view.prepared.input.locations.reduce((sum, location) => sum + location.days.filter(day => (day.casualGapMinutes ?? 0) > 0 && !listed.has(`${location.key}:${day.date}`)).length, 0);
   const format = (metric: EvidenceMetric, value: number, currency: string | null) =>
-    metric.endsWith("Minor") ? (currency ? `${value < 0 ? "−" : ""}${wholeMoney(Math.abs(value), currency)}` : "Not available") : metric.endsWith("Bps") || metric.endsWith("BpsOfForecast") ? `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(value / 100)}%` : metric === "indicativeShifts" || metric === "recentTransactions" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
+    metric.endsWith("Minor") ? (currency ? `${value < 0 ? "−" : ""}${wholeMoney(Math.abs(value), currency)}` : "Not available") : metric.endsWith("Bps") || metric.endsWith("BpsOfForecast") ? `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(value / 100)}%` : metric === "indicativeShifts" || metric === "recentTransactions" || metric === "expectedTransactions" ? `${value}` : metric === "evidenceAgeDays" ? `${value} days` : labourHours(value);
   return <section className="panel ai-assessment" aria-labelledby="ai-assessment-title">
     {header}{banner}
     <p className="note">Generated {generated(view.record!.createdAt, timeZone)} ({timeZone}) by {view.record!.provider === "OPENAI" ? "OpenAI" : view.record!.provider} {view.record!.responseModel} from the calculated figures shown on this page. The AI interprets those figures; it does not change them, create shifts or approve pay.</p>

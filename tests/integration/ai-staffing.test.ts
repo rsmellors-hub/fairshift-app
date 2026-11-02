@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
+import { configureFixture, TEST_FIXTURE_POLICY } from "../helpers/workload";
 import { entitled } from "../helpers/onboarding";
 import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
@@ -14,7 +15,7 @@ import { AI_OUTPUT_SCHEMA_VERSION, type AssessmentInput, type StaffingAssessment
 import { generateStaffingAssessment, getStaffingAssessmentView, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { provisionReferenceHistory } from "@/server/reference/provision";
-import { REFERENCE_STORE_CODES } from "@/server/reference/uk-retail";
+import { REFERENCE_STORE_CODES } from "@/server/reference/uk-hospitality";
 import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { ManagerWorkspace } from "@/app/manager/workspace";
@@ -45,7 +46,8 @@ async function referenceCompany(db: Db, { history = true } = {}) {
   await entitled(db, organisationId);
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} store`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
-  if (history) await provisionReferenceHistory(db, { organisationId, outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as never, from: "2025-11-24", through: "2025-12-28" });
+  if (history) await provisionReferenceHistory(db, { organisationId, outlets: Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as never, from: "2026-09-21", through: "2026-10-18" });
+  if (history) await configureFixture(db, { organisationId, outletId: rows[0].id, policy: TEST_FIXTURE_POLICY, trading: null, coverage: null });
   const base = { organisationName: "AI company", locationName: rows[0].name };
   const owner: Scope = { userId: await user(db), organisationId, locationId: rows[0].id, role: "OWNER", ...base };
   const manager = async (i: number): Promise<Scope> => ({ userId: await user(db), organisationId, locationId: rows[i].id, role: "MANAGER", ...base, locationName: rows[i].name });
@@ -93,7 +95,7 @@ describe("AI staffing intelligence", () => {
       expect(sent.locations).toHaveLength(5);
       for (const text of [...c.rows.map(row => row.name), ...c.rows.map(row => row.id), "AI company", c.organisationId, "@"]) expect(provider.assess.mock.calls[0][0].input).not.toContain(text);
       expect(record).toMatchObject({ status: "AVAILABLE", scopeKey: "ORGANISATION", outletId: null, provider: "OPENAI", model: "gpt-test", responseModel: "gpt-test-2026", providerResponseId: "resp_test",
-        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2025-12-28", inputVersion: "fs-staffing-ai-input-v2", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
+        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2026-10-18", inputVersion: "fs-staffing-ai-input-v3", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
       expect(record.input).toEqual(sent);
       expect(Object.values(record.locationKeys as Record<string, string>).sort()).toEqual(c.rows.map(row => row.id).sort());
 
@@ -119,7 +121,7 @@ describe("AI staffing intelligence", () => {
       const name = c.rows.find(row => row.id === outletId)!.name;
       for (const text of ["AI-assisted interpretation", "What to staff first", "gpt-test-2026", `Casual staffing pressure is highest at <strong>${name}</strong>`, "High priority", "Recommended: Fill shifts", "Synthetic reference history", "does not change them, create shifts or approve pay",
         // Calculated figures and the reference disclosure are still present and labelled.
-        "Staffing by location", "No AI is used in these figures", "labelled synthetic input"]) expect(html).toContain(text);
+        "Casual requirement by location", "No AI is used in these figures", "labelled synthetic input"]) expect(html).toContain(text);
       // Days the AI did not single out are counted from the calculated figures.
       const unlisted = staffing.outlets.flatMap(outlet => outlet.days.filter(d => (d.casualGapMinutes ?? 0) > 0 && !(outlet.outletId === outletId && d.planningDate === top.date))).length;
       expect(html).toContain(`${unlisted} other planning days also have a casual labour gap not listed above`);
@@ -175,7 +177,7 @@ describe("AI staffing intelligence", () => {
       let html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
       expect(html).toContain("The latest AI assessment of this planning evidence failed: the AI service did not respond in time");
       expect(html).toContain("Try the AI assessment again");
-      expect(html).toContain("Staffing by location");
+      expect(html).toContain("Casual requirement by location");
       expect(html).not.toContain("High priority");
 
       // A model that changes a calculated figure is rejected and nothing it said is shown.
@@ -202,7 +204,7 @@ describe("AI staffing intelligence", () => {
       const db = new Proxy(t.db, { get: (target, key) => key === "select" ? (...args: unknown[]) => { const query = (target.select as (...a: unknown[]) => { from: (table: unknown) => unknown })(...args); return new Proxy(query, { get: (q, k) => k === "from" ? (table: unknown) => { if (table === aiStaffingAssessments) throw new Error("store down"); return (q.from as (t: unknown) => unknown)(table); } : Reflect.get(q, k) }); } : Reflect.get(target, key) });
       vi.mocked(getDatabase).mockReturnValue(db as typeof t.db);
       html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
-      expect(html).toContain("Staffing by location");
+      expect(html).toContain("Casual requirement by location");
       expect(html).toContain("AI assessment is unavailable because the staffing evidence could not be loaded");
     } finally { await t.close(); }
   });

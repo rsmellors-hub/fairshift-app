@@ -8,10 +8,11 @@ import type { Scope } from "@/server/auth/access";
 import { organisations, outlets, saleTransactions } from "@/server/db/schema";
 import { getOwnerOverview } from "@/server/product/owner-overview";
 import { provisionReferenceHistory, referencePrefix } from "@/server/reference/provision";
-import { REFERENCE_STORE_CODES, referenceDates, referenceTransactions } from "@/server/reference/uk-retail";
+import { REFERENCE_STORE_CODES, referenceDates, referenceTransactions } from "@/server/reference/uk-hospitality";
 import { OwnerOverview } from "@/app/owner/overview";
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
+// Spans Christmas Day 2025, a stated group closure.
 const window = { from: "2025-12-20", through: "2025-12-28" };
 
 async function company(db: Db, timezone = "Europe/London") {
@@ -47,7 +48,7 @@ describe("reference sales history provisioning", () => {
         expect(row).toMatchObject({ source: "REFERENCE", currencyCode: "GBP", providerStatus: "REFERENCE", verificationState: "PENDING", reconciliationState: "NOT_RECONCILED",
           paypalOrderId: null, paypalCaptureId: null, paypalCustomId: null, providerCreatedAt: null, reconciledAt: null });
         expect(row.occurredAt).toBeInstanceOf(Date);
-        expect(row.internalReference.startsWith("REF:uk-specialty-retail-v1:UK0")).toBe(true);
+        expect(row.internalReference.startsWith("REF:uk-hospitality-v1:UK0")).toBe(true);
       }
       // Distinct stores keep distinct histories: no two outlets share identical daily totals.
       const totals = (await t.db.execute(sql`select outlet_id, sum(gross_amount_minor)::bigint as total from sale_transactions group by outlet_id`)).rows;
@@ -79,7 +80,7 @@ describe("reference sales history provisioning", () => {
       delete partial.UK05;
       await expect(run({ outlets: partial })).rejects.toThrow();
       await expect(run({ organisationId: randomUUID() })).rejects.toThrow("Organisation not found");
-      await expect(run({ through: "2026-01-04" })).rejects.toThrow("Reference history covers");
+      await expect(run({ from: "2025-11-02" })).rejects.toThrow("Reference history covers");
       await t.db.update(outlets).set({ active: false }).where(eq(outlets.id, c.mapping.UK02));
       await expect(run({})).rejects.toThrow("UK02: outlet is inactive");
       expect((await t.db.select().from(saleTransactions)).length).toBe(0);
@@ -90,14 +91,14 @@ describe("reference sales history provisioning", () => {
     const t = await createTestDatabase();
     try {
       const sa = await company(t.db, "Africa/Johannesburg");
-      await expect(provisionReferenceHistory(t.db, { organisationId: sa.organisationId, outlets: sa.mapping, from: "2025-12-27", through: "2025-12-28" }))
+      await expect(provisionReferenceHistory(t.db, { organisationId: sa.organisationId, outlets: sa.mapping, from: "2026-10-17", through: "2026-10-18" }))
         .rejects.toThrow("UK01: outlet time zone is Africa/Johannesburg");
       // The loader has no time-zone override; the SA location keeps its own time zone and gets nothing.
       await expect(provisionReferenceHistory(t.db, { organisationId: sa.organisationId, outlets: sa.mapping, setLondonTimezone: true } as never)).rejects.toThrow();
       expect(new Set((await t.db.select().from(outlets).where(eq(outlets.organisationId, sa.organisationId))).map(row => row.timezone))).toEqual(new Set(["Africa/Johannesburg"]));
       expect((await t.db.select().from(saleTransactions)).length).toBe(0);
       const c = await company(t.db);
-      const run = (overrides: object = {}) => provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: c.mapping, from: "2025-12-27", through: "2025-12-28", ...overrides });
+      const run = (overrides: object = {}) => provisionReferenceHistory(t.db, { organisationId: c.organisationId, outlets: c.mapping, from: "2026-10-17", through: "2026-10-18", ...overrides });
       await run();
       const swapped = { ...c.mapping, UK01: c.mapping.UK02, UK02: c.mapping.UK01 };
       await expect(run({ outlets: swapped })).rejects.toThrow("already holds a different reference history");

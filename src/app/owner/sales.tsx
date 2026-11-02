@@ -14,7 +14,7 @@ const SOURCE_MEANING: Record<SalesSource, string> = {
   SQUARE: "Retrieved from this location’s connected Square Sandbox seller. Test money, not trading. Completed payments, gross of refunds: refunds are recorded and linked, not netted off. Not reconciled by FairShift.",
   ZETTLE: "Retrieved from a previously connected account. Completed sales only: refunds are not deducted. Not reconciled by FairShift.",
   IMPORTED: "Supplied for this business. Genuine history, but no provider has verified it.",
-  REFERENCE: "Generated for a fictional retailer so the product can be explored. Never a real business’s trading.",
+  REFERENCE: "Generated for a fictional hospitality group so the product can be explored. Never a real business’s trading.",
   DEMO_SEEDED: "Generated demonstration records.",
   PAYPAL_SANDBOX: "Completed, verified and reconciled PayPal Sandbox captures. Test money, not trading.",
 };

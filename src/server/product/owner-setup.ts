@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
-import { commerceConnections, commerceWorkerIdentities, labourPolicies, memberships, outlets, regularStaffCoverage, saleTransactions, subscriptions, teamInvitations, workers, workPolicies } from "@/server/db/schema";
+import { commerceConnections, commerceWorkerIdentities, memberships, outletTradingHours, outlets, regularCoverageWindows, saleTransactions, subscriptions, teamInvitations, workers, workloadPolicies, workPolicies } from "@/server/db/schema";
 
 export type OwnerSetupStep = { key: string; title: string; detail: string; action: string; href: string; done: boolean };
 
@@ -15,8 +15,9 @@ export async function getOwnerSetup(db: DatabaseSession, scope: Scope, forecastR
   const history = active.length ? await anyIn(db.select({ count }).from(saleTransactions).where(inArray(saleTransactions.outletId, active))) : false;
   const compensation = active.length ? await anyIn(db.select({ count }).from(workPolicies).where(inArray(workPolicies.outletId, active))) : false;
   const incentive = active.length ? await anyIn(db.select({ count }).from(workPolicies).where(and(inArray(workPolicies.outletId, active), isNotNull(workPolicies.incentiveTargetMinor)))) : false;
-  const labour = await anyIn(db.select({ count }).from(labourPolicies).where(and(eq(labourPolicies.organisationId, scope.organisationId), eq(labourPolicies.status, "ACTIVE"))));
-  const covered = new Set((await db.select({ outletId: regularStaffCoverage.outletId }).from(regularStaffCoverage).where(eq(regularStaffCoverage.organisationId, scope.organisationId))).map(row => row.outletId));
+  const capacity = await anyIn(db.select({ count }).from(workloadPolicies).where(and(eq(workloadPolicies.organisationId, scope.organisationId), eq(workloadPolicies.status, "ACTIVE"))));
+  const trading = new Set((await db.select({ outletId: outletTradingHours.outletId }).from(outletTradingHours).where(eq(outletTradingHours.organisationId, scope.organisationId))).map(row => row.outletId));
+  const covered = new Set((await db.select({ outletId: regularCoverageWindows.outletId }).from(regularCoverageWindows).where(eq(regularCoverageWindows.organisationId, scope.organisationId))).map(row => row.outletId));
   const manager = await anyIn(db.select({ count }).from(memberships).where(and(eq(memberships.organisationId, scope.organisationId), eq(memberships.role, "MANAGER"), eq(memberships.state, "ACTIVE"))))
     || await anyIn(db.select({ count }).from(teamInvitations).where(and(eq(teamInvitations.organisationId, scope.organisationId), eq(teamInvitations.role, "MANAGER"))));
   const casual = await anyIn(db.select({ count }).from(workers).where(and(eq(workers.organisationId, scope.organisationId), eq(workers.workerType, "CASUAL"))));
@@ -31,11 +32,12 @@ export async function getOwnerSetup(db: DatabaseSession, scope: Scope, forecastR
     { key: "history", title: "Commerce history", detail: "Sales history drives the forecast. Connect Square Sandbox to start building it. A forecast needs at least 28 days.", action: "Connect commerce", href: "/owner/reporting", done: history },
     { key: "compensation", title: "Compensation", detail: "Set the hourly or daily terms managers can offer.", action: "Set compensation", href: "/owner/policies", done: compensation },
     { key: "incentive", title: "Incentive", detail: "Add a sales target and a fixed bonus to those terms.", action: "Set an incentive", href: "/owner/policies#work-policies", done: incentive },
-    { key: "labour", title: "Labour rule", detail: "How much forecast sales one labour hour covers in your business.", action: "Set the labour rule", href: "/owner/policies#labour-policy", done: labour },
-    { key: "coverage", title: "Regular coverage", detail: "Who already works each day, so FairShift only shows the gap.", action: "Add regular coverage", href: "/owner/policies#regular-coverage", done: active.length > 0 && active.every(id => covered.has(id)) },
+    { key: "capacity", title: "Service capacity and minimum cover", detail: "How many transactions one staff member supports in an hour, and the fewest staff while open.", action: "Set service capacity", href: "/owner/policies#workload-policy", done: capacity },
+    { key: "trading", title: "Trading hours", detail: "When each location is open, so demand and cover are compared at the right times.", action: "Add trading hours", href: "/owner/policies#trading-hours", done: active.length > 0 && active.every(id => trading.has(id)) },
+    { key: "coverage", title: "Regular coverage", detail: "Who already works at each time of day, so FairShift only shows what’s left.", action: "Add regular coverage", href: "/owner/policies#regular-coverage", done: active.length > 0 && active.every(id => covered.has(id)) },
     { key: "manager", title: "Manager", detail: "Invite someone to run a location, or run it yourself.", action: "Invite a manager", href: "/owner/workforce", done: manager },
     { key: "casual", title: "Casual workers", detail: "Invite the workers who fill your staffing gaps.", action: "Invite workers", href: "/owner/workforce", done: casual },
     ...mapping,
-    { key: "forecast", title: "Forecast ready", detail: "Appears once a location has enough sales history, a labour rule and regular coverage.", action: "Open the forecast", href: "/owner/forecast", done: forecastReady },
+    { key: "forecast", title: "Forecast ready", detail: "Appears once a location has enough sales history, service capacity, trading hours and regular coverage.", action: "Open the forecast", href: "/owner/forecast", done: forecastReady },
   ];
 }

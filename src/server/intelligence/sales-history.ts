@@ -44,3 +44,26 @@ export const loadDailySales = cache(async function loadDailySales(db: DatabaseSe
     .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleDate);
   return rows.map(row => ({ ...row, source: row.source as SalesSource }));
 });
+
+// Transactions of one source and currency at one location, per 15-minute local time slot,
+// for the workload forecast. Only sales with a real recorded time count: a row whose only
+// time is when it was written says nothing about when customers came.
+export async function loadTransactionSlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
+  const known = sql`coalesce(${saleTransactions.occurredAt}, ${saleTransactions.providerCreatedAt})`;
+  const local = sql`(${known} at time zone ${outlets.timezone})`;
+  const date = sql<string>`to_char(${local}, 'YYYY-MM-DD')`;
+  const minute = sql<number>`(extract(hour from ${local})::int * 60 + floor(extract(minute from ${local}) / 15)::int * 15)`.mapWith(Number);
+  return db.select({ date, minute,
+    transactions: sql<number>`count(*)`.mapWith(Number), salesMinor: sql<number>`sum(${saleTransactions.grossAmountMinor})`.mapWith(Number),
+  }).from(saleTransactions).innerJoin(outlets, eq(saleTransactions.outletId, outlets.id))
+    .where(and(eq(outlets.id, outletId), eq(saleTransactions.source, source), eq(saleTransactions.currencyCode, currency), sql`${known} is not null`, eligibleSale,
+      sql`${date} >= ${from}`, sql`${date} <= ${through}`))
+    .groupBy(date, minute);
+}
+
+// Which generated dataset a location's reference history came from, if any.
+export async function referenceDatasetOf(db: DatabaseSession, outletId: string): Promise<string | null> {
+  const [row] = await db.select({ dataset: saleTransactions.sourceSystem }).from(saleTransactions)
+    .where(and(eq(saleTransactions.outletId, outletId), eq(saleTransactions.source, "REFERENCE"))).limit(1);
+  return row?.dataset ?? null;
+}

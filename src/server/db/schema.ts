@@ -380,6 +380,8 @@ export const workerAvailability = pgTable("worker_availability", {
   check("worker_availability_state_check", sql`${t.state} in ('AVAILABLE', 'UNAVAILABLE')`),
 ]);
 
+// RETIRED from the active staffing path, which now uses regularCoverageWindows; kept so
+// earlier records stay readable. Nothing writes or reads it any more.
 // Planned regular-staff labour per location and local weekday: a standing weekly
 // rota applied to each planning date. Lightweight staffing input, not user
 // accounts, shifts, timesheets or payroll. A weekday with no row is not set; a row
@@ -401,6 +403,8 @@ export const regularStaffCoverage = pgTable("regular_staff_coverage", {
   check("regular_staff_coverage_source_check", sql`${t.source} in ('REFERENCE', 'CONFIGURED')`),
 ]);
 
+// RETIRED from the active staffing path, which now uses workloadPolicies; kept so earlier
+// records stay readable. Nothing writes or reads it any more.
 // A business's labour-productivity assumption: forecast sales per labour hour, in
 // integer minor units of one currency. Organisation default (no outlet) with optional
 // location overrides. Versions are append-only; at most one is active per scope, and
@@ -426,6 +430,73 @@ export const labourPolicies = pgTable("labour_policies", {
   check("labour_policies_version_check", sql`${t.version} > 0`),
   check("labour_policies_source_check", sql`${t.source} in ('CONFIGURED', 'REFERENCE')`),
   check("labour_policies_status_check", sql`(${t.status} = 'ACTIVE' and ${t.supersededAt} is null) or (${t.status} = 'SUPERSEDED' and ${t.supersededAt} is not null)`),
+]);
+
+// A business's own service-capacity policy, never defaulted by FairShift: how many
+// completed transactions one staff member supports in an hour, and the minimum staff
+// while open. Organisation default (no outlet) with optional location overrides. The two
+// values form one version: a business has a complete policy or none. Versions are
+// append-only; a superseded version remains so earlier evidence can be explained.
+export const workloadPolicies = pgTable("workload_policies", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "restrict" }),
+  version: integer("version").notNull(),
+  transactionsPerStaffHour: integer("transactions_per_staff_hour").notNull(),
+  minimumStaffWhileOpen: integer("minimum_staff_while_open").notNull(),
+  source: text("source").notNull(),
+  status: text("status").notNull().default("ACTIVE"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("workload_policies_active_organisation_unique").on(t.organisationId).where(sql`${t.status} = 'ACTIVE' and ${t.outletId} is null`),
+  uniqueIndex("workload_policies_active_location_unique").on(t.outletId).where(sql`${t.status} = 'ACTIVE' and ${t.outletId} is not null`),
+  index("workload_policies_organisation_idx").on(t.organisationId, t.createdAt),
+  check("workload_policies_capacity_check", sql`${t.transactionsPerStaffHour} between 1 and 1000`),
+  check("workload_policies_minimum_check", sql`${t.minimumStaffWhileOpen} between 0 and 100`),
+  check("workload_policies_version_check", sql`${t.version} > 0`),
+  check("workload_policies_source_check", sql`${t.source} in ('CONFIGURED', 'REFERENCE')`),
+  check("workload_policies_status_check", sql`(${t.status} = 'ACTIVE' and ${t.supersededAt} is null) or (${t.status} = 'SUPERSEDED' and ${t.supersededAt} is not null)`),
+]);
+
+// When one location trades on one local weekday: [{ start, end }] in minutes after local
+// midnight. An empty list is a day stated as closed; no row means not set, which is not
+// the same as closed.
+export const outletTradingHours = pgTable("outlet_trading_hours", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  isoWeekday: integer("iso_weekday").notNull(), // 1 = Monday … 7 = Sunday
+  windows: jsonb("windows").notNull(),
+  source: text("source").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("outlet_trading_hours_outlet_weekday_unique").on(t.outletId, t.isoWeekday),
+  index("outlet_trading_hours_organisation_idx").on(t.organisationId),
+  check("outlet_trading_hours_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
+  check("outlet_trading_hours_windows_check", sql`jsonb_typeof(${t.windows}) = 'array'`),
+  check("outlet_trading_hours_source_check", sql`${t.source} in ('REFERENCE', 'CONFIGURED')`),
+]);
+
+// Regular staff capacity by time of day on one local weekday: [{ start, end, headcount }].
+// Capacity input only, not rostering. An empty list is a stated zero; no row means not set.
+export const regularCoverageWindows = pgTable("regular_coverage_windows", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  isoWeekday: integer("iso_weekday").notNull(), // 1 = Monday … 7 = Sunday
+  windows: jsonb("windows").notNull(),
+  source: text("source").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("regular_coverage_windows_outlet_weekday_unique").on(t.outletId, t.isoWeekday),
+  index("regular_coverage_windows_organisation_idx").on(t.organisationId),
+  check("regular_coverage_windows_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
+  check("regular_coverage_windows_windows_check", sql`jsonb_typeof(${t.windows}) = 'array'`),
+  check("regular_coverage_windows_source_check", sql`${t.source} in ('REFERENCE', 'CONFIGURED')`),
 ]);
 
 export const departments = pgTable("departments", {
@@ -557,6 +628,23 @@ export const shifts = pgTable(
     check("shifts_time_order_check", sql`${table.endsAt} > ${table.startsAt}`),
   ],
 );
+
+// Why a shift was created: a frozen copy of the opportunity it came from, taken when the
+// manager created it. Never changes when the forecast or policy moves, and pay never reads it.
+export const shiftOpportunityEvidence = pgTable("shift_opportunity_evidence", {
+  shiftId: uuid("shift_id").primaryKey().references(() => shifts.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  localDate: date("local_date", { mode: "string" }).notNull(),
+  windowStartsAt: timestamp("window_starts_at", { withTimezone: true }).notNull(),
+  windowEndsAt: timestamp("window_ends_at", { withTimezone: true }).notNull(),
+  evidence: jsonb("evidence").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("shift_opportunity_evidence_outlet_idx").on(t.outletId, t.localDate),
+  check("shift_opportunity_evidence_window_check", sql`${t.windowEndsAt} > ${t.windowStartsAt}`),
+]);
 
 export const shiftOffers = pgTable(
   "shift_offers",
@@ -869,9 +957,10 @@ export const schema = {
   commerceRefundEvidence,
   commerceWorkerIdentities,
   providerEvents,
-  workers, workerAvailability, regularStaffCoverage, labourPolicies,
+  workers, workerAvailability, regularStaffCoverage, labourPolicies, workloadPolicies, outletTradingHours, regularCoverageWindows,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, attributedSales, workPerformanceResults,
   shifts,
+  shiftOpportunityEvidence,
   shiftOffers,
   shiftIncentives,
   auditEvents,

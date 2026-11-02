@@ -55,9 +55,10 @@ describe("persisted commercial history to manager output", () => {
       expect(singleDay).toContain("Recommended worker delta");
       expect(singleDay).toContain("+3");
       expect(singleDay).toContain("forecast for 2026-10-16");
-      // Planning-week staffing for the USD demo location: labour assumption is GBP-only, so no gap is invented.
+      // Planning-week staffing for the demo location: nothing is configured, so no requirement is invented.
       expect(html).toContain("Planning week Fri, 16 Oct 2026 – Thu, 22 Oct 2026");
-      expect(html).toContain("No labour policy is configured");
+      expect(html).toContain("Configuration required");
+      expect(html).toContain("service capacity and minimum cover");
       expect(html).not.toMatch(/Casual labour gap<\/span><strong>/);
       expect(html).toContain("Historical evidence");
       expect(singleDay).toContain("comparison assumption, not a saved plan");

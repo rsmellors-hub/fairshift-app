@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
+import { ALL_DAY, hours, ingestTimedBills, requiredFor } from "../helpers/workload";
 import { entitled } from "../helpers/onboarding";
 import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
@@ -13,13 +14,13 @@ import { getDatabase } from "@/server/db/client";
 import { memberships, organisations, outlets, saleTransactions, subscriptions, users } from "@/server/db/schema";
 import { AI_OUTPUT_SCHEMA_VERSION, ASSESSMENT_INSTRUCTIONS, prepareAssessmentInput, type AssessmentInput } from "@/server/intelligence/ai-staffing-contract";
 import { generateStaffingAssessment, getStaffingAssessmentView, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
-import { setLabourPolicy, setRegularCoverage } from "@/server/intelligence/business-policy";
+import { setRegularCoverage, setTradingHours, setWorkloadPolicy } from "@/server/intelligence/business-policy";
 import { shiftDate } from "@/server/intelligence/forecast";
 import { getWeeklyStaffing, type OutletStaffing } from "@/server/intelligence/staffing";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import type { StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { provisionReferenceHistory } from "@/server/reference/provision";
-import { REFERENCE_STORE_CODES } from "@/server/reference/uk-retail";
+import { REFERENCE_STORE_CODES } from "@/server/reference/uk-hospitality";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 
@@ -49,18 +50,21 @@ async function business(db: Db, input: { names: string[]; timezone: string; coun
   const owner = (locationId = rows[0].id): Scope => ({ userId, organisationId, locationId, role: "OWNER", organisationName: "Unrelated business", locationName: rows.find(row => row.id === locationId)!.name });
   return { organisationId, rows, owner };
 }
-// One sale a day for 56 days through the canonical boundary, with a value per weekday.
+// Timed bills for 56 days through the canonical boundary: a count per weekday at £50 a bill.
+const BILL = 5_000;
 function ingest(db: Db, organisationId: string, outletId: string, currencyCode: string, through: string, pattern: Pattern, sourceSystem = "dataset") {
-  return ingestCommerceObservations(db, { organisationId, source: "IMPORTED", sourceSystem, now: NOW, observations: Array.from({ length: 56 }, (_, i) => {
-    const date = shiftDate(through, -i);
-    return { outletId, sourceTransactionId: `${date}`, occurredAt: `${date}T12:00:00Z`, currencyCode, grossAmountMinor: pattern(isoWeekday(date)), status: "COMPLETED" };
-  }) });
+  return ingestTimedBills(db, { organisationId, outletId, currencyCode, through, bills: pattern, billMinor: BILL, now: NOW, sourceSystem });
 }
-const required = (salesMinor: number, rate: number) => Math.ceil((salesMinor * 60) / (rate * 15)) * 15;
-// Each weekday's value repeats, so the weighted forecast equals it exactly.
-function expectDay(outlet: OutletStaffing, date: string, sales: number, rate: number, regular: number) {
-  const need = required(sales, rate), gap = Math.max(0, need - regular);
-  expect(outlet.days.find(day => day.planningDate === date)).toMatchObject({ forecastSalesMinor: sales, requiredMinutes: need, regularMinutes: regular, casualGapMinutes: gap, indicativeShifts: Math.ceil(gap / 480), unavailable: null });
+// Fixture configuration: open all day, with regular cover in the hour the bills fall in.
+async function configure(db: Db, scope: Scope, regularHeadcount: number) {
+  await setTradingHours(db, scope, Array(7).fill(ALL_DAY));
+  await setRegularCoverage(db, scope, Array(7).fill(regularHeadcount ? [hours(0, 24, regularHeadcount)] : []));
+}
+// Each weekday's count repeats, so the weighted forecast equals it exactly. All bills share one hour.
+function expectDay(outlet: OutletStaffing, date: string, bills: number, capacity: number, regularHeadcount: number) {
+  const need = requiredFor(bills, capacity), gap = Math.max(0, need - regularHeadcount * 60);
+  const day = outlet.days.find(row => row.planningDate === date)!;
+  expect(day).toMatchObject({ forecastSalesMinor: bills * BILL, expectedMilliTransactions: bills * 1000, requiredMinutes: need, regularMinutes: regularHeadcount * 1440, casualGapMinutes: gap, unavailable: null });
 }
 const MONDAY = "2026-10-26", SATURDAY = "2026-10-31";
 function fakeProvider() {
@@ -87,44 +91,44 @@ describe("dataset substitution", () => {
       const c = await business(t.db, { names: ["Harbour Road", "Mill Lane"], timezone: "Europe/London" });
       const [x, y] = c.rows.map(row => row.id);
 
-      // Dataset A: Monday-heavy, £75 per labour hour.
-      const a: Pattern = day => day === 1 ? 600_000 : 60_000, a2: Pattern = day => day === 1 ? 300_000 : 45_000;
+      // Dataset A: Monday-heavy, at a fixture capacity of 6 per staff hour.
+      const a: Pattern = day => day === 1 ? 24 : 6, a2: Pattern = day => day === 1 ? 12 : 3;
       await ingest(t.db, c.organisationId, x, "GBP", "2026-09-20", a);
       await ingest(t.db, c.organisationId, y, "GBP", "2026-09-20", a2);
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: "GBP", salesMinorPerLabourHour: 7_500 });
-      for (const id of [x, y]) await setRegularCoverage(t.db, c.owner(id), Array(7).fill(240));
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: 6, minimumStaffWhileOpen: 0 });
+      for (const id of [x, y]) await configure(t.db, c.owner(id), 1);
       let staffing = await getWeeklyStaffing(t.db, c.owner(), NOW);
       let at = (id: string) => staffing.outlets.find(row => row.outletId === id)!;
-      expect(at(x)).toMatchObject({ currency: "GBP", regularCoverage: "CONFIGURED", evidence: { source: "IMPORTED", dataThrough: "2026-09-20" }, policy: { salesMinorPerLabourHour: 7_500, source: "CONFIGURED" } });
-      expectDay(at(x), MONDAY, 600_000, 7_500, 240);
-      expectDay(at(x), SATURDAY, 60_000, 7_500, 240);
-      expectDay(at(y), MONDAY, 300_000, 7_500, 240);
+      expect(at(x)).toMatchObject({ currency: "GBP", regularCoverage: "CONFIGURED", evidence: { source: "IMPORTED", dataThrough: "2026-09-20" }, policy: { transactionsPerStaffHour: 6, source: "CONFIGURED" } });
+      expectDay(at(x), MONDAY, 24, 6, 1);
+      expectDay(at(x), SATURDAY, 6, 6, 1);
+      expectDay(at(y), MONDAY, 12, 6, 1);
       let prepared = prepareAssessmentInput(staffing, "ORGANISATION");
       const keyX = Object.entries(prepared.locationKeys).find(([, id]) => id === x)![0];
-      expect(prepared.input.rankedGapDays[0]).toEqual({ locationKey: keyX, date: MONDAY, casualGapMinutes: required(600_000, 7_500) - 240 });
+      expect(prepared.input.rankedGapDays[0]).toEqual({ locationKey: keyX, date: MONDAY, casualGapMinutes: requiredFor(24, 6) - 60 });
       const provider = fakeProvider();
       await generateStaffingAssessment(t.db, c.owner(), "ORGANISATION", provider, NOW);
       expect((await getStaffingAssessmentView(t.db, c.owner(), "ORGANISATION", staffing)).state).toBe("CURRENT");
       const fingerprintA = prepared.fingerprint;
 
-      // Dataset B replaces it: weekend-heavy, different values, £180 per labour hour.
+      // Dataset B replaces it: weekend-heavy, different values, a different fixture capacity.
       await t.db.delete(saleTransactions).where(inArray(saleTransactions.outletId, [x, y]));
-      const b: Pattern = day => day === 6 ? 1_800_000 : 90_000, b2: Pattern = day => day === 6 ? 3_600_000 : 36_000;
+      const b: Pattern = day => day === 6 ? 45 : 4, b2: Pattern = day => day === 6 ? 90 : 2;
       await ingest(t.db, c.organisationId, x, "GBP", "2026-07-05", b, "other-system");
       await ingest(t.db, c.organisationId, y, "GBP", "2026-07-05", b2, "other-system");
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: "GBP", salesMinorPerLabourHour: 18_000 });
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: 9, minimumStaffWhileOpen: 0 });
       staffing = await getWeeklyStaffing(t.db, c.owner(), NOW);
       at = (id: string) => staffing.outlets.find(row => row.outletId === id)!;
-      expect(at(x)).toMatchObject({ evidence: { dataThrough: "2026-07-05" }, policy: { salesMinorPerLabourHour: 18_000, version: "organisation-v2" } });
-      expectDay(at(x), SATURDAY, 1_800_000, 18_000, 240);
-      expectDay(at(y), SATURDAY, 3_600_000, 18_000, 240);
-      expectDay(at(x), MONDAY, 90_000, 18_000, 240);
+      expect(at(x)).toMatchObject({ evidence: { dataThrough: "2026-07-05" }, policy: { transactionsPerStaffHour: 9, version: "organisation-v2" } });
+      expectDay(at(x), SATURDAY, 45, 9, 1);
+      expectDay(at(y), SATURDAY, 90, 9, 1);
+      expectDay(at(x), MONDAY, 4, 9, 1);
       prepared = prepareAssessmentInput(staffing, "ORGANISATION");
       const keyY = Object.entries(prepared.locationKeys).find(([, id]) => id === y)![0];
-      expect(prepared.input.rankedGapDays[0]).toEqual({ locationKey: keyY, date: SATURDAY, casualGapMinutes: required(3_600_000, 18_000) - 240 });
+      expect(prepared.input.rankedGapDays[0]).toEqual({ locationKey: keyY, date: SATURDAY, casualGapMinutes: requiredFor(90, 9) - 60 });
       // Dataset A's conclusions do not survive: Saturdays lead and Monday falls behind them.
       expect(prepared.input.rankedGapDays.slice(0, 2).map(day => day.date)).toEqual([SATURDAY, SATURDAY]);
-      expect(prepared.input.rankedGapDays.find(day => day.date === MONDAY)?.casualGapMinutes ?? 0).toBeLessThan(required(600_000, 7_500) - 240);
+      expect(prepared.input.rankedGapDays.find(day => day.date === MONDAY)?.casualGapMinutes ?? 0).toBeLessThan(requiredFor(24, 6) - 60);
       expect(prepared.fingerprint).not.toBe(fingerprintA);
       expect((await getStaffingAssessmentView(t.db, c.owner(), "ORGANISATION", staffing))).toMatchObject({ state: "STALE", assessment: null });
       const second = await generateStaffingAssessment(t.db, c.owner(), "ORGANISATION", provider, NOW);
@@ -149,8 +153,8 @@ describe("dataset substitution", () => {
     try {
       const c = await business(t.db, { names: ["New Shop"], timezone: "Europe/Dublin" });
       const id = c.rows[0].id;
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: "EUR", salesMinorPerLabourHour: 10_000 });
-      await setRegularCoverage(t.db, c.owner(), Array(7).fill(240));
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: 10, minimumStaffWhileOpen: 0 });
+      await configure(t.db, c.owner(), 1);
       await ingestCommerceObservations(t.db, { organisationId: c.organisationId, source: "IMPORTED", sourceSystem: "till", now: NOW, observations: Array.from({ length: 10 }, (_, i) => ({
         outletId: id, sourceTransactionId: `T${i}`, occurredAt: `${shiftDate("2026-10-20", -i)}T12:00:00Z`, currencyCode: "EUR", grossAmountMinor: 500_000, status: "COMPLETED" })) });
       const weekly = await getWeeklyForecast(t.db, c.owner(), NOW);
@@ -172,17 +176,17 @@ describe("dataset substitution", () => {
     const t = await createTestDatabase();
     try {
       const c = await business(t.db, { names: ["Sandton", "Durban", "Gqeberha"], timezone: "Africa/Johannesburg", country: "South Africa" });
-      const pattern: Pattern = day => day === 5 ? 9_000_000 : 3_000_000;
+      const pattern: Pattern = day => day === 5 ? 30 : 10;
       for (const row of c.rows) await ingest(t.db, c.organisationId, row.id, "ZAR", "2026-10-18", pattern);
-      for (const row of c.rows) expect((await getWeeklyStaffing(t.db, c.owner(row.id), NOW)).outlets.find(o => o.outletId === row.id)!.days[0]).toMatchObject({ requiredMinutes: null, unavailable: "NO_LABOUR_POLICY" });
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: "ZAR", salesMinorPerLabourHour: 150_000 });
-      for (const row of c.rows) await setRegularCoverage(t.db, c.owner(row.id), Array(7).fill(600));
+      for (const row of c.rows) expect((await getWeeklyStaffing(t.db, c.owner(row.id), NOW)).outlets.find(o => o.outletId === row.id)!.days[0]).toMatchObject({ requiredMinutes: null, unavailable: "TRADING_HOURS_NOT_SET" });
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: 5, minimumStaffWhileOpen: 0 });
+      for (const row of c.rows) await configure(t.db, c.owner(row.id), 1);
       const staffing = await getWeeklyStaffing(t.db, c.owner(), NOW);
       expect(staffing.outlets).toHaveLength(3);
       for (const outlet of staffing.outlets) {
-        expect(outlet).toMatchObject({ currency: "ZAR", policy: { currency: "ZAR", salesMinorPerLabourHour: 150_000 }, timezone: "Africa/Johannesburg", evidence: { source: "IMPORTED" } });
-        expectDay(outlet, "2026-10-30", 9_000_000, 150_000, 600); // Friday in Johannesburg
-        expectDay(outlet, MONDAY, 3_000_000, 150_000, 600);
+        expect(outlet).toMatchObject({ currency: "ZAR", policy: { transactionsPerStaffHour: 5 }, timezone: "Africa/Johannesburg", evidence: { source: "IMPORTED" } });
+        expectDay(outlet, "2026-10-30", 30, 5, 1); // Friday in Johannesburg
+        expectDay(outlet, MONDAY, 10, 5, 1);
       }
       expect(staffing.consolidated).toMatchObject({ currency: "ZAR" });
       const prepared = prepareAssessmentInput(staffing, "ORGANISATION");
@@ -201,24 +205,24 @@ describe("dataset substitution", () => {
   // Fails if someone reintroduces a fixed store count, currency, rate, history end date,
   // reference-only staffing or a company's identity in the intelligence path.
   it.each([
-    { names: ["Solo"], currency: "USD", rate: 7_500, through: "2026-03-15", timezone: "America/New_York" },
-    { names: ["One", "Two", "Three"], currency: "ZAR", rate: 18_000, through: "2026-10-11", timezone: "Africa/Johannesburg" },
-    { names: Array.from({ length: 7 }, (_, i) => `Branch ${i}`), currency: "EUR", rate: 3_333, through: "2024-06-30", timezone: "Europe/Dublin" },
+    { names: ["Solo"], currency: "USD", rate: 7, through: "2026-02-15", timezone: "America/New_York" },
+    { names: ["One", "Two", "Three"], currency: "ZAR", rate: 18, through: "2026-10-11", timezone: "Africa/Johannesburg" },
+    { names: Array.from({ length: 7 }, (_, i) => `Branch ${i}`), currency: "EUR", rate: 33, through: "2024-06-30", timezone: "Europe/Dublin" },
   ])("has no hidden assumption for $names.length location(s) in $currency at $rate", async ({ names, currency, rate, through, timezone }) => {
     const t = await createTestDatabase();
     try {
       const c = await business(t.db, { names, timezone });
-      for (const [i, row] of c.rows.entries()) await ingest(t.db, c.organisationId, row.id, currency, through, day => 100_000 * (i + 1) + day * 1_000);
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: currency, salesMinorPerLabourHour: rate });
-      for (const row of c.rows) await setRegularCoverage(t.db, c.owner(row.id), Array(7).fill(0));
+      for (const [i, row] of c.rows.entries()) await ingest(t.db, c.organisationId, row.id, currency, through, day => 3 * (i + 1) + day);
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: rate, minimumStaffWhileOpen: 0 });
+      for (const row of c.rows) await configure(t.db, c.owner(row.id), 0);
       const staffing = await getWeeklyStaffing(t.db, c.owner(), NOW);
       expect(staffing.outlets).toHaveLength(names.length);
       for (const outlet of staffing.outlets) {
         const i = c.rows.findIndex(row => row.id === outlet.outletId);
-        expect(outlet).toMatchObject({ currency, evidence: { source: "IMPORTED", dataThrough: through }, policy: { salesMinorPerLabourHour: rate }, regularCoverage: "CONFIGURED" });
+        expect(outlet).toMatchObject({ currency, evidence: { source: "IMPORTED", dataThrough: through }, policy: { transactionsPerStaffHour: rate }, regularCoverage: "CONFIGURED" });
         for (const day of outlet.days) {
-          const sales = 100_000 * (i + 1) + isoWeekday(day.planningDate) * 1_000;
-          expect(day).toMatchObject({ forecastSalesMinor: sales, requiredMinutes: required(sales, rate), casualGapMinutes: required(sales, rate) });
+          const bills = 3 * (i + 1) + isoWeekday(day.planningDate);
+          expect(day).toMatchObject({ forecastSalesMinor: bills * BILL, requiredMinutes: requiredFor(bills, rate), casualGapMinutes: requiredFor(bills, rate) });
         }
       }
       const { input } = prepareAssessmentInput(staffing, "ORGANISATION");
@@ -230,19 +234,21 @@ describe("dataset substitution", () => {
   });
 
   it("keeps company identity, rates and dates out of production intelligence source and the AI task", async () => {
-    const files = ["src/server/intelligence/ai-staffing-contract.ts", "src/server/intelligence/ai-staffing.ts", "src/server/intelligence/business-policy.ts", "src/server/intelligence/sales-history.ts", "src/server/intelligence/staffing.ts", "src/server/intelligence/weekly.ts", "src/server/commerce/ingestion.ts",
-      "src/app/components/staffing.tsx", "src/app/components/ai-staffing-assessment.tsx", "src/app/owner/weekly-forecast.tsx", "src/app/owner/staffing-configuration.tsx"];
+    const files = ["src/server/intelligence/ai-staffing-contract.ts", "src/server/intelligence/ai-staffing.ts", "src/server/intelligence/business-policy.ts", "src/server/intelligence/sales-history.ts", "src/server/intelligence/staffing.ts", "src/server/intelligence/workload.ts", "src/server/intelligence/opportunity.ts", "src/server/intelligence/opportunity-shifts.ts", "src/server/intelligence/weekly.ts", "src/server/commerce/ingestion.ts",
+      "src/app/components/ai-staffing-assessment.tsx", "src/app/owner/weekly-forecast.tsx", "src/app/owner/staffing-configuration.tsx"];
     // Fallbacks and fixed rates, not display locales or unrelated limits.
-    const forbidden = /Leeds|Manchester|Birmingham|Brighton|Stratford|UK0[1-5]|uk-retail|reference\/|2025-12-28|reference retailer|(\?\?|\?|:|[^=!]=) "GBP"|Europe\/London|[Pp]erLabourHour: *\d|REFERENCE_LABOUR_POLICY/;
+    const forbidden = /Leeds|Manchester|Birmingham|Brighton|Stratford|UK0[1-5]|uk-retail|uk-hospitality|reference\/|reference retailer|(\?\?|\?|:|[^=!]=) "GBP"|Europe\/London|[Tt]ransactionsPerStaffHour: *\d|minimumStaffWhileOpen: *\d|Breakfast|[Pp]erLabourHour/;
     for (const file of files) expect({ file, match: forbidden.exec(await readFile(file, "utf8"))?.[0] ?? null }).toEqual({ file, match: null });
     expect(ASSESSMENT_INSTRUCTIONS).not.toMatch(/Leeds|Manchester|Birmingham|Brighton|Stratford|GBP|£|\b(five|5) (stores?|locations?)\b/i);
-    // Rates enter only as data: the reference company's is its own configuration.
-    expect(await readFile("src/server/reference/provision.ts", "utf8")).toContain("REFERENCE_DATASET.salesMinorPerLabourHour");
+    // Hospitality wording is display only: names of parts of the day never reach the calculation.
+    expect(await readFile("src/server/intelligence/workload.ts", "utf8")).not.toMatch(/breakfast|lunch|dinner|[^a-z]evening/i);
+    // No company-specific capacity anywhere: the reference company has none until an Owner decides.
+    expect(await readFile("src/server/reference/provision.ts", "utf8")).not.toMatch(/orkloadPolic|abourPolic/);
   });
 });
 
 describe("provenance and truthful product states", () => {
-  it("keeps reference provisioning reproducible as explicit configuration, without overriding a business's own policy", async () => {
+  it("keeps reference provisioning reproducible, keeps a business's own configuration, and sets no workload policy", async () => {
     const t = await createTestDatabase();
     try {
       const organisationId = randomUUID();
@@ -252,17 +258,19 @@ describe("provenance and truthful product states", () => {
       const rows = REFERENCE_STORE_CODES.map(code => ({ id: randomUUID(), organisationId, name: `Store ${code}`, timezone: "Europe/London" }));
       await t.db.insert(outlets).values(rows);
       const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as never;
-      const load = () => provisionReferenceHistory(t.db, { organisationId, outlets: mapping, from: "2025-12-15", through: "2025-12-28" });
+      const load = () => provisionReferenceHistory(t.db, { organisationId, outlets: mapping, from: "2026-10-05", through: "2026-10-18" });
       const first = await load();
       expect(first.inserted).toBe(first.expected);
       const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Reference", locationName: "Store" };
       const staffing = await getWeeklyStaffing(t.db, owner, NOW);
-      expect(staffing.outlets[0]).toMatchObject({ regularCoverage: "REFERENCE", policy: { source: "REFERENCE", currency: "GBP", salesMinorPerLabourHour: 10_000, version: "organisation-v1" }, evidence: { source: "REFERENCE" } });
+      expect(staffing.outlets[0]).toMatchObject({ regularCoverage: "REFERENCE", tradingHours: "REFERENCE", policy: null, evidence: { source: "REFERENCE", dataset: "uk-hospitality-v1" } });
+      expect(staffing.outlets[0].days[0]).toMatchObject({ unavailable: "NO_WORKLOAD_POLICY", requiredMinutes: null, casualGapMinutes: null });
+      expect(staffing.outlets[0].days[0].expectedMilliTransactions).toBeGreaterThan(0);
       expect(prepareAssessmentInput(staffing, "ORGANISATION").input.locations[0]).toMatchObject({ evidence: { synthetic: true, stale: true }, flags: expect.arrayContaining(["SYNTHETIC_REFERENCE_DATA", "HISTORICAL_EVIDENCE_STALE"]) });
       // A rerun changes nothing, through the same duplicate-safe boundary.
       expect(await load()).toMatchObject({ inserted: 0 });
       const [row] = await t.db.select().from(saleTransactions).where(eq(saleTransactions.outletId, rows[0].id)).limit(1);
-      expect(row).toMatchObject({ source: "REFERENCE", providerStatus: "REFERENCE", sourceSystem: "uk-specialty-retail-v1", verificationState: "PENDING" });
+      expect(row).toMatchObject({ source: "REFERENCE", providerStatus: "REFERENCE", sourceSystem: "uk-hospitality-v1", verificationState: "PENDING" });
     } finally { await t.close(); }
   });
 
@@ -273,38 +281,41 @@ describe("provenance and truthful product states", () => {
       const id = c.rows[0].id;
       const manager: Scope = { ...c.owner(), role: "MANAGER" };
       pages(t.db, false);
-      await ingest(t.db, c.organisationId, id, "EUR", "2026-10-18", day => day === 6 ? 900_000 : 300_000);
+      await ingest(t.db, c.organisationId, id, "EUR", "2026-10-18", day => day === 6 ? 18 : 6);
+      await setTradingHours(t.db, c.owner(), Array(7).fill(ALL_DAY));
 
-      // Valid forecast, no policy: unavailable, and never presented as no labour needed.
+      // Valid forecast, no policy: unavailable, and never presented as no staff needed.
       let owner = await render(c.owner(), () => OwnerWorkspace({ area: "forecast" }));
-      for (const text of ["Imported sales history", "not verified by a payment provider", "No labour policy is configured", "This does not mean no labour is needed", "No labour policy applies"]) expect(owner).toContain(text);
-      expect(owner).toContain("Required labour is unavailable because no compatible labour policy is configured");
+      for (const text of ["Imported sales history", "not verified by a payment provider", "Service capacity not set", "This does not mean no staff are needed", "Configuration required", "Set up staffing inputs"]) expect(owner).toContain(text);
+      expect(owner).toContain("Required staff capacity is unavailable because service capacity and minimum cover aren’t configured");
       for (const leaked of ["£", "Verified PayPal", "synthetic", "reference company"]) expect(owner).not.toContain(leaked);
       let plan = await render(manager, () => ManagerWorkspace({ area: "plan" }));
       expect(plan).toContain("Imported sales history · not provider-verified");
-      expect(plan).toContain("No labour policy is configured");
+      expect(plan).toContain("Service capacity not set");
+      expect(plan).toContain("Ask the business owner");
+      expect(plan).not.toContain("Set up staffing inputs");
       expect(plan).not.toContain("Single-day demand forecast");
 
-      // Policy, no rota: labour known, gap unavailable, not zero.
-      await setLabourPolicy(t.db, c.owner(), "ORGANISATION", { currencyCode: "EUR", salesMinorPerLabourHour: 7_500 });
+      // Policy, no cover: required known, gap unavailable, not zero.
+      await setWorkloadPolicy(t.db, c.owner(), "ORGANISATION", { transactionsPerStaffHour: 8, minimumStaffWhileOpen: 0 });
       owner = await render(c.owner(), () => OwnerWorkspace({ area: "forecast" }));
-      for (const text of ["Regular coverage not set", "No regular-staff coverage has been set", "this business’s configured assumption"]) expect(owner).toContain(text);
-      // Explicit zero rota: an hours figure, labelled configured.
-      await setRegularCoverage(t.db, c.owner(), Array(7).fill(0));
+      for (const text of ["Regular coverage not set", "No regular-staff coverage has been set", "this business’s configured policy"]) expect(owner).toContain(text);
+      // Explicit zero cover: an hours figure, labelled configured.
+      await setRegularCoverage(t.db, c.owner(), Array(7).fill([]));
       owner = await render(c.owner(), () => OwnerWorkspace({ area: "forecast" }));
-      expect(owner).toContain("the rota configured for this location");
+      expect(owner).toContain("as configured for this location");
       expect(owner).not.toContain("Regular coverage not set");
       expect(owner).toContain("AI assessment is not configured");
       plan = await render(manager, () => ManagerWorkspace({ area: "plan" }));
       expect(plan).toContain("€");
-      expect(plan).toContain("this business’s configured assumption");
+      expect(plan).toContain("this business’s configured policy");
       expect(plan).not.toContain("Reference sales history");
 
       // The Owner configures it in business language; a Manager page offers no such form.
       const policies = await render(c.owner(), () => OwnerWorkspace({ area: "policies" }));
-      for (const text of ["Labour policy", "Forecast sales per labour hour", "not an industry benchmark", "Organisation default", "Quay Street override", "Regular coverage · Quay Street", "Enter 0 for a day with no regular staff"]) expect(policies).toContain(text);
+      for (const text of ["Service capacity and minimum cover", "How many completed transactions can one staff member typically support in an hour?", "Minimum staff required while this location is open.", "FairShift doesn’t know the right values and sets none for you", "Organisation default", "Quay Street override", "Trading hours · Quay Street", "Regular coverage · Quay Street", "<code>none</code> for a day with no regular staff"]) expect(policies).toContain(text);
       expect(plan).not.toContain("Save organisation default");
-      expect(await render(manager, () => ManagerWorkspace({ area: "review" }))).not.toContain("Labour policy");
+      expect(await render(manager, () => ManagerWorkspace({ area: "review" }))).not.toContain("Service capacity and minimum cover");
     } finally { await t.close(); }
   });
 });

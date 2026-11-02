@@ -1,18 +1,18 @@
 import { createHash } from "node:crypto";
 import { persistCanonicalRows, type CanonicalRow } from "@/server/commerce/ingestion";
-import { writeLabourPolicyVersion } from "@/server/intelligence/business-policy";
-import { and, eq, inArray, isNull, like, not, sql } from "drizzle-orm";
+import { and, eq, inArray, like, not, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
-import { labourPolicies, organisations, outlets, regularStaffCoverage, saleTransactions } from "@/server/db/schema";
-import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceDates, referenceStore, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-retail";
+import { organisations, outletTradingHours, outlets, regularCoverageWindows, saleTransactions } from "@/server/db/schema";
+import { localDate, shiftDate } from "@/server/intelligence/forecast";
+import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceCoverage, referenceDates, referenceTradingHours, referenceTransactions, type ReferenceStoreCode } from "@/server/reference/uk-hospitality";
 
 const inputSchema = z.object({
   organisationId: z.string().uuid(),
   // Every reference store must be mapped explicitly to a distinct outlet; nothing is inferred.
   outlets: z.object(Object.fromEntries(REFERENCE_STORE_CODES.map(code => [code, z.string().uuid()])) as Record<ReferenceStoreCode, z.ZodString>).strict(),
   from: z.iso.date().default(REFERENCE_DATASET.firstDate),
-  through: z.iso.date().default(REFERENCE_DATASET.lastDate),
+  through: z.iso.date().optional(),
 }).strict();
 export type ReferenceProvisionInput = z.input<typeof inputSchema>;
 
@@ -36,11 +36,18 @@ export async function referenceDataThrough(db: Pick<Database, "select">, outletI
 }
 
 // Loads labelled synthetic reference sales into explicitly mapped outlets of one
-// organisation, through the canonical commerce boundary, with this company's own rota
-// and labour policy as explicit reference configuration. Idempotent: deterministic
-// references make a rerun insert nothing. A policy the business already has is kept.
-export async function provisionReferenceHistory(db: Database, rawInput: ReferenceProvisionInput) {
-  const input = inputSchema.parse(rawInput);
+// organisation, through the canonical commerce boundary, with this company's trading hours
+// and standing cover as explicit reference configuration. Idempotent: deterministic
+// references make a rerun insert nothing, and anything the business configured itself is
+// kept. It sets no workload policy: service capacity and minimum cover are the Owner's.
+// A day that hasn't finished yet is refused, so no sale can be dated in the future.
+export async function provisionReferenceHistory(db: Database, rawInput: ReferenceProvisionInput, now = new Date()) {
+  const parsed = inputSchema.parse(rawInput);
+  // Reference history holds completed days only, and defaults to the latest one available.
+  const latestComplete = shiftDate(localDate(now, REFERENCE_DATASET.timezone), -1);
+  const lastRequested = parsed.through ?? (latestComplete < REFERENCE_DATASET.lastDate ? latestComplete : REFERENCE_DATASET.lastDate);
+  if (lastRequested > latestComplete) throw new Error(`Reference history cannot include ${lastRequested}: the latest completed trading day is ${latestComplete}.`);
+  const input = { ...parsed, through: lastRequested };
   const dates = referenceDates(input.from, input.through);
   const mapping = REFERENCE_STORE_CODES.map(code => ({ code, outletId: input.outlets[code] }));
   if (new Set(mapping.map(row => row.outletId)).size !== mapping.length) throw new Error("Each reference store needs a distinct outlet.");
@@ -84,20 +91,14 @@ export async function provisionReferenceHistory(db: Database, rawInput: Referenc
       }
       await flush();
     }
-    // Staffing input only (planned regular labour per weekday). Required labour,
-    // coverage gaps and shift counts are derived by the application, never stored.
-    const coverage = mapping.flatMap(({ code, outletId }) => referenceStore(code).regularCoverageHours.map((hours, i) => ({
-      id: deterministicId(`REFCOV:${REFERENCE_DATASET.version}:${code}:${outletId}:${i + 1}`), organisationId: input.organisationId,
-      outletId, isoWeekday: i + 1, plannedMinutes: hours * 60, source: "REFERENCE" })));
-    await tx.insert(regularStaffCoverage).values(coverage).onConflictDoUpdate({
-      target: [regularStaffCoverage.outletId, regularStaffCoverage.isoWeekday],
-      set: { plannedMinutes: sql`excluded.planned_minutes`, updatedAt: new Date() },
-      setWhere: sql`${regularStaffCoverage.source} = 'REFERENCE'`,
-    });
-    const [existingPolicy] = await tx.select({ id: labourPolicies.id }).from(labourPolicies)
-      .where(and(eq(labourPolicies.organisationId, input.organisationId), isNull(labourPolicies.outletId), eq(labourPolicies.status, "ACTIVE")));
-    if (!existingPolicy) await writeLabourPolicyVersion(tx, { organisationId: input.organisationId, outletId: null, currencyCode: REFERENCE_DATASET.currency,
-      salesMinorPerLabourHour: REFERENCE_DATASET.salesMinorPerLabourHour, source: "REFERENCE", createdBy: null });
+    // Configuration inputs only. Required capacity and casual gaps are derived, never stored.
+    const perWeekday = (read: (code: ReferenceStoreCode) => unknown[], tag: string) => mapping.flatMap(({ code, outletId }) => read(code).map((windows, i) => ({
+      id: deterministicId(`${tag}:${REFERENCE_DATASET.version}:${code}:${outletId}:${i + 1}`), organisationId: input.organisationId, outletId, isoWeekday: i + 1, windows, source: "REFERENCE" })));
+    await tx.insert(outletTradingHours).values(perWeekday(referenceTradingHours, "REFHOURS")).onConflictDoUpdate({
+      target: [outletTradingHours.outletId, outletTradingHours.isoWeekday], set: { windows: sql`excluded.windows`, updatedAt: new Date() }, setWhere: sql`${outletTradingHours.source} = 'REFERENCE'` });
+    const coverage = perWeekday(referenceCoverage, "REFCOVER");
+    await tx.insert(regularCoverageWindows).values(coverage).onConflictDoUpdate({
+      target: [regularCoverageWindows.outletId, regularCoverageWindows.isoWeekday], set: { windows: sql`excluded.windows`, updatedAt: new Date() }, setWhere: sql`${regularCoverageWindows.source} = 'REFERENCE'` });
     return { inserted, expected, regularCoverageRows: coverage.length };
   });
   const through = await referenceDataThrough(db, mapping.map(row => row.outletId));

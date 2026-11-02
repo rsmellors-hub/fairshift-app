@@ -16,7 +16,9 @@ import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
-import { clearLabourPolicy, setLabourPolicy, setRegularCoverage, type PolicyLevel } from "@/server/intelligence/business-policy";
+import { clearWorkloadPolicy, setRegularCoverage, setTradingHours, setWorkloadPolicy, type PolicyLevel } from "@/server/intelligence/business-policy";
+import { createShiftFromOpportunity } from "@/server/intelligence/opportunity-shifts";
+import { parseCoverageText, parseTradingText } from "@/server/intelligence/workload";
 import { guardDemoWrite } from "@/server/demo/fixtures";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 
@@ -36,6 +38,8 @@ function planPath(form: FormData) {
   const date = field(form, "planDate"), department = field(form, "planDepartment");
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) query.set("date", date);
   if (/^[0-9a-f-]{36}$/i.test(department)) query.set("department", department);
+  const window = field(form, "planWindow");
+  if (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(window)) query.set("window", window);
   // Only a known page: the value comes from a form and decides a redirect.
   const area = field(form, "returnArea") === "allocations" ? "allocations" : "fill";
   return `/manager/${area}${query.size ? `?${query}` : ""}`;
@@ -76,8 +80,12 @@ export async function createRequirementAction(form: FormData) {
     await guardDemoWrite(getDatabase(), scope, { creatingShift: true });
     // Times are wall-clock at the work location; the session decides the location.
     const timeZone = await locationTimezone(getDatabase(), scope);
-    return createRequirement(getDatabase(), { departmentId: field(form, "departmentId"), policyId: field(form, "policyId"), requiredHeadcount: Number(field(form, "headcount")),
-      startsAt: localDateTimeToInstant(field(form, "startsAt"), timeZone), endsAt: localDateTimeToInstant(field(form, "endsAt"), timeZone) }, scope);
+    const requirement = { departmentId: field(form, "departmentId"), policyId: field(form, "policyId"), requiredHeadcount: Number(field(form, "headcount")),
+      startsAt: localDateTimeToInstant(field(form, "startsAt"), timeZone), endsAt: localDateTimeToInstant(field(form, "endsAt"), timeZone) };
+    // A shift started from an opportunity keeps why it was created. These fields only point at
+    // it: the figures are recalculated on the server for this session's own location.
+    const date = field(form, "opportunityDate"), window = field(form, "opportunityWindow");
+    return date && window ? createShiftFromOpportunity(getDatabase(), { ...requirement, date, window }, scope) : createRequirement(getDatabase(), requirement, scope);
   });
 }
 export async function offerAssignmentAction(form: FormData) {
@@ -157,39 +165,48 @@ export async function refreshPayoutAction(form: FormData) {
   return perform("/manager/review", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
 }
 // Owner-only staffing inputs, for the organisation or the Owner's selected location.
-function minorFromMajor(value: string) {
-  if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) throw new Error("Enter a valid amount.");
-  const [whole, fraction = ""] = value.split(".");
-  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+// Whole numbers only. A blank or malformed value is refused, never read as zero.
+function wholeNumber(value: string, feedback: string) {
+  if (!/^\d{1,4}$/.test(value.trim())) throw new UserFacingError(feedback, "Enter a whole number.");
+  return Number(value.trim());
 }
-function labourPolicyAction(level: PolicyLevel) {
+function workloadPolicyAction(level: PolicyLevel) {
   return async (form: FormData) => {
     const scope=await requireScope(["OWNER"]);
-    return perform("/owner/policies", () => setLabourPolicy(getDatabase(),scope,level,{ currencyCode: field(form,"currencyCode").trim().toUpperCase(), salesMinorPerLabourHour: minorFromMajor(field(form,"salesPerLabourHour").trim()) }));
+    return perform("/owner/policies", async () => {
+      const transactionsPerStaffHour = wholeNumber(field(form,"transactionsPerStaffHour"), "service-capacity-invalid");
+      const minimumStaffWhileOpen = wholeNumber(field(form,"minimumStaffWhileOpen"), "minimum-cover-invalid");
+      if (transactionsPerStaffHour < 1 || transactionsPerStaffHour > 1000) throw new UserFacingError("service-capacity-invalid", "Enter a whole number from 1 to 1000.");
+      if (minimumStaffWhileOpen > 100) throw new UserFacingError("minimum-cover-invalid", "Enter a whole number from 0 to 100.");
+      return setWorkloadPolicy(getDatabase(),scope,level,{ transactionsPerStaffHour, minimumStaffWhileOpen });
+    });
   };
 }
-export async function saveOrganisationLabourPolicyAction(form: FormData) { return labourPolicyAction("ORGANISATION")(form); }
-export async function saveLocationLabourPolicyAction(form: FormData) { return labourPolicyAction("LOCATION")(form); }
-export async function clearOrganisationLabourPolicyAction() {
+export async function saveOrganisationWorkloadPolicyAction(form: FormData) { return workloadPolicyAction("ORGANISATION")(form); }
+export async function saveLocationWorkloadPolicyAction(form: FormData) { return workloadPolicyAction("LOCATION")(form); }
+export async function clearOrganisationWorkloadPolicyAction() {
   const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => clearLabourPolicy(getDatabase(),scope,"ORGANISATION"));
+  return perform("/owner/policies", () => clearWorkloadPolicy(getDatabase(),scope,"ORGANISATION"));
 }
-export async function clearLocationLabourPolicyAction() {
+export async function clearLocationWorkloadPolicyAction() {
   const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => clearLabourPolicy(getDatabase(),scope,"LOCATION"));
+  return perform("/owner/policies", () => clearWorkloadPolicy(getDatabase(),scope,"LOCATION"));
 }
-// Hours per weekday: blank leaves the day not set; 0 is a configured zero.
+// One line per weekday. Blank leaves the day not set, which stays distinct from closed or none.
+function weekFromForm<T>(form: FormData, prefix: string, parse: (text: string) => T, feedback: string) {
+  return [1,2,3,4,5,6,7].map(day => {
+    const value = field(form,`${prefix}${day}`).trim();
+    if (!value) return null;
+    try { return parse(value); } catch { throw new UserFacingError(feedback, "This time range couldn’t be read."); }
+  });
+}
+export async function saveTradingHoursAction(form: FormData) {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => setTradingHours(getDatabase(),scope,weekFromForm(form,"trading",parseTradingText,"trading-hours-invalid")));
+}
 export async function saveRegularCoverageAction(form: FormData) {
   const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => setRegularCoverage(getDatabase(),scope,[1,2,3,4,5,6,7].map(day => {
-    const value = field(form,`day${day}`).trim();
-    if (!value) return null;
-    if (!/^\d{1,5}(\.\d{1,2})?$/.test(value)) throw new Error("Enter hours as a number.");
-    const [whole, fraction = ""] = value.split(".");
-    const minutes = (Number(whole) * 100 + Number(fraction.padEnd(2, "0"))) * 60 / 100;
-    if (!Number.isInteger(minutes)) throw new Error("Enter hours in whole minutes.");
-    return minutes;
-  })));
+  return perform("/owner/policies", () => setRegularCoverage(getDatabase(),scope,weekFromForm(form,"coverage",parseCoverageText,"regular-coverage-invalid")));
 }
 export async function changeAssignmentAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});

@@ -10,7 +10,7 @@ import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getManagerForecast } from "@/server/intelligence/manager";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { provisionReferenceHistory } from "@/server/reference/provision";
-import { REFERENCE_STORE_CODES, referenceDates, referenceTradingDay } from "@/server/reference/uk-retail";
+import { REFERENCE_STORE_CODES, referenceDates, referenceTransactions } from "@/server/reference/uk-hospitality";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
@@ -22,13 +22,13 @@ const NOW = new Date("2026-10-25T10:00:00Z");
 // NOW is Sunday 25 Oct 2026 in London (the day BST ends); planning starts tomorrow.
 const WEEK = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"];
 
-async function referenceCompany(db: Db, from = "2025-11-03") {
+async function referenceCompany(db: Db, from = "2026-08-24") {
   const organisationId = randomUUID();
   await db.insert(organisations).values({ id: organisationId, name: "Weekly forecast company" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} store`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
-  await provisionReferenceHistory(db, { organisationId, outlets: mapping, from, through: "2025-12-28" });
+  await provisionReferenceHistory(db, { organisationId, outlets: mapping, from, through: "2026-10-18" });
   const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Weekly", locationName: rows[0].name };
   return { organisationId, rows, mapping, owner };
 }
@@ -41,29 +41,28 @@ describe("weekly demand forecast", () => {
       const weekly = await getWeeklyForecast(t.db, c.owner, NOW);
       expect(weekly.outlets).toHaveLength(5);
       for (const [i, outlet] of weekly.outlets.entries()) {
-        expect(outlet.selection).toMatchObject({ status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL", dataThrough: "2025-12-28", firstTarget: "2026-10-26" });
+        expect(outlet.selection).toMatchObject({ status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL", dataThrough: "2026-10-18", firstTarget: "2026-10-26" });
         expect(outlet.days.map(day => day.targetDate)).toEqual(WEEK);
         expect(outlet.days.every(day => day.forecast && day.forecast.lowerSalesMinor <= day.forecast.forecastSalesMinor && day.forecast.forecastSalesMinor <= day.forecast.upperSalesMinor)).toBe(true);
         expect(outlet.weeklyTotalMinor).toBe(outlet.days.reduce((sum, day) => sum + day.forecast!.forecastSalesMinor, 0));
         // Independent check: the generator's own daily totals give the same forecast as the database path.
         const code = REFERENCE_STORE_CODES[i];
-        const days = referenceDates("2025-11-03", "2025-12-28").map(date => referenceTradingDay(code, date)).filter(day => day.open)
-          .map(day => ({ date: day.date, salesMinor: day.open ? day.salesMinor : 0, transactions: day.open ? day.transactions : 0 }));
-        expect(outlet.days[0].forecast).toEqual(forecastFromHistory({ days, dataThrough: "2025-12-28", targetDate: WEEK[0] }));
+        const days = referenceDates("2026-08-24", "2026-10-18").map(date => { const bills = referenceTransactions(code, date); return { date, salesMinor: bills.reduce((sum, bill) => sum + bill.amountMinor, 0), transactions: bills.length }; }).filter(day => day.transactions > 0);
+        expect(outlet.days[0].forecast).toEqual(forecastFromHistory({ days, dataThrough: "2026-10-18", targetDate: WEEK[0] }));
       }
       expect(new Set(weekly.outlets.map(outlet => outlet.weeklyTotalMinor)).size).toBe(5);
-      expect(weekly.consolidated).toMatchObject({ source: "REFERENCE", currency: "GBP", dataThrough: "2025-12-28", firstTarget: "2026-10-26", dataThroughConsistent: true });
+      expect(weekly.consolidated).toMatchObject({ source: "REFERENCE", currency: "GBP", dataThrough: "2026-10-18", firstTarget: "2026-10-26", dataThroughConsistent: true });
       expect(weekly.consolidated!.totalMinor).toBe(weekly.outlets.reduce((sum, outlet) => sum + outlet.weeklyTotalMinor!, 0));
       expect(await getWeeklyForecast(t.db, c.owner, NOW)).toEqual(weekly);
       // The planning week follows the injected clock; the evidence keeps its own date.
-      expect((await getWeeklyForecast(t.db, c.owner, new Date("2027-03-01T10:00:00Z"))).consolidated).toMatchObject({ firstTarget: "2027-03-02", dataThrough: "2025-12-28" });
+      expect((await getWeeklyForecast(t.db, c.owner, new Date("2027-03-01T10:00:00Z"))).consolidated).toMatchObject({ firstTarget: "2027-03-02", dataThrough: "2026-10-18" });
     } finally { await t.close(); }
   }, 180_000);
 
   it("keeps a handful of provider sales from replacing reference history", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await referenceCompany(t.db, "2025-12-01");
+      const c = await referenceCompany(t.db, "2026-09-21");
       const id = randomUUID();
       await t.db.insert(saleTransactions).values({ id, internalReference: id, paypalCustomId: id, outletId: c.mapping.UK01, currencyCode: "GBP",
         source: "PAYPAL_SANDBOX", grossAmountMinor: 99_999_999, paypalCaptureId: `TEST-${id}`, paypalOrderId: `ORDER-${id}`,
@@ -77,7 +76,7 @@ describe("weekly demand forecast", () => {
   it("shows missing history as unavailable, not zero, and withholds a mixed company total", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await referenceCompany(t.db, "2025-12-15");
+      const c = await referenceCompany(t.db, "2026-10-05");
       const empty = randomUUID();
       await t.db.insert(outlets).values({ id: empty, organisationId: c.organisationId, name: "0 New store", timezone: "Europe/London" });
       const weekly = await getWeeklyForecast(t.db, c.owner, NOW);
@@ -95,7 +94,7 @@ describe("weekly demand forecast", () => {
   it("scopes outlets to the authorised organisation and manager location, and rejects workers", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await referenceCompany(t.db, "2025-12-22");
+      const c = await referenceCompany(t.db, "2026-10-12");
       const otherId = randomUUID();
       await t.db.insert(organisations).values({ id: otherId, name: "Other company" });
       const other = await getWeeklyForecast(t.db, { ...c.owner, organisationId: otherId }, NOW);
@@ -122,16 +121,16 @@ describe("weekly demand forecast", () => {
   it("renders the weekly forecast and overview summary with provenance, GBP and no AI claims", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await referenceCompany(t.db, "2025-12-01");
+      const c = await referenceCompany(t.db, "2026-09-21");
       const empty = randomUUID();
       const weekly = await getWeeklyForecast(t.db, c.owner, NOW);
       let html = renderToStaticMarkup(createElement(OwnerWeeklyForecast, { weekly }));
       for (const header of ["Mon 26 Oct", "Tue 27 Oct", "Wed 28 Oct", "Thu 29 Oct", "Fri 30 Oct", "Sat 31 Oct", "Sun 1 Nov"]) expect(html).toContain(`>${header}</th>`);
       for (const row of c.rows) expect(html).toContain(`<strong>${row.name}</strong>`);
-      expect(html).toContain("Reference sales history · GBP · data through Sun, 28 Dec 2025");
+      expect(html).toContain("Reference sales history · GBP · data through Sun, 18 Oct 2026");
       expect(html).toContain("Forecast from historical evidence");
-      expect(html).toContain("Reference sales history is labelled synthetic input, through Sun, 28 Dec 2025.");
-      expect(html).toContain("Historical evidence through Sun, 28 Dec 2025");
+      expect(html).toContain("Reference sales history is labelled synthetic input, through Sun, 18 Oct 2026.");
+      expect(html).toContain("Historical evidence through Sun, 18 Oct 2026");
       expect(html).toContain("Mon, 26 Oct 2026 – Sun, 1 Nov 2026");
       expect(html).toContain("does not describe current trading");
       expect(html).toContain("All locations");
@@ -144,7 +143,7 @@ describe("weekly demand forecast", () => {
 
       const data = await getOwnerOverview(t.db, c.owner);
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: ownerForecastSummary(weekly) }));
-      expect(html).toContain("Next 7 days · from reference history through 28 Dec 2025");
+      expect(html).toContain("Next 7 days · from reference history through 18 Oct 2026");
       expect(html).toContain("Weekly forecast");
       html = renderToStaticMarkup(createElement(OwnerOverview, { data, forecast: null }));
       expect(html).toContain("The weekly forecast could not be loaded. No demand has been assumed.");
@@ -167,7 +166,7 @@ describe("weekly demand forecast", () => {
   it("gives a manager of a reference location no single-day worker figure from the USD-only demonstration policy", async () => {
     const t = await createTestDatabase();
     try {
-      const c = await referenceCompany(t.db, "2025-12-15");
+      const c = await referenceCompany(t.db, "2026-10-05");
       const result = await getManagerForecast(t.db, NOW, { organisationId: c.organisationId, locationId: c.mapping.UK02 });
       expect(result).toMatchObject({ status: "UNAVAILABLE", reason: "NO_STAFFING_POLICY_FOR_CURRENCY", source: "REFERENCE", currency: "GBP", targetDate: "2026-10-26" });
       const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));

@@ -79,7 +79,7 @@ export function commercialContext(forecast: OutletWeeklyForecast, days: readonly
   const comparable = comparableSales !== null ? { salesMinor: comparableSales, deltaMinor: total! - comparableSales, deltaBps: bps(total! - comparableSales, comparableSales) } : null;
 
   const known = days.every(day => !day.unavailable);
-  const needMinutes = known ? sum(days, day => Math.max(0, day.requiredMinutes! - day.regularMinutes!)) : null;
+  const needMinutes = known ? sum(days, day => day.casualNeedMinutes!) : null;
   const allocatedMinutes = sum(days, day => day.allocatedCasualMinutes);
   const casual = needMinutes !== null ? { needMinutes, allocatedMinutes, allocatedBps: bps(Math.min(allocatedMinutes, needMinutes), needMinutes) } : null;
 

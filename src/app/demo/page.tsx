@@ -19,7 +19,7 @@ const ENTRIES: [DemoPersona, string, string][] = [
 // The route through the demo. The current flow and the earlier completed shift are kept apart,
 // because a shift accepted during a visit can't also be the one already finished and paid.
 const ACTS = [
-  ["Demand", "Owner", "Sales history becomes a daily forecast for next week and a staffing gap at each location. The history is labelled reference data.", ["Overview", "Sales", "Forecast", "Location drill-down"]],
+  ["Demand", "Owner", "Sales history becomes next week’s expected sales and expected transactions by time of day, and a casual requirement at each location. The history is labelled reference data.", ["Overview", "Sales", "Forecast", "Location drill-down"]],
   ["Opportunity", "Manager, then Worker", "Fill a gap with a shift inside the Owner’s pay terms and offer it. As the Worker, accept with the full terms in view. As the Manager, finalise it on the schedule.", ["Forecast & staffing", "Fill shifts", "Offer", "Accept", "Allocations"]],
   ["Performance", "Worker", "An earlier completed shift shows how attributed sales reached a £200 target.", ["Earlier completed shift", "£200 target"]],
   ["Money", "Manager, then Worker", "The same earlier shift shows £96 base + £25 bonus = £121, the manager’s approval, and the PayPal Sandbox result the Worker sees.", ["Review & pay", "Worker earnings"]],

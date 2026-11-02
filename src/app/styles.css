@@ -708,3 +708,34 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
   .site-section { padding-block: 32px; }
   .site-nav { gap: 2px 14px; }
 }
+
+/* Time-of-day demand and cover */
+.setup-notice { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line-strong); border-left: 4px solid var(--chart-gap); border-radius: var(--radius); background: var(--card); }
+.setup-notice p { margin: 4px 0; }
+.opportunity-list { margin: 0 0 16px; padding: 16px 18px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.opportunity-list h3 { margin: 0 0 8px; font-size: 17px; }
+.opportunity-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.opportunity-list li { display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto auto; gap: 4px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.opportunity-list li:first-child { border-top: 0; }
+.opportunity-figures { color: var(--muted); font-size: 14px; min-width: 0; }
+.opportunity-gap { white-space: nowrap; color: var(--gap-ink); }
+.opportunity-switch { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.hour-strip { list-style: none; display: flex; gap: 2px; margin: 8px 0 12px; padding: 0; max-width: 100%; }
+.hour-strip li { flex: 1 1 0; min-width: 0; display: grid; grid-template-rows: auto 72px auto; gap: 3px; text-align: center; }
+.hour-count { font-size: 11px; font-weight: 600; overflow: hidden; }
+.hour-label { font-size: 11px; color: var(--muted); }
+.hour-bar { display: flex; flex-direction: column-reverse; justify-content: flex-start; border-bottom: 1px solid var(--line-strong); }
+.hour-bar i { display: block; }
+.hour-regular, .hour-demand { background: var(--chart-regular); }
+.hour-casual { background: var(--chart-casual); }
+.hour-gap { background: var(--chart-gap); }
+.service-table td small, .service-table th small { display: block; color: var(--muted); font-weight: 400; }
+.period-open { color: var(--gap-ink) !important; font-weight: 600 !important; }
+.why-shift { margin: 6px 0; }
+.field-hint { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+.owner-layer { margin: 0 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+@media (max-width: 720px) {
+  .opportunity-list li { grid-template-columns: minmax(0, 1fr) auto; }
+  .opportunity-figures { grid-column: 1 / -1; grid-row: 2; }
+  .opportunity-list .button-link { grid-column: 1 / -1; text-align: center; }
+}
