@@ -111,6 +111,47 @@ describe("authenticated HTTP action boundary",()=>{
  });
 });
 
+describe("Owner operating a location without a Manager account",()=>{
+ it("shows an Owner shell in operations, offers a location switch only with a choice, and keeps a Manager to their location",async()=>{
+  const t=await createTestDatabase();try {
+   vi.mocked(getDatabase).mockReturnValue(t.db);const o=await bootstrap(t.db);
+   jar.set("fairshift_session",await issueSession(t.db,o.u.id));
+   // One location: Owner role and navigation, no selector, the only location already in scope.
+   let html=renderToStaticMarkup(await ManagerLayout({children:"Operations"}));
+   expect(html).toContain('aria-label="Owner navigation"');
+   expect(html).not.toContain('aria-label="Manager navigation"');
+   for (const href of ["/manager/plan","/manager/fill","/manager/allocations","/manager/team","/manager/review","/owner"]) expect(html).toContain(`href="${href}"`);
+   expect(html).not.toContain("Operating location");
+   expect((await requireScope(["OWNER","MANAGER"])).locationId).toBe(o.o.locationId);
+   // A second active location brings the switch, listing only this organisation's active locations.
+   const second=randomUUID();
+   await t.db.insert(outlets).values({id:second,organisationId:o.o.organisationId,name:"Riverside",timezone:"Europe/London"});
+   await t.db.insert(outlets).values({id:randomUUID(),organisationId:o.o.organisationId,name:"Closed site",timezone:"Europe/London",active:false});
+   html=renderToStaticMarkup(await ManagerLayout({children:"Operations"}));
+   expect(html).toContain("Operating location");
+   expect(html).toContain("Riverside");
+   expect(html).not.toContain("Closed site");
+   // Switching returns to the operational page and every operation then resolves there.
+   await expect(selectLocationAction(form({locationId:second,next:"/manager/fill"}))).rejects.toThrow("REDIRECT:/manager/fill");
+   expect(await requireScope(["OWNER","MANAGER"])).toMatchObject({role:"OWNER",locationId:second,locationName:"Riverside"});
+   // Only known operational paths are returned to.
+   for (const next of ["https://elsewhere.example/manager/fill","//elsewhere.example","/manager/fill?date=2027-01-01","/worker"]) await expect(selectLocationAction(form({locationId:o.o.locationId,next}))).rejects.toThrow("REDIRECT:/owner/policies");
+   await expect(selectLocationAction(form({locationId:randomUUID(),next:"/manager/fill"}))).rejects.toThrow(/denied/);
+   expect(jar.get("fairshift_location")).toBe(o.o.locationId);
+   // A Manager of the first location stays there, whatever location the browser names.
+   const i=await inviteMember(t.db,{...o.scope,locationId:o.o.locationId},{role:"MANAGER",email:"manager@example.test",firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
+   const mu=await registerIdentity(t.db,{email:"manager@example.test",password});await redeemInvitation(t.db,mu.id,{token:i.token});
+   jar.set("fairshift_session",await issueSession(t.db,mu.id));jar.set("fairshift_location",second);
+   expect(await requireScope(["OWNER","MANAGER"])).toMatchObject({role:"MANAGER",locationId:o.o.locationId});
+   html=renderToStaticMarkup(await ManagerLayout({children:"Operations"}));
+   expect(html).toContain('aria-label="Manager navigation"');
+   expect(html).not.toContain("Operating location");
+   expect(html).not.toContain('href="/owner');
+   await expect(selectLocationAction(form({locationId:second,next:"/manager/fill"}))).rejects.toThrow("REDIRECT:/account");
+  }finally{await t.close();}
+ });
+});
+
 describe("subscription gate at real application boundaries",()=>{
  it("denies direct Owner routes and protected mutations for every non-entitled state, with no operational navigation in setup",async()=>{
   const t=await createTestDatabase();try {

@@ -50,7 +50,11 @@ describe("shared product shell", () => {
     expect(html).not.toContain("Not available</small>");
     expect(html).not.toContain('href="/owner/incentives"');
     expect(html).toContain('href="/account"');
-    expect(html).not.toContain('href="/manager');
+    // An Owner reaches the location operations from their own navigation.
+    for (const href of ["/manager/plan", "/manager/fill", "/manager/allocations", "/manager/team", "/manager/review#performance", "/manager/review"]) expect(html).toContain(`href="${href}"`);
+    expect(html).toContain("Operations");
+    expect(html).not.toContain('href="/worker');
+    expect(html).not.toContain('href="/operator');
   });
 
   it("keeps the existing worker route usable when its data is unavailable", async () => {

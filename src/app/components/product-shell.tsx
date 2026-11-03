@@ -22,6 +22,7 @@ export function ProductShell({
   navigation,
   mobile = false,
   banner,
+  contextControl,
   children,
 }: {
   role: "Manager" | "Worker" | "Owner" | "Operator";
@@ -29,6 +30,8 @@ export function ProductShell({
   navigation: ProductNavItem[];
   mobile?: boolean;
   banner?: React.ReactNode;
+  // A control beside the context, such as the Owner's operating-location switch.
+  contextControl?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -39,6 +42,7 @@ export function ProductShell({
         <div className="role-context">
           <span>{role}</span>
           <strong>{context}</strong>
+          {contextControl}
         </div>
         <ProductNavigation navigation={navigation} label={`${role} navigation`} />
         {banner ? null : <p className="sidebar-account"><Link href="/account">Account</Link></p>}
@@ -46,7 +50,7 @@ export function ProductShell({
       <div className="product-workspace">
         <header className="workspace-bar">
           <FairShiftBrand compact href={`/${role.toLowerCase()}`} />
-          {!mobile ? <details className="mobile-menu"><summary>Menu</summary><ProductNavigation navigation={navigation} label={`${role} mobile navigation`} /></details> : null}
+          {!mobile ? <details className="mobile-menu"><summary>Menu</summary>{contextControl}<ProductNavigation navigation={navigation} label={`${role} mobile navigation`} /></details> : null}
           <div className="workspace-context">
             <span>{role}</span>
             <strong>{context}</strong>

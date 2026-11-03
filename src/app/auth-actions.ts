@@ -127,7 +127,8 @@ export async function selectLocationAction(form:FormData) {
  const rows=await getDatabase().select().from(outlets).where(eq(outlets.organisationId,scope.organisationId));
  if (!rows.some(r => r.active && r.id === field(form,"locationId"))) throw new Error("Access denied.");
  (await cookies()).set("fairshift_location",field(form,"locationId"),{httpOnly:true,secure:process.env.NODE_ENV === "production",sameSite:"lax",path:"/"});
- redirect(field(form,"next")==="plan" ? "/manager/plan" : "/owner/policies");
+ const next=field(form,"next");
+ redirect(next === "plan" ? "/manager/plan" : /^\/manager(\/(plan|fill|allocations|team|review))?$/.test(next) ? next : "/owner/policies");
 }
 export async function inviteAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);

@@ -177,6 +177,10 @@ tfoot th, tfoot td { background: #f2f4f1; font-weight: 650; padding: 10px 14px; 
 .role-context { display: grid; gap: 1px; margin: 16px 8px 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .role-context span { color: var(--muted); font-size: 12px; }
 .role-context strong { font-size: 14px; overflow-wrap: anywhere; }
+.location-switcher { display: grid; gap: 6px; margin-top: 8px; }
+.location-switcher label { display: grid; gap: 2px; color: var(--muted); font-size: 12px; }
+.location-switcher select { min-height: 36px; }
+.mobile-menu .location-switcher { padding-top: 8px; }
 .product-nav { display: flex; flex-direction: column; gap: 2px; }
 .product-nav-item { display: block; }
 .product-nav-group { display: block; margin: 14px 10px 4px; color: var(--muted); font-size: 11px; font-weight: 650; }
