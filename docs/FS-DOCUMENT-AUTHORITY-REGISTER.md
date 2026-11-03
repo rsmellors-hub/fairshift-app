@@ -1,0 +1,234 @@
+# FairShift Document Authority Register
+
+| Control | Value |
+|---|---|
+| Document ID | FS-DOCUMENT-AUTHORITY-REGISTER |
+| Created by | FS-HACK-GOV-APPLY-001A, 3 November 2026, from the read-only audit FS-HACK-GOV-RECON-001 |
+| Repository baseline | Branch `fs-square-live-001`, HEAD `b281c8e1c379bdb60fbc252be3db4041e4f7949d` |
+| Status | Governance index. It records which document governs what. It makes no product decision and gives no document authority of its own |
+
+Status terms follow [`AGENTS.md`](../AGENTS.md) §8. Section numbers below refer to this register unless another document is named.
+
+## 1. Active authority
+
+Read the documents in this order. A lower level never overrides a higher one.
+
+| Level | Source | What it governs |
+|---|---|---|
+| 1 | Current official PayPal AI Hackathon and Devpost sources (external) | Compliance, deadline, judging, eligibility. Verify before relying on any repository copy |
+| 2 | [`FS-HACK-MASTER-001.md`](FS-HACK-MASTER-001.md) | Frozen Phase 0 baseline, wherever no later dated Owner decision applies |
+| 3 | Dated Owner decisions in [`FAIRSHIFT_PRODUCT_UX_SPEC.md`](FAIRSHIFT_PRODUCT_UX_SPEC.md), section 1, plus the specification body. Newest applicable decision prevails | Product rules, roles, UX, visibility, earnings. Provenance is in section 6 |
+| 4 | [`FS-HACK-ROADMAP-002.md`](FS-HACK-ROADMAP-002.md), Owner-directed | Delivery sequence, scope freeze, golden-path acceptance and step numbers (its section 15). It does not on its own redefine product rules. Its product refinements bind where the Owner's direction is traceable: Bryntum forecast-gap planning (section 6, P-22) and allocated tips in the payable (FS-TIP-DEC-001). Clauses in conflict with level 3 are listed in section 5 and direct nothing until the Owner decides |
+| 5 | Repository reality and reproducible runtime evidence | Implementation state |
+| 6 | The current authorised work package | Scope of the session |
+| 7 | Implementation preference | Everything else |
+
+Rules that follow from the register:
+
+- **Only levels 1 to 6 can direct work.** Evidence documents, reports and handoffs record what happened. Their "next step", "recommended package" or "tomorrow" text is history, never a current task.
+- **Only an approved Owner decision traceable to a dated record may amend a locked requirement of the master.** The record is the specification, section 1, or an Owner-directed document named in section 6.
+- **A label is not provenance.** "Owner approved" in a document shows only that an agent recorded it. Section 6 shows which decisions are corroborated by an Owner-originated source.
+- **OWNER CONFIRMATION REQUIRED is a verification flag, not a revocation.** A decision so marked in section 6 stays in force as recorded, and implemented behaviour built on it is kept. New implementation that depends on it needs the authorising work package to name that decision.
+- **No work package authorises itself.** Authorisation comes from the Owner. A package cannot widen its own scope or authorise a successor.
+- **Status ladder:** approved, implemented, tested, verified locally, deployed, verified on hosted, demo-ready. Each is a separate claim that needs its own evidence. Deployed code is not a completed hosted Golden Path.
+
+## 2. Current work-package pointer
+
+| Item | Value |
+|---|---|
+| Last completed | **FS-HACK-GOV-APPLY-001A**: governance controls, documentation only, closed with one local commit. Not pushed or deployed. Source audit: FS-HACK-GOV-RECON-001, read-only, whose report is not in the repository |
+| Active implementation package | **NONE** |
+| Next package | Requires explicit Owner authorisation. Roadmap section 21 proposes FS-HACK-GOLDEN-RECON-001; this register does not activate it |
+| Updating this pointer | Each authorised package updates this table when it starts and when it ends |
+
+## 3. Authority classes
+
+| Class | Meaning | May direct new work |
+|---|---|---|
+| GOVERNANCE CONTROL | Agent and repository process | YES, process only |
+| GOVERNANCE INDEX | This register | NO |
+| FROZEN BASELINE | The master plan | LIMITED: where not amended |
+| PRODUCT AUTHORITY | The specification and its dated decisions | YES, subject to sections 5 and 6 |
+| DELIVERY AUTHORITY | The Owner-directed roadmap | LIMITED: see level 4 |
+| PUBLIC DOCUMENT | README, licence | NO |
+| CURRENT EVIDENCE | Latest record for its capability | NO: informs implementation state only |
+| DECISION RECORD | An implementation decision taken inside an authorised package | LIMITED: that design only |
+| HISTORICAL EVIDENCE / REPORT / HANDOFF | Superseded in whole or part | NO |
+| EVIDENCE ASSET | Screenshots and data files cited by a record | NO |
+| LOCAL CONFIGURATION | Untracked or out-of-repository agent and environment files | NO |
+
+## 4. Inventory
+
+Dates are the date stated in the document or, failing that, its first commit. "Directs" is the may-direct-new-work field.
+
+### 4.1 Authority and governance
+
+| Path | ID | Purpose | Class | Date | Status | Superseded by | Directs | Contradiction flags | Remediation |
+|---|---|---|---|---|---|---|---|---|---|
+| [`AGENTS.md`](../AGENTS.md) | — | Agent engineering instructions | GOVERNANCE CONTROL | 14 Oct 2026, amended 3 Nov 2026 | Active | — | YES, process | Before this package it called contextual AI, signals and the chain "not deployed", and said `c567f2e` blocked publication (stale per [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md) section 13) | Corrected in this package |
+| [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md) | FS-DOCUMENT-AUTHORITY-REGISTER | This index | GOVERNANCE INDEX | 3 Nov 2026 | Active | — | NO | — | Keep current in every package |
+| [`FS-HACK-MASTER-001.md`](FS-HACK-MASTER-001.md) | FS-HACK-MASTER-001 v1.0 | Phase 0 plan and product definition | FROZEN BASELINE | 15 Oct 2026 (added 2 Nov) | Frozen, amended in part | Section 6 decisions; roadmap for dates | LIMITED | Retail company (section 3), Zettle (8.3), external factors not authorised (6.4), open incentive formula (9.2) and the phase dates (14) are amended or past | None. Custody note present; the body stays unedited |
+| [`FAIRSHIFT_PRODUCT_UX_SPEC.md`](FAIRSHIFT_PRODUCT_UX_SPEC.md) | — | Product/UX specification and dated decision register | PRODUCT AUTHORITY | 15 Oct 2026, last 3 Nov 2026 | Active | — | YES, subject to sections 5 and 6 | Conflicts with the roadmap (section 5). "Not deployed" lines, the FS-ROLES-DEC-001 status and the contextual-AI line in section 10 were stale | Status lines corrected in this package. Conflicts await the Owner |
+| [`FS-HACK-ROADMAP-002.md`](FS-HACK-ROADMAP-002.md) | FS-HACK-ROADMAP-002 v2.0 | Competition delivery roadmap | DELIVERY AUTHORITY | Effective 3 Nov 2026 | First committed by FS-HACK-GOV-APPLY-001A with a reconciliation notice above unchanged wording. Its trailing double spaces were removed for the whitespace check: 25 became backslash line breaks and one ineffective paragraph-end pair was dropped, so rendering is unchanged. The original as received had SHA-256 `997e0456…ab5cb` | — | LIMITED: delivery sequencing, not independent product redefinition | Its section 1 authority list omits the dated decision register. Clause conflicts in section 5 | Owner decisions |
+| [`README.md`](../README.md) | — | Public overview, setup, status | PUBLIC DOCUMENT | 14 Oct 2026, last 2 Nov | Active | Spec section 10 for status | NO | Called contextual AI "not implemented" and hosted onboarding "pending" | Corrected in this package |
+| [`LICENSE`](../LICENSE) | — | MIT licence | PUBLIC DOCUMENT | 14 Oct 2026 | Active | — | NO | — | — |
+
+### 4.2 Current evidence
+
+None of these directs work. They are the best record of implementation state for their capability.
+
+| Path | ID | Purpose | Date | Status | Directs | Contradiction flags | Remediation |
+|---|---|---|---|---|---|---|---|
+| [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md) | FS-HOSTED-RELEASE-002 | Hosted deploy of `77ae36d`, hospitality reference organisation | 3 Nov 2026 | Current hosted evidence. Golden Path not run on hosted | NO | Its section 7 says a push deploys. `1abbd14`, `dccd359` and `9571b5d` were pushed afterwards, so the revision now live is NOT VERIFIED here | Confirm in the next hosted package |
+| [`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md) | (assets `fs-paypal-final-001`) | Genuine GBP 121.00 Sandbox payout to `PAID`, on Square-attributed work | 1 Nov 2026 | Current, local only | NO | Short real shift, not 14:00–20:00 | — |
+| [`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md) | FS-SQUARE-LIVE-001 | Square Sandbox ingestion and `team_member_id` attribution | 1 Nov 2026 | Current, local | NO | Says "not deployed". The code has since been deployed, but no hosted Square payment was made | Register only |
+| [`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md) | FS-DEMAND-CONTEXT-001 | Bounded contextual-demand scenarios | 2 Nov 2026 | Current, local | NO | Header "Not deployed". Code deployed at `77ae36d`, with no AI proposal on hosted | Register only |
+| [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md) | FS-CONTEXT-SIGNALS-001, -CLOSEOUT-001 | Weather, events and Manager signals | 2–3 Nov 2026 | Current, local | NO | Same "Not deployed" header. The pre-public blocker paragraph carries its own later-change note | Register only |
+| [`BRYNTUM_UI_EVIDENCE.md`](BRYNTUM_UI_EVIDENCE.md) | (assets `fs-bryntum-ui-001`) | Bryntum allocation surface | 1 Nov 2026 | Current, local. Licence NOT VERIFIED | NO | The roadmap extends Bryntum to forecast-gap planning, which is not implemented (section 6, row P-22) | — |
+| [`HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`](HOSPITALITY_POLICY_FREEZE_EVIDENCE.md) | FS-HOSPITALITY-POLICY-FREEZE-001 | Frozen workload policy and its decisions | 2 Nov 2026 | Current. Its earnings direction is superseded by FS-TIP-DEC-001 | NO | — | — |
+| [`WORKLOAD_INTELLIGENCE_EVIDENCE.md`](WORKLOAD_INTELLIGENCE_EVIDENCE.md) | FS-WORKLOAD-INTELLIGENCE-001 | Transaction workload model | 2 Nov 2026 | Current, with a later-change note | NO | — | — |
+| [`AI_STAFFING_INTELLIGENCE_EVIDENCE.md`](AI_STAFFING_INTELLIGENCE_EVIDENCE.md) | FS-AI-001 | AI staffing interpretation | 31 Oct 2026 | Current, with a later-change note | NO | — | — |
+| [`SUBSCRIPTION_TRIAL_EVIDENCE.md`](SUBSCRIPTION_TRIAL_EVIDENCE.md) | FS-SUBSCRIPTION-TRIAL-001 | 30-day PayPal Subscriptions trial | 3 Nov 2026 | Current, verified locally against PayPal Sandbox | NO | Says "NOT deployed". `9571b5d` is on `origin`, so its code may be live, while hosted plan IDs are unchanged. NOT VERIFIED | Hosted check |
+| [`SUBSCRIPTION_FIRST_ONBOARDING_EVIDENCE.md`](SUBSCRIPTION_FIRST_ONBOARDING_EVIDENCE.md) | — | Subscription-first acquisition | 16 Oct 2026 | Current | NO | — | — |
+| [`SUBSCRIPTION_WORKPLACE_JOURNEY_EVIDENCE.md`](SUBSCRIPTION_WORKPLACE_JOURNEY_EVIDENCE.md) | — | Subscription confirmation and workplace setup | 16 Oct 2026 | Current | NO | — | — |
+| [`AUTHENTICATED_TENANCY_EVIDENCE.md`](AUTHENTICATED_TENANCY_EVIDENCE.md) | — | Identity, sessions, memberships, invitations | 15 Oct 2026 | Current repository evidence. Hosted onboarding has since run once (`HOSTED_RELEASE_002_EVIDENCE.md` section 8) | NO | — | — |
+| [`OWNER_ONBOARDING_ENTITLEMENT_EVIDENCE.md`](OWNER_ONBOARDING_ENTITLEMENT_EVIDENCE.md) | — | Subscription entitlement gate | 15 Oct 2026 | Current | NO | — | — |
+| [`PAYABLE_MODEL_EVIDENCE.md`](PAYABLE_MODEL_EVIDENCE.md) | FS-PAY-001 | Confirmed work and base payable | 31 Oct 2026 | Current | NO | — | — |
+| [`OPPORTUNITY_ALLOCATION_JOURNEY_EVIDENCE.md`](OPPORTUNITY_ALLOCATION_JOURNEY_EVIDENCE.md) | — | Forecast gap to booked shift, availability | 31 Oct 2026 | Current | NO | FS-OFFER-ORDER-DEC-001 later set an offer order, which is not implemented | — |
+| [`PERFORMANCE_INCENTIVE_JOURNEY_EVIDENCE.md`](PERFORMANCE_INCENTIVE_JOURNEY_EVIDENCE.md) | Records FS-PERF-INCENTIVE-001 | Confirmed work to approved payable | 31 Oct 2026 | Current in part. Square attribution replaced its imported-evidence path in the Golden Path | NO | — | — |
+| [`ZETTLE_LIVE_EVIDENCE.md`](ZETTLE_LIVE_EVIDENCE.md) | — | Zettle connector, inactive | 1 Nov 2026 | Current. MOCKED | NO. No Zettle work is authorised | — | — |
+| [`evidence/FS-HACK-IMPLEMENT-001R.md`](evidence/FS-HACK-IMPLEMENT-001R.md) | FS-HACK-IMPLEMENT-001R | PayPal inbound webhook recovery | 14 Oct 2026 | Current for the inbound slice | NO | — | — |
+| [`evidence/fs-ui-product-001/DEMO_ACCESS_DECISION.md`](evidence/fs-ui-product-001/DEMO_ACCESS_DECISION.md) | FS-UI-PRODUCT-001 | Demo access concurrency decision | 1 Nov 2026 | DECISION RECORD. Implemented, off on hosted | LIMITED: demo access design | Public `/demo` copy cites the retail £121 example (`HOSTED_RELEASE_002_EVIDENCE.md` section 12) | Owner review of copy |
+| [`evidence/fs-ui-product-001/JOURNEY_USABILITY_REVIEW.md`](evidence/fs-ui-product-001/JOURNEY_USABILITY_REVIEW.md) | FS-UI-PRODUCT-001 | Usability sources for signup and demo | 1 Nov 2026 | Supporting evidence | NO | — | — |
+
+### 4.3 Historical evidence, reports and handoffs
+
+These are retained unchanged as history. "Notice added" means a visible status line now sits above the original body.
+
+| Path | ID | Purpose | Date | Status | Superseded by | Directs | Contradiction flags | Remediation |
+|---|---|---|---|---|---|---|---|---|
+| [`FS_OVERNIGHT_001_HANDOFF.md`](FS_OVERNIGHT_001_HANDOFF.md) | FS-OVERNIGHT-001 | Overnight session handoff | 25 Oct 2026 | HISTORICAL HANDOFF | Spec, roadmap, this register | NO | Recommends FS-STAFF-001 and decision D2, a USD £100-per-labour-hour policy, and lists "AI forecasting" as prohibited. All overtaken | Notice added |
+| [`FS_UI_PRODUCT_001_HANDOFF.md`](FS_UI_PRODUCT_001_HANDOFF.md) | FS-UI-PRODUCT-001 | Session handoff | 1 Nov 2026 | HISTORICAL HANDOFF | `HOSTED_RELEASE_002_EVIDENCE.md`, spec, roadmap | NO | Next package FS-HOSTED-REHEARSAL-001 has run. Says the master is "not found locally". Its authority order omits dated decisions. Its 14:00–20:00 £121 walkthrough is not the hospitality target | Notice added beside the existing one |
+| [`FS_UI_PRODUCT_001_REPORT.md`](FS_UI_PRODUCT_001_REPORT.md) | FS-UI-PRODUCT-001 | Product UI report | 1 Nov 2026 | HISTORICAL REPORT | `HOSTED_REHEARSAL_EVIDENCE.md`, `HOSTED_RELEASE_002_EVIDENCE.md` | NO | "Reference data ends 28 Dec 2025" no longer holds on hosted, which loaded history through 2 Nov 2026 | Existing pointer; register only |
+| [`ROADMAP_RECOVERY.md`](ROADMAP_RECOVERY.md) | FS-ROADMAP-RESTORE-001 | Drift recovery matrix | 1 Nov 2026 | HISTORICAL EVIDENCE | `AGENTS.md` section 4, spec, roadmap | NO | Its P0 list (Zettle live proof, Paid not proven, hosted release not done) is overtaken | Notice added beside the existing one |
+| [`OPERATIONAL_WORKFLOWS_EVIDENCE.md`](OPERATIONAL_WORKFLOWS_EVIDENCE.md) | — | Work terms and workflows | 15 Oct 2026 | HISTORICAL EVIDENCE in part | `AUTHENTICATED_TENANCY_EVIDENCE.md`, `OPPORTUNITY_ALLOCATION_JOURNEY_EVIDENCE.md`, `BRYNTUM_UI_EVIDENCE.md`, spec | NO | Server-pinned demo identities, read-only Bryntum, no availability, old navigation labels | Notice added |
+| [`PAYPAL_PAYOUT_EVIDENCE.md`](PAYPAL_PAYOUT_EVIDENCE.md) | FS-PAY-002 | £12.00 GBP payout held `ONHOLD` | 31 Oct 2026 | HISTORICAL EVIDENCE for the Paid state | `PAYPAL_FINAL_EVIDENCE.md` | NO | Its "still prohibited: any worker paid, GBP completed" was overtaken locally by the GBP 121.00 `SUCCESS` | Notice added |
+| [`HOSTED_RELEASE_EVIDENCE.md`](HOSTED_RELEASE_EVIDENCE.md) | FS-HOSTED-RELEASE-001 | Hosted deploy of `8040c16` | 1 Nov 2026 | HISTORICAL HOSTED EVIDENCE | `HOSTED_REHEARSAL_EVIDENCE.md`, then `HOSTED_RELEASE_002_EVIDENCE.md` | NO | "Waiting for a demo business" and "reference history not loaded" are overtaken | Notice added |
+| [`HOSTED_REHEARSAL_EVIDENCE.md`](HOSTED_REHEARSAL_EVIDENCE.md) | FS-HOSTED-REHEARSAL-001 | Hosted deploy of `e7fcdf9`, domain hold | 1 Nov 2026 | HISTORICAL HOSTED EVIDENCE | `HOSTED_RELEASE_002_EVIDENCE.md` | NO | Domain hold has cleared (002 section 2) | Existing later-change note; register only |
+| [`APPROVED_SUBSCRIPTION_CATALOGUE_EVIDENCE.md`](APPROVED_SUBSCRIPTION_CATALOGUE_EVIDENCE.md) | — | Catalogue and Sandbox plans | 16 Oct 2026 | HISTORICAL EVIDENCE for plan shape | FS-SUBSCRIPTION-TRIAL-DEC-001, `SUBSCRIPTION_TRIAL_EVIDENCE.md` | NO | Its no-trial plan check is superseded for new checkout | Notice added |
+| [`REFERENCE_REFRESH_EVIDENCE.md`](REFERENCE_REFRESH_EVIDENCE.md) | FS-REFERENCE-REFRESH-001 | Retail reference dataset v2 | 1–2 Nov 2026 | HISTORICAL EVIDENCE | `WORKLOAD_INTELLIGENCE_EVIDENCE.md` | NO | — | Existing note |
+| [`REFERENCE_COMMERCE_FORECAST_EVIDENCE.md`](REFERENCE_COMMERCE_FORECAST_EVIDENCE.md) | FS-REF-001, FS-FCST-001 | Retail dataset v1 and weekly forecast | 25 Oct 2026 | HISTORICAL for the dataset | `REFERENCE_REFRESH_EVIDENCE.md`, `WORKLOAD_INTELLIGENCE_EVIDENCE.md` | NO | — | Existing note |
+| [`STAFFING_INTELLIGENCE_EVIDENCE.md`](STAFFING_INTELLIGENCE_EVIDENCE.md) | FS-STAFF-001 | Revenue-based staffing | 26 Oct 2026 | HISTORICAL. Method retired | `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` | NO | — | Existing note |
+| [`COMMERCE_INTELLIGENCE_INDEPENDENCE_EVIDENCE.md`](COMMERCE_INTELLIGENCE_INDEPENDENCE_EVIDENCE.md) | FS-INTEL-CORRECT-001 | Business-configurable intelligence | 31 Oct 2026 | HISTORICAL for the labour policy | `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` | NO | — | Existing note |
+| [`SQUARE_GATE_EVIDENCE.md`](SQUARE_GATE_EVIDENCE.md) | — | Square attribution gate | 1 Nov 2026 | HISTORICAL EVIDENCE | `SQUARE_LIVE_EVIDENCE.md` | NO | "Square is not yet part of the FairShift product" no longer holds | Register only |
+| [`evidence/FS-HACK-IMPLEMENT-001.md`](evidence/FS-HACK-IMPLEMENT-001.md) | FS-HACK-IMPLEMENT-001 | PayPal inbound foundation | 14 Oct 2026 | HISTORICAL EVIDENCE | `evidence/FS-HACK-IMPLEMENT-001R.md` | NO | — | Existing note |
+
+### 4.4 Evidence assets
+
+All are EVIDENCE ASSETS: they direct nothing and are read through the record that cites them.
+
+| Folder | Files | Cited by | Note |
+|---|---|---|---|
+| `evidence/fs-bryntum-ui-001/` | 13 | `BRYNTUM_UI_EVIDENCE.md` | Local build |
+| `evidence/fs-context-signals-001/` | 4, 1 JSON | `CONTEXT_SIGNALS_EVIDENCE.md` | Real listing data was removed from this folder and from published history |
+| `evidence/fs-context-signals-closeout-001/` | 7, 1 JSON | `CONTEXT_SIGNALS_EVIDENCE.md` | Screenshots labelled synthetic |
+| `evidence/fs-demand-context-001/` | 17, 1 JSON | `DEMAND_CONTEXT_EVIDENCE.md` | Genuine OpenAI records |
+| `evidence/fs-hospitality-policy-freeze-001/` | 15 | `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` | Reference data, SIMULATED |
+| `evidence/fs-hosted-rehearsal-001/` | 10 | `HOSTED_REHEARSAL_EVIDENCE.md` | Hosted, historical |
+| `evidence/fs-hosted-release-001/` | 7 | `HOSTED_RELEASE_EVIDENCE.md` | Two `local-paypal-reference-*` files are local only |
+| `evidence/fs-paypal-final-001/` | 9 | `PAYPAL_FINAL_EVIDENCE.md` | Genuine Sandbox, local |
+| `evidence/fs-reference-refresh-001/` | 11 | `REFERENCE_REFRESH_EVIDENCE.md` | Retail, historical |
+| `evidence/fs-roadmap-restore-001/` | 18 | `ROADMAP_RECOVERY.md` | Historical |
+| `evidence/fs-square-live-001/` | 13 | `SQUARE_LIVE_EVIDENCE.md` | Genuine Sandbox, local |
+| `evidence/fs-ui-product-001/` | 38, including `screens/_checks.txt`, `screens/_report.json` and the two records in 4.2 | `FS_UI_PRODUCT_001_REPORT.md` | Paid screens are SIMULATED by a local stand-in |
+| `evidence/fs-workload-intelligence-001/` | 20 | `WORKLOAD_INTELLIGENCE_EVIDENCE.md` | Reference data, SIMULATED |
+| `evidence/fs-zettle-live-001/` | 2 | `ZETTLE_LIVE_EVIDENCE.md` | Zettle refused placeholder credentials |
+
+### 4.5 Local agent configuration and environment
+
+None of these is a product or delivery authority. None is changed by this package.
+
+| Path | Purpose | Class | Status | Directs | Note |
+|---|---|---|---|---|---|
+| `.claude/launch.json` | Local launch entries `dev` and `ui-scratch` | LOCAL CONFIGURATION | Untracked | NO | `ui-scratch` points at an old session's scratchpad. Not to be committed (`FS_UI_PRODUCT_001_HANDOFF.md`) |
+| `.claude/settings.local.json` | Local Claude Code tool-permission allowlist | LOCAL CONFIGURATION | Ignored by the user's global git ignore | NO | Grants tool permissions only, never product authority |
+| `~/.claude/projects/-Users-ryanmellors-Projects-Fairshift-app/memory/` | Agent memory: the pinned Node runtime path and scratch database recipe | LOCAL CONFIGURATION, outside the repository | Active | NO | Reference only. Verify before relying on it |
+| `next-env.d.ts` | Generated by `next dev` | Generated file | Modified, uncommitted | NO | Not to be committed |
+| `.env.example`; `.env.local` and other `.env*` | Environment template; local secrets | Environment | Template tracked; others ignored. Not read by this package | NO | Never commit or print `.env*` contents |
+
+No `CLAUDE.md` exists in the repository or in `~/.claude/`. `AGENTS.md` is the only repository agent-instruction file. `docs/.DS_Store` files are ignored operating-system files.
+
+## 5. Roadmap reconciliation
+
+FS-HACK-ROADMAP-002 (effective 3 November 2026, file time 21:59 +02:00) is later than the decisions recorded by `dccd359` at 10:20 +02:00 the same day. This order is **INFERENCE** from timestamps, and on its own it does not settle which text the Owner intends to prevail.
+
+Each row below is unresolved. **Neither the roadmap clause nor the dated decision it conflicts with directs implementation of the contested part until the Owner records a decision in the specification.** Parts of a dated decision that the roadmap does not contest are unaffected.
+
+| ID | Roadmap clause | Dated decision or rule | Conflict | Status |
+|---|---|---|---|---|
+| R-01 | Section 1 authority list: rules, master "except the explicit amendments recorded in this roadmap", repository, roadmap and work packages | `AGENTS.md` section 1 and FS-PRODUCT-PLAN-DEC-001 guardrail 16: dated decisions in the specification bind | The roadmap does not name the decision register | Placement in section 1 applied by this package as instructed. **Owner to confirm** |
+| R-02 | Sections 3, 10 and 15 step 11: payable is base + incentive + tips. Section 10: no holiday-pay architecture. Section 14: holiday-pay architecture frozen | FS-PAY-TERMS-DEC-001: a separate 12.07% holiday-pay line, added to the FS-TIP-DEC-001 formula. Its base (incentive, tips) NEEDS VERIFICATION | Whether holiday pay is in the competition payable | **OWNER DECISION REQUIRED** |
+| R-03 | Section 14: cancellation-pay framework frozen | FS-PAY-TERMS-DEC-001: cancellation pay on short-notice venue cancellation; values OPEN | Whether cancellation pay is built before submission | **OWNER DECISION REQUIRED** |
+| R-04 | Section 14: guaranteed-hours pathway frozen | FS-PATHWAY-DEC-001: guaranteed-hours progress and Owner flag | Whether the pathway is built before submission | **OWNER DECISION REQUIRED** |
+| R-05 | Section 15 steps 6–7: deterministic eligibility, then the business user selects suitable workers | FS-OFFER-ORDER-DEC-001: rounds, "wants more hours" first, ordered by remaining hours to the guaranteed-hours threshold | Offer order depends on the frozen pathway (R-04), and the roadmap keeps manager selection | **OWNER DECISION REQUIRED** |
+| R-06 | Section 11: do not reframe the payout as an earned-wage advance unless separately authorised | FS-PRODUCT-PLAN-DEC-001 and FS-PAY-TERMS-DEC-001: payout "presented as an advance of earned pay, reported through the venue's payroll". Wording NEEDS VERIFICATION | Opposite presentation instructions | **OWNER DECISION REQUIRED** |
+| R-07 | Sections 3, 10 and 15 step 11: allocated tips in the payable; "existing approved ... tip decisions should be implemented" | FS-TIP-DEC-001: formula approved, written tip rule OPEN, Square `tip_money` behaviour unverified, FS-HOSPITALITY-EARNINGS-001 not authorised | No implementable tip rule exists | **OWNER DECISION REQUIRED**: the written tipping-policy rule, then a work package |
+| R-08 | Section 13: future pricing across locations, capabilities and usage | Spec section 8: approved location-based catalogue. Final pricing OPEN | A new pricing direction, post-hackathon | No implementation. **Owner decision** before any pricing work |
+| R-09 | Section 14: no new UK employment-compliance engine | FS-PAY-TERMS-DEC-001: hourly-only casual pay and a £12.71 minimum-rate check, which also resolves decision D1 that blocks hosted shift creation | Whether the hourly-only and minimum-rate parts fall inside the freeze | **OWNER DECISION REQUIRED** |
+| R-10 | Sections 6 and 7: payment disputes on Payments and Worker surfaces | Spec section 21: dispute state machine OPEN | No dispute rule exists | No implementation until the rule is decided |
+| R-11 | Sections 6, 9 and 15 step 4: Bryntum as the Staffing Planner showing forecast gaps | Spec section 18: Bryntum on Shift Allocations | A product refinement on the Owner's explicit instruction (section 6, P-22) | Approved direction, **NOT IMPLEMENTED**, not yet a dated decision in the specification |
+| R-12 | Section 16 delivery sequence R0–R8 | Spec section 24: package order recorded by FS-AUTHORITY-REPAIR-001 on 2 Nov | Two sequences | The roadmap is the newer delivery sequence. FS-HOSPITALITY-EARNINGS-001 still needs its own authorisation |
+| R-13 | Section 12: does not choose between Zettle, Square or another source until reconciled | `AGENTS.md` section 4 and the spec: Square Sandbox is the active provider | The roadmap asks for reconciliation of a choice the repository records as made | FS-HACK-GOLDEN-RECON-001 to report. No change here |
+
+Consistent with the specification, and recorded for completeness: the business-user permission model (roadmap section 4, FS-ROLES-DEC-001); no new forecasting features (roadmap section 8, FS-PRODUCT-PLAN-DEC-001 guardrail 3); location-bound casual workers; AI never approves pay or moves money.
+
+## 6. Owner decision provenance
+
+**Corroboration** means a source outside the agent-written decision record confirms the decision: the master plan, the roadmap, or the current Owner work package FS-HACK-GOV-APPLY-001A. Specification entries, evidence documents and commits are written by coding agents under the Owner's git identity, so on their own they record a decision rather than prove it.
+
+**Verdict.** CORROBORATED, or **OWNER CONFIRMATION REQUIRED** (OCR). An OCR decision is neither retracted nor newly implemented by this register (section 1 rules).
+
+Golden-path steps use roadmap section 15 numbers.
+
+| Row | Decision | Master requirement amended | Recorded approval source | Corroborated | Implemented | Golden-path impact | Verdict |
+|---|---|---|---|---|---|---|---|
+| P-01 | Square Sandbox replaces Zettle as the active commerce provider (no decision ID) | Section 8.3 Zettle as planned commerce integration | `AGENTS.md` section 4 and spec section 1, commit `8186aea` | No. Roadmap section 12 asks for reconciliation | Yes. SANDBOX-CONNECTED, verified locally | Steps 10, 13 | OCR |
+| P-02 | MVP refund decision (no decision ID) | None directly; new rule | Spec section 10, commit `8186aea` | No | Yes, locally | Step 10 | OCR |
+| P-03 | FS-PERF-INCENTIVE-001: individual sales target and fixed bonus | Section 9.2, O-06 incentive formula OPEN (MVP only) | `PERFORMANCE_INCENTIVE_JOURNEY_EVIDENCE.md`, spec section 21 | Partly: roadmap section 10 refers to "existing approved incentive ... decisions" without naming one | Yes, locally | Steps 10–11 | OCR |
+| P-04 | Approved B2B SaaS catalogue (location-based) | None in the master | Spec section 8, `APPROVED_SUBSCRIPTION_CATALOGUE_EVIDENCE.md` | Partly: roadmap section 13 retains existing PayPal Subscriptions. Final pricing OPEN | Yes | None | OCR |
+| P-05 | Subscription-first acquisition | None in the master | Spec section 8, `SUBSCRIPTION_FIRST_ONBOARDING_EVIDENCE.md` | No | Yes; run once on hosted | None | OCR |
+| P-06 | FS-WORKLOAD-INTELLIGENCE-001 (2 Nov): hospitality vertical, transaction workload unit | Section 3 retail company; section 6.4 O-02, O-03 | Spec section 1 "Owner amendment", commit `971104c` | Indirect only (INFERENCE): the Owner personally completed hosted onboarding of the hospitality reference organisation (`HOSTED_RELEASE_002_EVIDENCE.md` sections 1, 8) | Yes. Verified locally, deployed | Steps 1–3 | OCR |
+| P-07 | FS-HOSPITALITY-POLICY-FREEZE-001 (2 Nov): 7 transactions per staff-hour, minimum 2 | Section 6.4 O-03 staffing conversion | Spec section 1, `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` section 1, commit `bef4f33` | Indirect only, as P-06 | Yes. Verified locally, deployed | Steps 2–3 | OCR |
+| P-08 | Retirement of £100 per labour hour | Section 6.4 O-03 | `AGENTS.md` section 4, superseded evidence notes | Follows P-07 | Yes, removed from the active path | Steps 2–3 | OCR, with P-07 |
+| P-09 | FS-TIP-DEC-001 (2 Nov): base + incentive + allocated tips | Sections 9.2–9.3 wage + incentive | Spec section 1, commit `0c7f0bd` | Yes for the formula: roadmap sections 3, 10, 15 step 11 | No. Tip rule OPEN | Steps 11–15 | CORROBORATED (formula only). Tip rule open (R-07) |
+| P-10 | FS-DEMAND-CONTEXT-DEC-001 (2 Nov): bounded scenarios | Section 6.4 external factors NOT AUTHORISED (bank holidays) | Spec section 1, commit `3816765` | No | Yes. Verified locally; code deployed, not exercised on hosted | Step 2 | OCR |
+| P-11 | FS-CONTEXT-SIGNALS-DEC-001 (2 Nov): weather, events, bookings, promotions | Section 6.4 external factors (explicit supersession) | Spec section 1, which cites package FS-CONTEXT-SIGNALS-001 and "D-W11" (package text not in the repository) | No | Yes. Verified locally; deployed; one hosted signal refresh | Step 2 | OCR |
+| P-12 | FS-CONTEXT-SIGNALS-DEC-002 (2 Nov): event window, listing filter, weather bands | As P-11 | Spec section 1, commit `58eaf48` | No | Yes. Verified locally; deployed | Step 2 | OCR |
+| P-13 | FS-CONTEXT-SIGNALS-DEC-003 (3 Nov): the word "one" | None directly | Spec section 1; `HOSTED_RELEASE_002_EVIDENCE.md` section 1 records the Owner input OI-C "KEEP" | Partly: a second agent record of an Owner input | Yes. Verified locally; deployed | Step 2 | OCR (low risk) |
+| P-14 | FS-PRODUCT-PLAN-DEC-001 (3 Nov): product direction and guardrails | Section 2 thesis; section 18 controls | Spec section 1, commit `dccd359`. Source named: "the FairShift Product Plan, reviewed ... by the Owner", not in the repository | No. Roadmap conflicts in part (R-06) | No (documentation only) | All steps | OCR |
+| P-15 | FS-PAY-TERMS-DEC-001 (3 Nov): hourly only, £12.71 minimum, holiday pay, cancellation pay | Section 9.1 hourly or daily; 9.2–9.3 formula | As P-14 | No. Roadmap conflicts (R-02, R-03, R-06, R-09) | No | Steps 5, 8, 11 | OCR |
+| P-16 | FS-OFFER-ORDER-DEC-001 (3 Nov): fair offer order | Section 6.5 and O-04, O-05 | As P-14 | No. Roadmap conflicts (R-05) | No | Steps 6–7 | OCR |
+| P-17 | FS-PATHWAY-DEC-001 (3 Nov): guaranteed-hours pathway | None (new) | As P-14 | No. Roadmap section 14 freezes it (R-04) | No | Step 15 (worker view) | OCR |
+| P-18 | FS-ROLES-DEC-001 (3 Nov): Owner-first roles | Section 4.2 Manager creates shifts and approves pay | As P-14 | Yes: roadmap section 4 states the same model, and FS-HACK-GOV-APPLY-001A refers to Owner Operations | Yes, Owner Operations in local commit `b281c8e`. Reported: full suite 867/867 passing, 14 local browser checks passing (not re-run by this register). Not pushed, not deployed, hosted verification pending | Steps 5, 7, 9, 12 | CORROBORATED |
+| P-19 | FS-SUBSCRIPTION-TRIAL-DEC-001 (3 Nov): 30-day trial | None (master has no subscriptions); amends spec section 8 "no approved trials" | Spec section 1, commit `9571b5d` | Yes: the current package names "the later trial decision" as superseding no-trial instructions | Yes. Verified locally; hosted NOT VERIFIED | None | CORROBORATED |
+| P-20 | FS-UI-PRODUCT-001 demo access (SHARED-BUT-RESETTABLE) | Section 19 judge access | `DEMO_ACCESS_DECISION.md`, "authorised by the owner in a parallel workstream" | No | Yes. Off on hosted | Judge access | OCR |
+| P-21 | OpenAI as the AI provider | O-01 exact AI model/platform OPEN | `AGENTS.md` section 4 provider list; evidence documents | No dated decision record found | Yes | Step 2 | OCR |
+| P-22 | Bryntum forecast-gap Staffing Planner | Section 10.1 Bryntum for Shift Allocations | Roadmap sections 6, 9, 15 step 4; FS-HACK-GOV-APPLY-001A Phase 5 states it is the Owner's explicit instruction | Yes: Owner's explicit instruction in the current package | **NOT IMPLEMENTED.** Not yet a dated decision in the specification | Steps 4, 9 | CORROBORATED. Implementation needs its own package |
+| P-23 | Package order (FS-AUTHORITY-REPAIR-001, 2 Nov) | Section 14 phases | Spec section 24, commit `0c7f0bd` | No | Items 1–3 done | Sequence | OCR. The roadmap sequence is newer (R-12) |
+| P-24 | Retail demo direction (`57b2725`, 15 Oct) | Section 3 retail | Spec history | Superseded by P-06 | Historical | — | Superseded |
+
+## 7. Items requiring the Owner
+
+1. **Conflicts R-02 to R-07 and R-09:** holiday pay in the competition payable; cancellation pay; the guaranteed-hours pathway; fair offer order; "advance of earned pay" wording; the written tipping-policy rule; whether hourly-only pay and the minimum-rate check fall inside the scope freeze.
+2. **R-01:** confirm the roadmap's placement at level 4.
+3. **P-22:** record Bryntum forecast-gap planning as a dated decision in the specification if it is to bind under guardrail 16, then authorise a package.
+4. **OCR verdicts in section 6:** confirm or correct them, ideally in one pass. Until then, any package that builds on one names it.
+5. **Hosted verification of Owner Operations** (`b281c8e`), once its push is authorised.
+6. **Hosted revision:** confirm which commit is live, because pushes after `77ae36d` auto-deploy.
+7. **Pricing (R-08), disputes (R-10)** and the public `/demo` copy that cites the retail £121 example.
+
+## 8. Maintenance
+
+- A package that adds, supersedes or relabels a document updates section 4 in the same change.
+- A package that records a dated Owner decision adds a row to section 6 with its source.
+- When the Owner resolves a section 5 row, the resolving decision is recorded in the specification and the row cites it.

@@ -1,5 +1,7 @@
 # FS-OVERNIGHT-001 HANDOFF
 
+> **Historical handoff, 25 October 2026. It does not direct new work.** Its recommendations (FS-STAFF-001, decision D2, a USD £100-per-labour-hour policy) and its claims lists have been overtaken. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), sections 1 and 2. The body below is unchanged.
+
 ## 1. Executive summary
 
 All four primary packages passed and were committed separately:

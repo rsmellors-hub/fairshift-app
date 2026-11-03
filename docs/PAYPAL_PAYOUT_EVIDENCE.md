@@ -1,5 +1,7 @@
 # FS-PAY-002 Evidence
 
+> **Historical evidence, 31 October 2026. It does not direct new work.** The £12.00 payout below stayed `ONHOLD`. A later genuine GBP 121.00 Sandbox payout reached item `SUCCESS` and `PAID` locally ([`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)), which overtakes this record's "not proven" and "still prohibited" lists for that local run. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md). The body below is unchanged.
+
 Manager approval of confirmed work payables and their genuine PayPal Sandbox payout:
 confirmed work → base payable → manager approval → approved payable → PayPal Sandbox
 payout → persisted PayPal identifiers and status → worker payout visibility.

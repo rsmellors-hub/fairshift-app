@@ -4,6 +4,8 @@ Package FS-ROADMAP-RESTORE-001. Baseline `main` at `94cedad`. Evidence labels fo
 
 > **Superseded for commerce.** This document records that checkpoint and is otherwise unchanged. Square Sandbox has since replaced Zettle as the active commerce provider, and Square team-member attribution has replaced imported performance in the intended Golden Path. Current authority is `AGENTS.md` §4 and `docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`.
 
+> **Historical record, 1 November 2026. It does not direct new work.** Its recovery matrix and P0 list are overtaken: Zettle is inactive, a Paid state was proven locally ([`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)), and hosted was released ([`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md)). It is not FS-HACK-ROADMAP-002. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), sections 1 and 2.
+
 The approved product is commerce intelligence that turns into paid work:
 
 Commerce data → historical intelligence → AI-interpreted demand forecast → labour requirement → staffing recommendation → manager planning → worker opportunity → acceptance → allocation → performance → incentive → manager approval → PayPal payout → commercial outcome.

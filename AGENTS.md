@@ -9,11 +9,16 @@ Use this authority order:
 1. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources. Repository copies of transient competition details may become stale.
 2. **FS-HACK-MASTER-001:** the historical Phase 0 baseline, held at [`docs/FS-HACK-MASTER-001.md`](docs/FS-HACK-MASTER-001.md).
 3. **Approved dated Owner amendments,** with the newest applicable amendment prevailing. These are recorded in [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), the current authoritative product/UX specification.
-4. **Repository reality** for implementation state: the current repository and reproducible runtime evidence.
-5. **The current authorised work package.**
-6. **Implementation preference.**
+4. **FS-HACK-ROADMAP-002,** the Owner-directed delivery roadmap at [`docs/FS-HACK-ROADMAP-002.md`](docs/FS-HACK-ROADMAP-002.md): delivery sequence, scope freeze, golden-path acceptance and step numbers. It controls delivery sequencing and does not on its own redefine product rules. Its Owner-directed refinements stand where their provenance is traceable: Bryntum forecast-gap planning and allocated tips in the payable (register, section 6). Where a roadmap clause conflicts with a dated Owner decision, neither directs implementation of the contested part until the Owner decides.
+5. **Repository reality** for implementation state: the current repository and reproducible runtime evidence.
+6. **The current authorised work package.**
+7. **Implementation preference.**
 
-AUTHORISED ≠ IMPLEMENTED ≠ VERIFIED ≠ DEMO-READY. An Owner decision is not a claim that functionality exists.
+[`docs/FS-DOCUMENT-AUTHORITY-REGISTER.md`](docs/FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, says whether it may direct new work, lists the open roadmap conflicts (section 5), traces the provenance of each Owner decision (section 6), and holds the current work-package pointer (section 2). Read its sections 1 and 2 before substantive work.
+
+Historical evidence, reports and handoffs never direct new work. Their "next step", "recommended package" or "tomorrow" text is history, not a current task. Neither is a roadmap "next action", an earlier conversation, or an agent's own recommendation.
+
+APPROVED ≠ IMPLEMENTED ≠ TESTED ≠ VERIFIED LOCALLY ≠ DEPLOYED ≠ VERIFIED ON HOSTED ≠ DEMO-READY. Each is a separate claim that needs its own evidence. An Owner decision is not a claim that functionality exists, and deployed code is not a completed hosted Golden Path.
 
 Do not infer implementation status from product copy, prototypes, plans, or prior conversation. Do not treat planned behavior as implemented.
 
@@ -58,9 +63,14 @@ Do not resolve OPEN, NEEDS VERIFICATION, or DEFERRED decisions inside this file.
 - verified Zettle worker attribution;
 - SaaS subscription model;
 - cross-location casual-worker scheduling;
-- full-time employee accounts.
+- full-time employee accounts;
+- every conflict listed in the authority register, section 5, including holiday pay in the payable, cancellation pay, the guaranteed-hours pathway, fair offer order and "advance of earned pay" wording.
 
 Use the product specification for their current authoritative status.
+
+Only the Owner makes product decisions. Agents propose; they never create, infer, complete or record an Owner decision on their own account. Record a decision only when the authorising work package supplies the Owner's decision, and cite its source. Only an approved Owner decision traceable to a dated record may amend a locked requirement of FS-HACK-MASTER-001. A label such as "Owner approved" is not provenance: use the register, section 6. OWNER CONFIRMATION REQUIRED is a verification flag, not a revocation: a decision so marked stays in force as recorded, and new implementation that depends on it needs the authorising work package to name it.
+
+If an unresolved product-authority conflict affects the work, stop that work and report it in the section 9 format.
 
 ## 4. Current reference company and integration strategy
 
@@ -72,9 +82,9 @@ The reference company is one fictional five-location UK fast-casual cafe and din
 - Reference policy: **7 transactions per operational staff-hour, minimum 2 operational staff while open**, organisation level. This is a fictional-company assumption, never a benchmark or legal requirement, and never learned from data.
 - Transactions are an MVP workload proxy. Do not claim they capture covers, item complexity, kitchen bottlenecks or queue length. Do not add those variables, or role-specific forecasting, before submission.
 - **Golden Path anti-tuning:** discover the example from accepted rules. Never select or alter rules, reference demand, capacity, regular cover or forecast parameters to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a hospitality target.
-- **Earnings (FS-TIP-DEC-001):** the authorised formula is guaranteed base earnings + performance incentive + allocated tips = total approved earnings. This is **not implemented**, and the exact written tip-allocation rule remains open for FS-HOSPITALITY-EARNINGS-001. Do not implement or claim tips without a work package.
-- **Contextual AI (FS-DEMAND-CONTEXT-001, FS-DEMAND-CONTEXT-DEC-001) is implemented and verified locally with a genuine model call, and not deployed.** The baseline stays deterministic and canonical. AI chooses a named scenario from a closed set and cites supplied signals, code owns the fixed percentages, and only a Manager's acceptance changes staffing. Evidence: [`docs/DEMAND_CONTEXT_EVIDENCE.md`](docs/DEMAND_CONTEXT_EVIDENCE.md).
-- **Context signals (FS-CONTEXT-SIGNALS-DEC-001) are implemented and verified locally, and not deployed.** Open-Meteo weather, Ticketmaster listings (key-gated) and structured Manager signals inform time-targeted scenarios. No code applies an effect by venue, weather or event. Open-Meteo's free tier is non-commercial, and Ticketmaster's terms are **NOT VERIFIED** for this use, and real listing data stays out of the repository. Commit `c567f2e` still holds some, which blocks making the repository public until history is cleaned or the terms are verified. FS-CONTEXT-SIGNALS-DEC-002 sets the event influence window and listing filter. Evidence: [`docs/CONTEXT_SIGNALS_EVIDENCE.md`](docs/CONTEXT_SIGNALS_EVIDENCE.md).
+- **Earnings (FS-TIP-DEC-001):** the authorised formula is guaranteed base earnings + performance incentive + allocated tips = total approved earnings. This is **not implemented**, and the exact written tip-allocation rule remains open for FS-HOSPITALITY-EARNINGS-001. Do not implement or claim tips without a work package. FS-PAY-TERMS-DEC-001 adds a holiday-pay line that FS-HACK-ROADMAP-002 does not include; that conflict is unresolved (register, section 5), so implement neither form of the holiday-pay line without an Owner decision.
+- **Contextual AI (FS-DEMAND-CONTEXT-001, FS-DEMAND-CONTEXT-DEC-001) is implemented and verified locally with a genuine model call.** Its code is deployed on hosted at `77ae36d` ([`docs/HOSTED_RELEASE_002_EVIDENCE.md`](docs/HOSTED_RELEASE_002_EVIDENCE.md)), where no AI proposal has been made. The baseline stays deterministic and canonical. AI chooses a named scenario from a closed set and cites supplied signals, code owns the fixed percentages, and only a Manager's acceptance changes staffing. Evidence: [`docs/DEMAND_CONTEXT_EVIDENCE.md`](docs/DEMAND_CONTEXT_EVIDENCE.md).
+- **Context signals (FS-CONTEXT-SIGNALS-DEC-001) are implemented and verified locally.** Their code is deployed on hosted at `77ae36d`, where one signal refresh per venue has run and no AI proposal has been made. Open-Meteo weather, Ticketmaster listings (key-gated) and structured Manager signals inform time-targeted scenarios. No code applies an effect by venue, weather or event. Open-Meteo's free tier is non-commercial, and Ticketmaster's terms are **NOT VERIFIED** for this use, and real listing data stays out of the repository. Published history was rewritten before any push (`58eaf48`), so `c567f2e`, which holds real listing data, is on no remote. It survives only on the local branch `backup/pre-squash-db2dfde`, which must never be pushed. Making the repository public is a separate Owner decision. FS-CONTEXT-SIGNALS-DEC-002 sets the event influence window and listing filter. Evidence: [`docs/CONTEXT_SIGNALS_EVIDENCE.md`](docs/CONTEXT_SIGNALS_EVIDENCE.md).
 
 ### PayPal — SANDBOX-CONNECTED
 
@@ -111,7 +121,7 @@ Provider responsibilities:
 - **FairShift:** business logic, worker and shift identity, compensation, incentive, attribution eligibility, and approval.
 - **PayPal:** FairShift subscription infrastructure and worker payout.
 
-This chain states the intended path. The stages from allocation to worker confirmation have been exercised locally on Square Sandbox evidence and a genuine PayPal Sandbox payout ([`docs/PAYPAL_FINAL_EVIDENCE.md`](docs/PAYPAL_FINAL_EVIDENCE.md)), on a short real shift rather than the 14:00–20:00 window. The reference-history forecast to allocation stages were not part of that one run, and nothing is deployed. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
+This chain states the intended path. The stages from allocation to worker confirmation have been exercised locally on Square Sandbox evidence and a genuine PayPal Sandbox payout ([`docs/PAYPAL_FINAL_EVIDENCE.md`](docs/PAYPAL_FINAL_EVIDENCE.md)), on a short real shift rather than the 14:00–20:00 window. The reference-history forecast to allocation stages were not part of that one run. The hospitality engine's code is deployed on hosted ([`docs/HOSTED_RELEASE_002_EVIDENCE.md`](docs/HOSTED_RELEASE_002_EVIDENCE.md)), but no Golden Path has been run there, and the revision live after later pushes is NOT VERIFIED. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
 
 ### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
 
@@ -226,13 +236,14 @@ Product-facing copy should use natural language while remaining truthful about d
 
 Before substantive implementation, debugging, architecture, integration, repository review, or coding-agent handoff:
 
-1. read this `AGENTS.md`;
+1. read this `AGENTS.md`, and sections 1 and 2 of the authority register;
 2. verify the current working directory;
 3. verify the current branch;
 4. verify HEAD;
 5. inspect Git status;
-6. inspect the relevant implementation and dependencies;
-7. identify material assumptions and existing uncommitted work.
+6. inspect the relevant implementation, dependencies and, where applicable, test state;
+7. identify material assumptions and existing uncommitted work;
+8. confirm that a specific authorised work package covers the work (section 16).
 
 The repository is authoritative for implementation state. If repository reality differs materially from the work package expectation, stop affected work and report:
 
@@ -268,6 +279,8 @@ Avoid:
 
 Do not change the selected stack merely because another stack is preferred. Report a major architectural conflict before replacement work.
 
+Make no architectural, schema, provider-boundary or dependency change outside the authorised package's scope, even when it looks like an improvement.
+
 ## 11. Security and secret handling
 
 Financial and workforce functionality must account for server-side authorisation, organisation/location scope, worker isolation, role permissions, secret management, input/webhook verification, idempotency, auditability, and data minimisation.
@@ -289,7 +302,7 @@ Do not:
 - stage or commit secrets or `.env` files;
 - commit generated dependency or build directories.
 
-Do not create a commit unless the current work package explicitly authorises it. Review the staged file list and staged diff before every authorised commit. After work, report changed files and final Git state.
+Do not create a commit, push, merge or deployment unless the current work package explicitly authorises that action. Nothing is automatic. A push to `fs-square-live-001` auto-deploys on Render ([`docs/HOSTED_RELEASE_EVIDENCE.md`](docs/HOSTED_RELEASE_EVIDENCE.md), section 5), so a push is a deployment. Review the staged file list and staged diff before every authorised commit. After work, report changed files and final Git state.
 
 ## 13. Testing priorities
 
@@ -355,6 +368,8 @@ Protect the working golden path from lower-value scope. A functioning, defensibl
 
 ## 16. Coding-agent work packages
 
+Substantive work requires a specific authorised work package with its own ID. A handoff, report, evidence "next step", roadmap "next action", earlier conversation or agent recommendation is not a work package, and a package's authority ends with its own scope. Authorisation comes from the Owner: no work package authorises itself, widens its own scope or authorises a successor.
+
 Substantive coding tasks should begin with one of:
 
 - `CONTINUE CURRENT SESSION`
@@ -365,6 +380,8 @@ The work package should state:
 - recommended agent/model;
 - reasoning/effort;
 - objective and definition of done;
+- the golden-path step or steps it advances, by FS-HACK-ROADMAP-002 section 15 number. If none, it is deferred unless competition compliance or a blocker repair requires it, and the package says which;
+- any Owner decision it relies on that the register marks OWNER CONFIRMATION REQUIRED;
 - authorised scope;
 - prohibited actions;
 - repository baseline and verification;
@@ -401,6 +418,8 @@ Stop affected work and report rather than guessing when:
 - repository state differs materially from task assumptions;
 - existing uncommitted work could be overwritten;
 - a material product rule is missing or conflicts with the product specification;
+- an unresolved product-authority conflict (register, section 5) affects the work;
+- no specific authorised work package covers the work;
 - a required provider operation or capability cannot be verified;
 - required credentials/configuration are unavailable for an operation that cannot proceed without them;
 - implementation would expose secrets;

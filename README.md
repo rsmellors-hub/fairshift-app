@@ -14,9 +14,9 @@ Reference historical commerce → deterministic demand model → OpenAI bounded 
 | FairShift | Business logic, worker and shift identity, compensation, incentive, attribution eligibility, approval |
 | PayPal | FairShift subscription infrastructure and worker payout |
 
-The reference company is a fictional five-location UK fast-casual cafe and dining group with synthetic, labelled history. Staffing comes from expected transactions by time of day and the business's own capacity policy, not from sales value. Tips and contextual AI are authorised direction, not implemented. Retail material in `docs/` is historical evidence.
+The reference company is a fictional five-location UK fast-casual cafe and dining group with synthetic, labelled history. Staffing comes from expected transactions by time of day and the business's own capacity policy, not from sales value. Tips are authorised direction, not implemented. Contextual AI is implemented and verified locally. Retail material in `docs/` is historical evidence.
 
-Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. One genuine GBP 121.00 PayPal Sandbox payout on Square-attributed work has completed locally; see `docs/PAYPAL_FINAL_EVIDENCE.md`.
+Current status, Golden Path economics and the MVP refund decision are in [the product specification](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), section 10. One genuine GBP 121.00 PayPal Sandbox payout on Square-attributed work has completed locally; see `docs/PAYPAL_FINAL_EVIDENCE.md`. The hospitality engine's code is deployed on hosted, but the Golden Path has not been run there; see `docs/HOSTED_RELEASE_002_EVIDENCE.md`. Which document governs what is recorded in [the document authority register](docs/FS-DOCUMENT-AUTHORITY-REGISTER.md).
 
 ## PayPal Sandbox
 
@@ -160,7 +160,7 @@ All calls target `https://api-m.sandbox.paypal.com`. Production configuration ca
 | AI staffing and commercial interpretation | VERIFIED locally | Structured OpenAI assessment validated against calculated figures; see `docs/ROADMAP_RECOVERY.md`. |
 | Square Sandbox commerce and team-member attribution | SANDBOX-CONNECTED, active provider | Genuine UK/GBP Sandbox seller, payments and `team_member_id` read back, mapped to a worker and used in the incentive calculation. The demonstrated payments explicitly supplied `team_member_id`, so a physical till identifying the logged-in worker is not verified. Genuine Square history is insufficient for the 28-day threshold, so labelled reference history remains the forecast source. See `docs/SQUARE_LIVE_EVIDENCE.md`. |
 | Zettle connected commerce | INACTIVE for the hackathon Golden Path | Connector work retained, built against documented API and mocked provider behaviour. A genuine merchant connection is not verified. |
-| Authenticated tenancy | REPOSITORY EVIDENCE | Database sessions, Owner onboarding and invitation-derived scoped memberships; hosted verification pending. |
+| Authenticated tenancy | REPOSITORY EVIDENCE; exercised once on hosted | Database sessions, Owner onboarding and invitation-derived scoped memberships. Hosted registration, email verification, PayPal Sandbox subscription approval and invited Manager and Worker accounts completed once for the reference organisation (`docs/HOSTED_RELEASE_002_EVIDENCE.md`); broader hosted verification is pending. |
 | Demo shift incentive, manager approval, and PayPal Sandbox payout/status path | SANDBOX-CONNECTED | One controlled $25 Sandbox payout reached `SUCCESS`; FairShift persisted `PAID`, prevented duplicate submission, and refreshed the status. |
 
 ## Data and security boundaries
@@ -176,7 +176,7 @@ This slice is intentionally limited to one server-selected outlet, so callers ca
 - PayPal inbound refund lifecycle handling is not implemented. Reconciled refunded states cannot count as verified sales, leaving room for a later complete refund workflow. Square refunds follow the MVP refund decision in the product specification.
 - Operational HTTP paths require authenticated memberships and organisation/location scope. Internal demo fixtures remain separate and gain no automatic account ownership.
 - Background retry processing is deferred. Valid webhook redelivery retries unfinished reconciliation; terminal unmatched events remain quarantined and are not automatically re-evaluated.
-- Hosted authentication, email delivery and organisation subscriptions require separate verification. Existing incentive payout authority remains restricted to the controlled demo; this package adds no production payment authority.
+- Hosted authentication, email delivery and organisation subscriptions have been exercised once on hosted and still require fuller verification. Existing incentive payout authority remains restricted to the controlled demo; this package adds no production payment authority.
 - The inbound order/capture workflow has not been live-verified. The payout evidence is Sandbox-only and does not establish production payment capability. Use only an appropriate PayPal Sandbox recipient and configuration when deliberately exercising an actual transfer.
 
 ## Licence

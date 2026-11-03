@@ -1,5 +1,7 @@
 # Operational workflows and work terms
 
+> **Historical evidence, 15 October 2026. It does not direct new work.** Later work replaced its server-pinned demo identities ([`AUTHENTICATED_TENANCY_EVIDENCE.md`](AUTHENTICATED_TENANCY_EVIDENCE.md)), its read-only Bryntum timeline ([`BRYNTUM_UI_EVIDENCE.md`](BRYNTUM_UI_EVIDENCE.md)), its absence of availability ([`OPPORTUNITY_ALLOCATION_JOURNEY_EVIDENCE.md`](OPPORTUNITY_ALLOCATION_JOURNEY_EVIDENCE.md)) and its navigation labels. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md). The body below is unchanged.
+
 ## Architecture and scope
 
 Manager: Today → Plan → Team → Review. Worker: Home → Shifts → Earnings → Profile.

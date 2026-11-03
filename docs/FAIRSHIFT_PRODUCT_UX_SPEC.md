@@ -5,6 +5,7 @@
 **Scope:** FairShift customer product, worker experience, and bounded FairShift operator surface
 **Implementation note:** The current manager and worker pages are functional scaffolding. They demonstrate working data and state transitions but are not the approved target experience.
 **Historical baseline:** [`FS-HACK-MASTER-001.md`](FS-HACK-MASTER-001.md) is the Phase 0 Master Project Plan. Dated Owner decisions in this specification prevail where they apply.
+**Authority index:** [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, lists unresolved conflicts with the delivery roadmap [`FS-HACK-ROADMAP-002.md`](FS-HACK-ROADMAP-002.md) (section 5), and traces the provenance of each decision below (section 6).
 
 ## 1. Product thesis
 
@@ -109,7 +110,7 @@ Open for FS-HOSPITALITY-EARNINGS-001: Square Sandbox `tip_money` behaviour must 
 
 ### Owner decision FS-DEMAND-CONTEXT-DEC-001: bounded contextual-demand scenarios
 
-**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with a genuine model call. Not deployed.** Evidence: [`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md).
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with a genuine model call. Code deployed on hosted at `77ae36d`, where no AI proposal has been made.** Evidence: [`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md), [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md).
 
 AI may select only from this closed set. Code, not AI, maps each scenario to its percentage:
 
@@ -134,7 +135,7 @@ Rules as implemented:
 
 ### Owner decision FS-CONTEXT-SIGNALS-DEC-001: sourced local context signals
 
-**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with genuine Open-Meteo, Ticketmaster and OpenAI responses. Not deployed.** Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally with genuine Open-Meteo, Ticketmaster and OpenAI responses. Code deployed on hosted at `77ae36d`, where one signal refresh per venue has run and no AI proposal has been made.** Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md), [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md).
 
 **Authority.** The package FS-CONTEXT-SIGNALS-001 names this as the dated amendment required by "D-W11". It explicitly supersedes FS-HACK-MASTER-001 §6.4, "External factors ... NOT AUTHORISED", **for the signal classes listed here only**. It also narrows the earlier "not authorised" line in this section: Manager-entered bookings and expected covers are allowed as contextual signals. Reservation-platform integrations stay not authorised, and covers stay outside the workload calculation, which still uses transactions.
 
@@ -157,7 +158,7 @@ Not authorised: school holidays, footfall feeds, reservation-platform integratio
 
 ### Owner decision FS-CONTEXT-SIGNALS-DEC-002: event influence window, listing filter, weather bands
 
-**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally. Not deployed.** It amends D-S3's overlap rule for events only. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+**Status: APPROVED. Decision date: 2 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally. Code deployed on hosted at `77ae36d`.** It amends D-S3's overlap rule for events only. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
 
 **Event influence window.**
 
@@ -180,7 +181,7 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 ### Owner decision FS-CONTEXT-SIGNALS-DEC-003: the word "one" in a contextual reason
 
-**Status: APPROVED. Decision date: 3 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally.** The contextual reason check removes the word "one" from its spelled-number list. Digits, percent signs and every other number word remain rejected. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally. Deployed on hosted at `77ae36d`.** The contextual reason check removes the word "one" from its spelled-number list. Digits, percent signs and every other number word remain rejected. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
 
 ### Owner decision FS-PRODUCT-PLAN-DEC-001: product direction and guardrails
 
@@ -265,7 +266,7 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 ### Owner decision FS-ROLES-DEC-001: owner-first roles
 
-**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED.**
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: IMPLEMENTED as Owner Operations in local commit `b281c8e`. Not pushed, not deployed; hosted verification pending.** An Owner opens the location-scoped operational pages (Plan, Fill, Allocations, Team, Review) as the Owner, with a location switch when the organisation has more than one active location. Reported local verification: full suite 867/867 passing and 14 local browser checks passing (reported in FS-HACK-GOV-APPLY-001A, not re-run by that package).
 
 - The Owner can perform every Manager action at every location: planning, Fill Shifts, allocation, performance review, approval and payout. The Golden Path demonstrates an owner-operator.
 - Manager is a permission the Owner grants per location. It is not a required step. The existing outlet-scoped `MANAGER` membership is the mechanism.
@@ -505,7 +506,7 @@ The story runs:
 1. **Reference historical commerce is the planning input.** It is clearly labelled as reference data. Square history replaces it for a location only if it meets the same 28-day threshold; no Square history is manufactured.
 2. **FairShift normalises sales.** A provider adapter converts authenticated provider data into canonical, location-scoped FairShift sales records with provenance.
 3. **Historical demand becomes visible.** Owners and managers see factual sales history separately from predictions.
-4. **FairShift forecasts next-week demand deterministically.** The manager sees expected transactions by time, expected sales as separate context, uncertainty and comparable history. AI explains these figures and does not set them. Contextual AI (FS-DEMAND-CONTEXT-001) is authorised direction, not implemented.
+4. **FairShift forecasts next-week demand deterministically.** The manager sees expected transactions by time, expected sales as separate context, uncertainty and comparable history. AI explains these figures and does not set them. Contextual AI (FS-DEMAND-CONTEXT-001) is implemented and verified locally (section 1): it may propose a bounded scenario, and only a Manager's acceptance changes staffing.
 5. **FairShift identifies Opportunity Demand.** Expected transactions become a required capacity under the business's own policy, regular and allocated casual coverage are applied, and the remaining casual requirement is made explicit by time window.
 6. **Manager reviews the recommendation.** The manager remains responsible for the staffing decision.
 7. **Manager creates and publishes a shift.** Date, time, casual requirement, offered compensation, and incentive terms are explicit and policy-valid.
@@ -525,9 +526,9 @@ The Square Sandbox journey is verified locally from allocation to worker payment
 
 **Context signals, FS-CONTEXT-SIGNALS-001:** weather, listed events and structured Manager signals, with time-targeted scenarios, are verified locally through to Fill Shifts ([`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md)). The one genuine answer cited a Manager-entered event, not a provider signal.
 
-**Limits of that run:** it used a short real shift on the same terms, not the 14:00–20:00 window. The 14:00–20:00 rehearsal has not been run, and the path is not deployed.
+**Limits of that run:** it used a short real shift on the same terms, not the 14:00–20:00 window. The 14:00–20:00 rehearsal has not been run. The hospitality engine's code is deployed on hosted ([`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md)), but the Golden Path has not been run there. Deployed code is not a completed hosted Golden Path.
 
-**Contextual demand, FS-DEMAND-CONTEXT-001:** verified locally with a genuine OpenAI call on labelled reference history and a Manager-entered note, through to Fill Shifts ([`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md)). That run stopped at shift creation. It is not part of the Square and PayPal run above, the chain has not been run end to end in one sitting, and it is not deployed.
+**Contextual demand, FS-DEMAND-CONTEXT-001:** verified locally with a genuine OpenAI call on labelled reference history and a Manager-entered note, through to Fill Shifts ([`DEMAND_CONTEXT_EVIDENCE.md`](DEMAND_CONTEXT_EVIDENCE.md)). That run stopped at shift creation. It is not part of the Square and PayPal run above, and the chain has not been run end to end in one sitting. Its code is deployed on hosted, where no AI proposal has been made.
 
 PayPal payout status is **SANDBOX-CONNECTED**. An earlier controlled path, on seeded sales with a $650 target and $25 incentive in integer cents, reached a persisted `PAID`. It does not prove Square ingestion. Neither target is the permanent universal incentive policy.
 
@@ -864,7 +865,7 @@ PayPal appears to workers primarily as the payment method, payout confirmation, 
 
 Before approval, managers see the accepted base terms, deterministic incentive result, and final payable amount. Approval is a distinct human action. After submission, natural states such as “Processing,” “Paid,” or “Payment needs attention” take precedence over raw provider enum values. Provider references may be available in authorised detail views for support and audit purposes.
 
-The current payout integration is **SANDBOX-CONNECTED**. Verified evidence includes successful Sandbox OAuth, one controlled $25 payout accepted by PayPal, item status `SUCCESS`, FairShift state persisted as `PAID`, duplicate submission prevention, and successful status refresh. Historical verification transaction IDs must not be hard-coded into product behaviour or fixtures.
+The current payout integration is **SANDBOX-CONNECTED**. Verified evidence includes successful Sandbox OAuth, one controlled $25 payout accepted by PayPal, item status `SUCCESS`, FairShift state persisted as `PAID`, duplicate submission prevention, and successful status refresh. One genuine GBP 121.00 Sandbox payout on Square-attributed work also reached item `SUCCESS` and `PAID`, locally ([`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)). Historical verification transaction IDs must not be hard-coded into product behaviour or fixtures.
 
 The product must never show or log PayPal credentials, OAuth access tokens, sandbox passwords, or unnecessary recipient data. It must not present a submitted or uncertain payout as paid until provider state supports that conclusion.
 
@@ -888,7 +889,7 @@ PayPal may support three distinct parts of the product. Their statuses must neve
 
 - **Purpose:** Execute manager-approved worker incentive/payments and reconcile provider state.
 - **Product placement:** Manager Payments & Approvals and worker Earnings/payment confirmation.
-- **Current evidence:** Sandbox OAuth succeeded; one controlled $25 payout was accepted; the PayPal item reached `SUCCESS`; FairShift persisted `PAID`; duplicate submission prevention and status refresh passed.
+- **Current evidence:** Sandbox OAuth succeeded; one controlled $25 payout was accepted; the PayPal item reached `SUCCESS`; FairShift persisted `PAID`; duplicate submission prevention and status refresh passed. One genuine GBP 121.00 payout on Square-attributed work reached `SUCCESS` and `PAID` locally ([evidence](PAYPAL_FINAL_EVIDENCE.md)).
 - **Boundary:** This status applies to the Sandbox payout path. It does not imply production capability or live verification of every PayPal feature.
 
 #### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
@@ -1062,7 +1063,9 @@ Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
 4. FS-HOSPITALITY-EARNINGS-001
 5. Full Golden Path rehearsal and hardening
 
-This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-DEMAND-CONTEXT-001 is implemented and verified locally, not deployed (section 1).
+This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
+
+FS-HACK-ROADMAP-002 (3 November 2026) sets a newer, Owner-directed delivery sequence. The two sequences are reconciled in [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), section 5. Neither removes the need for each package's own authorisation.
 
 The workload model stays frozen as set out in section 1: 7 completed transactions per operational staff-hour, minimum 2 operational staff while open, one organisation-level policy with no reference-location overrides, a transaction-count workload proxy, and financial sales kept separate from operational demand.
 

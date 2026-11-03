@@ -2,6 +2,8 @@
 
 > **Superseded for the reference company and demo path.** See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This handoff is otherwise unchanged.
 
+> **Historical handoff, 1 November 2026. It does not direct new work.** Its next package, FS-HOSTED-REHEARSAL-001, has run, and hosted moved on in [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md). Its authority order predates the master plan's arrival in the repository and the dated Owner decisions. Its 14:00–20:00, £121 walkthrough is not a hospitality target. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), sections 1 and 2.
+
 For a new session with no history. Read `AGENTS.md` first.
 
 ## Project

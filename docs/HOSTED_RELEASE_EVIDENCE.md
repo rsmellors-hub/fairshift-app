@@ -1,5 +1,7 @@
 # Hosted Release Evidence (FS-HOSTED-RELEASE-001)
 
+> **Historical hosted evidence, 1 November 2026. It does not describe the current hosted state or direct new work.** It was followed by [`HOSTED_REHEARSAL_EVIDENCE.md`](HOSTED_REHEARSAL_EVIDENCE.md) and then [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md), which deployed `77ae36d` and created the reference organisation. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md). The body below is unchanged.
+
 **Status: the release is live on `https://getafairshift.com`, and the product checks have not started.** Branch `fs-square-live-001`, commit `8040c1620d68e07d10418d5baf7ada7ac9612019`. The hosted site is waiting for a five-location UK demo business, which the owner will create through the product.
 
 This document covers the migration, configuration, deployment and public checks only. All of it is **HOSTED EVIDENCE**, apart from the backup restore check and the migration dry run (**LOCAL-ONLY**). It contains no **GENUINE PROVIDER** transaction evidence and no **REFERENCE DATA**. The local GBP 121.00 payout in `PAYPAL_FINAL_EVIDENCE.md` did not happen on this deployment.
