@@ -76,6 +76,10 @@ describe("the output validator", () => {
   it("rejects a figure smuggled into the reason", () => {
     for (const reason of ["Expect 25% more.", "Add 3 people.", "About ten percent up.", "An extra two staff are needed.", "Up by fifteen."]) expect(codeOf(validate(output({ reason })))).toBe("NUMBER_IN_REASON");
   });
+  it("accepts the ordinary word 'one' in a reason (FS-CONTEXT-SIGNALS-DEC-003) and still rejects every other figure", () => {
+    for (const reason of ["The market outside is one event nearby.", "One event nearby may bring extra footfall."]) expect(codeOf(validate(output({ reason })))).toBe("OK");
+    for (const reason of ["One event nearby and 3 more.", "Up 1 notch.", "One event, up by a few %.", "One event and two others.", "Up to ten extra people.", "One percent up."]) expect(codeOf(validate(output({ reason })))).toBe("NUMBER_IN_REASON");
+  });
   it("rejects malformed responses", () => {
     for (const raw of [undefined, null, "MINOR_UP", 12, []]) expect(codeOf(validate(raw))).toBe("MALFORMED");
     expect(codeOf(validate({ scenario: "NONE" }))).toBe("SCHEMA");

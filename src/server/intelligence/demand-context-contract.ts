@@ -180,7 +180,7 @@ export function validateContextOutput(raw: unknown, context: { organisationId: s
     if (!cited.length) return fail("NO_CITATION", output.scenario);
     if (!cited.some(signal => signal.direction === direction || signal.direction === "UNSPECIFIED")) return fail("IRRELEVANT_CITATION", output.scenario);
   }
-  if (/\d/.test(output.reason) || /%|\b(percent|per cent|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)\b/i.test(output.reason)) return fail("NUMBER_IN_REASON", "reason states a figure");
+  if (/\d/.test(output.reason) || /%|\b(percent|per cent|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)\b/i.test(output.reason)) return fail("NUMBER_IN_REASON", "reason states a figure");
   // NONE changes nothing, so any period on it means nothing.
   if (!output.period || !direction) return { ok: true, output: { ...output, period: null } };
   const start = parseClock(output.period.start), end = parseClock(output.period.end);

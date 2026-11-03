@@ -178,6 +178,10 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 **Weather bands.** For the input fingerprint only, weather is compared in bands: precipitation probability in steps of 10 percentage points, precipitation amount in steps of 0.5 mm, temperature in steps of 2°C. The full-precision values are still stored and shown. A change within the same band does not make an accepted proposal stale, and a band change does.
 
+### Owner decision FS-CONTEXT-SIGNALS-DEC-003: the word "one" in a contextual reason
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally.** The contextual reason check removes the word "one" from its spelled-number list. Digits, percent signs and every other number word remain rejected. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.

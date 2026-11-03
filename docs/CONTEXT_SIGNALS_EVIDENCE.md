@@ -133,7 +133,7 @@ In `evidence/fs-context-signals-001/`, from the first walkthrough: `05` Owner fo
 - **Package listings can still mislead on the name.** One venue and start time counts once, under the shorter name, which can be the package's.
 - **Forecast revisions can still send decisions back for review.** Bands reduce this, but a value just across an edge still counts, and how often it happens across real refreshes hasn't been measured. A live demo should still expect that an accepted day can read "Needs review" after a refresh that crosses a band.
 - **Not exercised genuinely:** the explicit refresh button, page-open refresh and provider failure (fixtures and integration tests only); Bookings and Promotion reaching the real model; a weather citation.
-- **Reasons can be rejected on ordinary words.** The figure check treats "one" and similar words as numbers. Unchanged from the earlier package, and it now matters: a genuine answer was rejected under this check in section 14.
+- **Reasons can be rejected on ordinary words.** The figure check treated "one" as a number until FS-CONTEXT-SIGNALS-DEC-003 removed that word. Similar words remain rejected. A genuine answer was rejected under this check in section 14, and which word tripped it isn't known, so this change may not have altered that answer.
 - **The public demo stays read-only here,** so a judge would need a prepared accepted state.
 - **Coordinates are entered by hand.** No geocoding.
 
@@ -227,7 +227,23 @@ A signal row can't be edited (database trigger), so each distinct reading keeps 
 - Eight screenshots removed (section 8), and listing names taken out of this document.
 - The new records hold no listing data. A check of every listing name, venue and identifier from both fetches against the working tree's text files is reported with the gates below.
 
+> **Later change:** the history half of this blocker is closed. See "History rewrite" below. The paragraph that follows records the position at closeout.
+
 **PRE-PUBLIC BLOCKER: history must be cleaned or terms verified before the repository is made public.** History was not rewritten. Commit `c567f2e` still contains the original data: `genuine-records.json`, `tests/fixtures/context-signals/ticketmaster-stratford.json`, the eight screenshots and the names in this document. The closeout commit's own diff shows the removed lines too. By the local remote-tracking refs, `c567f2e` isn't on `origin`, whose branch is at `e7fcdf9`, so the data hasn't been pushed from here. The repository's current visibility wasn't checked. The Owner will decide how to deal with this.
+
+### History rewrite (FS-HOSTED-RELEASE-002)
+
+**The history half of the pre-public blocker is closed.** Before any push, the two unpushed commits `c567f2e` and `db2dfde` were replaced with one commit, `58eaf48`, parented on `3816765`, using a soft reset and a new commit. Neither former commit had reached a remote.
+
+| Check | Result |
+|---|---|
+| Tree | `876adaa8`, identical to the former closeout commit |
+| Parent | `3816765` |
+| Listing data in the patches from `origin`'s former branch tip to the new commit | 324 names, venues and identifiers derived from the former commit. Only ordinary-English matches in unrelated text: "messa" inside "message", "patterns", "the script", and the phrase "against the current" in this document's earlier quotation of the same check |
+| Control | The same terms match 525 times in the former commits, so the check can find them |
+| Removed files | The original records, the real-listing fixture and the screenshots sampled are unreachable from the new commit |
+
+A local branch, `backup/pre-squash-db2dfde`, keeps the former commits and is never pushed. Ticketmaster's terms remain **NOT VERIFIED**, including sending listings to an AI service, and the repository's visibility is a separate Owner decision.
 
 ### Genuine runs, as they fell
 
