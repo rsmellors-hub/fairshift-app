@@ -1,4 +1,4 @@
-import { planFixture } from "../helpers/subscription-plans";
+import { legacyPlanFixture, planFixture, regularCycleOf } from "../helpers/subscription-plans";
 import { organisationEntitled } from "@/server/billing/entitlement";
 import { personal, business } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
@@ -123,7 +123,7 @@ describe("organisation PayPal subscription authority",()=>{
  it("blocks incorrect provider commercial terms and subscription overrides before entitlement",async()=>{
   const t=await createTestDatabase();try {
    const {scope,adapter}=await setup(t.db);
-   const wrong=planFixture();wrong.billing_cycles[0].pricing_scheme.fixed_price.value="1.00";
+   const wrong=planFixture();regularCycleOf(wrong).pricing_scheme!.fixed_price.value="1.00";
    await expect(startSubscription(t.db,scope,{...adapter,getPlan:async()=>wrong},{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"})).rejects.toThrow(/catalogue/);
    expect(adapter.create).not.toHaveBeenCalled();
    await startSubscription(t.db,scope,adapter,{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"});
@@ -132,6 +132,21 @@ describe("organisation PayPal subscription authority",()=>{
    await expect(refreshSubscription(t.db,scope,{...adapter,get:async()=>({...details,status:"ACTIVE"}),getPlan:async()=>wrong})).rejects.toThrow(/catalogue/);
    expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
    expect((await subscriptionFor(t.db,scope))?.status).toBe("APPROVAL_PENDING");
+  }finally{await t.close();}
+ });
+
+ it("refuses a legacy plan at checkout but still reconciles a subscription on one, and nothing else",async()=>{
+  const t=await createTestDatabase();try {
+   const {scope,adapter,setStatus}=await setup(t.db);
+   await expect(startSubscription(t.db,scope,{...adapter,getPlan:async id=>legacyPlanFixture(id)},{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"})).rejects.toThrow(/catalogue/);
+   expect(adapter.create).not.toHaveBeenCalled();
+   await startSubscription(t.db,scope,adapter,{tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY"});
+   setStatus("ACTIVE");
+   const neither=planFixture();neither.billing_cycles[0].frequency.interval_count=31;
+   await expect(refreshSubscription(t.db,scope,{...adapter,getPlan:async()=>neither})).rejects.toThrow(/catalogue/);
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(false);
+   expect(await refreshSubscription(t.db,scope,{...adapter,getPlan:async id=>legacyPlanFixture(id)})).toMatchObject({status:"ACTIVE",verifiedAt:expect.any(Date)});
+   expect(await organisationEntitled(t.db,scope.organisationId)).toBe(true);
   }finally{await t.close();}
  });
 

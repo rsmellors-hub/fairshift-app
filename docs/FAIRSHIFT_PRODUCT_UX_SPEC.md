@@ -272,6 +272,17 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 - Where section 3 and principle 3 say Managers create shifts, choose invitees, finalise allocations and approve payouts, those actions belong to the Owner and to any Manager the Owner has delegated to.
 - This decision does not change authentication, `TEAM_MEMBER`, or server-side scope enforcement. Implementation needs its own authorised package.
 
+### Owner decision FS-SUBSCRIPTION-TRIAL-DEC-001: 30-day free trial
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: see `SUBSCRIPTION_TRIAL_EVIDENCE.md`.** This amends section 8's statement that there are no approved trials, for self-service plans only.
+
+- Every new self-service subscription (Single Outlet and Multi Outlet, monthly and annual) starts with a 30-day free trial. It is a PayPal Subscriptions trial billing cycle, followed by the unchanged catalogue price.
+- The Owner still approves the subscription in PayPal at sign-up. Nothing is charged until the trial ends. Operational access during the trial relies on PayPal reporting the subscription as `ACTIVE`, with no new entitlement state.
+- One trial per organisation, under the existing rule that a subscription is started once.
+- Subscriptions created on the original no-trial plans continue unchanged.
+- Unchanged: prices, location limits, Enterprise, setup fees (none), per-worker fees (none), the subscription webhook and worker payouts.
+- Reason: a free start lowers the barrier to trying FairShift, while keeping PayPal Subscriptions in the sign-up path.
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.
@@ -441,6 +452,8 @@ FairShift's approved **B2B SaaS** catalogue is based on the organisation's activ
 | Enterprise | Custom/contact | Custom/contact | 6+; explicitly configured entitlement |
 
 Annual pricing provides 12 months for the equivalent of 10 monthly payments. There are no approved trials, setup fees, per-worker fees or other charges. Enterprise has no self-service checkout. Upgrade, downgrade and proration workflows remain deferred.
+
+**Amended by FS-SUBSCRIPTION-TRIAL-DEC-001 (section 1):** self-service plans start with a 30-day free trial.
 
 Acquisition is email/password → mandatory verification → plan selection → PayPal Sandbox approval → authoritative server verification of ACTIVE → personal/business/workplace setup → operational access. Organisation-owned subscription entitlement and workplace completion are separate. Browser return and subscription creation responses do not grant entitlement. Each self-service selection maps to its own server-configured PayPal Plan ID; provider price/cadence must match this catalogue. Worker payouts remain separate.
 

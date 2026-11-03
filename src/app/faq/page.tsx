@@ -10,6 +10,7 @@ const TOPICS = [
     ["How am I billed?", "Your plan is a subscription you approve in PayPal, charged monthly or annually. Your workspace opens once PayPal confirms it is active. This environment uses PayPal Sandbox."],
     ["What counts as a location?", "Any active location you plan staff for. Single Outlet covers one, Multi Outlet up to five, and Enterprise is agreed with you for six or more."],
     ["Do you charge per worker?", "No. Plans are based on locations, and there are no per-worker fees or setup fees."],
+    ["Is there a free trial?", "Yes. Every self-service plan starts with 30 days free. You approve the subscription in PayPal, and nothing is charged until the trial ends. You can cancel in your PayPal account before then."],
     ["Is my plan separate from paying workers?", "Yes. Your plan pays for FairShift. Worker pay is sent per approved shift."],
   ]],
   ["Paying workers", [

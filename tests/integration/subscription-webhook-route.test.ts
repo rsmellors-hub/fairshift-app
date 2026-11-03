@@ -9,7 +9,7 @@ import { organisationEntitled } from "@/server/billing/entitlement";
 import { createTestDatabase } from "../helpers/database";
 import { createOrganisation, personal, business } from "../helpers/onboarding";
 import { paypalHeaders } from "../helpers/paypal";
-import { planFixture } from "../helpers/subscription-plans";
+import { planFixture, regularCycleOf } from "../helpers/subscription-plans";
 
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/billing/paypal", async importOriginal => ({
@@ -105,7 +105,7 @@ describe("subscription webhook HTTP financial integrity", () => {
       if (failure === "organisation mismatch") vi.mocked(t.adapter.get).mockResolvedValue({ ...t.details, custom_id: randomUUID() });
       if (failure === "wrong price") {
         const wrong = planFixture("P-BOUND");
-        wrong.billing_cycles[0].pricing_scheme.fixed_price.value = "1.00";
+        regularCycleOf(wrong).pricing_scheme!.fixed_price.value = "1.00";
         vi.mocked(t.adapter.getPlan).mockResolvedValue(wrong);
       }
       const response = await POST(request({ headers }));

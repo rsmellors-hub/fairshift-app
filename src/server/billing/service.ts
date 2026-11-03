@@ -52,7 +52,8 @@ async function reconcile(db:DatabaseSession,adapter:SubscriptionAdapter,id:strin
  if (details.status === "ACTIVE" && row.tier && row.tier !== "ENTERPRISE") {
   const choice=planSelection.parse({tier:row.tier,billingPeriod:row.billingPeriod});
   if (row.locationLimit !== locationLimitFor(choice.tier)) throw new Error("Subscription entitlement mismatch.");
-  assertCommercialPlan(await adapter.getPlan(row.planId!),choice,row.planId!,false);
+  // Subscriptions created before the trial plans keep their original no-trial plan.
+  assertCommercialPlan(await adapter.getPlan(row.planId!),choice,row.planId!,false,["TRIAL","LEGACY"]);
  }
  const [updated]=await db.update(subscriptions).set({status:details.status,verifiedAt:new Date(),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
  return updated;

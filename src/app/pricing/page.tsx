@@ -34,7 +34,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           {contact ? <a className="secondary-button button-link" href={`mailto:${contact}?subject=FairShift%20Enterprise%20enquiry`}>Contact FairShift</a> : <p className="note">Contact FairShift to discuss your locations. Enterprise isn’t available through online checkout.</p>}
         </article>
       </div>
-      <p className="note plan-footnote">Prices in GBP. No setup fee and no per-worker fee. Subscriptions are approved in PayPal (PayPal Sandbox in this environment). Your plan pays for FairShift; worker pay is separate.</p>
+      <p className="note plan-footnote">Every plan starts with a 30-day free trial. Prices in GBP. No setup fee and no per-worker fee. Subscriptions are approved in PayPal (PayPal Sandbox in this environment). Your plan pays for FairShift; worker pay is separate.</p>
     </div></section>
   </PublicShell>;
 }

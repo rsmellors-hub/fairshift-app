@@ -1,6 +1,6 @@
 /** Explicit one-off Sandbox catalogue provisioning; never imported by application startup. */
 import { createHash } from "node:crypto";
-import { assertCommercialPlan, catalogue, type PlanSelection } from "../src/server/billing/plans";
+import { assertCommercialPlan, catalogue, TRIAL_DAYS, type PlanSelection } from "../src/server/billing/plans";
 
 const base="https://api-m.sandbox.paypal.com";
 const apply=process.argv.slice(2).includes("--apply");
@@ -44,25 +44,27 @@ async function main() {
  let product=matches[0];
  const selections=Object.entries(catalogue).flatMap(([tier,periods])=>Object.entries(periods).map(([billingPeriod,terms])=>({selection:{tier,billingPeriod} as PlanSelection,terms})));
  const related=plans.filter(p=>p.product_id === product?.id || /fair\s?shift|single outlet|multi outlet/i.test(p.name));
- // Validate every existing candidate before creating any missing object.
+ // Validate every existing candidate before creating any missing object. Original no-trial plans
+ // are recognised by their legacy name, validated against the legacy shape and left untouched.
  for(const existing of related) {
-  const match=selections.find(p=>existing.name === p.terms.name);
-  if (!product || existing.product_id !== product.id || !match || related.filter(p=>p.name === existing.name).length !== 1) throw new Error("Ambiguous or conflicting existing FairShift plans. No mutation allowed.");
-  assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),match.selection,existing.id);
+  const match=selections.find(p=>existing.name === p.terms.name), legacy=selections.find(p=>existing.name === p.terms.legacyName);
+  if (!product || existing.product_id !== product.id || !(match || legacy) || related.filter(p=>p.name === existing.name).length !== 1) throw new Error("Ambiguous or conflicting existing FairShift plans. No mutation allowed.");
+  if (match) assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),match.selection,existing.id);
+  else assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),legacy!.selection,existing.id,true,["LEGACY"]);
  }
  if (product) {
   const details=await request(`/v1/catalogs/products/${product.id}`);
   if (details.name !== "FairShift" || details.type !== "SERVICE") throw new Error("Existing FairShift product needs review.");
  }
  if (!apply) {
-  console.log(JSON.stringify({mode:"READ_ONLY",productId:product?.id??null,existingPlans:related.map(p=>({id:p.id,name:p.name})),subscriptionWebhook:withWebhook ? candidates[0]?.id??"MISSING" : "NOT_INSPECTED",missingPlans:selections.filter(p=>!related.some(e=>e.name === p.terms.name)).map(p=>p.terms.name)},null,2));return;
+  console.log(JSON.stringify({mode:"READ_ONLY",productId:product?.id??null,existingPlans:related.map(p=>({id:p.id,name:p.name,legacy:selections.some(s=>s.terms.legacyName === p.name)})),subscriptionWebhook:withWebhook ? candidates[0]?.id??"MISSING" : "NOT_INSPECTED",missingPlans:selections.filter(p=>!related.some(e=>e.name === p.terms.name)).map(p=>p.terms.name)},null,2));return;
  }
  if (!product) product=await request("/v1/catalogs/products",{name:"FairShift",description:"FairShift organisation workforce planning subscription",type:"SERVICE",category:"SOFTWARE",home_url:"https://getafairshift.com"});
  if (!/^PROD-[A-Z0-9]+$/.test(product.id)) throw new Error("Invalid product identifier. Stop before creating plans.");
  console.log(`PAYPAL_PRODUCT_ID=${product.id}`);
  for(const {selection,terms} of selections) {
   let plan=related.find(p=>p.name === terms.name);
-  if (!plan) plan=await request("/v1/billing/plans",{product_id:product.id,name:terms.name,status:"ACTIVE",quantity_supported:false,billing_cycles:[{frequency:{interval_unit:terms.interval,interval_count:1},tenure_type:"REGULAR",sequence:1,total_cycles:0,pricing_scheme:{fixed_price:{value:terms.amount,currency_code:terms.currency}}}],payment_preferences:{}});
+  if (!plan) plan=await request("/v1/billing/plans",{product_id:product.id,name:terms.name,status:"ACTIVE",quantity_supported:false,billing_cycles:[{frequency:{interval_unit:"DAY",interval_count:TRIAL_DAYS},tenure_type:"TRIAL",sequence:1,total_cycles:1},{frequency:{interval_unit:terms.interval,interval_count:1},tenure_type:"REGULAR",sequence:2,total_cycles:0,pricing_scheme:{fixed_price:{value:terms.amount,currency_code:terms.currency}}}],payment_preferences:{}});
   if (!plan?.id) throw new Error("Missing plan identifier. Stop before continuing.");
   const verified=assertCommercialPlan(await request(`/v1/billing/plans/${plan.id}`),selection,plan.id);
   if (verified.product_id !== product.id) throw new Error("Product mismatch. Stop before continuing.");

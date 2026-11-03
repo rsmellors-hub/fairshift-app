@@ -15,8 +15,9 @@ const annualEquivalent = (amount: string) => `£${(Number(amount) / 12).toFixed(
 
 export function PlanPrice({ tier, billingPeriod }: { tier: Tier; billingPeriod: Period }) {
   const plan = commercialPlan({ tier, billingPeriod });
-  if (billingPeriod === "MONTHLY") return <p className="plan-price"><strong>{pounds(plan.amount)}</strong><span>/month</span><small>Billed monthly</small></p>;
-  return <p className="plan-price"><strong>{annualEquivalent(plan.amount)}</strong><span>/month</span><small>{pounds(plan.amount)} billed annually</small></p>;
+  const trial = (price: string) => <p className="note">30 days free, then {price}. Approve in PayPal today; nothing is charged until the trial ends.</p>;
+  if (billingPeriod === "MONTHLY") return <><p className="plan-price"><strong>{pounds(plan.amount)}</strong><span>/month</span><small>Billed monthly</small></p>{trial(`${pounds(plan.amount)}/month`)}</>;
+  return <><p className="plan-price"><strong>{annualEquivalent(plan.amount)}</strong><span>/month</span><small>{pounds(plan.amount)} billed annually</small></p>{trial(`${pounds(plan.amount)} billed annually`)}</>;
 }
 
 export function BillingToggle({ current, basePath }: { current: Period; basePath: string }) {

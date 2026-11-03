@@ -68,7 +68,7 @@ export default function Home() {
     </div></section>
 
     <section className="site-section closing-cta"><div className="site-width closing-cta-row">
-      <div><h2>Plans from £29 a month</h2><p>Plans differ by how many locations you run. There is no setup fee or per-worker fee.</p></div>
+      <div><h2>Plans from £29 a month, after a 30-day free trial</h2><p>Plans differ by how many locations you run. There is no setup fee or per-worker fee.</p></div>
       <div className="cta-row"><Link className="primary-button button-link" href="/register">Start your business</Link><Link className="secondary-button button-link" href="/pricing">See pricing</Link></div>
     </div></section>
   </PublicShell>;
