@@ -182,6 +182,96 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 **Status: APPROVED. Decision date: 3 November 2026. Implementation: IMPLEMENTED, and VERIFIED locally.** The contextual reason check removes the word "one" from its spelled-number list. Digits, percent signs and every other number word remain rejected. Evidence: [`CONTEXT_SIGNALS_EVIDENCE.md`](CONTEXT_SIGNALS_EVIDENCE.md).
 
+### Owner decision FS-PRODUCT-PLAN-DEC-001: product direction and guardrails
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED (documentation only).** Source: the FairShift Product Plan, reviewed against this specification by the Owner on 3 November 2026.
+
+**Purpose.** FairShift turns a hospitality venue's own sales into fair, paid, recorded work for its own casual staff: the right people, the right place, the right time, the right pay.
+
+**Target loop.** Forecast → Fair Offers → shift worked → Fair Pay → Paid on Completion → Pathway. Forecast is the engine; it is not the product. Fair Offers, Fair Pay and Pathway are defined by the decisions below. Paid on Completion is the existing approval-then-PayPal-payout path, presented to users as an advance of earned pay that is reported through the venue's payroll.
+
+**Positioning.** FairShift is not a payroll, not a staffing marketplace and not a generic rota tool. The claims firewall in FS-TIP-DEC-001 continues to apply.
+
+**Market.** UK hospitality first. Other countries appear only in the pitch, as a path in which the loop stays the same and only the rules change.
+
+**Unchanged by this decision:**
+
+- FS-TIP-DEC-001, including its earnings components, tip evidence, exclusions (including hours-based pooling) and refund rules. FS-PAY-TERMS-DEC-001 adds a holiday-pay line, and that is the only change to its formula.
+- Casual workers stay bound to their home location. Cross-location casual-worker scheduling stays DEFERRED.
+- The approved subscription catalogue and subscription-first acquisition (section 8). Final SaaS pricing and packaging stay OPEN.
+- The frozen workload policy and the demand-context and context-signal decisions.
+
+**Guardrails.** Every work package must be tested against these rules.
+
+*Scope*
+1. A feature must serve one step of the loop for the business or the worker. If it serves neither, it is out.
+2. UK hospitality only, until the loop works end to end.
+3. No new forecasting features until Fair Offers, Fair Pay and Pathway work.
+
+*Pay*
+4. No casual offer below the rate set in FS-PAY-TERMS-DEC-001. The Owner sets the rate; FairShift checks it and never sets it.
+5. Holiday pay, allocated tips and cancellation pay are separate lines. None is ever folded into the base rate.
+6. Tips follow FS-TIP-DEC-001. The written tipping policy is visible to every worker.
+7. FairShift shows gross amounts. It never claims to calculate or handle tax or National Insurance.
+8. A payout is made only after a person with approval permission approves it. AI never approves pay and never moves money.
+
+*Offers and the pathway*
+9. Offers follow FS-OFFER-ORDER-DEC-001, and the criteria are printed on the offer. A shift is never resized or split to avoid an offer or a threshold.
+10. Any figure taken from law that is not final is an editable setting labelled "UK proposal". It is never presented as compliance.
+
+*Honesty*
+11. The Golden Path anti-tuning rule extends to the guaranteed-hours threshold, the reference period, the cancellation percentage and the tipping-policy rule.
+12. Deterministic code produces every figure, and AI explains in words. The deterministic baseline comes first.
+13. Claims stay inside the evidence. Say "built to the UK rules as proposed", not "compliant". Say "none we checked", not "no one does".
+
+*Experience*
+14. The Owner approves the week in one step. A worker answers an offer in one step. Any other step must justify itself.
+15. The action comes first, and the explanation is collapsed. Provenance and honesty labels stay.
+
+*Process*
+16. Only the Owner makes product decisions. Agents propose. A decision binds once it is recorded here as a dated Owner decision.
+
+### Owner decision FS-PAY-TERMS-DEC-001: casual pay terms and cancellation pay
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED.** This resolves decision D1, the pay terms that block shift creation on hosted (`HOSTED_RELEASE_002_EVIDENCE.md`).
+
+- **Hourly only.** Casual shifts use `HOURLY` earnings. `DAILY` and `COMMISSION` remain in code but are not offered for casual shifts on the Golden Path, because a daily or commission-only rate can fall below the hourly legal minimum.
+- **Minimum rate check.** The Owner sets the hourly rate in the work policy. FairShift rejects a casual hourly rate below **£12.71**, the National Living Wage for workers aged 21 and over from 1 April 2026. It applies this rate to every casual worker, so FairShift never collects worker ages. The figure is a dated product setting. Changing it needs an Owner decision.
+- **Real Living Wage indicator.** When the hourly rate is at least **£14.10**, or **£15.45** at a London location, FairShift shows a "Real Living Wage" indicator. These are the Living Wage Foundation's 2026–27 rates, announced 15 October 2026. The indicator is information only. It is not accreditation. How a location is identified as London is OPEN.
+- **Holiday pay.** Holiday pay is a separate line of **12.07%** of the shift's base earnings. This is the rolled-up holiday pay method for irregular-hours workers, for leave years starting on or after 1 April 2024. Whether incentive and tips must also be included in the holiday-pay base NEEDS VERIFICATION.
+- **Earnings formula.** This amends FS-TIP-DEC-001 by adding one line: BASE + HOLIDAY PAY + PERFORMANCE INCENTIVE + ALLOCATED TIPS = TOTAL APPROVED EARNINGS. Every other FS-TIP-DEC-001 rule is unchanged.
+- **Cancellation pay.** When the venue cancels an accepted shift within the short-notice window, the worker is owed cancellation pay. It is a percentage of the shift's expected base earnings, set by the Owner. The percentage setting is labelled "UK proposal: 10–80%". The short-notice window setting is labelled "UK proposal: up to 7 days". Both come from the Employment Rights Act 2025 zero-hours consultation of June 2026, whose regulations are not final. There is no default: a missing setting is unavailable, never zero. The reference company's values are OPEN.
+- **Presentation.** A payout is presented as an advance of earned pay, reported through the venue's payroll. This wording NEEDS VERIFICATION before any production claim.
+
+### Owner decision FS-OFFER-ORDER-DEC-001: fair offer order
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED.** This resolves decision D2 and is modelled on New York City's Fair Workweek "access to hours" rule.
+
+- **Scope.** Offers go only to eligible casual workers at the shift's location, which is the worker's home location. Cross-location scheduling stays DEFERRED. Hard eligibility, availability, conflicts and preferences are unchanged.
+- **Order.** The first round goes to eligible workers who have said they want more hours, ordered from fewest remaining hours to the guaranteed-hours threshold (FS-PATHWAY-DEC-001). If the shift is not filled when the acceptance window closes, the next round goes to the other eligible casual workers.
+- **Acceptance.** Within a round, the earliest acceptances fill the required headcount. The length of the acceptance window is OPEN.
+- **Transparency.** Every offer shows the criteria that placed it and the acceptance window.
+- **"Wants more hours".** This is a preference the worker sets. No personal reason is collected.
+- **Not authorised.** Scoring algorithms, performance-based ranking, AI matching, and resizing or splitting shifts to avoid an offer or a threshold.
+
+### Owner decision FS-PATHWAY-DEC-001: guaranteed-hours pathway
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED.**
+
+- FairShift counts each casual worker's completed, approved hours recorded in FairShift at their home location over a reference period. It shows the worker their own progress against a guaranteed-hours threshold.
+- When a worker reaches the threshold, FairShift flags them to the Owner, so the Owner can decide whether to offer regular hours. FairShift does not make the offer, create a contract or determine legal eligibility.
+- The threshold and the reference period are Owner settings, labelled "UK proposal: 8–20 hours a week preferred, 12-week reference period". They come from the Employment Rights Act 2025 zero-hours consultation of June 2026, with implementation expected in 2027 and the regulations not final. The reference company's values are OPEN and must be chosen before looking at the data.
+- Workers see only their own progress. The existing data-visibility rules apply.
+
+### Owner decision FS-ROLES-DEC-001: owner-first roles
+
+**Status: APPROVED. Decision date: 3 November 2026. Implementation: NOT IMPLEMENTED.**
+
+- The Owner can perform every Manager action at every location: planning, Fill Shifts, allocation, performance review, approval and payout. The Golden Path demonstrates an owner-operator.
+- Manager is a permission the Owner grants per location. It is not a required step. The existing outlet-scoped `MANAGER` membership is the mechanism.
+- Where section 3 and principle 3 say Managers create shifts, choose invitees, finalise allocations and approve payouts, those actions belong to the Owner and to any Manager the Owner has delegated to.
+- This decision does not change authentication, `TEAM_MEMBER`, or server-side scope enforcement. Implementation needs its own authorised package.
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.
@@ -226,6 +316,8 @@ The Admin / Owner is a customer-company role. It is distinct from the FairShift 
 A manager operates within one or more authorised locations. One-location managers enter their location implicitly. Multi-location managers receive a clear current-location control containing only authorised locations.
 
 Managers translate operational intelligence into staffing decisions. They create shifts, choose eligible workers, send offers, review responses, finalise allocations, review performance and calculated amounts, approve payouts, and monitor payment state. Server-side location and financial-operation authorisation must support this UX; hiding controls is insufficient.
+
+**Amended by FS-ROLES-DEC-001 (section 1), 3 November 2026.** The Owner can perform every Manager action at every location. Manager is a permission the Owner grants per location, not a required step.
 
 ### Casual Worker
 
@@ -871,11 +963,15 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - The exact wording of the written tipping-policy rule and the tip terms. FS-TIP-DEC-001 (section 1) settles the earnings formula, tip evidence, exclusions, Manager limits and refund treatment, but doesn't state the rule itself. Nothing about tips is implemented.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
-- Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not.
-- Over-invitation and capacity behaviour when more workers accept than required.
+- Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not. Offer order is resolved by FS-OFFER-ORDER-DEC-001 (section 1). No scoring algorithm or performance ranking is authorised.
+- Over-invitation and capacity behaviour when more workers accept than required. Within an offer round, the earliest acceptances fill the required headcount (FS-OFFER-ORDER-DEC-001).
 - Invitation transport and notification channel.
 - Shift Sheet format and distribution channel.
 - Detailed payment-dispute state machine and any payout-hold rules.
+- Reference company's cancellation-pay percentage and short-notice window (FS-PAY-TERMS-DEC-001).
+- Reference company's guaranteed-hours threshold and reference period (FS-PATHWAY-DEC-001). Choose them before looking at the data.
+- Length of the offer acceptance window (FS-OFFER-ORDER-DEC-001).
+- How a location is identified as being in London, for the Real Living Wage indicator (FS-PAY-TERMS-DEC-001).
 
 ### NEEDS VERIFICATION
 
@@ -885,6 +981,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - Current PayPal capability, Sandbox fit, and implementation cost for a possible lightweight commercial entry flow.
 - Bryntum and AG Grid licensing, supported package versions, and technical fit before installation.
 - The exact APIMatic implementation and evidence that materially supports the PayPal integration.
+- Whether performance incentive and allocated tips must be included in the 12.07% holiday-pay base, and the wording "advance of earned pay, reported through the venue's payroll". Both need professional payroll or legal confirmation before any claim (FS-PAY-TERMS-DEC-001).
 
 ### DEFERRED
 
