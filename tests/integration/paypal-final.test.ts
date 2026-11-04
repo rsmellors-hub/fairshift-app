@@ -6,7 +6,7 @@ import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import { resolveScope, type Scope } from "@/server/auth/access";
 import { savePayoutDestination, workerRespond } from "@/server/auth/operations";
-import { requireScope } from "@/server/auth/request";
+import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { inviteMember, redeemInvitation } from "@/server/auth/tenancy";
 import { connectSquare, syncSquare } from "@/server/commerce/square-connection";
 import { mapSquareTeamMember } from "@/server/commerce/square-mapping";
@@ -24,7 +24,7 @@ import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 
 // Every Square and PayPal response in this file is a fixture, not provider evidence.
-vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
+vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
@@ -106,7 +106,7 @@ const pages = (db: Db) => {
   vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, aiConfigured: false, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
 };
 const render = async (scope: Scope, element: () => Promise<React.ReactNode>) => { vi.mocked(requireScope).mockResolvedValue(scope); return renderToStaticMarkup(await element()); };
-const asAction = async (scope: Scope, action: () => Promise<unknown>) => { vi.mocked(requireScope).mockResolvedValue(scope); await action().catch((error: Error) => { if (!error.message.startsWith("REDIRECT:")) throw error; }); };
+const asAction = async (scope: Scope, action: () => Promise<unknown>) => { vi.mocked(requireScope).mockResolvedValue(scope); vi.mocked(requireFinancialScope).mockResolvedValue(scope); await action().catch((error: Error) => { if (!error.message.startsWith("REDIRECT:")) throw error; }); };
 
 describe("Square-attributed earnings to a PayPal payout", () => {
   it("derives £121 from the accepted terms and confirmed Square performance, and sends exactly that from the persisted payable", () => withDb(async db => {
@@ -211,10 +211,11 @@ describe("Square-attributed earnings to a PayPal payout", () => {
     const j = await journey(db), payable = await j.confirmedSales(), paypal = fakePayPal();
     vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
     vi.mocked(requireScope).mockResolvedValue(j.manager);
+    vi.mocked(requireFinancialScope).mockResolvedValue(j.manager);
     await approveWorkPayable(db, j.manager, payable.id);
     const results = await Promise.all([submitWorkPayout(db, paypal, j.manager, payable.id), submitWorkPayout(db, paypal, j.manager, payable.id), submitWorkPayout(db, paypal, j.manager, payable.id)]);
     expect(results.filter(result => result.submitted)).toHaveLength(1);
-    await expect(sendPayoutAction(form({ payableId: payable.id }))).rejects.toThrow("REDIRECT:/manager/review?status=payout-already-sent");
+    await expect(sendPayoutAction(form({ payableId: payable.id }))).rejects.toThrow("REDIRECT:/settlements?status=payout-already-sent");
     expect(paypal.createPayout).toHaveBeenCalledTimes(1);
     expect(await payouts(db)).toHaveLength(1);
     expect(await render(j.manager, () => ManagerWorkspace({ area: "review", status: "payout-already-sent" }))).toContain("no second payment was made");

@@ -6,7 +6,7 @@ import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import { resolveScope, type Scope } from "@/server/auth/access";
 import { savePayoutDestination, workerRespond } from "@/server/auth/operations";
-import { requireScope } from "@/server/auth/request";
+import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { inviteMember, redeemInvitation } from "@/server/auth/tenancy";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -21,7 +21,7 @@ import { ManagerWorkspace } from "@/app/manager/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 
-vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
+vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
@@ -84,7 +84,7 @@ const pages = (db: Db) => {
   vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, aiConfigured: false, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
 };
 const render = async (scope: Scope, element: () => Promise<React.ReactNode>) => { vi.mocked(requireScope).mockResolvedValue(scope); return renderToStaticMarkup(await element()); };
-const act = async (scope: Scope, action: (f: FormData) => Promise<unknown>, values: Record<string, string>) => { vi.mocked(requireScope).mockResolvedValue(scope); return String(await action(form(values)).catch((error: Error) => error.message)); };
+const act = async (scope: Scope, action: (f: FormData) => Promise<unknown>, values: Record<string, string>) => { vi.mocked(requireScope).mockResolvedValue(scope); vi.mocked(requireFinancialScope).mockResolvedValue(scope); return String(await action(form(values)).catch((error: Error) => error.message)); };
 const stubPayPal = () => ({
   createPayout: vi.fn(async () => ({ batchId: "BATCH1", itemId: null, status: "PENDING", batchStatus: "PENDING", itemStatus: null, transactionId: null })),
   getPayout: vi.fn(async (batchId: string) => ({ batchId, itemId: "ITEM1", status: "ONHOLD", batchStatus: "SUCCESS", itemStatus: "ONHOLD", transactionId: "TX1", itemErrorCode: "HELD" })),

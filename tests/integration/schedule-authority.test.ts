@@ -209,7 +209,8 @@ describe("who can see and change the schedule", () => {
     await allocated(db, s, shift.id);
     const schedule = await getAllocationSchedule(db, s.manager, NOW);
     expect(schedule.resources[0]).toEqual({ id: "open-places", name: "Places to fill" });
-    expect(schedule.events.find(event => event.kind === "GAP")).toMatchObject({ state: "1 place to fill", interaction: "CHANGE_ONLY", draggable: false, fillHref: expect.stringContaining("/manager/fill?date=2026-01-19") });
+    // Its time can't be dragged, because the shift is allocated; the open place can still be offered.
+    expect(schedule.events.find(event => event.kind === "GAP")).toMatchObject({ state: "1 place to fill", interaction: "CHANGE_ONLY", timeMovable: false, resizable: false, offerable: true, fillHref: expect.stringContaining("/manager/fill?date=2026-01-19") });
     expect(schedule.events.find(event => event.kind === "OFFER")).toMatchObject({ state: "Allocated", draggable: false, resizable: false, bonusLabel: "£25.00 bonus at £650.00 attributed sales" });
   }));
   it("the action reads wall-clock times at the location, refuses a clock-change time, and returns the refusal", () => withDb(async db => {

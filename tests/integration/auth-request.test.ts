@@ -1,3 +1,4 @@
+import { offerFromScheduleAction } from "@/app/schedule-actions";
 import { connectZettleAction, disconnectZettleAction, syncZettleAction } from "@/app/commerce-actions";
 import { createOrganisation } from "../helpers/onboarding";
 import { personal, business, entitled, setupFields } from "../helpers/onboarding";
@@ -154,6 +155,29 @@ describe("Owner operating a location without a Manager account",()=>{
 });
 
 describe("subscription gate at real application boundaries",()=>{
+ it("keeps active payment returns in the operational workspace and restricts an inactive Manager to settlements",async()=>{
+  const t=await createTestDatabase();try {
+   vi.mocked(getDatabase).mockReturnValue(t.db);
+   vi.stubEnv("DATABASE_URL","postgresql://localhost/not-used");
+   const o=await bootstrap(t.db);
+   const invitation=await inviteMember(t.db,o.scope,{role:"MANAGER",email:"manager@example.test",firstName:"Pat",surname:"Manager",telephone:"+441130000001"});
+   const manager=await registerIdentity(t.db,{email:"manager@example.test",password});
+   await redeemInvitation(t.db,manager.id,{token:invitation.token});
+   jar.set("fairshift_session",await issueSession(t.db,manager.id));
+   await expect(SettlementsPage({searchParams:Promise.resolve({status:"saved"})})).rejects.toThrow("REDIRECT:/manager/review?status=saved");
+   const active=renderToStaticMarkup(await ManagerLayout({children:"Schedule"}));
+   expect(active).toContain('href="/manager/allocations"');
+   expect(active).toContain('href="/manager/review"');
+   await t.db.update(subscriptions).set({status:"EXPIRED"}).where(eq(subscriptions.organisationId,o.o.organisationId));
+   await expect(ManagerLayout({children:"Schedule"})).rejects.toThrow("subscription-required");
+   await expect(createRequirementAction(new FormData())).rejects.toThrow("subscription-required");
+   await expect(offerFromScheduleAction({shiftId:randomUUID(),workerId:randomUUID()})).rejects.toThrow("subscription-required");
+   const html=renderToStaticMarkup(await SettlementsPage({searchParams:Promise.resolve({})}));
+   expect(html).toContain("Payments &amp; approvals");
+   expect(html).toContain("Confirm completed work");
+   for(const href of ["/manager/allocations","/manager/fill","/manager/plan"]) expect(html).not.toContain(`href="${href}"`);
+  }finally{await t.close();}
+ });
  it("denies direct Owner routes and protected mutations for every non-entitled state, with no operational navigation in setup",async()=>{
   const t=await createTestDatabase();try {
    vi.mocked(getDatabase).mockReturnValue(t.db);
@@ -166,6 +190,8 @@ describe("subscription gate at real application boundaries",()=>{
     for (const action of [connectZettleAction,syncZettleAction,disconnectZettleAction,createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
+    await expect(ManagerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
+    await expect(offerFromScheduleAction({shiftId:randomUUID(),workerId:randomUUID()})).rejects.toThrow("REDIRECT:/subscribe");
     expect(await requireFinancialScope(["OWNER","MANAGER"])).toMatchObject({organisationId:o.o.organisationId,role:"OWNER"});
     const settlements=renderToStaticMarkup(await SettlementsPage({searchParams:Promise.resolve({})}));
     expect(settlements).toContain("Payments &amp; approvals");
