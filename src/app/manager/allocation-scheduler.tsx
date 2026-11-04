@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import type { EventModel, Scheduler } from "@bryntum/scheduler";
+import type { EventModel, ResourceModel, Scheduler } from "@bryntum/scheduler";
 import { allocateAssignmentAction } from "@/app/operations-actions";
-import { rescheduleShiftAction, type ScheduleChange, type ScheduleResult } from "@/app/schedule-actions";
-import { type AllocationSchedule, moveToDay, schedulerConfig, type ScheduleEvent } from "./allocation-model";
+import { offerFromScheduleAction, rescheduleShiftAction, type OfferResult, type ScheduleChange, type ScheduleResult } from "@/app/schedule-actions";
+import type { PlanningSummary } from "@/server/scheduling/allocations";
+import { type AllocationSchedule, dropRule, moveToDay, schedulerConfig, type ScheduleEvent } from "./allocation-model";
 
 const parts = (iso: string, timeZone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map(part => [part.type, part.value]));
 const localDate = (iso: string, timeZone: string) => { const p = parts(iso, timeZone); return `${p.year}-${p.month}-${p.day}`; };
@@ -35,19 +36,26 @@ const HOW: Record<ScheduleEvent["interaction"], string> = {
 };
 
 type Pending = { event: ScheduleEvent; startsAt: string; endsAt: string; resolve: (confirmed: boolean) => void };
+type PendingOffer = { event: ScheduleEvent; workerName: string; resolve: (confirmed: boolean) => void };
+const hours = (minutes: number) => `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(minutes / 60)} h`;
+const planningDay = (date: string) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+const SOURCE: Record<string, string> = { REFERENCE: "Reference sales history · synthetic", DEMO_SEEDED: "Demo / seeded history", IMPORTED: "Imported sales history · not provider-verified", SQUARE: "Square Sandbox sales · connected seller", ZETTLE: "Earlier connected-account sales" };
 
-export function AllocationScheduler({ schedule, timeZone }: { schedule: AllocationSchedule; timeZone: string }) {
+export function AllocationScheduler({ schedule, timeZone, planning = null, dragToOffer = true }: { schedule: AllocationSchedule; timeZone: string; planning?: PlanningSummary | null; dragToOffer?: boolean }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const host = useRef<HTMLDivElement>(null);
   const instance = useRef<Scheduler | null>(null);
   const eventsRef = useRef(schedule.events);
+  const scheduleRef = useRef(schedule);
   const [load, setLoad] = useState<"loading" | "ready" | "error">("loading");
   const upcoming = [...schedule.events].filter(event => new Date(event.endDate) > new Date()).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ?? schedule.events[0];
   const [selectedId, setSelectedId] = useState(upcoming?.id ?? "");
-  const [date, setDate] = useState(upcoming ? mondayOf(localDate(upcoming.startDate, timeZone)) : "");
+  // Open on the week with the next shift, else the planning week the forecast covers.
+  const [date, setDate] = useState(upcoming ? mondayOf(localDate(upcoming.startDate, timeZone)) : planning ? mondayOf(planning.firstDate) : "");
   const [days, setDays] = useState(7);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [pendingOffer, setPendingOffer] = useState<PendingOffer | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
   const selected = schedule.events.find(event => event.id === selectedId) ?? null;
 
@@ -60,11 +68,32 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
     startRefresh(() => router.refresh());
     return result.ok;
   };
-  const decide = useRef<(event: ScheduleEvent, start: Date, end: Date) => Promise<boolean>>(async () => false);
+  const sendOffer = async (event: ScheduleEvent, workerId: string, workerName: string) => {
+    let result: OfferResult;
+    try { result = await offerFromScheduleAction({ shiftId: event.shiftId, workerId }); }
+    catch { result = { ok: false, code: "error", message: "The offer could not be sent, so nothing changed." }; }
+    setOutcome(result.ok ? { ok: true, message: `Offer sent to ${workerName}. They must accept it before you can finalise the allocation.` } : { ok: false, message: result.message });
+    startRefresh(() => router.refresh());
+  };
+  const allowOffer = useRef(dragToOffer);
+  // The drop rule, with offers by drag turned off where this page can't send them (the public demo).
+  const ruleFor = (event: ScheduleEvent, toRowId: string) => { const rule = dropRule(scheduleRef.current, event, toRowId); return rule.action === "OFFER" && !allowOffer.current ? { action: "REFUSE" as const, message: "In the demo, send offers from Fill shifts." } : rule; };
+  const decide = useRef<(event: ScheduleEvent, start: Date, end: Date, to?: ResourceModel) => Promise<boolean>>(async () => false);
   const weekView = useRef(true);
   useEffect(() => {
     weekView.current = days === 7;
-    decide.current = async (event, start, end) => {
+    decide.current = async (event, start, end, to) => {
+      const rule = ruleFor(event, to ? String(to.id) : event.rowId);
+      if (rule.action === "REFUSE") { setOutcome({ ok: false, message: rule.message }); return false; }
+      if (rule.action === "OFFER") {
+        const workerName = to?.name ? String(to.name) : "this worker";
+        const confirmed = await new Promise<boolean>(resolve => setPendingOffer({ event, workerName, resolve }));
+        setPendingOffer(null);
+        // The open place stays where it is either way: an offer is not an allocation, and the
+        // refreshed schedule shows the new offer on the worker's row.
+        if (confirmed) await sendOffer(event, rule.workerId, workerName);
+        return false;
+      }
       const times = days === 7 ? moveToDay(event, wallClock(start).slice(0, 10), timeZone) : { startsAt: wallClock(start), endsAt: wallClock(end) };
       const confirmed = event.interaction === "MOVE" || await new Promise<boolean>(resolve => setPending({ event, ...times, resolve }));
       setPending(null);
@@ -72,7 +101,7 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
       return send({ shiftId: event.shiftId, expectedTermsVersion: event.termsVersion, ...times, source: "DRAG", acknowledgeReacceptance: event.interaction !== "MOVE" });
     };
   });
-  useEffect(() => { eventsRef.current = schedule.events; }, [schedule.events]);
+  useEffect(() => { eventsRef.current = schedule.events; scheduleRef.current = schedule; allowOffer.current = dragToOffer; }, [schedule, dragToOffer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +111,16 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
       if (cancelled || !host.current) return;
       const record = (model: EventModel) => eventsRef.current.find(event => event.id === String(model.id));
       scheduler = new Scheduler({
-        ...schedulerConfig, appendTo: host.current, autoHeight: true, minHeight: 200,
+        ...schedulerConfig,
+        features: { ...schedulerConfig.features, eventDrag: { ...schedulerConfig.features.eventDrag,
+          // Early feedback while dragging; the drop decides again and the server has the last word.
+          validatorFn: ({ eventRecords, newResource }: { eventRecords: EventModel[]; newResource: ResourceModel }) => {
+            const event = eventRecords[0] && record(eventRecords[0]);
+            if (!event || !newResource) return false;
+            const rule = ruleFor(event, String(newResource.id));
+            return rule.action === "REFUSE" ? { valid: false, message: rule.message } : { valid: true, message: rule.action === "OFFER" ? "Drop to offer this shift to this worker" : "" };
+          } } },
+        appendTo: host.current, autoHeight: true, minHeight: 200,
         timeZone, viewPreset: "dayAndWeek", forceFit: host.current.clientWidth >= 600, autoAdjustTimeAxis: false, rowHeight: 64, barMargin: 6, eventStyle: "filled",
         columns: [{ text: "Worker", field: "name", width: 150, htmlEncode: true }],
         eventRenderer: ({ eventRecord }) => {
@@ -92,12 +130,17 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
             children: weekView.current ? [{ tag: "strong", text: `${hourLabel(start)}–` }, { tag: "strong", text: hourLabel(end) }, { tag: "span", text: shortState(event) }] : [{ tag: "strong", text: `${hourLabel(start)}–${hourLabel(end)}` }, { tag: "span", text: shortState(event) }] };
         },
         onEventClick: ({ eventRecord }) => setSelectedId(String(eventRecord.id)),
+        // An open forecast window opens Fill shifts on that window; nothing is created here.
+        onResourceTimeRangeClick: ({ resourceTimeRangeRecord }) => {
+          const href = scheduleRef.current.timeRanges.find(range => range.id === String(resourceTimeRangeRecord.id))?.fillHref;
+          if (href) router.push(href);
+        },
         onBeforeEventDrag: ({ eventRecord }) => record(eventRecord as EventModel)?.draggable === true,
         onBeforeEventResize: ({ eventRecord }) => !weekView.current && record(eventRecord as EventModel)?.resizable === true,
         onBeforeEventDropFinalize: async ({ context }) => {
           const event = record(context.eventRecord);
           context.async = true;
-          context.finalize(event ? await decide.current(event, context.startDate, context.endDate) : false);
+          context.finalize(event ? await decide.current(event, context.startDate, context.endDate, context.newResource) : false);
         },
         onBeforeEventResizeFinalize: async (change) => {
           const event = record(change.eventRecord);
@@ -110,17 +153,18 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
       setLoad("ready");
     }).catch(() => { if (!cancelled) setLoad("error"); });
     return () => { cancelled = true; instance.current = null; scheduler?.destroy(); };
-  }, [timeZone]);
+  }, [timeZone, router]);
 
   // Always the server's records: after any change, including a refused one, this replaces
   // what the timeline holds, so the browser's copy never becomes the truth.
   useEffect(() => {
     const scheduler = instance.current;
     if (!scheduler || load !== "ready") return;
-    const state = scheduler as unknown as { resources: unknown; events: unknown; assignments: unknown };
+    const state = scheduler as unknown as { resources: unknown; events: unknown; assignments: unknown; resourceTimeRanges: unknown };
     state.resources = schedule.resources.map(row => ({ ...row }));
     state.events = schedule.events.map(row => ({ ...row }));
     state.assignments = schedule.assignments.map(row => ({ ...row }));
+    state.resourceTimeRanges = schedule.timeRanges.map(({ id, resourceId, startDate, endDate, name, cls }) => ({ id, resourceId, startDate, endDate, name, cls }));
   }, [schedule, load]);
 
   useEffect(() => {
@@ -152,8 +196,10 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
       <button className="secondary-button" type="button" onClick={() => shiftWeek(1)}>Next</button>
       <label>View<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={7}>Week</option><option value={1}>Day</option></select></label>
     </div>
+    {planning ? <ForecastNeed planning={planning} /> : null}
     <ul className="allocation-legend" aria-label="Shift states">
-      <li><i data-state="gap" />Places to fill</li><li><i data-state="offered" />Offered</li><li><i data-state="accepted" />Accepted</li><li><i data-state="allocated" />Allocated</li><li><i data-state="closed" />Finished or closed</li>
+      {planning ? <><li><i data-state="forecast-open" />Forecast casual need</li><li><i data-state="forecast-filled" />Need filled</li><li><i data-state="regular" />Regular staff</li></> : null}
+      <li><i data-state="gap" />Places to fill</li><li><i data-state="offered" />Offered</li><li><i data-state="accepted" />Accepted</li><li><i data-state="allocated" />Allocated</li><li><i data-state="closed" />Finished or closed</li><li><i data-state="unavailable" />Worker unavailable</li>
     </ul>
     {load === "loading" ? <p role="status">Loading schedule timeline…</p> : null}
     {load === "error" ? <p role="alert">The timeline could not be loaded. Shift details remain available below. Reload this page to try again.</p> : null}
@@ -162,9 +208,14 @@ export function AllocationScheduler({ schedule, timeZone }: { schedule: Allocati
       <p>{shown(pending.event.startDate, timeZone)} becomes {shown(`${pending.startsAt}:00Z`, "UTC")} to {pending.endsAt.slice(11)}. Changing the time means workers with an offer or acceptance must accept the new terms, and pay based on hours is recalculated.</p>
       <div className="allocation-confirm-actions"><button className="primary-button" type="button" onClick={() => pending.resolve(true)}>Move and ask workers again</button><button className="secondary-button" type="button" onClick={() => pending.resolve(false)}>Keep current times</button></div>
     </div> : null}
+    {pendingOffer ? <div className="allocation-confirm" role="alertdialog" aria-labelledby="allocation-offer-title">
+      <h3 id="allocation-offer-title">Offer this shift to {pendingOffer.workerName}?</h3>
+      <p>{shown(pendingOffer.event.startDate, timeZone)} to {shown(pendingOffer.event.endDate, timeZone)} on the shift’s current terms. {pendingOffer.workerName} must accept before you can finalise the allocation. FairShift checks their availability, other work and the pay terms before it sends anything.</p>
+      <div className="allocation-confirm-actions"><button className="primary-button" type="button" onClick={() => pendingOffer.resolve(true)}>Send offer</button><button className="secondary-button" type="button" onClick={() => pendingOffer.resolve(false)}>Don’t send</button></div>
+    </div> : null}
     {outcome ? <p className={outcome.ok ? "allocation-outcome" : "allocation-outcome allocation-outcome-refused"} role={outcome.ok ? "status" : "alert"}>{outcome.message}{refreshing ? " Updating…" : ""}</p> : null}
     <div className="allocation-timeline" ref={host} />
-    <p className="note">Select a shift for its details. In Week view, dragging moves a shift to another day at the same times; switch to Day view to change its hours. FairShift checks every change on the server, so a refused move returns to where it was.</p>
+    <p className="note">Select a shift for its details. In Week view, dragging moves a shift to another day at the same times; switch to Day view to change its hours. {dragToOffer ? "Drag an open place onto a worker to offer them the shift. " : ""}FairShift checks every change on the server, so a refused move returns to where it was.</p>
     <label>Shift details<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{schedule.events.map((event) => <option value={event.id} key={event.id}>{shown(event.startDate, timeZone)} · {event.workerName} · {event.state}</option>)}</select></label>
     {selected ? <ShiftDetail key={`${selected.id}:${selected.termsVersion}`} event={selected} timeZone={timeZone} send={send} /> : null}
   </section>;
@@ -201,5 +252,15 @@ function ShiftDetail({ event, timeZone, send }: { event: ScheduleEvent; timeZone
         <label className="acceptance-check"><input name="acknowledged" type="checkbox" value="yes" required /> I understand the allocated workers must accept the new terms before they’re booked again.</label>
         <button className="secondary-button" disabled={saving}>Change shift and ask workers again</button>
       </form></details> : null}
+  </div>;
+}
+
+// The planning week's casual need, from the same calculation as Forecast & staffing. Listed as
+// well as drawn, so every open window can be reached without the timeline.
+function ForecastNeed({ planning }: { planning: PlanningSummary }) {
+  return <div className="forecast-need" aria-label="Forecast casual need">
+    <p className="provenance-line">{planning.source ? <span className="forecast-source">{SOURCE[planning.source.source] ?? "Verified PayPal Sandbox sales"}</span> : null}<span>Planning week {planningDay(planning.firstDate)} – {planningDay(planning.lastDate)}</span></p>
+    <p>{planning.open.length ? <>Casual need still open: <strong>{hours(planning.casualGapMinutes)}</strong> across {planning.open.length} {planning.open.length === 1 ? "time" : "times"}.</> : "No open casual need in the days FairShift can calculate."} Worked out from expected transactions by time of day, this location’s capacity policy, regular staff and allocated casual work{planning.acceptedScenarios ? `, including ${planning.acceptedScenarios === 1 ? "one scenario" : `${planning.acceptedScenarios} scenarios`} you accepted` : ""}. Offers and acceptances don’t count until they’re allocated.{planning.unavailableDays ? ` ${planning.unavailableDays} ${planning.unavailableDays === 1 ? "day" : "days"} can’t be calculated; see Forecast & staffing.` : ""}</p>
+    {planning.open.length ? <details className="disclosure-inline"><summary>Open times · {planning.open.length}</summary><ul className="forecast-need-list">{planning.open.map(row => <li key={row.id}><span>{planningDay(row.date)} · {row.windowStart}–{row.windowEnd} · {hours(row.remainingMinutes)} · up to {row.peakCasualStaff} {row.peakCasualStaff === 1 ? "person" : "people"}{row.scenario ? " · includes your accepted scenario" : ""}</span><Link className="text-link" href={row.fillHref}>Create shift</Link></li>)}</ul></details> : null}
   </div>;
 }

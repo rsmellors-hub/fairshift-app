@@ -29,3 +29,19 @@
 .allocation-timeline .b-grid-header, .allocation-timeline .b-sch-header-row { background: #f2f4f1; color: var(--muted); font-weight: 600; }
 /* Bryntum's named event colours, mapped to the FairShift status colours in the legend. */
 .allocation-timeline { --b-color-green: var(--primary); --b-color-blue: #2a6fbb; --b-color-orange: var(--gap); --b-color-red: #b42318; --b-color-gray: #7c8a90; }
+/* Background ranges: the forecast's casual need and regular cover on their own rows, and each
+   worker's stated unavailability. They are never events, so they can't be dragged. */
+.allocation-timeline .b-sch-resourcetimerange { font-size: 10px; line-height: 1.2; padding: 2px 4px; border-radius: 4px; opacity: 1; overflow: hidden; white-space: nowrap; color: var(--ink, #1d2a2f); }
+.allocation-timeline .b-sch-resourcetimerange.range-forecast-open { background: var(--gap-soft); border: 1px dashed var(--gap); cursor: pointer; }
+.allocation-timeline .b-sch-resourcetimerange.range-forecast-filled { background: #e6f4ee; border: 1px solid var(--primary); }
+.allocation-timeline .b-sch-resourcetimerange.range-regular { background: #e8eef6; border: 1px solid #2a6fbb; }
+.allocation-timeline .b-sch-resourcetimerange.range-unavailable { background: repeating-linear-gradient(135deg, #eef0ee 0 6px, #e1e4e1 6px 12px); color: var(--muted); }
+.allocation-legend i[data-state="forecast-open"] { background: var(--gap-soft); border: 1px dashed var(--gap); }
+.allocation-legend i[data-state="forecast-filled"] { background: #e6f4ee; border: 1px solid var(--primary); }
+.allocation-legend i[data-state="regular"] { background: #e8eef6; border: 1px solid #2a6fbb; }
+.allocation-legend i[data-state="unavailable"] { background: repeating-linear-gradient(135deg, #eef0ee 0 3px, #d5d9d5 3px 6px); }
+.forecast-need { margin-block: 8px 12px; }
+.forecast-need p { margin: 4px 0; }
+.forecast-source { font-weight: 600; margin-inline-end: 8px; }
+.forecast-need-list { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.forecast-need-list li { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; }

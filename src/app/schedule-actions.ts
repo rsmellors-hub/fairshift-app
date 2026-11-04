@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireScope } from "@/server/auth/request";
 import { workers } from "@/server/db/schema";
 import { getEmailAdapter } from "@/server/notifications/email";
@@ -11,7 +12,7 @@ import { getDatabase } from "@/server/db/client";
 import { guardDemoWrite } from "@/server/demo/fixtures";
 import { UserFacingError } from "@/server/domain/errors";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
-import { locationTimezone, rescheduleShift } from "@/server/scheduling/operations";
+import { locationTimezone, offerAssignment, rescheduleShift } from "@/server/scheduling/operations";
 
 export type ScheduleChange = { shiftId: string; expectedTermsVersion: number; startsAt: string; endsAt: string; source: "DRAG" | "CHANGE"; acknowledgeReacceptance: boolean };
 export type ScheduleResult = { ok: true; changed: boolean } | { ok: false; code: string; message: string };
@@ -47,5 +48,33 @@ export async function rescheduleShiftAction(change: ScheduleChange): Promise<Sch
     if (error instanceof UserFacingError) return { ok: false, code: error.feedback, message: error.message };
     if (error instanceof LocalTimeError) return { ok: false, code: `time-${error.problem.toLowerCase()}`, message: TIME_PROBLEM[error.problem] ?? "That time could not be read, so nothing was changed." };
     return { ok: false, code: "error", message: "The change could not be saved, so nothing was changed." };
+  }
+}
+
+export type ScheduleOffer = { shiftId: string; workerId: string };
+export type OfferResult = { ok: true } | { ok: false; code: string; message: string };
+const offerInput = z.object({ shiftId: z.uuid(), workerId: z.uuid() }).strict();
+
+// An open place dropped on a worker's row. This sends that worker an offer through the same
+// rule as Fill shifts: this location's shift and worker, their availability, no overlapping
+// accepted work, the Owner's pay terms and the minimum-wage check, and no more offers than
+// places. It never allocates: the worker must still accept, and the Manager then finalises.
+// The client names only the shift and the worker; pay, times and location are read here.
+// Not opened to the public demo, which keeps its own named set of writes; demo visitors send
+// offers from Fill shifts.
+export async function offerFromScheduleAction(raw: ScheduleOffer): Promise<OfferResult> {
+  const scope = await requireScope(["OWNER", "MANAGER"]);
+  if (!getConfigurationStatus().databaseConfigured) return { ok: false, code: "error", message: "The schedule is unavailable, so no offer was sent." };
+  const parsed = offerInput.safeParse(raw);
+  if (!parsed.success) return { ok: false, code: "offer-invalid", message: "That offer could not be read, so nothing was sent." };
+  try {
+    const offer = await offerAssignment(getDatabase(), parsed.data.shiftId, parsed.data.workerId, scope);
+    for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
+    // The offer exists by now, so a delivery problem is not reported as a failed offer.
+    try { await dispatchWorkerEmails(getDatabase(), getEmailAdapter(), offer.workerId); } catch { /* Delivery state stays with the notification record. */ }
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof UserFacingError) return { ok: false, code: error.feedback, message: error.message };
+    return { ok: false, code: "offer-refused", message: "That offer could not be sent, so nothing changed. The schedule now shows the latest details." };
   }
 }

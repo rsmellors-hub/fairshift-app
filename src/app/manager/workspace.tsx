@@ -14,7 +14,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { getDatabase } from "@/server/db/client";
 import { getOperations } from "@/server/scheduling/operations";
-import { getAllocationSchedule } from "@/server/scheduling/allocations";
+import { getAllocationSchedule, planningRanges } from "@/server/scheduling/allocations";
 import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
 import { isSyntheticSource, localDate } from "@/server/intelligence/forecast";
 import { labourHours, longDate, OpportunityList, ServiceDays, StaffingDayTable, StaffingMethodNote, transactions, WhyThisShift, WorkloadSetupNotice, policyDescription, wholeMoney } from "@/app/components/staffing";
@@ -376,9 +376,15 @@ async function LocationAssessment(scope:Scope, staffing:WeeklyStaffing, notice?:
     planHref={(outletId, date) => outletId === scope.locationId ? `/manager/fill${date ? `?date=${date}` : ""}#add-requirement` : null} />;
 }
 async function Roster(scope:Scope, timeZone:string) {
+  // The Plan page's own staffing week, drawn on the timeline. If it can't be read the schedule
+  // still works and says so; no forecast need is shown rather than an invented one.
+  let planning: ReturnType<typeof planningRanges> = { ranges: [], summary: null }, planningFailed = false;
+  try { planning = planningRanges((await getWeeklyStaffing(getDatabase(), scope, new Date())).outlets.find(row => row.outletId === scope.locationId) ?? null); }
+  catch { planningFailed = true; }
   let schedule;
-  try { schedule = await getAllocationSchedule(getDatabase(),scope); }
+  try { schedule = await getAllocationSchedule(getDatabase(),scope,new Date(),planning.ranges); }
   catch { return <WorkspaceUnavailable />; }
   if (scope.demo) { const shown = schedule.events.filter(event => event.state !== "Cancelled"); schedule = { ...schedule, events: shown, assignments: schedule.assignments.filter(row => shown.some(event => event.id === row.eventId)) }; }
-  return schedule.events.length ? <AllocationScheduler schedule={schedule} timeZone={timeZone} /> : <StatePanel title="No shift allocations yet"><p>Create a shift and send offers on <Link href="/manager/fill">Fill shifts</Link>. It appears on this schedule straight away.</p></StatePanel>;
+  const unavailable = planningFailed ? <StatePanel title="Forecast need unavailable" tone="warning"><p>The forecast or cover couldn’t be loaded, so no casual need is shown. Shifts and offers below are unaffected.</p></StatePanel> : null;
+  return schedule.events.length || planning.summary ? <>{unavailable}<AllocationScheduler schedule={schedule} timeZone={timeZone} planning={planning.summary} dragToOffer={!scope.demo} /></> : <>{unavailable}<StatePanel title="No shift allocations yet"><p>Create a shift and send offers on <Link href="/manager/fill">Fill shifts</Link>. It appears on this schedule straight away.</p></StatePanel></>;
 }
