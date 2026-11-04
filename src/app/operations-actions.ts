@@ -8,7 +8,7 @@ import { createDepartment, createWorkPolicy, createRequirement, locationTimezone
 import { UserFacingError } from "@/server/domain/errors";
 import { confirmWorkPerformance, importAttributedSales } from "@/server/performance/attribution";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
-import { requireScope } from "@/server/auth/request";
+import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { inviteMember } from "@/server/auth/tenancy";
 import { saveWorkerAvailability, workerRespond } from "@/server/auth/operations";
 import { dispatchNotification, dispatchWorkerEmails } from "@/server/notifications/service";
@@ -121,8 +121,8 @@ export async function saveAvailabilityAction(form: FormData) {
   })));
 }
 export async function confirmWorkAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", () => {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", () => {
     if (field(form, "confirmed") !== "yes") throw new Error("Confirm completed work.");
     return confirmWork(getDatabase(), field(form, "offerId"),scope);
   });
@@ -150,19 +150,19 @@ export async function confirmPerformanceAction(form: FormData) {
 // Payment actions take only the payable ID: amount, currency and recipient are read
 // from the approved payable and the worker's saved payment settings on the server.
 export async function approvePayableAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", () => approveWorkPayable(getDatabase(), scope, field(form, "payableId")));
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", () => approveWorkPayable(getDatabase(), scope, field(form, "payableId")));
 }
 export async function sendPayoutAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", async () => {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", async () => {
     const { submitted } = await submitWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId"));
     if (!submitted) throw new UserFacingError("payout-already-sent", "This payment has already gone to PayPal.");
   });
 }
 export async function refreshPayoutAction(form: FormData) {
-  const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient(), scope, field(form, "payableId")));
 }
 // Owner-only staffing inputs, for the organisation or the Owner's selected location.
 // Whole numbers only. A blank or malformed value is refused, never read as zero.

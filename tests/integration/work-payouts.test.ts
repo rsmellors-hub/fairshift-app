@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
+import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Scope } from "@/server/auth/access";
-import { requireScope } from "@/server/auth/request";
+import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { savePayoutDestination } from "@/server/auth/operations";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -18,10 +19,10 @@ import { approveWorkPayable, PaymentDetailsRequiredError, payoutAmount, PayoutCu
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
-import { approvePayableAction, refreshPayoutAction, sendPayoutAction } from "@/app/operations-actions";
+import { approvePayableAction, confirmWorkAction, refreshPayoutAction, sendPayoutAction } from "@/app/operations-actions";
 import { createActivatedTeamMember } from "../helpers/workers";
 
-vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
+vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
@@ -50,8 +51,8 @@ async function company(db: Db, locations = 1) {
   for (const row of rows) scopes.push({ userId: await user(db), organisationId, locationId: row.id, role: "MANAGER", organisationName: "UK company", locationName: row.name });
   return { organisationId, scopes };
 }
-// Shift → offer → acceptance → allocation → confirmation → payable, through the normal operations.
-async function confirmedPayable(db: Db, manager: Scope, { paymentEmail = "casual.sandbox@example.test" as string | null } = {}) {
+// Shift → offer → acceptance → allocation, through the normal operations.
+async function allocatedWork(db: Db, manager: Scope, { paymentEmail = "casual.sandbox@example.test" as string | null } = {}) {
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, manager);
   // £13.00 an hour: at or above the FairShift demo minimum for these dates (FS-WAGE-INTEL-DEC-002).
   const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual terms", manager);
@@ -64,8 +65,13 @@ async function confirmedPayable(db: Db, manager: Scope, { paymentEmail = "casual
   const offer = await offerAssignment(db, shift.id, worker.id, manager);
   await respondToAssignment(db, worker.id, offer.id, 1, "ACCEPTED", true, manager);
   await allocateAssignment(db, offer.id, manager);
-  const { payable } = await confirmWork(db, offer.id, manager);
-  return { payable: payable!, worker, workerScope, policy, shift };
+  return { offer, worker, workerScope, policy, shift };
+}
+// Allocation → explicit confirmation → payable, through the ordinary deterministic path.
+async function confirmedPayable(db: Db, manager: Scope, options: { paymentEmail?: string | null } = {}) {
+  const allocated = await allocatedWork(db, manager, options);
+  const { payable } = await confirmWork(db, allocated.offer.id, manager);
+  return { ...allocated, payable: payable! };
 }
 
 const pending = (input: { senderBatchId: string }): PayoutResult => ({ batchId: `PPB${input.senderBatchId.slice(-8)}`, itemId: null, status: "PENDING", batchStatus: "PENDING", itemStatus: null, transactionId: null });
@@ -78,6 +84,8 @@ function fakePayPal(overrides: Partial<Record<keyof PayPalPayoutAdapter, unknown
 }
 const payoutsOf = async (db: Db) => db.select().from(workPayouts);
 const form = (values: Record<string, string>) => { const result = new FormData(); for (const [k, v] of Object.entries(values)) result.set(k, v); return result; };
+const subscriptionStatus = (db: Db, organisationId: string, status: "ACTIVE" | "SUSPENDED" | "CANCELLED" | "EXPIRED") =>
+  db.update(subscriptions).set({ status }).where(eq(subscriptions.organisationId, organisationId));
 
 describe("payout status mapping and amounts", () => {
   it("is paid only on an item-level SUCCESS and never guesses other currencies' minor units", () => {
@@ -97,6 +105,107 @@ describe("payout status mapping and amounts", () => {
 });
 
 describe("manager approval and PayPal payout of confirmed work", () => {
+  it.each(["CANCELLED", "SUSPENDED", "EXPIRED"] as const)("confirms ended allocated work and completes payment after subscription becomes %s", async subscription => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { offer, worker } = await allocatedWork(t.db, manager);
+      await subscriptionStatus(t.db, c.organisationId, subscription);
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
+      const paypal = fakePayPal();
+      vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
+
+      const before = renderToStaticMarkup(await ManagerWorkspace({ area: "review", financialScope: manager, financialOnly: true }));
+      expect(before).toContain("Confirm completed work");
+      expect(before).toContain(worker.displayName);
+      expect(before).toContain("I confirm the scheduled work was performed.");
+      for (const operational of ["Create a shift", "Send offer", "Finalise allocation", "Confirm sales results", "Forecast &amp; staffing"]) expect(before).not.toContain(operational);
+
+      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes", amount: "1", currency: "USD" }))).rejects.toThrow("REDIRECT:/settlements?status=saved");
+      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes" }))).rejects.toThrow("REDIRECT:/settlements?status=saved");
+      const [payable] = await t.db.select().from(workPayables);
+      expect(payable).toMatchObject({ workerId: worker.id, status: "PENDING_REVIEW", baseAmountMinor: 7_800, currencyCode: "GBP" });
+      expect(await t.db.select().from(workPayables)).toHaveLength(1);
+
+      await approveWorkPayable(t.db, manager, payable.id);
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(true);
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+      expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PAID", paypalStatus: "SUCCESS", amountMinor: 7_800, currencyCode: "GBP" });
+    } finally { await t.close(); }
+  });
+
+  it("settles confirmed work after cancellation without weakening operational entitlement", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await subscriptionStatus(t.db, c.organisationId, "CANCELLED");
+
+      const approved = await approveWorkPayable(t.db, manager, payable.id);
+      expect(approved).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP" });
+      await expect(requireEntitlement(t.db, c.organisationId)).rejects.toThrow(/active organisation subscription/);
+    } finally { await t.close(); }
+  });
+
+  it("submits an active-earned approved payable once after suspension", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      await subscriptionStatus(t.db, c.organisationId, "SUSPENDED");
+      const paypal = fakePayPal();
+
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(true);
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+      expect(paypal.createPayout.mock.calls[0][0]).toMatchObject({ amount: "78.00", currency: "GBP" });
+    } finally { await t.close(); }
+  });
+
+  it("reconciles existing provider identifiers after expiry without false payment", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => ({ batchId, itemId: "PPI-INACTIVE", status: "PENDING", batchStatus: "SUCCESS", itemStatus: "PENDING", transactionId: null })) });
+      const submitted = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      await subscriptionStatus(t.db, c.organisationId, "EXPIRED");
+
+      const reconciled = await refreshWorkPayout(t.db, paypal, manager, payable.id);
+      expect(reconciled).toMatchObject({ status: "PROCESSING", paypalBatchId: submitted.payout.paypalBatchId, paypalItemId: "PPI-INACTIVE", paypalStatus: "PENDING", paidAt: null });
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+    } finally { await t.close(); }
+  });
+
+  it("keeps uncertain inactive-subscription outcomes idempotent and reconcilable", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const timeout = new PayPalPayoutError("PayPal request could not be completed.", "TIMEOUT", undefined, undefined, undefined, "UNKNOWN");
+      const paypal = fakePayPal({ createPayout: vi.fn().mockRejectedValue(timeout) });
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).payout.status).toBe("RECONCILIATION_REQUIRED");
+      await subscriptionStatus(t.db, c.organisationId, "CANCELLED");
+
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
+      expect((await refreshWorkPayout(t.db, paypal, manager, payable.id)).status).toBe("RECONCILIATION_REQUIRED");
+      expect(paypal.createPayout).toHaveBeenCalledTimes(2);
+      expect(paypal.createPayout.mock.calls[1][0]).toEqual(paypal.createPayout.mock.calls[0][0]);
+      expect(await payoutsOf(t.db)).toHaveLength(1);
+    } finally { await t.close(); }
+  });
+
   it("approves the calculated GBP payable, sends exactly that amount once, and reconciles to paid", async () => {
     const t = await createTestDatabase();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -399,7 +508,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
       vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
       const render = async (scope: Scope, element: () => Promise<React.ReactNode>) => { vi.mocked(requireScope).mockResolvedValue(scope); return renderToStaticMarkup(await element()); };
-      const act = async (scope: Scope, action: (f: FormData) => Promise<unknown>, values: Record<string, string>) => { vi.mocked(requireScope).mockResolvedValue(scope); await expect(action(form(values))).rejects.toThrow(/REDIRECT/); };
+      const act = async (scope: Scope, action: (f: FormData) => Promise<unknown>, values: Record<string, string>) => { vi.mocked(requireScope).mockResolvedValue(scope); vi.mocked(requireFinancialScope).mockResolvedValue(scope); await expect(action(form(values))).rejects.toThrow(/REDIRECT/); };
       const status = async () => (await t.db.select().from(workPayables).where(eq(workPayables.id, payable.id)))[0];
 
       let review = await render(manager, () => ManagerWorkspace({ area: "review" }));
@@ -407,8 +516,10 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).not.toContain("payout with PayPal");
 
       // A worker cannot reach the approval or payment actions.
+      vi.mocked(requireFinancialScope).mockRejectedValueOnce(new Error("Access denied."));
+      await expect(confirmWorkAction(form({ payableId: payable.id, confirmed: "yes" }))).rejects.toThrow("Access denied.");
       await act(workerScope, approvePayableAction, { payableId: payable.id });
-      vi.mocked(requireScope).mockRejectedValueOnce(new Error("Access denied."));
+      vi.mocked(requireFinancialScope).mockRejectedValueOnce(new Error("Access denied."));
       await expect(approvePayableAction(form({ payableId: payable.id }))).rejects.toThrow();
       expect((await status()).status).toBe("PENDING_REVIEW");
 

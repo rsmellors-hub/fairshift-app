@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import type { Scope } from "@/server/auth/access";
-import { requireScope } from "@/server/auth/request";
+import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
@@ -20,7 +20,7 @@ import { OwnerWorkspace } from "@/app/owner/workspace";
 import { confirmWorkAction } from "@/app/operations-actions";
 import { createActivatedTeamMember } from "../helpers/workers";
 
-vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
+vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
@@ -181,6 +181,36 @@ describe("confirmed work and authoritative base payables", () => {
 
       expect(await payableCount(t.db)).toBe(0);
       expect((await t.db.select().from(workAllocations)).every(allocation => allocation.confirmedAt === null)).toBe(true);
+    } finally { await t.close(); }
+  });
+
+  it("shows only ended, accepted, allocated work with current verifiable terms on the settlement surface", async () => {
+    const t = await createTestDatabase();
+    try {
+      const manager = (await company(t.db)).scopes[0];
+      const eligibleShift = await terms(t.db, manager, HOURLY_13, at(0), at(6), 3);
+      const eligible = await allocated(t.db, manager, eligibleShift.shift.id);
+
+      const offeredWorker = await member(t.db, manager);
+      const offered = await offerAssignment(t.db, eligibleShift.shift.id, offeredWorker.id, manager);
+      const acceptedWorker = await member(t.db, manager);
+      const accepted = await offerAssignment(t.db, eligibleShift.shift.id, acceptedWorker.id, manager);
+      await respondToAssignment(t.db, acceptedWorker.id, accepted.id, 1, "ACCEPTED", true, manager);
+
+      const futureShift = await terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_400 }, new Date(FUTURE), new Date(FUTURE + 6 * 3_600_000));
+      const future = await allocated(t.db, manager, futureShift.shift.id);
+      const staleShift = await terms(t.db, manager, HOURLY_13, at(24), at(30));
+      const stale = await allocated(t.db, manager, staleShift.shift.id);
+      await t.db.update(shifts).set({ rateMinor: 1_400, expectedEarningsMinor: 8_400, guaranteedBasePayMinor: 8_400 }).where(eq(shifts.id, staleShift.shift.id));
+
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "review", financialScope: manager, financialOnly: true }));
+      expect(html).toContain(eligible.worker.displayName);
+      for (const hidden of [offeredWorker.displayName, acceptedWorker.displayName, future.worker.displayName, stale.worker.displayName]) expect(html).not.toContain(hidden);
+      for (const operational of ["Create a shift", "Send offer", "Finalise allocation", "Confirm sales results", "Forecast &amp; staffing"]) expect(html).not.toContain(operational);
+      expect(await payableCount(t.db)).toBe(0);
+      expect(offered.status).toBe("OFFERED");
     } finally { await t.close(); }
   });
 
@@ -375,11 +405,11 @@ describe("confirmed work and authoritative base payables", () => {
       noDollars(review);
 
       // Confirmation through the manager action derives the payable; PayPal is never involved.
-      vi.mocked(requireScope).mockResolvedValue(manager);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
       await expect(confirmWorkAction(form({ offerId: offer.id }))).rejects.toThrow("status=error");
       expect(await payableCount(t.db)).toBe(0);
-      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes" }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
-      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes" }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
+      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes" }))).rejects.toThrow("REDIRECT:/settlements?status=saved");
+      await expect(confirmWorkAction(form({ offerId: offer.id, confirmed: "yes" }))).rejects.toThrow("REDIRECT:/settlements?status=saved");
       expect(await payableCount(t.db)).toBe(1);
       expect(getPayPalPayoutClient).not.toHaveBeenCalled();
       expect(fetchSpy).not.toHaveBeenCalled();

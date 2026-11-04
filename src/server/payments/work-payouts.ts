@@ -5,7 +5,6 @@ import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
-import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, workers, workPayables, workPayouts } from "@/server/db/schema";
 import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
@@ -80,9 +79,8 @@ async function scopedPayable(db: DatabaseSession, scope: PayoutScope, payableId:
   return payable;
 }
 
-async function authorise(db: DatabaseSession, scope: PayoutScope) {
+function authoriseFinancialObligation(scope: PayoutScope) {
   assertRole(scope as Scope, ["OWNER", "MANAGER"]);
-  await requireEntitlement(db, scope.organisationId);
 }
 
 async function audit(db: DatabaseSession, scope: PayoutScope, action: string, entityType: string, entityId: string, payableId: string, metadata: Record<string, unknown>) {
@@ -93,7 +91,7 @@ async function audit(db: DatabaseSession, scope: PayoutScope, action: string, en
 // are copied from the persisted payable; the manager approves, never edits, them.
 // Idempotent: approving an approved payable returns it unchanged.
 export async function approveWorkPayable(db: Database, scope: PayoutScope, payableId: string) {
-  await authorise(db, scope);
+  authoriseFinancialObligation(scope);
   return db.transaction(async (tx) => {
     const payable = await scopedPayable(tx, scope, payableId, true);
     if (payable.status === "APPROVED") return payable;
@@ -182,7 +180,7 @@ export type SubmitResult = { payout: WorkPayout; submitted: boolean };
 // finds the existing reservation and returns it without calling PayPal; only a payout
 // that certainly never reached PayPal (NOT_SENT) can be sent again, with the same IDs.
 export async function submitWorkPayout(db: Database, paypal: PayPalPayoutAdapter, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
-  await authorise(db, scope);
+  authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [existing] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (existing && existing.status !== "NOT_SENT") return { payout: existing, submitted: false };
@@ -220,7 +218,7 @@ export async function submitWorkPayout(db: Database, paypal: PayPalPayoutAdapter
 // an unknown outcome it re-sends the identical request (same sender_batch_id, amount,
 // currency and recipient), which PayPal processes at most once, to learn the result.
 export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapter, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
-  await authorise(db, scope);
+  authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (!payout) throw new Error("No payout has been sent for this payable.");

@@ -12,6 +12,7 @@ import { isEntitled, ownerDestination } from "@/server/billing/entitlement";
 import { configuredPlan, enterpriseContact } from "@/server/billing/plans";
 import { getSubscriptionAdapter } from "@/server/billing/paypal";
 import { startSubscriptionAction, refreshSubscriptionAction, signOutAction } from "@/app/auth-actions";
+import Link from "next/link";
 export const metadata: Metadata = { title: "Choose your plan" };
 export const dynamic="force-dynamic";
 export default async function Subscribe({searchParams}:{searchParams:Promise<{period?:string;status?:string;billing?:string;verified?:string}>}) {
@@ -32,7 +33,7 @@ export default async function Subscribe({searchParams}:{searchParams:Promise<{pe
  <div className="workplace-heading"><h1>Choose your plan</h1><p>Every plan includes the full product. Choose by how many locations you run.</p></div>
  {status ? <p className="form-alert" role="alert">{status === "unavailable" ? "That checkout isn’t available right now, or another subscription is already in progress. Your account is saved." : "We couldn’t confirm your subscription just now. Please try again shortly."}</p> : null}
  {billing === "cancelled" ? <p className="form-notice" role="status">You cancelled the PayPal approval. Nothing was charged. Continue when you’re ready.</p> : null}
- {awaiting || needsHelp ? <section className="panel"><h2>{needsHelp ? "Your subscription needs attention" : "Your subscription is awaiting confirmation"}</h2><p>{needsHelp ? "Contact FairShift to review it before starting another checkout." : "Finish approving it in PayPal, or check whether PayPal has already confirmed it."}</p><div className="button-row">{awaiting && sub?.approvalUrl && safeApproval(sub.approvalUrl) ? <a className="primary-button button-link" href={sub.approvalUrl}>Continue in PayPal</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form></div></section> : null}
+ {awaiting || needsHelp ? <section className="panel"><h2>{needsHelp ? "Your subscription needs attention" : "Your subscription is awaiting confirmation"}</h2><p>{needsHelp ? "Contact FairShift to review it before starting another checkout." : "Finish approving it in PayPal, or check whether PayPal has already confirmed it."}</p><div className="button-row">{awaiting && sub?.approvalUrl && safeApproval(sub.approvalUrl) ? <a className="primary-button button-link" href={sub.approvalUrl}>Continue in PayPal</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form>{needsHelp ? <Link className="secondary-button button-link" href="/settlements">Settle existing worker payments</Link> : null}</div></section> : null}
  <BillingToggle current={billingPeriod} basePath="/subscribe"/>
  <div className="plan-grid">{(["SINGLE_OUTLET","MULTI_OUTLET"] as const).map(tier=>{
   const available=configured && !!configuredPlan({tier,billingPeriod});
