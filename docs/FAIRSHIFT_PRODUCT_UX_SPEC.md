@@ -399,6 +399,78 @@ FS-HACK-MASTER-001 contains no tip rule, so no master clause is amended. `AGENTS
 
 **Next implementation package: NOT YET AUTHORISED.** Tip-allocation implementation, under FS-HOSPITALITY-EARNINGS-001 (section 24) or any other package ID, needs its own Owner authorisation.
 
+### Owner decision FS-TIP-ELIGIBILITY-DEC-001: regular staff in service-period tip pools
+
+**Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-PAYOUT-GOV-001, supplied by the Owner on 4 November 2026, which states that the Owner explicitly approved this decision.
+
+The Owner approved:
+
+- Eligible regular/permanent workers participate in the same location-specific, service-period tip pools as eligible casual workers (FS-TIP-POOL-DEC-001).
+- Regular/permanent workers remain lightweight staffing/contact records (section 3). They are **not a fourth application role**. The application roles stay Admin / Owner, Manager / Supervisor and Casual Worker.
+- The proportional allocation denominator includes **all eligible participant hours**, not only casual-worker hours.
+
+**Not decided.** The exact eligibility conditions, and the method of recording regular staff hours, remain subject to implementation assessment and applicable written policy (section 21). No further eligibility detail is approved.
+
+**Relationship with earlier rules.** This answers the section 21 question "whether regular or full-time staff participate": eligible regular staff do. It is consistent with FS-HACK-MASTER-001 section 4.4 (full-time staff as lightweight records, not a fourth role) and with FS-HACK-ROADMAP-002 section 14 (no regular/full-time worker application accounts). Every FS-TIP-DEC-001 rule, as amended by FS-TIP-POOL-DEC-001 and FS-TIP-POOL-DEC-002, is unchanged.
+
+**Repository state at `cebc656`, for orientation only.** Regular cover is held as anonymous headcount windows per location and weekday (`regular_coverage_windows`). A worker record can carry the type `REGULAR`, but no code path creates one, and no named regular-staff hours are recorded.
+
+### Owner decision FS-PAYOUT-TIMING-DEC-001: worker payout timing
+
+**Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-PAYOUT-GOV-001, supplied by the Owner on 4 November 2026, which records this decision as "OWNER APPROVED — NOT IMPLEMENTED".
+
+**A. Casual / temporary workers: full payment per shift.**
+
+- Casual workers receive **100% of their approved shift entitlement** immediately following shift completion and Manager/Owner approval.
+- Approved entitlement comprises guaranteed shift wages, applicable approved incentives, the approved shift tip allocation, and any other applicable approved pay component already authorised.
+- FairShift initiates the full approved payment through PayPal. No mandatory 50% split applies to casual workers.
+- This is a **per-shift payment model**, not a monthly payroll payment cycle.
+- "Immediately" means FairShift initiates the payout as soon as all required entitlement, approval and payment conditions are satisfied. No fixed settlement time, such as one hour or 24 hours, is promised. Actual settlement to the recipient depends on PayPal status, and an initiated payout is not a paid one (section 16).
+- Verification gates are not waived. Where Square evidence, incentive verification or tip-pool finalisation would delay approval of the full entitlement, no partial-payment rule is implied (section 21).
+
+"Any other applicable approved pay component already authorised" does not yet include holiday pay or cancellation pay: both are in unresolved conflict with the roadmap (register, section 5, R-02 and R-03).
+
+**B. Regular / permanent workers: 50% of approved tips early.**
+
+- Permanent workers receive **50% of their approved tip entitlement** through an immediate PayPal payout after tip-pool finalisation and approval, subject to applicable payroll/tax clearance.
+- The remaining 50% is reconciled through the employer's regular payroll process.
+- Normal salaries stay on the employer's existing payroll schedule. FairShift does not pay regular staff their wages.
+- The 50% applies to approved tips, **not to gross wages**.
+- No interest, loan or credit facility is authorised. No tronc system is authorised.
+- This is a 50% regular-worker tip payout. It is not an optional casual-worker advance.
+
+**C. Payroll transaction statement.** The Owner expressly requires a full transaction statement for each regular-worker early payout. It is delivered to payroll for reconciliation and applicable PAYE processing. Its minimum content:
+
+- company identifier and location identifier;
+- payroll employee reference;
+- service period / tip-pool identifier;
+- shift date and eligible hours;
+- gross approved tip entitlement, early payout amount and remaining entitlement;
+- currency;
+- the relevant approval records;
+- payment status, PayPal payout identifiers, payout initiation timestamp, and the confirmed payment timestamp if known;
+- exceptions and adjustments;
+- a reconciliation identifier that prevents duplicate salary or tip payments.
+
+A CSV export is the minimum demonstration mechanism to be assessed. A live payroll integration is **not authorised**. Providing the statement after disbursement does not by itself satisfy HMRC reporting or PAYE rules. Live payroll and tax treatment **NEEDS VERIFICATION** (section 21).
+
+**Implemented and approved, at `cebc656`.**
+
+| Rule | State |
+| --- | --- |
+| Casual approval, then one PayPal payout of base + incentive per payable, with duplicate protection and status reconciliation | IMPLEMENTED; verified locally with a genuine Sandbox payout ([`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)). Approval and payout initiation are two separate explicit actions |
+| Approved tip allocation in the casual entitlement | NOT IMPLEMENTED (FS-TIP-POOL-DEC-001) |
+| Regular-staff tip participation, 50% early tip payout, payroll transaction statement | NOT IMPLEMENTED |
+
+**Relationship with other decisions.**
+
+- Tip entitlement comes from FS-TIP-POOL-DEC-001, FS-TIP-POOL-DEC-002 and FS-TIP-ELIGIBILITY-DEC-001. FS-TIP-DEC-001 still applies: the Manager may approve or hold, but not alter, a calculated tip, its refund rules stand, and its claims firewall stands. The statement is an export for the employer's own payroll. FairShift does not become a payroll engine, a tax engine or a tronc service.
+- FS-PRODUCT-PLAN-DEC-001 guardrails 7 (gross amounts, no tax or National Insurance claim) and 8 (a person approves every payout; AI never moves money) apply to both paths.
+- The section 21 question "whether base wages and tips must be paid together or separately" is answered in part: for casual workers the approved tip allocation belongs to the shift entitlement that is paid in full. Whether that is one PayPal payout, or more than one when a tip pool is finalised after the rest of the shift is approved, stays OPEN.
+- This decision sets payment timing. It doesn't adopt an earned-wage-advance or credit model, and it doesn't settle the "advance of earned pay" presentation wording, which stays with the Owner (register, section 5, R-06).
+- FS-HACK-ROADMAP-002 section 14 freezes "payroll export" until the Golden Path reaches PASS. The statement requirement stands as recorded. When it is built is an Owner decision (register, section 5, R-15).
+- No FS-HACK-MASTER-001 clause is amended. Its full-time staff records (section 4.4) and its "no separate Finance/Payroll user role" are consistent with this decision.
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.
@@ -455,6 +527,8 @@ The worker experience is not an administrative analytics surface. Cross-location
 ### Full-time or regular staff
 
 Full-time or regular staff are lightweight records used for coverage and allocation. They may appear in staffing capacity and shift allocations but are not a fourth primary authenticated role in the current scope. Full-time employee accounts are deferred.
+
+**Extended by FS-TIP-ELIGIBILITY-DEC-001 and FS-PAYOUT-TIMING-DEC-001 (section 1), 4 November 2026. Not implemented.** Eligible regular staff participate in service-period tip pools, and receive 50% of their approved tip entitlement through PayPal, with the rest reconciled through the employer's payroll. They stay lightweight records, not a fourth application role.
 
 ## 4. Information architecture
 
@@ -986,6 +1060,8 @@ The current payout integration is **SANDBOX-CONNECTED**. Verified evidence inclu
 
 The product must never show or log PayPal credentials, OAuth access tokens, sandbox passwords, or unnecessary recipient data. It must not present a submitted or uncertain payout as paid until provider state supports that conclusion.
 
+**Payout timing (FS-PAYOUT-TIMING-DEC-001, section 1). Approved, not implemented.** Casual workers are paid 100% of their approved shift entitlement per shift. Regular staff receive 50% of their approved tips through PayPal, with a payroll transaction statement for each early payout. Principle 13 (section 2) applies to that statement as to every other surface: a pending or unknown payout is not a received one.
+
 ## 18. Integration strategy
 
 Integrations must strengthen the product and its evidence. FairShift does not add integrations merely to maximise sponsor count. Overall submission quality outranks sponsor accumulation, and no integration receives a stronger status until reproducible evidence supports it.
@@ -1096,6 +1172,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - Tip-pool allocation details (FS-TIP-POOL-DEC-001). No default is adopted, including any proposed by the read-only assessment FS-HACK-TIP-POOL-001:
   - the precise eligible staff population;
   - whether regular or full-time staff participate;
+    - *4 November 2026:* answered by FS-TIP-ELIGIBILITY-DEC-001 (section 1): eligible regular staff participate, and the denominator includes all eligible participant hours. Their exact eligibility conditions and how their hours are recorded stay open;
   - actual versus scheduled eligible hours when the two differ;
   - service-period boundary conventions;
   - tip transactions that fall between periods;
@@ -1105,8 +1182,20 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
   - late refunds and adjustments, and how the FS-TIP-DEC-001 refund rules apply to a pooled allocation;
   - corrections after approval;
   - whether base wages and tips must be paid together or separately;
+    - *4 November 2026:* answered in part by FS-PAYOUT-TIMING-DEC-001 (section 1): a casual worker's approved tip allocation is part of the shift entitlement paid in full, and regular staff receive 50% of approved tips through PayPal. Whether a casual worker's tips go in the same PayPal payout as base and incentive stays open, below;
   - how the service-period pool relates to the FS-TIP-DEC-001 requirement that the tip window match the sales-attribution window;
   - which tip-pool fields a worker sees, consistent with section 14.
+- Payout timing details (FS-PAYOUT-TIMING-DEC-001 and FS-TIP-ELIGIBILITY-DEC-001, section 1). No default is adopted:
+  - the exact eligibility conditions for regular staff, and how their eligible hours are recorded;
+  - whether a casual worker's approved tips are paid in the same PayPal payout as base and incentive, or in a later payout when the tip pool is finalised after the rest of the shift is approved;
+  - what happens when tip-pool finalisation, Square evidence or incentive verification delays the full casual entitlement. No partial-payment rule is approved;
+  - what "payroll/tax clearance" consists of for a regular worker's early tip payout, who gives it, and how it is recorded;
+  - the treatment of an odd minor unit when an approved tip entitlement is halved;
+  - how a regular worker, who has no application account, supplies and confirms a PayPal payout destination;
+  - the source and format of the payroll employee reference;
+  - the payroll statement's recipient, delivery channel, re-export and correction handling, and who may see it (section 14);
+  - how payroll is told when an early tip payout fails or is returned;
+  - when the payroll statement is built, given the roadmap's freeze on payroll export (register, section 5, R-15).
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not. Offer order is resolved by FS-OFFER-ORDER-DEC-001 (section 1). No scoring algorithm or performance ranking is authorised.
@@ -1129,6 +1218,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - The exact APIMatic implementation and evidence that materially supports the PayPal integration.
 - Whether performance incentive and allocated tips must be included in the 12.07% holiday-pay base, and the wording "advance of earned pay, reported through the venue's payroll". Both need professional payroll or legal confirmation before any claim (FS-PAY-TERMS-DEC-001).
 - Tip pools (FS-TIP-POOL-DEC-001): the holiday-pay treatment of tips (above, and register conflict R-02); Square Sandbox `tip_money` behaviour; and definitive UK tipping-policy compliance. FairShift makes no compliance claim for its tipping policy.
+- Early tip payouts to regular staff (FS-PAYOUT-TIMING-DEC-001): their PAYE and National Insurance treatment, HMRC reporting and its timing, whether a statement provided after disbursement is adequate, and the application of the Employment (Allocation of Tips) Act 2023 and its code of practice. Each needs professional payroll or legal confirmation. Also the suitability of PayPal Payouts, and of its payout purpose, for paying tips to employees.
 
 ### DEFERRED
 
@@ -1196,7 +1286,7 @@ Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
 4. FS-HOSPITALITY-EARNINGS-001
 5. Full Golden Path rehearsal and hardening
 
-This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
+This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-TIP-ELIGIBILITY-DEC-001 and FS-PAYOUT-TIMING-DEC-001 (4 November 2026) are approved and not implemented, and no package implementing them is authorised. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
 
 FS-HACK-ROADMAP-002 (3 November 2026) sets a newer, Owner-directed delivery sequence. The two sequences are reconciled in [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), section 5. Neither removes the need for each package's own authorisation.
 
