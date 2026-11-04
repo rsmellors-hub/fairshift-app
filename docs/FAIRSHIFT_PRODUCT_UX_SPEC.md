@@ -43,6 +43,8 @@ Rules established by the amendment:
 
 Not authorised: covers, reservations or booking integration, tables, menus, kitchen inventory, tip pooling, role-based forecasting, AI or performance worker matching, monitoring daemons, alerts and autonomous schedule changes.
 
+**Superseded in part, 4 November 2026.** FS-TIP-POOL-DEC-002 (below) supersedes "tip pooling" in the list above, for the approved hospitality MVP scope only: separate service-period tip pools at one location, allocated in proportion to eligible worker-hours (FS-TIP-POOL-DEC-001), are authorised. The rest of the list is unchanged.
+
 Historical facts, deterministic forecasts, AI interpretation, manager decisions and outcomes must remain distinguishable.
 
 **Owner decisions, FS-HOSPITALITY-POLICY-FREEZE-001, 2 November 2026.** These refine the amendment above. Evidence: [`HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`](HOSPITALITY_POLICY_FREEZE_EVIDENCE.md).
@@ -60,6 +62,8 @@ Historical facts, deterministic forecasts, AI interpretation, manager decisions 
 ### Owner decision FS-TIP-DEC-001: hospitality earnings
 
 **Status: APPROVED. Decision date: 2 November 2026. Implementation: NOT IMPLEMENTED.** FS-HOSPITALITY-EARNINGS-001 is not yet authorised (section 24).
+
+**Amended in part, 4 November 2026.** FS-TIP-POOL-DEC-001 and FS-TIP-POOL-DEC-002 (below) supersede this decision's exclusion of venue tip pooling and hours-based pooling, for the approved hospitality MVP scope only. The original text below is retained. Every other rule in this decision is unchanged.
 
 The active hospitality reference path retains performance incentives. Total approved earnings are:
 
@@ -89,6 +93,7 @@ The three components have distinct sources.
 - The Manager may approve or decline/hold the calculated payable but may not type or alter the calculated tip amount.
 - Card-processing fees are not deducted from the allocated tip.
 - Out of scope: cash tips, service charges, venue-wide tronc/tip pooling, and hours-based pooling.
+  - *Superseded in part, 4 November 2026, by FS-TIP-POOL-DEC-002:* "venue-wide tronc/tip pooling, and hours-based pooling" no longer excludes the FS-TIP-POOL-DEC-001 model (separate service-period pools at one location, allocated by eligible worker-hours). Cash tips and service charges stay out of scope. A pool that mixes service periods is contrary to FS-TIP-POOL-DEC-001, and neither decision addresses a tronc arrangement.
 
 **AI has no role in** tip amount, tip allocation, incentive arithmetic, earnings arithmetic, manager approval, or PayPal payout.
 
@@ -201,6 +206,8 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 - Casual workers stay bound to their home location. Cross-location casual-worker scheduling stays DEFERRED.
 - The approved subscription catalogue and subscription-first acquisition (section 8). Final SaaS pricing and packaging stay OPEN.
 - The frozen workload policy and the demand-context and context-signal decisions.
+
+**Superseded in part, 4 November 2026.** FS-TIP-POOL-DEC-002 (below) supersedes the words "exclusions (including hours-based pooling)" in the first item above, for the approved hospitality MVP scope only. Guardrail 6 now refers to FS-TIP-DEC-001 as amended by FS-TIP-POOL-DEC-001 and FS-TIP-POOL-DEC-002. The rest of this decision is unchanged.
 
 **Guardrails.** Every work package must be tested against these rules.
 
@@ -335,6 +342,62 @@ The Owner also confirmed England as the demonstration jurisdiction. This decisio
 **Scope, as implemented (constrained by FS-HACK-WAGE-INTEL-001C).** The floor applies to the approved England demo jurisdiction only: locations whose country, or failing that the business's country, is England or a plain UK value ("United Kingdom", "UK", "GB", "Great Britain"). Plain UK values are included because nothing else would place such a location in England, and FS-HACK-WAGE-INTEL-001R requires that ambiguous information must not bypass the safeguard. Scotland and Wales share the GOV.UK rates, but wider enforcement was not authorised: there pay isn't checked or enforced, and they are shown "Outside demo jurisdiction". Other countries, Northern Ireland, and locations with no recorded country keep their existing behaviour and are shown "Statutory reference unavailable".
 
 **Relationship with FS-PAY-TERMS-DEC-001.** For the demo, the outcome matches that decision's "£12.71 for every casual worker, and FairShift never collects ages", with the floor following the date. FS-PAY-TERMS-DEC-001 remains a recorded decision awaiting Owner confirmation for anything this decision doesn't cover (hourly-only pay, the Real Living Wage indicator, holiday pay, cancellation pay).
+
+### Owner decision FS-TIP-POOL-DEC-001: service-period tip pools
+
+**Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-TIP-GOV-001, supplied by the Owner on 4 November 2026, which states this decision. It follows the read-only assessment FS-HACK-TIP-POOL-001, which found that earlier restrictions prohibited it. That assessment's proposed defaults are not adopted.
+
+The Owner's requirement, as stated in the package:
+
+- Each FairShift location maintains its own daily schedule.
+- A location may operate multiple service periods, such as lunch and dinner.
+- Every service period has a separate tip pool. Tips collected for one service period must not be mixed with another period.
+- Tips are allocated proportionally according to eligible worker-hours within the corresponding service period.
+- A worker participating in multiple periods may receive a separate tip allocation for each period.
+- The Manager reviews and approves the allocation before it becomes part of approved worker earnings. Under FS-ROLES-DEC-001, Manager actions also belong to the Owner.
+- The worker must be able to understand their allocated tips and payment status.
+- Bryntum remains the primary visual scheduling surface. Bryntum scheduling records and FairShift persisted allocations provide the operational basis for eligible hours.
+- An existing staffing shift ID must not be assumed to equal a venue service-period tip-pool ID.
+
+**Three distinct concepts.** These stay separate in records, calculation and presentation.
+
+| Concept | Meaning | Who sees what |
+| --- | --- | --- |
+| A. Individual POS sales | Sales associated with a worker's verified sales identifier (for the hackathon, Square `team_member_id`) | The worker sees only their own permitted sales performance (section 14). Individual sales attribution doesn't create tip entitlement on its own, consistent with FS-TIP-DEC-001 |
+| B. Service-period tip pool | Aggregated tips assigned to one service period at one authorised location. One location may have several separate pools on the same day | A worker may see the relevant tip-pool information for a service period in which they are eligible. This is not permission to disclose venue-wide sales revenue, and section 14 still applies |
+| C. Worker earnings | Base hourly wage and the applicable approved pay components | Tips become individual earnings only after the approved allocation process. PayPal receives approved payable amounts, and the existing PayPal architecture is preserved |
+
+### Owner decision FS-TIP-POOL-DEC-002: supersession of the earlier pooling exclusions
+
+**Status: EXPLICIT OWNER APPROVAL. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED.** Source: the Owner's work package FS-HACK-TIP-GOV-001, 4 November 2026, which quotes the Owner's authorisation:
+
+> "I expressly authorise shift-based, hours-proportional tip pooling for the FairShift MVP, overriding the older exclusion."
+
+**Scope.** This decision applies only to the approved hospitality MVP scope. It supersedes the earlier prohibitions on venue and service-period tip pooling and on hours-based proportional allocation. It does not revoke any other historical tip-policy rule.
+
+**Superseded clauses.** Each original text stays where it was, with a dated pointer to this decision.
+
+| Where | Original text | Effect |
+| --- | --- | --- |
+| Section 1, canonical hackathon demonstration vertical, "Not authorised" list | "tip pooling" | Superseded for the FS-TIP-POOL-DEC-001 model. The rest of the list stands |
+| FS-TIP-DEC-001, C. Allocated tips, out-of-scope line | "venue-wide tronc/tip pooling, and hours-based pooling" | Superseded to the extent that it excludes the FS-TIP-POOL-DEC-001 model. Cash tips and service charges stay out of scope |
+| FS-PRODUCT-PLAN-DEC-001, "Unchanged by this decision", first item | "exclusions (including hours-based pooling)" | Superseded as above. Guardrail 6 now refers to FS-TIP-DEC-001 as amended by these two decisions |
+
+FS-HACK-MASTER-001 contains no tip rule, so no master clause is amended. `AGENTS.md` and FS-HACK-ROADMAP-002 contain no pooling prohibition.
+
+**Unchanged.** The earnings formula and its separate allocated-tips line (FS-TIP-DEC-001, as amended by FS-PAY-TERMS-DEC-001, whose holiday-pay line remains register conflict R-02). Also unchanged from FS-TIP-DEC-001: tips come only from genuine Square Sandbox card-tip evidence for the hackathon reference path; the written policy rule, not Square, creates entitlement; Square `team_member_id` is evidence, not tip ownership; the Manager may approve or decline/hold but may not type or alter a calculated tip amount; card fees aren't deducted; AI has no role in tip amount or allocation; and the claims firewall still applies. FS-PRODUCT-PLAN-DEC-001 guardrails 5 (separate lines), 6 (the written tipping policy is visible to every worker) and 11 (anti-tuning extends to the tipping-policy rule) stand.
+
+**Not addressed.** Neither decision addresses a tronc arrangement. A pool that mixes service periods is contrary to FS-TIP-POOL-DEC-001.
+
+**Interaction with earlier tip rules: OPEN, not resolved here.**
+
+- The FS-TIP-DEC-001 addendum of 2 November requires the tip window to be "the same window used for sales performance attribution". A service-period pool collects tips by service period. How the two windows relate is OPEN.
+- The FS-TIP-DEC-001 refund table and addendum were written for tips on individual payments. They are not revoked. How they apply to a pooled allocation is OPEN (section 21).
+- Section 14 says a worker never sees another worker's earnings. In a small pool, the pool total and eligible hours may reveal another worker's share. Which pool fields a worker sees is OPEN.
+
+**Allocation details still OPEN and NEEDS VERIFICATION** are listed in section 21. No default is adopted for any of them.
+
+**Next implementation package: NOT YET AUTHORISED.** Tip-allocation implementation, under FS-HOSPITALITY-EARNINGS-001 (section 24) or any other package ID, needs its own Owner authorisation.
 
 ## 2. Product principles
 
@@ -827,6 +890,8 @@ All surfaces require keyboard navigation, semantic headings, clear focus, meanin
 | Payment record | Organisation-authorised | Assigned-location approval scope | Own records only |
 | Credentials and access tokens | Never | Never | Never |
 
+**Tip pools (FS-TIP-POOL-DEC-001, section 1).** A worker may see the relevant tip-pool information for a service period in which they are eligible, and must be able to understand their own allocated tips and payment status. This is not permission to disclose location or consolidated sales, and the rows above still apply. The exact fields a worker sees are OPEN (section 21).
+
 All scoping is enforced server-side. Demo scope pinned on the server is acceptable for a clearly labelled demonstration but is not a replacement for production authorisation.
 
 ## 15. AI presentation rules
@@ -1027,6 +1092,21 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 - Final fictional hospitality group brand and venue names.
 - The exact wording of the written tipping-policy rule and the tip terms. FS-TIP-DEC-001 (section 1) settles the earnings formula, tip evidence, exclusions, Manager limits and refund treatment, but doesn't state the rule itself. Nothing about tips is implemented.
+  - *4 November 2026:* FS-TIP-POOL-DEC-001 and FS-TIP-POOL-DEC-002 (section 1) set the allocation model: a separate pool for each service period at a location, allocated in proportion to eligible worker-hours, then reviewed and approved. They supersede the earlier pooling exclusions for the hospitality MVP only. The written rule is still incomplete: the details below remain open.
+- Tip-pool allocation details (FS-TIP-POOL-DEC-001). No default is adopted, including any proposed by the read-only assessment FS-HACK-TIP-POOL-001:
+  - the precise eligible staff population;
+  - whether regular or full-time staff participate;
+  - actual versus scheduled eligible hours when the two differ;
+  - service-period boundary conventions;
+  - tip transactions that fall between periods;
+  - overlapping service periods;
+  - the tie-break for a penny-rounding remainder;
+  - treatment of unallocated tips;
+  - late refunds and adjustments, and how the FS-TIP-DEC-001 refund rules apply to a pooled allocation;
+  - corrections after approval;
+  - whether base wages and tips must be paid together or separately;
+  - how the service-period pool relates to the FS-TIP-DEC-001 requirement that the tip window match the sales-attribution window;
+  - which tip-pool fields a worker sees, consistent with section 14.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not. Offer order is resolved by FS-OFFER-ORDER-DEC-001 (section 1). No scoring algorithm or performance ranking is authorised.
@@ -1048,6 +1128,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - Bryntum and AG Grid licensing, supported package versions, and technical fit before installation.
 - The exact APIMatic implementation and evidence that materially supports the PayPal integration.
 - Whether performance incentive and allocated tips must be included in the 12.07% holiday-pay base, and the wording "advance of earned pay, reported through the venue's payroll". Both need professional payroll or legal confirmation before any claim (FS-PAY-TERMS-DEC-001).
+- Tip pools (FS-TIP-POOL-DEC-001): the holiday-pay treatment of tips (above, and register conflict R-02); Square Sandbox `tip_money` behaviour; and definitive UK tipping-policy compliance. FairShift makes no compliance claim for its tipping policy.
 
 ### DEFERRED
 
