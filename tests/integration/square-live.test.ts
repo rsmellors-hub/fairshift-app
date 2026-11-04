@@ -637,6 +637,161 @@ describe("the economics stay FairShift's", () => {
   }));
 });
 
+// FS-HACK-TIP-EVIDENCE-001: Square's tip is captured as payment evidence and goes nowhere else.
+// No pool, allocation or payable reads it. Every payment here is a fixture, not provider evidence.
+describe("Square tip evidence", () => {
+  const AT = "2026-01-19T11:00:00.000Z";
+  const gbp = (amount: number) => ({ amount, currency: "GBP" });
+  const EARLIER = "2026-01-14T12:00:00.000Z";
+  const tipped = (id: string, amount: number, tip: number, at = EARLIER) => payment(id, "TM-A", at, amount, { tip_money: gbp(tip), total_money: gbp(amount + tip) });
+  const untipped = (id: string, amount: number, at = EARLIER) => payment(id, "TM-A", at, amount, { total_money: gbp(amount) });
+  const evidence = (db: Db) => db.select().from(commercePaymentEvidence);
+
+  it("keeps the tip on the sale's own evidence row, out of the sale, the worker's sales and the payable", () => withDb(async db => {
+    const s = await setup(db); pages(db);
+    await map(db, s);
+    const work = await booked(db, s);
+    vi.setSystemTime(DURING);
+    s.square.state.payments = [tipped("P0", 12_000, 1_500, AT), untipped("P1", 8_000, AT)];
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", inserted: 2, attribution: { attributed: 2 } });
+    const sales = await squareSales(db), rows = await evidence(db);
+    expect(sales.map(row => row.grossAmountMinor).sort((a, b) => a - b)).toEqual([8_000, 12_000]);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(sales.find(sale => sale.id === row.saleTransactionId)?.sourceTransactionId).toBe(row.providerPaymentId);
+    expect(Object.fromEntries(rows.map(row => [row.providerPaymentId, row.tipAmountMinor]))).toEqual({ P0: 1_500, P1: 0 });
+    // Attribution, the worker's view and the Owner's audit view carry amount_money only.
+    expect((await attributed(db)).map(row => row.amountMinor).sort((a, b) => a - b)).toEqual([8_000, 12_000]);
+    expect((await getWorkerTargets(db, { organisationId: s.worker.organisationId, locationId: s.worker.locationId, workerId: s.worker.workerId! }))[0].attributed).toEqual({ count: 2, minor: 20_000 });
+    expect((await getSquareActivity(db, s.c.ownerScope, s.c.rows[0].id)).map(row => row.amountMinor).sort((a, b) => a - b)).toEqual([8_000, 12_000]);
+    vi.setSystemTime(AFTER);
+    const { payable } = await confirmWork(db, work.offer.id, s.manager);
+    await sync(db, s);
+    expect(await confirmWorkPerformance(db, s.manager, work.allocation.id, { count: 2, minor: 20_000 })).toMatchObject({ salesMinor: 20_000, earnedMinor: 2_500 });
+    expect(await approveWorkPayable(db, s.manager, payable!.id)).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_900 });
+    // Neither the tip nor sales including it reach a worker's pages.
+    const home = await render(s.worker, () => WorkerWorkspace({ area: "home" })), earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+    for (const html of [home, earnings]) expect(html).not.toMatch(/£15\.00|£215\.00|£135\.00|£144\.00/);
+    // The existing statement stays true: nothing allocates a tip yet.
+    expect(earnings).toContain("FairShift doesn’t allocate tips");
+  }));
+  it("a repeated sync keeps one sale, one evidence row and one tip, and a changed tip is refused", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [tipped("P1", 1_000, 250), tipped("P1", 1_000, 250)];
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", retrieved: 2, inserted: 1 });
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", inserted: 0 });
+    expect(await squareSales(db)).toHaveLength(1);
+    expect((await evidence(db)).map(row => row.tipAmountMinor)).toEqual([250]);
+    // Square can't change a COMPLETED payment's tip, so a different one is a contradiction.
+    s.square.state.payments = [tipped("P1", 1_000, 300)];
+    expect(await sync(db, s)).toMatchObject({ status: "FAILED", failureCode: "CONFLICTING_DUPLICATE" });
+    s.square.state.payments = [untipped("P1", 1_000)];
+    expect(await sync(db, s)).toMatchObject({ status: "FAILED", failureCode: "CONFLICTING_DUPLICATE" });
+    // A read that establishes nothing about the tip contradicts nothing, and changes nothing.
+    s.square.state.payments = [payment("P1", "TM-A", EARLIER, 1_000)];
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", inserted: 0 });
+    expect((await evidence(db)).map(row => row.tipAmountMinor)).toEqual([250]);
+    expect(await squareSales(db)).toHaveLength(1);
+  }));
+  it("a tip in another currency or a total that doesn't add up stores nothing at all", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [untipped("OK", 500), payment("BAD", "TM-A", EARLIER, 500, { tip_money: { amount: 50, currency: "USD" } })];
+    expect(await sync(db, s)).toMatchObject({ status: "FAILED", failureCode: "MALFORMED_RESPONSE" });
+    s.square.state.payments = [untipped("OK", 500), payment("BAD", "TM-A", EARLIER, 500, { tip_money: gbp(50), total_money: gbp(500) })];
+    expect(await sync(db, s)).toMatchObject({ status: "FAILED", failureCode: "MALFORMED_RESPONSE" });
+    expect(await squareSales(db)).toEqual([]);
+    expect(await evidence(db)).toEqual([]);
+  }));
+  it("a payment stored before tips were read keeps its unknown tip: no backfill, no zero", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [payment("OLD", "TM-A", EARLIER, 700)];
+    await sync(db, s);
+    expect((await evidence(db))[0].tipAmountMinor).toBeNull();
+    // A later read that does carry tip fields does not rewrite the held row.
+    s.square.state.payments = [untipped("OLD", 700)];
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", inserted: 0 });
+    expect((await evidence(db))[0].tipAmountMinor).toBeNull();
+    expect(await evidence(db)).toHaveLength(1);
+  }));
+  it("the database holds only a whole, non-negative tip, or none", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [tipped("P1", 1_000, 250)];
+    await sync(db, s);
+    await expect(db.update(commercePaymentEvidence).set({ tipAmountMinor: -1 })).rejects.toThrow();
+    await expect(db.execute(sql`update commerce_payment_evidence set tip_amount_minor = 9007199254740992`)).rejects.toThrow();
+    expect((await evidence(db))[0].tipAmountMinor).toBe(250);
+  }));
+  it("a refund on a tipped payment is recorded and linked, and decides nothing about the tip", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [tipped("P1", 12_000, 1_500)];
+    await sync(db, s);
+    // Square's refund has no tip portion, so this partial refund equal to the tip proves nothing about it.
+    s.square.state.refunds = [refund("R1", "P1", 1_500)];
+    expect(await sync(db, s, new Date(BEFORE.getTime() + 1))).toMatchObject({ status: "SUCCEEDED", refundsRecorded: 1 });
+    const [held] = await evidence(db), [linked] = await db.select().from(commerceRefundEvidence);
+    expect(linked).toMatchObject({ providerPaymentId: held.providerPaymentId, amountMinor: 1_500, providerStatus: "COMPLETED" });
+    expect(held.tipAmountMinor).toBe(1_500);
+    expect((await squareSales(db))[0].grossAmountMinor).toBe(12_000);
+    expect(await db.select().from(workPayables)).toEqual([]);
+  }));
+  it("a tipped payment from another Square location stores nothing", () => withDb(async db => {
+    const s = await setup(db);
+    s.square.state.payments = [tipped("OK", 500, 50), { ...tipped("ELSEWHERE", 500, 50), location_id: "OTHER-LOC" }];
+    expect(await sync(db, s)).toMatchObject({ status: "FAILED", failureCode: "MALFORMED_RESPONSE" });
+    expect(await squareSales(db)).toEqual([]);
+    expect(await evidence(db)).toEqual([]);
+  }));
+  it("one worker's tipped payments reach neither another worker nor another location", () => withDb(async db => {
+    const c = await business(db, ["Northgate", "Southgate"]), manager = await c.manager(), worker = await c.worker(manager), other = await c.worker(manager, "Dee");
+    const square = fakeSquare();
+    const [department] = await createDepartment(db, "Sales floor", c.ownerScope);
+    const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Casual with bonus", c.ownerScope);
+    await connectSquare(db, c.ownerScope, { outletId: c.rows[0].id }, square.client, CREDENTIALS);
+    const s: Setup = { c, manager, worker, department, policy, square };
+    await map(db, s);
+    await mapSquareTeamMember(db, manager, { workerId: other.workerId!, teamMemberId: "TM-B" }, square.client);
+    await booked(db, s);
+    vi.setSystemTime(DURING); pages(db);
+    square.state.payments = [tipped("PA", 12_000, 1_500, AT), payment("PB", "TM-B", AT, 77_700, { tip_money: gbp(9_900), total_money: gbp(87_600) })];
+    expect(await sync(db, s)).toMatchObject({ status: "SUCCEEDED", inserted: 2 });
+    // Worker A sees their own amount_money only: not B's sale, not either tip.
+    expect((await getWorkerTargets(db, { organisationId: worker.organisationId, locationId: worker.locationId, workerId: worker.workerId! }))[0].attributed).toEqual({ count: 1, minor: 12_000 });
+    expect((await attributed(db)).map(row => [row.providerTransactionId, row.workerId, row.amountMinor])).toEqual([["PA", worker.workerId, 12_000]]);
+    const home = await render(worker, () => WorkerWorkspace({ area: "home" }));
+    expect(home).toContain("£120.00");
+    expect(home).not.toMatch(/£777|£99\.00|£15\.00|£876|£135\.00|PB|TM-B/);
+    // Everything stays at the connected location; the other location holds no evidence and shows none.
+    expect(new Set((await evidence(db)).map(row => row.outletId))).toEqual(new Set([c.rows[0].id]));
+    expect(await getSquareActivity(db, await c.ownerAt(1), c.rows[1].id)).toEqual([]);
+  }));
+  it("only the Owner of the organisation reads payment evidence, and no reader returns a tip", () => withDb(async db => {
+    const s = await setup(db), rival = await business(db, ["Elsewhere"]);
+    s.square.state.payments = [tipped("P1", 1_000, 250)];
+    await sync(db, s);
+    await expect(getSquareActivity(db, s.manager, s.c.rows[0].id)).rejects.toThrow("Access denied");
+    await expect(getSquareActivity(db, s.worker, s.c.rows[0].id)).rejects.toThrow("Access denied");
+    expect(await getSquareActivity(db, rival.ownerScope, s.c.rows[0].id)).toEqual([]);
+    const rows = await getSquareActivity(db, s.c.ownerScope, s.c.rows[0].id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amountMinor).toBe(1_000);
+    expect(JSON.stringify(rows)).not.toMatch(/tip|250|1250/i);
+    // Neither a worker's background refresh nor a rival's sync can reach this location's evidence.
+    expect(await refreshSquareSales(db, s.worker, s.square.client)).not.toHaveProperty("tipAmountMinor");
+    await expect(syncSquare(db, rival.ownerScope, s.c.rows[0].id, s.square.client)).rejects.toMatchObject({ feedback: "commerce-location" });
+  }));
+  it("tips leave the forecast exactly as it was", () => {
+    const days = (tip: number) => Array.from({ length: 56 }, (_, i) => { const date = shiftDate("2026-01-14", -i); return payment(`D-${date}`, undefined, `${date}T12:00:00.000Z`, 200_000, tip ? { tip_money: gbp(tip), total_money: gbp(200_000 + tip) } : {}); });
+    const forecast = (tip: number) => { let result = ""; return withDb(async db => {
+      const s = await setup(db);
+      s.square.state.payments = days(tip);
+      await sync(db, s);
+      const weekly = await getWeeklyForecast(db, s.c.ownerScope, BEFORE);
+      expect(weekly.outlets[0].selection).toMatchObject({ status: "SELECTED", source: "SQUARE" });
+      result = JSON.stringify(weekly).replaceAll(s.c.rows[0].id, "LOCATION").replaceAll(s.c.organisationId, "ORG");
+    }).then(() => result); };
+    return Promise.all([forecast(0), forecast(4_321)]).then(([plain, withTips]) => expect(withTips).toBe(plain));
+  });
+});
+
 describe("the Sandbox demo-sale utility", () => {
   const sale = (over: Partial<{ workerId: string; amountMinor: number; requestId: string }>, s: Setup & { db: Db }, scope: Scope = s.manager) => recordSquareSandboxSale(s.db, scope, { workerId: s.worker.workerId!, amountMinor: 1_000, requestId: randomUUID(), ...over }, s.square.client);
   const demoSetup = async (db: Db) => { vi.stubEnv("FAIRSHIFT_DEMO_TOOLS", "enabled"); const s = await setup(db); await map(db, s); return Object.assign(s, { db }); };

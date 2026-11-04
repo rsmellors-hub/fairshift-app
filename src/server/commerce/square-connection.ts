@@ -89,16 +89,19 @@ async function allPages(fetchPage: (query: SquareWindowQuery) => Promise<SquareP
 }
 
 // Stores what Square said about each sale. Facts already held must not change: an identity that
-// moves between reads is a provider contradiction, so the whole retrieval is refused.
+// moves between reads is a provider contradiction, so the whole retrieval is refused. A tip is
+// held the same way, because Square can't change it once the payment is COMPLETED. A row stored
+// before tips were read keeps its unknown tip: evidence is written once and not backfilled.
 async function recordPaymentEvidence(tx: DatabaseSession, connection: typeof commerceConnections.$inferSelect, evidence: readonly SquarePaymentEvidence[]) {
   for (let i = 0; i < evidence.length; i += 1000) {
     const chunk = evidence.slice(i, i + 1000);
     const sales = new Map((await tx.select({ id: saleTransactions.id, paymentId: saleTransactions.sourceTransactionId }).from(saleTransactions).where(and(eq(saleTransactions.outletId, connection.outletId), eq(saleTransactions.source, "SQUARE"), eq(saleTransactions.sourceSystem, `SQUARE:${connection.providerMerchantId}`), inArray(saleTransactions.sourceTransactionId, chunk.map(row => row.providerPaymentId))))).map(row => [row.paymentId, row.id]));
     await tx.insert(commercePaymentEvidence).values(chunk.map(row => ({ id: randomUUID(), organisationId: connection.organisationId, outletId: connection.outletId, connectionId: connection.id, saleTransactionId: sales.get(row.providerPaymentId)!, provider: "SQUARE", ...row }))).onConflictDoNothing();
-    const held = await tx.select({ paymentId: commercePaymentEvidence.providerPaymentId, teamMemberId: commercePaymentEvidence.providerTeamMemberId, locationId: commercePaymentEvidence.providerLocationId }).from(commercePaymentEvidence).where(and(eq(commercePaymentEvidence.outletId, connection.outletId), eq(commercePaymentEvidence.provider, "SQUARE"), inArray(commercePaymentEvidence.providerPaymentId, chunk.map(row => row.providerPaymentId))));
+    const held = await tx.select({ paymentId: commercePaymentEvidence.providerPaymentId, teamMemberId: commercePaymentEvidence.providerTeamMemberId, locationId: commercePaymentEvidence.providerLocationId, tipAmountMinor: commercePaymentEvidence.tipAmountMinor }).from(commercePaymentEvidence).where(and(eq(commercePaymentEvidence.outletId, connection.outletId), eq(commercePaymentEvidence.provider, "SQUARE"), inArray(commercePaymentEvidence.providerPaymentId, chunk.map(row => row.providerPaymentId))));
     for (const row of chunk) {
       const found = held.find(item => item.paymentId === row.providerPaymentId);
       if (!found || found.teamMemberId !== row.providerTeamMemberId || found.locationId !== row.providerLocationId) throw new CommerceIngestionError("CONFLICTING_DUPLICATE", "A payment's team member or location changed.");
+      if (found.tipAmountMinor !== null && row.tipAmountMinor !== null && found.tipAmountMinor !== row.tipAmountMinor) throw new CommerceIngestionError("CONFLICTING_DUPLICATE", "A completed payment's tip changed.");
     }
   }
 }

@@ -39,6 +39,9 @@ describe("Square client", () => {
     await expect(createSquareClient(created).createSandboxPayment(TOKEN, { idempotencyKey: "k", locationId: "L", teamMemberId: "TM", amountMinor: 101, currencyCode: "GBP" })).resolves.toEqual({ id: "P9", status: "COMPLETED" });
     const body = JSON.parse(String((vi.mocked(created).mock.calls[0] as unknown as [string, RequestInit])[1].body));
     expect(body).toEqual({ idempotency_key: "k", source_id: "cnon:card-nonce-ok", autocomplete: true, location_id: "L", team_member_id: "TM", amount_money: { amount: 101, currency: "GBP" } });
+    const tipped = respond(200, { payment: { id: "P10", status: "COMPLETED" } });
+    await createSquareClient(tipped).createSandboxPayment(TOKEN, { idempotencyKey: "k2", locationId: "L", teamMemberId: "TM", amountMinor: 250, currencyCode: "GBP", tipMinor: 75 });
+    expect(JSON.parse(String((vi.mocked(tipped).mock.calls[0] as unknown as [string, RequestInit])[1].body))).toMatchObject({ amount_money: { amount: 250, currency: "GBP" }, tip_money: { amount: 75, currency: "GBP" } });
     await expect(createSquareClient(respond(400, { errors: [{ code: "IDEMPOTENCY_KEY_REUSED" }] })).createSandboxPayment(TOKEN, { idempotencyKey: "k", locationId: "L", teamMemberId: "TM", amountMinor: 1, currencyCode: "GBP" })).rejects.toMatchObject({ code: "IDEMPOTENCY_REJECTED" });
     await expect(createSquareClient(respond(400, { errors: [{ code: "INVALID_VALUE" }] })).createSandboxPayment(TOKEN, { idempotencyKey: "k", locationId: "L", teamMemberId: "TM", amountMinor: 1, currencyCode: "GBP" })).rejects.toMatchObject({ code: "PAYMENT_REJECTED" });
   });
@@ -52,8 +55,40 @@ describe("Square adapter", () => {
   it("keeps only the facts FairShift uses, never the customer's or card's", () => {
     const { observations, evidence } = normaliseSquarePayments([payment({ card_details: { card: { last_4: "4242" } }, buyer_email_address: "person@example.test", note: "worker TM2", reference_id: "TM2", tip_money: { amount: 99, currency: "GBP" } })], OUTLET, "L1");
     expect(observations).toEqual([{ outletId: OUTLET, sourceTransactionId: "P1", occurredAt: "2026-01-19T10:00:00.000Z", currencyCode: "GBP", grossAmountMinor: 500, status: "COMPLETED" }]);
-    expect(evidence).toEqual([{ providerPaymentId: "P1", providerLocationId: "L1", providerStatus: "COMPLETED", providerTeamMemberId: "TM" }]);
-    expect(JSON.stringify({ observations, evidence })).not.toMatch(/4242|person@|TM2|tip|"99"/);
+    expect(evidence).toEqual([{ providerPaymentId: "P1", providerLocationId: "L1", providerStatus: "COMPLETED", providerTeamMemberId: "TM", tipAmountMinor: 99 }]);
+    expect(JSON.stringify({ observations, evidence })).not.toMatch(/4242|person@|TM2/);
+    // The tip is payment evidence only: the sale carries amount_money and nothing of the tip.
+    expect(JSON.stringify(observations)).not.toMatch(/tip|99/);
+  });
+  it("captures Square's tip apart from the sale, and the sale value stays amount_money", () => {
+    const { observations, evidence } = normaliseSquarePayments([payment({ amount_money: { amount: 250, currency: "GBP" }, tip_money: { amount: 75, currency: "GBP" }, total_money: { amount: 325, currency: "GBP" } })], OUTLET, "L1");
+    expect(observations[0].grossAmountMinor).toBe(250);
+    expect(evidence[0].tipAmountMinor).toBe(75);
+  });
+  it("tells a zero tip Square reported apart from a tip nobody established", () => {
+    const tip = (over: Record<string, unknown>) => normaliseSquarePayments([payment(over)], OUTLET, "L1").evidence[0].tipAmountMinor;
+    // Square omits tip_money when there is none; its total equal to the amount says so.
+    expect(tip({ total_money: { amount: 500, currency: "GBP" } })).toBe(0);
+    expect(tip({ tip_money: { amount: 0, currency: "GBP" }, total_money: { amount: 500, currency: "GBP" } })).toBe(0);
+    expect(tip({ tip_money: { amount: 0, currency: "GBP" } })).toBe(0);
+    // Neither field: unknown, never zero.
+    expect(tip({})).toBeNull();
+  });
+  it.each([
+    ["a tip in another currency", { tip_money: { amount: 75, currency: "USD" } }],
+    ["a total in another currency", { total_money: { amount: 500, currency: "USD" } }],
+    ["a negative tip", { tip_money: { amount: -1, currency: "GBP" } }],
+    ["a fractional tip", { tip_money: { amount: 7.5, currency: "GBP" } }],
+    ["a text tip", { tip_money: { amount: "75", currency: "GBP" } }],
+    ["a tip beyond a safe integer", { tip_money: { amount: Number.MAX_SAFE_INTEGER + 2, currency: "GBP" } }],
+    ["a tip with no currency", { tip_money: { amount: 75 } }],
+    ["a total that isn't amount plus tip", { tip_money: { amount: 75, currency: "GBP" }, total_money: { amount: 500, currency: "GBP" } }],
+    ["a total below the amount with no tip", { total_money: { amount: 400, currency: "GBP" } }],
+  ])("refuses %s rather than recording an untrusted tip", (_name, over) => {
+    expect(() => normaliseSquarePayments([payment(over)], OUTLET, "L1")).toThrow(SquareError);
+  });
+  it("reads no tip from a payment that isn't a sale", () => {
+    expect(normaliseSquarePayments([payment({ status: "APPROVED", tip_money: { amount: 75, currency: "GBP" } })], OUTLET, "L1")).toEqual({ observations: [], evidence: [], notCompleted: 1 });
   });
   it("never takes an identity from a note, reference or metadata", () => {
     const { evidence } = normaliseSquarePayments([payment({ team_member_id: undefined, note: "TM", reference_id: "TM", metadata: { team_member_id: "TM" } })], OUTLET, "L1");

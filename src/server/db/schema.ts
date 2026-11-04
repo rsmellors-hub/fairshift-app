@@ -323,11 +323,16 @@ export const commercePaymentEvidence = pgTable("commerce_payment_evidence", {
   providerLocationId: text("provider_location_id").notNull(),
   providerStatus: text("provider_status").notNull(),
   providerTeamMemberId: text("provider_team_member_id"),
+  // Square's tip_money on this payment, in the sale's currency. Never part of the sale's value.
+  // null: not captured (every row stored before tips were read) or not established by the read.
+  // 0: Square reported no tip. It is evidence, not an entitlement: nothing here allocates it.
+  tipAmountMinor: bigint("tip_amount_minor", { mode: "number" }),
 }, (t) => [
   uniqueIndex("commerce_payment_evidence_payment_unique").on(t.outletId, t.provider, t.providerPaymentId),
   uniqueIndex("commerce_payment_evidence_sale_unique").on(t.saleTransactionId),
   check("commerce_payment_evidence_provider_check", sql`${t.provider} in ('SQUARE')`),
   check("commerce_payment_evidence_status_check", sql`${t.providerStatus} = 'COMPLETED'`),
+  check("commerce_payment_evidence_tip_check", sql`${t.tipAmountMinor} is null or (${t.tipAmountMinor} >= 0 and ${t.tipAmountMinor} <= 9007199254740991)`),
 ]);
 
 // A refund as evidence: linked to its payment and never netted off a sale or an incentive.

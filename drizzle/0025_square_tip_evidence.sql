@@ -1,0 +1,2 @@
+ALTER TABLE "commerce_payment_evidence" ADD COLUMN "tip_amount_minor" bigint;--> statement-breakpoint
+ALTER TABLE "commerce_payment_evidence" ADD CONSTRAINT "commerce_payment_evidence_tip_check" CHECK ("commerce_payment_evidence"."tip_amount_minor" is null or ("commerce_payment_evidence"."tip_amount_minor" >= 0 and "commerce_payment_evidence"."tip_amount_minor" <= 9007199254740991));

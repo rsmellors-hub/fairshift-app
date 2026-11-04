@@ -29,7 +29,7 @@ export interface SquareClient {
   teamMembers(token: string, locationId: string): Promise<SquareTeamMember[]>;
   payments(token: string, query: SquareWindowQuery): Promise<SquarePage>;
   refunds(token: string, query: SquareWindowQuery): Promise<SquarePage>;
-  createSandboxPayment(token: string, input: { idempotencyKey: string; locationId: string; teamMemberId: string; amountMinor: number; currencyCode: string }): Promise<{ id: string; status: string }>;
+  createSandboxPayment(token: string, input: { idempotencyKey: string; locationId: string; teamMemberId: string; amountMinor: number; currencyCode: string; tipMinor?: number }): Promise<{ id: string; status: string }>;
 }
 
 const errorBody = z.object({ errors: z.array(z.object({ code: z.string() })).min(1) });
@@ -91,6 +91,8 @@ export function createSquareClient(fetchImpl: typeof fetch = fetch): SquareClien
       const value = await request(fetchImpl, token, "/v2/payments", { method: "POST", body: JSON.stringify({
         idempotency_key: input.idempotencyKey, source_id: SANDBOX_CARD_SOURCE, autocomplete: true, location_id: input.locationId, team_member_id: input.teamMemberId,
         amount_money: { amount: input.amountMinor, currency: input.currencyCode },
+        // A card tip, which Square records separately from amount_money and in the same currency.
+        ...(input.tipMinor === undefined ? {} : { tip_money: { amount: input.tipMinor, currency: input.currencyCode } }),
       }) });
       return parsed(createdPaymentSchema, value).payment;
     },
