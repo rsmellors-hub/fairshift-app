@@ -473,6 +473,8 @@ A CSV export is the minimum demonstration mechanism to be assessed. A live payro
 - FS-HACK-ROADMAP-002 section 14 freezes "payroll export" until the Golden Path reaches PASS. The statement requirement stands as recorded. When it is built is an Owner decision (register, section 5, R-15).
 - No FS-HACK-MASTER-001 clause is amended. Its full-time staff records (section 4.4) and its "no separate Finance/Payroll user role" are consistent with this decision.
 
+*Later resolution, 4 November 2026:* FS-PAYOUT-PROOF-DEC-001 below authorises a narrow PayPal Sandbox-linked proof and CSV reconciliation export before the Golden Path reaches PASS. The generic payroll-export freeze remains.
+
 ### Owner decision FS-PAYOUT-TIMING-DEC-002: voluntary early tip access for permanent employees
 
 **Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-PAYOUT-CHOICE-GOV-001, supplied by the Owner on 4 November 2026, which records this decision as "OWNER APPROVED — NOT IMPLEMENTED" and gives the Owner-approved wording:
@@ -514,6 +516,24 @@ Declining early access does not reduce entitlement. Approved tip-pool eligibilit
 **Implementation status at `1b079c8`.** Nothing in this decision is implemented. No permanent-staff tip participation, election record, early-access payout or payroll statement exists. The casual base + incentive payout path described under FS-PAYOUT-TIMING-DEC-001 is unchanged.
 
 **Relationship with other decisions.** The "advance of earned pay" presentation wording stays with the Owner (register, section 5, R-06). This decision authorises no credit product. When the payroll statement is built stays an Owner decision (register, section 5, R-15).
+
+*Later resolution, 4 November 2026:* FS-PAYOUT-PROOF-DEC-001 below settles R-15 only for the PayPal Sandbox-linked HR/payroll Proof of Payout and CSV reconciliation export. No general payroll-export work is authorised.
+
+### Owner decision FS-PAYOUT-PROOF-DEC-001: HR/payroll Proof of Payout
+
+**Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's approval of FS-PAYOUT-PROOF-DEC-001 ("agree. Proceed") in *Analyse Product Drift* on 4 November 2026, carried into the Owner-authorised documentation package FS-HACK-PAYOUT-PROOF-GOV-001.
+
+**Required workflow.** For each permanent employee's elected early disbursement of approved tips through PayPal Sandbox, FairShift must create an HR/payroll-facing payout record at initiation and a definitive Proof of Payout when payment is confirmed. The record supports reconciliation of the early amount against the employee's remaining tip entitlement through normal payroll. This requirement extends FS-PAYOUT-TIMING-DEC-001 part C and FS-PAYOUT-TIMING-DEC-002; it does not decide whether casual-worker payouts need the same document.
+
+- Record the actual initiated state at submission, then each provider-reported transition, including pending, unclaimed, failed or returned outcomes where applicable. Initiation, provider acceptance and confirmed payment are distinct states. A paid Proof of Payout, or any document or CSV row claiming the employee was paid, may be issued only after the PayPal payout item reports `SUCCESS` and FairShift reconciles that item to `PAID`. Pending, unknown and unsuccessful states remain clearly labelled and never count as paid.
+- Include the organisation and location identifiers, employee and payroll reference, service period or tip-pool identifier, shift date and eligible hours, approval references, currency, approved gross tip entitlement, early amount, and remaining entitlement for payroll. These are gross reconciliation figures, not calculated net pay or a claim about tax treatment.
+- Retain every complete provider-returned payout identifier available for that disbursement, including batch, item and transaction identifiers where returned, plus sender identifiers where applicable; do not invent or truncate a missing reference. Record provider and FairShift statuses, initiation timestamp and provider-confirmed payment timestamp when available.
+- Preserve an immutable reconciliation trace under a unique identifier, including approval, payout attempts and status changes, exceptions, failed or returned payments, linked corrections and export history. Corrections add linked entries rather than overwrite the original. Use the identifier to prevent duplicate disbursements and duplicate payroll reconciliation of an early amount.
+- Provide a downloadable PDF Proof of Payout after confirmed success and a CSV reconciliation export derived from the same trace. Before success, HR/payroll may see the status-aware record, but no paid proof. Access and delivery details remain open in section 21; this decision creates no fourth application role.
+
+**Narrow R-15 supersession and Sandbox clearance.** The Owner authorises this PayPal Sandbox-linked proof, its PDF and its CSV reconciliation export as MVP work before the Golden Path reaches PASS. This expressly supersedes FS-HACK-ROADMAP-002 section 14's payroll-export freeze only for this required payment-completion and reconciliation workflow. Generic payroll export or payroll-suite features remain frozen under the roadmap. For Sandbox disbursements only, the Owner's clearance clarification qualifies FS-PAYOUT-TIMING-DEC-002's "required payroll clearance" condition: employer/payroll tax clearance is not a prerequisite to the Sandbox demonstration, and no clearance screen is required. This does not declare live payouts exempt. This decision authorises no PAYE calculation engine, live payroll integration or production PayPal payout. Live PAYE, National Insurance, employer/payroll clearance and payment compliance remain **NEEDS VERIFICATION** before production use (section 21).
+
+**Implementation status at `da60fc0`.** The existing casual base-plus-incentive PayPal Sandbox payout and status reconciliation are evidenced separately. No permanent-staff early-tip payout, HR/payroll Proof of Payout, PDF or CSV reconciliation export is implemented or tested by this documentation decision. A separate implementation package is required.
 
 ## 2. Product principles
 
@@ -1110,6 +1130,8 @@ The product must never show or log PayPal credentials, OAuth access tokens, sand
 
 *Amended, 4 November 2026, by FS-PAYOUT-TIMING-DEC-002:* regular staff's PayPal early access is voluntary and capped at 50% of approved tips. Without an election, the full tip entitlement goes through normal payroll. Each early-access disbursement still has a payroll transaction statement. FairShift never promises instantaneous PayPal settlement.
 
+*Amended, 4 November 2026, by FS-PAYOUT-PROOF-DEC-001:* an initiated permanent-staff early-tip payout has a status-aware HR/payroll record. Its downloadable PDF may claim payment only after PayPal item `SUCCESS` is reconciled to FairShift `PAID`; the related CSV must reflect the same state and provider evidence. This is approved, not implemented.
+
 ## 18. Integration strategy
 
 Integrations must strengthen the product and its evidence. FairShift does not add integrations merely to maximise sponsor count. Overall submission quality outranks sponsor accumulation, and no integration receives a stronger status until reproducible evidence supports it.
@@ -1237,7 +1259,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
   - the exact eligibility conditions for regular staff, and how their eligible hours are recorded;
   - whether a casual worker's approved tips are paid in the same PayPal payout as base and incentive, or in a later payout when the tip pool is finalised after the rest of the shift is approved;
   - what happens when tip-pool finalisation, Square evidence or incentive verification delays the full casual entitlement. No partial-payment rule is approved;
-  - what "payroll/tax clearance" consists of for a regular worker's early tip payout, who gives it, and how it is recorded;
+  - what payroll/tax clearance, if any, live regular-worker early tip payouts require, who gives it, and how it is recorded; FS-PAYOUT-PROOF-DEC-001 does not make clearance a prerequisite for the Sandbox demonstration;
   - the treatment of an odd minor unit when an approved tip entitlement is halved;
     - *4 November 2026, FS-PAYOUT-TIMING-DEC-002:* 50% is now a ceiling, not a fixed split. The same question applies to calculating the ceiling;
   - voluntary early access (FS-PAYOUT-TIMING-DEC-002): the election mechanism; how consent is captured and evidenced; whether an election is standing or made per shift or per tip pool; whether the employee chooses an amount below the ceiling or takes the ceiling; whether and when an election can be changed or withdrawn, and its effect on tips already approved; and the latest point at which an election counts for a given entitlement;
@@ -1246,7 +1268,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
   - the source and format of the payroll employee reference;
   - the payroll statement's recipient, delivery channel, re-export and correction handling, and who may see it (section 14);
   - how payroll is told when an early tip payout fails or is returned;
-  - when the payroll statement is built, given the roadmap's freeze on payroll export (register, section 5, R-15).
+  - *Resolved for the narrow Sandbox workflow, 4 November 2026, by FS-PAYOUT-PROOF-DEC-001:* the HR/payroll Proof of Payout and its PDF and CSV reconciliation export may be built before the Golden Path reaches PASS (register, section 5, R-15). Generic payroll exports remain frozen; the recipient, delivery, correction and live-compliance questions above remain open.
 - Final SaaS pricing and packaging.
 - Permanent incentive policy and formula. The MVP uses an Owner-set individual sales target and fixed bonus (Product Owner decision, FS-PERF-INCENTIVE-001); this is not a claim about the permanent architecture. The $650 / $25 demo rule is evidence of the seeded path only.
 - Fair-opportunity distribution and matching weights. Hard eligibility, availability, conflicts, preferences, explainability, and manager control are established; a scoring algorithm is not. Offer order is resolved by FS-OFFER-ORDER-DEC-001 (section 1). No scoring algorithm or performance ranking is authorised.
@@ -1337,7 +1359,7 @@ Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
 4. FS-HOSPITALITY-EARNINGS-001
 5. Full Golden Path rehearsal and hardening
 
-This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-TIP-ELIGIBILITY-DEC-001, FS-PAYOUT-TIMING-DEC-001 and FS-PAYOUT-TIMING-DEC-002 (4 November 2026) are approved and not implemented, and no package implementing them is authorised. FS-PAYOUT-TIMING-DEC-002 supersedes FS-PAYOUT-TIMING-DEC-001's mandatory permanent-staff split. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
+This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-TIP-ELIGIBILITY-DEC-001, FS-PAYOUT-TIMING-DEC-001, FS-PAYOUT-TIMING-DEC-002 and FS-PAYOUT-PROOF-DEC-001 (4 November 2026) are approved and not implemented, and no package implementing them is authorised. FS-PAYOUT-TIMING-DEC-002 supersedes FS-PAYOUT-TIMING-DEC-001's mandatory permanent-staff split; FS-PAYOUT-PROOF-DEC-001 authorises only the Sandbox-linked proof and CSV exception to R-15. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
 
 FS-HACK-ROADMAP-002 (3 November 2026) sets a newer, Owner-directed delivery sequence. The two sequences are reconciled in [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), section 5. Neither removes the need for each package's own authorisation.
 
