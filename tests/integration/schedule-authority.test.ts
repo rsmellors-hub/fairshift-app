@@ -65,7 +65,7 @@ async function business(db: Db, locations = ["Leeds"]) {
 async function setup(db: Db) {
   const c = await business(db), manager = await c.manager(), worker = await c.worker(manager), owner = await c.ownerAt();
   const [department] = await createDepartment(db, "Sales floor", owner);
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 65_000, incentiveBonusMinor: 2_500 }, "Casual with bonus", owner);
+  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 65_000, incentiveBonusMinor: 2_500 }, "Casual with bonus", owner);
   const shift = (start = START, end = END, requiredHeadcount = 1) => createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: new Date(start), endsAt: new Date(end), requiredHeadcount }, manager);
   return { c, manager, worker, owner, shift };
 }
@@ -96,7 +96,7 @@ describe("changing a shift from the schedule", () => {
   it("moves a shift nobody has been offered, with the pay worked out by the server and an audit record", () => withDb(async db => {
     const s = await setup(db), shift = await s.shift();
     expect(await rescheduleShift(db, s.manager, move(s.manager, shift.id, { ...{ startsAt: LATER.startsAt, endsAt: new Date("2026-01-19T22:00:00Z") } }))).toEqual({ termsVersion: 2, changed: true });
-    expect(await row(db, shift.id)).toMatchObject({ expectedEarningsMinor: 12_000, guaranteedBasePayMinor: 12_000, termsVersion: 2 });
+    expect(await row(db, shift.id)).toMatchObject({ expectedEarningsMinor: 13_000, guaranteedBasePayMinor: 13_000, termsVersion: 2 });
     const [event] = await db.select().from(auditEvents).where(eq(auditEvents.action, "SHIFT_RESCHEDULED"));
     expect(event.metadata).toMatchObject({ source: "DRAG", interaction: "MOVE", fromTermsVersion: 1, termsVersion: 2 });
   }));
@@ -180,7 +180,7 @@ describe("changing a shift from the schedule", () => {
     }
     await expect(rescheduleShift(db, s.manager, move(s.manager, "not-a-uuid"))).rejects.toMatchObject({ feedback: "schedule-invalid" });
     await expect(rescheduleShift(db, s.manager, move(s.manager, shift.id, { startsAt: "2026-01-19T12:00:00Z" }))).rejects.toMatchObject({ feedback: "schedule-invalid" });
-    expect(await row(db, shift.id)).toMatchObject({ expectedEarningsMinor: 9_600, termsVersion: 1, requiredHeadcount: 1 });
+    expect(await row(db, shift.id)).toMatchObject({ expectedEarningsMinor: 10_400, termsVersion: 1, requiredHeadcount: 1 });
   }));
 });
 
@@ -191,7 +191,7 @@ describe("who can see and change the schedule", () => {
     await expect(rescheduleShift(db, york, move(york, shift.id))).rejects.toMatchObject({ feedback: "schedule-unavailable" });
     await expect(rescheduleShift(db, s.worker, move(s.worker, shift.id))).rejects.toThrow("Access denied");
     const [dep] = await createDepartment(db, "Floor", await multi.ownerAt(0));
-    const [pol] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual", await multi.ownerAt(0));
+    const [pol] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual", await multi.ownerAt(0));
     const yorkShift = await createRequirement(db, { departmentId: dep.id, policyId: pol.id, startsAt: new Date(START), endsAt: new Date(END), requiredHeadcount: 1 }, york);
     await expect(rescheduleShift(db, hull, move(hull, yorkShift.id))).rejects.toMatchObject({ feedback: "schedule-unavailable" });
     expect((await row(db, shift.id)).termsVersion).toBe(1);
@@ -271,7 +271,7 @@ describe("what the Worker sees of their shift", () => {
     vi.setSystemTime(new Date("2026-01-20T12:00:00Z"));
     await confirmWork(db, offer.id, s.manager);
     const page1 = await view(db, s.worker, "earnings");
-    for (const text of [">Earned<", ">Pending<", "Paid so far", "Base pay", "£96.00", "Not known yet", "so far", "Awaiting approval"]) expect(page1).toContain(text);
+    for (const text of [">Earned<", ">Pending<", "Paid so far", "Base pay", "£104.00", "Not known yet", "so far", "Awaiting approval"]) expect(page1).toContain(text);
     expect(page1).not.toMatch(/>\s*Paid\s*</);
   }));
 });

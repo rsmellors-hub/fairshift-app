@@ -21,12 +21,16 @@ import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
 import { getStaffingConfiguration } from "@/server/intelligence/business-policy";
 import { StaffingConfiguration } from "@/app/owner/staffing-configuration";
 import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
-import { generateOwnerAssessmentAction } from "@/app/intelligence-actions";
+import { explainWageAction, generateOwnerAssessmentAction } from "@/app/intelligence-actions";
 import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 import { commerceConnectionsConfigured, getCommerceConnections } from "@/server/commerce/connections";
 import { OwnerSales, type SalesFilter } from "@/app/owner/sales";
 import { labourHours, longDate } from "@/app/components/staffing";
 import { getSquareActivity, squareSandboxCredentials } from "@/server/commerce/square-connection";
+import { localDate } from "@/server/intelligence/forecast";
+import { checkWage } from "@/server/domain/statutory-wage";
+import { PolicyForm } from "@/app/owner/policy-form";
+import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 
 export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"] as const;
 export type OwnerArea = "overview" | typeof ownerAreas[number];
@@ -76,6 +80,10 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", payments: "Payments", settings: "Settings" }[area];
   const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your subscription and connected services." }[area];
   const active = locations.filter(location => location.active);
+  // Today at the selected location: the date the Owner's terms are checked against here.
+  const today = operations ? localDate(new Date(), operations.timezone) : "";
+  const belowMinimum = operations ? operations.policies.filter(p => p.earningsModel === "HOURLY" && p.rateMinor !== null
+    && checkWage({ jurisdiction: operations.wageJurisdiction, date: today, currencyCode: p.currencyCode, terms: { earningsModel: "HOURLY", rateMinor: p.rateMinor } }).status === "BELOW_DEMO_MINIMUM").length : 0;
   return <>
     <PageHeader eyebrow={scope.organisationName} title={title} description={description} />
     <ActionFeedback status={status} />{status?.startsWith("Your ") ? <p className="form-alert" role="alert">{status}</p> : null}
@@ -98,14 +106,16 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     </> : null}
     {area === "policies" ? <form action={selectLocationAction} className="filter-row context-picker" data-demo-write=""><label>Location<select name="locationId" defaultValue={scope.locationId}>{active.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Switch location</button></form> : null}
     {area === "policies" && operations ? <>
+      <WageReferencePanel jurisdiction={operations.wageJurisdiction} today={today} locationName={scope.locationName} currency={operations.currency} />
       <section className="panel" id="compensation"><h2>Compensation · {scope.locationName}</h2>
         <p className="panel-lede">Hourly or daily terms for shifts here. Later changes don’t affect work a worker has already accepted.</p>
-        {operations.policies.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Work policies at this location</caption><thead><tr><th scope="col">Terms</th><th scope="col">Basis</th><th scope="col">Pay</th></tr></thead><tbody>{operations.policies.map(p => <tr key={p.id}><th scope="row">{p.name}</th><td data-label="Basis">{p.earningsModel === "HOURLY" ? "Hourly" : p.earningsModel === "DAILY" ? "Daily, fixed for the shift" : "Commission"}</td><td data-label="Pay"><strong>{p.earningsModel === "COMMISSION" ? `${(p.commissionBps ?? 0)/100}% · verified attributed sales` : `${money(p.rateMinor!, p.currencyCode)} / ${p.earningsModel === "HOURLY" ? "hour" : "day"}`}</strong></td></tr>)}</tbody></table></div> : <p>No terms set yet, so managers can’t create shifts here.</p>}
+        {operations.policies.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Work policies at this location</caption><thead><tr><th scope="col">Terms</th><th scope="col">Basis</th><th scope="col">Pay</th><th scope="col">Minimum wage check · today</th></tr></thead><tbody>{operations.policies.map(p => <tr key={p.id}><th scope="row">{p.name}</th><td data-label="Basis">{p.earningsModel === "HOURLY" ? "Hourly" : p.earningsModel === "DAILY" ? "Daily, fixed for the shift" : "Commission"}</td><td data-label="Pay"><strong>{p.earningsModel === "COMMISSION" ? `${(p.commissionBps ?? 0)/100}% · verified attributed sales` : `${money(p.rateMinor!, p.currencyCode)} / ${p.earningsModel === "HOURLY" ? "hour" : "day"}`}</strong></td><td data-label="Minimum wage check" className="wage-cell"><PolicyWageCell policy={p} jurisdiction={operations.wageJurisdiction} today={today} /></td></tr>)}</tbody></table></div> : <p>No terms set yet, so managers can’t create shifts here.</p>}
+        <WageBelowNotice count={belowMinimum} />
       </section>
       <section className="panel" id="work-policies"><h2>Incentives · {scope.locationName}</h2>
         <p className="panel-lede">An individual sales target with a fixed bonus. Workers see them before accepting.</p>
         {operations.policies.some(p => p.incentiveTargetMinor) ? <ul className="incentive-list">{operations.policies.filter(p => p.incentiveTargetMinor).map(p => <li key={p.id}><span>{p.name}</span><strong>Reach {money(p.incentiveTargetMinor!, p.currencyCode)} attributed sales <span aria-hidden="true">→</span> earn {money(p.incentiveBonusMinor!, p.currencyCode)} bonus</strong></li>)}</ul> : <p>No incentive set yet.</p>}
-        <details className="disclosure-inline"><summary>Create new terms</summary><form action={createPolicyAction} className="workspace-form form-grid"><label>Name<input name="name" maxLength={100} required /></label><label>Pay basis<select name="earningsModel"><option value="DAILY">Daily, fixed for the shift</option><option value="HOURLY">Hourly</option></select></label><label>Rate ({operations.currency})<input type="number" name="rate" min="0" step="0.01" required /></label><label>Sales target ({operations.currency}, optional)<input type="number" name="incentiveTarget" min="0.01" step="0.01" /></label><label>Fixed bonus ({operations.currency}, optional)<input type="number" name="incentiveBonus" min="0.01" step="0.01" /></label><p className="form-span note">A worker earns the bonus if their own attributed sales for the shift reach the target. Set both or neither.</p><button className="primary-button">Create work policy</button></form></details>
+        <details className="disclosure-inline" open={!operations.policies.length}><summary>Create new terms</summary><PolicyForm action={createPolicyAction} currency={operations.currency} jurisdiction={operations.wageJurisdiction} today={today} explainAction={configuration.aiConfigured && !scope.demo ? explainWageAction : null} /></details>
       </section>
     </> : null}
     {area === "policies" && staffingConfiguration ? <StaffingConfiguration configuration={staffingConfiguration} locationName={scope.locationName} /> : null}

@@ -13,7 +13,10 @@ import { requireScope } from "@/server/auth/request";
 import { getCommerceConnections } from "@/server/commerce/connections";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { outlets } from "@/server/db/schema";
+import { organisations, outlets } from "@/server/db/schema";
+import { localDate as zonedDate } from "@/server/intelligence/forecast";
+import { ratesInForce, wageJurisdiction } from "@/server/domain/statutory-wage";
+import { DemoFloorPolicy, longDay, WageSource } from "@/app/components/wage-check";
 import { getWorkOutcomes } from "@/server/intelligence/commerce-labour";
 import { isSyntheticSource } from "@/server/intelligence/forecast";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
@@ -31,6 +34,10 @@ export default async function OwnerLocationPage({ params }: { params: Promise<{ 
   const db = getDatabase();
   const [location] = await db.select().from(outlets).where(and(eq(outlets.id, locationId), eq(outlets.organisationId, scope.organisationId)));
   if (!location) notFound();
+  // The statutory wage reference for this location, from its country or else the business's.
+  const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, scope.organisationId));
+  const wage = wageJurisdiction({ locationCountry: location.country, organisationCountry: organisation?.country });
+  const wageToday = zonedDate(new Date(), location.timezone), wagePeriod = wage.jurisdiction === "ENGLAND" ? ratesInForce(wageToday) : null;
   let staffing = null, outcomes = null, connections = null;
   try { staffing = await getWeeklyStaffing(db, scope, new Date()); } catch { staffing = null; }
   try { outcomes = (await getWorkOutcomes(db, scope)).filter(row => row.outletId === locationId); } catch { outcomes = null; }
@@ -51,6 +58,10 @@ export default async function OwnerLocationPage({ params }: { params: Promise<{ 
       </ol>
       <p className="note">Expected sales {outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "not available"} in the next 7 days: commercial context, not part of the staffing figures.</p>
       <AcceptedContextNote outlets={[outlet]} />
+      <section className="panel wage-reference" aria-labelledby="location-wage-title"><div className="panel-head"><h2 id="location-wage-title">Minimum wage reference</h2>{wage.jurisdiction === "ENGLAND" ? <span className="status-badge status-badge-fact">England demo jurisdiction · {wage.country}</span> : wage.jurisdiction === null && wage.reason === "OUTSIDE_DEMO_JURISDICTION" ? <span className="status-badge status-badge-neutral">Outside demo jurisdiction</span> : <span className="status-badge status-badge-warning">Statutory reference unavailable</span>}</div>
+        {wagePeriod ? <><p>FairShift demo minimum today, {longDay(wageToday)}: <strong>{money(wagePeriod.rates[0].rateMinor, "GBP")} an hour</strong>, the 21-and-over National Living Wage. Every shift here is checked against the rate for its own date, and shifts below it can’t be created or offered. <Link className="text-link" href="/owner/policies#wage-reference">See all rates and your terms</Link></p><DemoFloorPolicy /><WageSource period={wagePeriod} /></>
+          : <p>{wage.jurisdiction === null && wage.reason === "COUNTRY_NOT_STATED" ? "No country is recorded for this location, so FairShift can’t tell which minimum wage applies." : wage.jurisdiction === null && wage.reason === "NATION_NOT_VERIFIED" ? "FairShift’s UK reference hasn’t been verified for Northern Ireland." : wage.jurisdiction === null && wage.reason === "OUTSIDE_DEMO_JURISDICTION" ? `FairShift’s demo minimum applies to England, the demonstration jurisdiction. This location is in ${wage.country}.` : wage.jurisdiction === null ? `FairShift holds a verified minimum wage reference for the UK only. This location is in ${wage.country}.` : `FairShift has no verified rates for ${longDay(wageToday)}.`} Pay here isn’t checked against a statutory minimum.</p>}
+      </section>
       <section className="panel" aria-labelledby="location-service-title"><h2 id="location-service-title">By time of day</h2><p className="panel-lede">When each day is covered and when it isn’t. No shifts are created here.</p><ServiceDays outlet={outlet} /></section>
       <section className="panel" aria-label="Staffing by day"><WeekCover outlet={outlet} act={false} /></section>
       <section aria-labelledby="location-source-title" className="panel"><h2 id="location-source-title">Commerce evidence</h2>

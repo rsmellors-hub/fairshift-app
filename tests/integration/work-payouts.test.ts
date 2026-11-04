@@ -53,7 +53,8 @@ async function company(db: Db, locations = 1) {
 // Shift → offer → acceptance → allocation → confirmation → payable, through the normal operations.
 async function confirmedPayable(db: Db, manager: Scope, { paymentEmail = "casual.sandbox@example.test" as string | null } = {}) {
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, manager);
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual terms", manager);
+  // £13.00 an hour: at or above the FairShift demo minimum for these dates (FS-WAGE-INTEL-DEC-002).
+  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual terms", manager);
   const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, manager);
   const { worker } = await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, manager);
   const workerScope: Scope = { ...manager, userId: await user(db), workerId: worker.id, role: "TEAM_MEMBER" };
@@ -71,7 +72,7 @@ const pending = (input: { senderBatchId: string }): PayoutResult => ({ batchId: 
 function fakePayPal(overrides: Partial<Record<keyof PayPalPayoutAdapter, unknown>> = {}) {
   return {
     createPayout: vi.fn(async (input: { senderBatchId: string }) => pending(input)),
-    getPayout: vi.fn(async (batchId: string): Promise<PayoutResult> => ({ batchId, itemId: "PPI-1", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-1", itemAmount: { value: "72.00", currency: "GBP" } })),
+    getPayout: vi.fn(async (batchId: string): Promise<PayoutResult> => ({ batchId, itemId: "PPI-1", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-1", itemAmount: { value: "78.00", currency: "GBP" } })),
     ...overrides,
   } as unknown as PayPalPayoutAdapter & { createPayout: ReturnType<typeof vi.fn>; getPayout: ReturnType<typeof vi.fn> };
 }
@@ -103,7 +104,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const c = await company(t.db);
       const manager = c.scopes[0];
       const { payable, worker, policy } = await confirmedPayable(t.db, manager);
-      expect(payable).toMatchObject({ status: "PENDING_REVIEW", baseAmountMinor: 7_200, currencyCode: "GBP", approvedAt: null, approvedBy: null });
+      expect(payable).toMatchObject({ status: "PENDING_REVIEW", baseAmountMinor: 7_800, currencyCode: "GBP", approvedAt: null, approvedBy: null });
       const paypal = fakePayPal();
 
       // Payout is impossible before approval.
@@ -112,7 +113,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
 
       // A: explicit approval records who, when, how much and in which currency.
       const approved = await approveWorkPayable(t.db, manager, payable.id);
-      expect(approved).toMatchObject({ status: "APPROVED", approvedBy: manager.userId, approvedAmountMinor: 7_200, approvedCurrencyCode: "GBP", baseAmountMinor: 7_200 });
+      expect(approved).toMatchObject({ status: "APPROVED", approvedBy: manager.userId, approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP", baseAmountMinor: 7_800 });
       expect(approved.approvedAt).toBeInstanceOf(Date);
       // Approving again changes nothing.
       expect(await approveWorkPayable(t.db, manager, payable.id)).toEqual(approved);
@@ -126,12 +127,12 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
       const ids = payoutSenderIds(payable.id);
       expect(paypal.createPayout.mock.calls[0][0]).toEqual({
-        ...ids, recipient: "casual.sandbox@example.test", amount: "72.00", currency: "GBP", purpose: "SERVICES",
+        ...ids, recipient: "casual.sandbox@example.test", amount: "78.00", currency: "GBP", purpose: "SERVICES",
         emailSubject: "FairShift work earnings", emailMessage: expect.any(String), note: "Manager-approved FairShift work earnings",
       });
       // L: PayPal accepted the batch; that is processing, not paid.
       expect(first.payout).toMatchObject({ status: "PROCESSING", paypalBatchId: `PPB${ids.senderBatchId.slice(-8)}`, paypalBatchStatus: "PENDING", paypalStatus: null, paidAt: null,
-        amountMinor: 7_200, currencyCode: "GBP", recipient: "casual.sandbox@example.test", workerId: worker.id, attempts: 1, requestedBy: manager.userId });
+        amountMinor: 7_800, currencyCode: "GBP", recipient: "casual.sandbox@example.test", workerId: worker.id, attempts: 1, requestedBy: manager.userId });
 
       // G: repeats never reach PayPal again.
       expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
@@ -285,7 +286,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const reconciled = await refreshWorkPayout(t.db, paypal, manager, payable.id);
       expect(createPayout).toHaveBeenCalledTimes(3);
       for (const call of createPayout.mock.calls) expect(call[0]).toEqual(createPayout.mock.calls[0][0]);
-      expect(createPayout.mock.calls[2][0]).toMatchObject({ recipient: "casual.sandbox@example.test", amount: "72.00", currency: "GBP" });
+      expect(createPayout.mock.calls[2][0]).toMatchObject({ recipient: "casual.sandbox@example.test", amount: "78.00", currency: "GBP" });
       // L: unclaimed at PayPal is still processing, not paid.
       expect(reconciled).toMatchObject({ status: "PROCESSING", paypalStatus: "UNCLAIMED", paypalItemId: "PPI-9", attempts: 3, paidAt: null });
       expect(await payoutsOf(t.db)).toHaveLength(1);
@@ -334,7 +335,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const { payable } = await confirmedPayable(t.db, manager);
       await approveWorkPayable(t.db, manager, payable.id);
       const statuses = ["PENDING", "ONHOLD", "SUCCESS", "REVERSED"];
-      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => { const item = statuses.shift()!; return { batchId, itemId: "PPI-2", status: item, batchStatus: "SUCCESS", itemStatus: item, transactionId: "PPT-2", itemAmount: { value: "72.00", currency: "GBP" } }; }) });
+      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => { const item = statuses.shift()!; return { batchId, itemId: "PPI-2", status: item, batchStatus: "SUCCESS", itemStatus: item, transactionId: "PPT-2", itemAmount: { value: "78.00", currency: "GBP" } }; }) });
       await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "PENDING", paidAt: null });
       expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
@@ -356,12 +357,12 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const manager = c.scopes[0];
       const { payable } = await confirmedPayable(t.db, manager);
       const reservation = { id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
-        amountMinor: 7_200, currencyCode: "GBP", recipient: "casual.sandbox@example.test", ...payoutSenderIds(payable.id), status: "SUBMITTING", reservedAt: new Date() };
+        amountMinor: 7_800, currencyCode: "GBP", recipient: "casual.sandbox@example.test", ...payoutSenderIds(payable.id), status: "SUBMITTING", reservedAt: new Date() };
       // No payout for an unapproved payable.
       await expect(t.db.insert(workPayouts).values(reservation)).rejects.toThrow();
       // Approval must copy the base amount and currency exactly, and a payable cannot be created approved.
       for (const change of [{ approvedAmountMinor: 9_999 }, { approvedCurrencyCode: "USD" }, { approvedBy: null }]) {
-        await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: manager.userId, approvedAmountMinor: 7_200, approvedCurrencyCode: "GBP", ...change }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
+        await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: manager.userId, approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP", ...change }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       }
       await approveWorkPayable(t.db, manager, payable.id);
       await expect(t.db.update(workPayables).set({ status: "PENDING_REVIEW", approvedAt: null, approvedBy: null, approvedAmountMinor: null, approvedCurrencyCode: null }).where(eq(workPayables.id, payable.id))).rejects.toMatchObject({ cause: expect.objectContaining({ message: expect.stringMatching(/final/) }) });
@@ -393,7 +394,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const owner: Scope = { ...manager, userId: await user(t.db), role: "OWNER" };
       const paypal = fakePayPal({ getPayout: vi.fn()
         .mockImplementationOnce(async (batchId: string) => ({ batchId, itemId: null, status: "PENDING", batchStatus: "PROCESSING", itemStatus: "PENDING", transactionId: null }))
-        .mockImplementation(async (batchId: string) => ({ batchId, itemId: "PPI-7", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-7", itemAmount: { value: "72.00", currency: "GBP" } })) });
+        .mockImplementation(async (batchId: string) => ({ batchId, itemId: "PPI-7", status: "SUCCESS", batchStatus: "SUCCESS", itemStatus: "SUCCESS", transactionId: "PPT-7", itemAmount: { value: "78.00", currency: "GBP" } })) });
       vi.mocked(getDatabase).mockReturnValue(t.db);
       vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
       vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
@@ -402,7 +403,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const status = async () => (await t.db.select().from(workPayables).where(eq(workPayables.id, payable.id)))[0];
 
       let review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      expect(review).toContain("Approve £72.00");
+      expect(review).toContain("Approve £78.00");
       expect(review).not.toContain("payout with PayPal");
 
       // A worker cannot reach the approval or payment actions.
@@ -412,9 +413,9 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect((await status()).status).toBe("PENDING_REVIEW");
 
       await act(manager, approvePayableAction, { payableId: payable.id, amount: "1.00", approvedAmountMinor: "1", currency: "USD" });
-      expect(await status()).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_200, approvedCurrencyCode: "GBP" });
+      expect(await status()).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP" });
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      expect(review).toContain("Send £72.00 payout with PayPal");
+      expect(review).toContain("Send £78.00 payout with PayPal");
       expect(review).not.toMatch(/>\s*Paid\s*</);
 
       // Approved, not sent: the worker sees approval, not payment.
@@ -424,7 +425,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
 
       await act(manager, sendPayoutAction, { payableId: payable.id, amount: "999.00", currency: "USD", recipient: "attacker@example.test" });
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
-      expect(paypal.createPayout.mock.calls[0][0]).toMatchObject({ amount: "72.00", currency: "GBP", recipient: "casual.sandbox@example.test" });
+      expect(paypal.createPayout.mock.calls[0][0]).toMatchObject({ amount: "78.00", currency: "GBP", recipient: "casual.sandbox@example.test" });
       await act(manager, sendPayoutAction, { payableId: payable.id });
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
 
@@ -439,14 +440,14 @@ describe("manager approval and PayPal payout of confirmed work", () => {
 
       await act(manager, refreshPayoutAction, { payableId: payable.id });
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      for (const text of [">Paid<", "PPI-7", "PPT-7", "PayPal Sandbox reference", "£72.00"]) expect(review).toContain(text);
+      for (const text of [">Paid<", "PPI-7", "PPT-7", "PayPal Sandbox reference", "£78.00"]) expect(review).toContain(text);
       expect(review).not.toContain("casual.sandbox@example.test");
 
       // N: the worker sees their own paid status, without provider internals or other workers.
       earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of [">Paid<", "£72.00", "paid to your PayPal account", "Europe/London"]) expect(earnings).toContain(text);
+      for (const text of [">Paid<", "£78.00", "paid to your PayPal account", "Europe/London"]) expect(earnings).toContain(text);
       for (const hidden of ["PPI-7", "PPT-7", "PPB", "casual.sandbox@example.test", otherWorker.worker.displayName]) expect(earnings).not.toContain(hidden);
-      expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£72.00 paid");
+      expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£78.00 paid");
       const otherView = await getWorkerWorkspace(t.db, otherWorker.workerScope);
       expect(otherView.assignments.map(row => row.payout?.id ?? null)).toEqual([null]);
       // The worker's own profile holds their own PayPal email; the payout carries no provider internals.
@@ -486,8 +487,8 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(earnings).not.toContain("PENDING_RECIPIENT");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
       const home = renderToStaticMarkup(await WorkerWorkspace({ area: "home" }));
-      expect(home).toContain("£72.00 sent to PayPal · processing");
-      expect(home).not.toContain("£72.00 paid");
+      expect(home).toContain("£78.00 sent to PayPal · processing");
+      expect(home).not.toContain("£78.00 paid");
     } finally { await t.close(); }
   });
 

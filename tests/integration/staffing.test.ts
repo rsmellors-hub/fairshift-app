@@ -47,7 +47,7 @@ async function referenceCompany(db: Db, from = "2026-09-21") {
 // A published casual shift at one location, with an operational scope for it.
 async function casualShift(db: Db, scope: { organisationId: string; locationId: string }, startsAt: string, endsAt: string, headcount = 4) {
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, scope);
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual hourly", scope);
+  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual hourly", scope);
   return createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: new Date(startsAt), endsAt: new Date(endsAt), requiredHeadcount: headcount }, scope);
 }
 let n = 0;

@@ -1,0 +1,530 @@
+[
+ {
+  "flow": "owner",
+  "name": "Owner signs in",
+  "pass": true,
+  "detail": "/owner"
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cMinimum wage reference \u00b7 TEST Leeds Kitchen\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cFairShift demo minimum \u00b7 today\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201c\u00a312.71 an hour\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cin force 1 April 2026 to 31 March 2027\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cFairShift competition policy\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cYounger workers and apprentices can have lower statutory minimums\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cFrom 1 April 2027\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201c\u00a313.21\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cIt isn\u2019t in force yet\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cNational Living Wage\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201c\u00a310.85\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201c\u00a38.00\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cStatutory reference \u00b7 GOV.UK\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Owner sees \u201cchecked 4 November 2026\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Source links to GOV.UK",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "No compliance claim on the page",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "New hourly terms prefilled with \u00a312.71",
+  "pass": true,
+  "detail": "12.71"
+ },
+ {
+  "flow": "owner",
+  "name": "Prefill explained as the demo minimum",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Typing \u00a312.00 shows \u201cBelow FairShift demo minimum\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Typing \u00a312.71 shows \u201cRate checked\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "No AI control without AI configured",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Below-floor terms kept at \u00a312.00 and flagged",
+  "pass": true,
+  "detail": "Verify below floor Hourly \u00a312.00 / hour Below FairShift demo minimum Below \u00a312.71 an hour, the 21-and-over rate in force on 4 November 2026. FairShift\u2019s demo po"
+ },
+ {
+  "flow": "owner",
+  "name": "\u00a313.00 terms show \u201cRate checked\u201d",
+  "pass": true,
+  "detail": "Verify adult rate Hourly \u00a313.00 / hour Rate checked At or above \u00a312.71 an hour, the 21-and-over rate in force on 4 November 2026, which is the FairShift demo mi"
+ },
+ {
+  "flow": "owner",
+  "name": "Notice explains flagged terms are kept, not raised",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "Existing rows unchanged by viewing",
+  "pass": true,
+  "detail": "0 rows before"
+ },
+ {
+  "flow": "owner",
+  "name": "Owner compensation at 390px: no horizontal overflow",
+  "pass": true,
+  "detail": "{\"scrollWidth\":390,\"innerWidth\":390,\"clipped\":[]}"
+ },
+ {
+  "flow": "owner",
+  "name": "Location page shows the demo minimum and source",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "owner",
+  "name": "No browser errors on Owner pages",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Leeds has a department",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Manager signs in at their location",
+  "pass": true,
+  "detail": "/manager"
+ },
+ {
+  "flow": "manager",
+  "name": "Manager sees the Owner's terms, unchanged",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Preview shows hourly wage, guaranteed base pay and variable earnings",
+  "pass": true,
+  "detail": "Hourly wage \u00a312.00 an hour Guaranteed base pay \u00b7 per worker \u00a396.00 for 8 hours Potential variable earnings No incentive \u00b7 tips not included Below FairShift demo minimum Below \u00a312.71 an hour, the 21-an"
+ },
+ {
+  "flow": "manager",
+  "name": "Preview flags \u201cBelow FairShift demo minimum\u201d with the adult reference",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Create shift is disabled for below-floor pay",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Server refuses a forced below-floor shift (wage-below-minimum)",
+  "pass": true,
+  "detail": "?status=wage-below-minimum"
+ },
+ {
+  "flow": "manager",
+  "name": "Refusal is explained on the page",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "No shift was created",
+  "pass": true,
+  "detail": "0 before"
+ },
+ {
+  "flow": "manager",
+  "name": "\u00a313.00 preview shows \u201cRate checked\u201d and \u00a3104.00 base",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Checked shift created",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Shift card shows the wage check",
+  "pass": true,
+  "detail": "Thu 5 Nov \u00b7 10:00\u201318:00 Floor \u00b7 TEST Leeds Kitchen \u00b7 8 hours 1 still to fill 1 needed \u00b7 0 allocated \u00b7 0 accepted \u00b7 0 awaiting response Base pay \u00a3104.00 \u00a313.00/h"
+ },
+ {
+  "flow": "manager",
+  "name": "Offer sent on checked terms",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Second shift shows Send offer while its terms are checked",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Server refuses an offer on below-floor terms from a stale page",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "No offer was created",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "Reloaded card says it can't be offered, with no Send offer button",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "One-hour \u00a313.00 shift created and offered",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "manager",
+  "name": "No browser errors on Manager pages",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Worker signs in on a 390px screen",
+  "pass": true,
+  "detail": "/worker"
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cThursday 5 November\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201c10:00 to 18:00\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201c8 hours\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cTEST Leeds Kitchen\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cGUARANTEED BASE PAY\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201c\u00a3104.00\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201c\u00a313.00 an hour \u00d7 8 hours\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cPOTENTIAL VARIABLE EARNINGS\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cNot guaranteed\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cNo sales bonus on this shift\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cTips\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cFairShift doesn\u2019t allocate tips\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cFINAL APPROVED EARNINGS\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cthen approves the total\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cHoliday pay isn\u2019t calculated in FairShift\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cat or above the 21-and-over National Living Wage for this date\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Offer card shows \u201cAccept shift\u201d",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "No invented tip or holiday-pay amount",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Guaranteed pay comes before variable, and variable before final",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Accept stays disabled until the terms are acknowledged",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "No horizontal overflow or clipped labels at 390px",
+  "pass": true,
+  "detail": "{\"scrollWidth\":390,\"innerWidth\":390,\"clipped\":[]}"
+ },
+ {
+  "flow": "worker",
+  "name": "Worker accepted offer (one-hour shift)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "Worker accepted offer (Thursday shift)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "worker",
+  "name": "No browser errors on Worker pages",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Both accepted offers allocated",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Confirm work submitted",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Base payable equals the guaranteed base shown (\u00a313.00)",
+  "pass": true,
+  "detail": "60eebef7-2a1e-4c1d-9fd9-9450f6169974 1300 PENDING_REVIEW"
+ },
+ {
+  "flow": "earnings",
+  "name": "Before approval: total marked not final",
+  "pass": true,
+  "detail": "Tuesday 3 November Awaiting approval TEST Leeds Kitchen \u00b7 23:54 to 00:54 on Wednesday 4 November Base pay \u00a313.00/hour \u00d7 1 hour scheduled \u00a313.00 Total Not final until your manager approves it \u00a313.00 Ap"
+ },
+ {
+  "flow": "earnings",
+  "name": "Earnings page discloses tips and holiday pay aren't included",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Upcoming shift shown as expected, not earned",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Nothing shown as Paid",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Manager approves exactly the calculated amount",
+  "pass": true,
+  "detail": "Approve \u00a313.00"
+ },
+ {
+  "flow": "earnings",
+  "name": "Payable approved at \u00a313.00",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Manager pay card keeps its existing payout status display",
+  "pass": true,
+  "detail": "Casey Verify Tue, 3 Nov 2026 \u00b7 Floor Approved Accepted terms \u00a313.00/hour \u00d7 1 hour scheduled \u00b7 version 1 \u00a313.00 Total payable \u00a313.00 Approved 4 Nov 2026, 00:54 (Europe/London) Approved Sent to PayPal Processing PayPal con"
+ },
+ {
+  "flow": "earnings",
+  "name": "After approval: \u201cFinal approved earnings\u201d \u00a313.00",
+  "pass": true,
+  "detail": "Tuesday 3 November Approved TEST Leeds Kitchen \u00b7 23:54 to 00:54 on Wednesday 4 November Base pay \u00a313.00/hour \u00d7 1 hour scheduled \u00a313.00 Final approved earnings \u00a313.00 Approved Sent to PayPal Processing"
+ },
+ {
+  "flow": "earnings",
+  "name": "Approved is not presented as paid",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "Earnings at 390px: no overflow or clipped labels",
+  "pass": true,
+  "detail": "{\"scrollWidth\":390,\"innerWidth\":390,\"clipped\":[]}"
+ },
+ {
+  "flow": "earnings",
+  "name": "No provider calls were possible (no PayPal or AI credentials in the mirror)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "flow": "earnings",
+  "name": "No browser errors",
+  "pass": true,
+  "detail": ""
+ }
+]

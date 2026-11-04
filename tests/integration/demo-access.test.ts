@@ -195,7 +195,7 @@ describe("demo sessions under concurrency (SHARED-BUT-RESETTABLE)", () => {
   it("4. reset never touches another organisation", () => withDb(async db => {
     const p = await prepared(db), other = await business(db, "Someone else");
     const [department] = await createDepartment(db, "Floor", other.ownerScope);
-    const [policy] = await createWorkPolicy(db, { earningsModel: "DAILY", rateMinor: 5_000 }, "Terms", other.ownerScope);
+    const [policy] = await createWorkPolicy(db, { earningsModel: "DAILY", rateMinor: 9_600 }, "Terms", other.ownerScope);
     const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-02-02T14:00:00Z"), endsAt: new Date("2026-02-02T20:00:00Z"), requiredHeadcount: 1 }, other.ownerScope);
     await as(db, "MANAGER");
     expect(await outcome(() => resetDemoAction())).toContain("status=demo-reset");

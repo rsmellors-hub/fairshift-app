@@ -768,3 +768,49 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 @media (max-width: 640px) {
   .context-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* Statutory wage reference and transparent pay (FS-WAGE-INTEL-DEC-001). */
+.wage-reference .panel-head { gap: 12px; flex-wrap: wrap; }
+.wage-rates { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+.wage-rates div { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); min-width: 0; }
+.wage-rates div:first-child { border-color: var(--primary); background: var(--primary-soft); }
+.wage-rates dt { color: var(--muted); font-size: 12px; font-weight: 600; }
+.wage-rates dt small { display: block; font-weight: 500; }
+.wage-rates dd { margin: 4px 0 0; font-size: 22px; font-weight: 750; letter-spacing: -.02em; }
+.wage-rates dd small { margin-left: 4px; color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.wage-next { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--gap); background: var(--gap-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 14px; }
+.wage-rules { margin: 8px 0; padding-left: 18px; font-size: 14px; }
+.wage-rules li + li { margin-top: 4px; }
+.wage-source { margin-top: 10px; }
+.wage-check { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin: 8px 0; font-size: 14px; }
+.wage-check > span:last-child { flex: 1 1 220px; min-width: 0; }
+.wage-cell small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.shift-terms-preview { padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.shift-terms-preview .shift-terms { margin: 0; }
+.shift-terms dd small { font-weight: 400; color: var(--muted); }
+.pay-breakdown { display: grid; gap: 10px; margin: 12px 0 4px; }
+.pay-block { padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); }
+.pay-block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pay-block h4 span { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--gap-soft); color: var(--gap-ink); font-size: 11px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.pay-block p { margin: 6px 0 0; }
+.pay-block-guaranteed { border-color: var(--primary); background: var(--primary-soft); }
+.pay-block-guaranteed h4 { color: #075e4d; }
+.pay-block-guaranteed .worker-shift-earn { margin: 0; }
+.pay-block-variable { border-style: dashed; }
+.pay-block-final { background: var(--canvas); font-size: 14px; }
+.pay-line strong { margin-right: 6px; }
+.wage-note { margin: 0; }
+@media (max-width: 480px) {
+  .offer-terms { grid-template-columns: 1fr 1fr; }
+  .wage-rates dd { font-size: 19px; }
+}
+.wage-explain { display: grid; gap: 8px; margin-top: 12px; }
+.wage-explain .secondary-button { width: fit-content; }
+.ai-explanation { padding: 12px 14px; border-left: 3px solid var(--info); background: var(--info-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.ai-explanation p { margin: 0; }
+.ai-explanation p + p { margin-top: 6px; }
+.demo-floor { display: grid; gap: 2px; margin: 12px 0 8px; padding: 14px 16px; border: 1px solid var(--primary); border-radius: var(--radius-sm); background: var(--primary-soft); }
+.demo-floor span { color: #075e4d; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.demo-floor strong { font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; }
+.demo-floor small { color: #075e4d; font-size: 13px; }
+.demo-floor-policy { margin: 0 0 10px; }

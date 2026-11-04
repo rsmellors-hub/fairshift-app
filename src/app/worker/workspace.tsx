@@ -37,7 +37,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const waiting = soonest(assignments.filter(row => kindOf(row) === "ACCEPTED"));
   const upcoming = soonest(assignments.filter(row => kindOf(row) === "UPCOMING"));
   const earlier = assignments.filter(row => ["PAST", "CLOSED"].includes(kindOf(row)));
-  const card = (row: (typeof assignments)[number]) => <WorkerShiftCard key={row.offer.id} row={row} kind={kindOf(row)} locationName={scope.locationName} timeZone={timezone} availability={stated} />;
+  const card = (row: (typeof assignments)[number]) => <WorkerShiftCard key={row.offer.id} row={row} kind={kindOf(row)} locationName={scope.locationName} timeZone={timezone} availability={stated} wage={data.wageJurisdiction} />;
   const payments = assignments.filter((row) => row.incentive);
   const incentiveTotal = (statuses: readonly string[]) => currencyTotals(payments.filter((row) => statuses.includes(row.incentive?.status ?? "")).map((row) => ({ amountMinor: row.incentive?.earnedAmountMinor ?? 0, currencyCode: row.shift.currencyCode }))) || money(0, payments[0]?.shift.currencyCode);
   // Work earnings: expected before confirmation, base payable after it. Neither is a payment.
@@ -69,7 +69,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       <dl className="earning-sum">
         <div><dt>Base pay<small>{payableBasis(payable)}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
         {payable.incentiveRequired ? <div><dt>Bonus{bonusUnknown ? null : <small>{payable.incentiveAmountMinor! > 0 ? "Target reached" : "Target not reached"}</small>}</dt><dd>{bonusUnknown ? "Not known yet" : `+ ${amount(payable.incentiveAmountMinor!)}`}</dd></div> : null}
-        <div className="earning-total"><dt>{row.payout?.status === "PAID" ? "Paid" : "Total"}</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
+        <div className="earning-total"><dt>{row.payout?.status === "PAID" ? "Paid" : payable.status === "APPROVED" ? "Final approved earnings" : "Total"}{row.payout?.status !== "PAID" && payable.status !== "APPROVED" ? <small>Not final until your manager approves it</small> : null}</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
       </dl>
       <PayoutProgress status={payable.status} payout={row.payout} />
       {row.payout?.status === "PAID" && row.payout.paidAt ? <p className="paid-confirmation">PayPal confirmed: paid to your PayPal account {dateTime(row.payout.paidAt, timezone)} ({timezone})</p> : null}
@@ -130,6 +130,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
         {expected.length ? <div className="earnings-group"><h3>Coming up{expectedTotal ? ` · ${expectedTotal} expected` : ""}</h3>{expected.map(row => <div className="record-row" key={row.offer.id}><span><strong>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date}</strong><small>{row.departmentName ?? row.shift.roleName}</small></span><span>{row.shift.earningsModel === "COMMISSION" ? "Commission awaiting verified attributed sales" : `${money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode)} expected`}<small>{row.allocation?.confirmedAt ? row.shift.earningsModel === "COMMISSION" ? "Work confirmed" : "Work confirmed · earnings not yet recorded" : "Awaiting work confirmation"}</small></span></div>)}</div> : null}
         {!accepted.length ? <StatePanel title="No earnings yet"><p>When you accept a shift and finish it, your pay appears here.</p></StatePanel> : null}
         <p className="note">Your manager confirms the work, FairShift works out your earnings from the terms you accepted, and your manager approves them and sends them to your PayPal account. An amount shows as Paid only after PayPal confirms it. Questions about a payment? Ask your manager.</p>
+        <p className="note">Your earnings here are your base pay plus any bonus you earned. FairShift doesn’t allocate tips or calculate holiday pay, so neither is included. Amounts are before any tax or National Insurance.</p>
       </section>
       {!profile?.paypalPayoutEmail && !paymentDetailsNeeded ? <StatePanel title="Payment setup incomplete" tone="warning"><p>Add your payment details before your approved earnings can be sent. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}
       {payments.length ? <h2>Incentive payments</h2> : null}

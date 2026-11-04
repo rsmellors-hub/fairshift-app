@@ -63,7 +63,8 @@ async function business(db: Db, input: { name?: string; country?: string; timezo
 }
 const code = async (db: Db, workerId: string) => (await db.select().from(workers).where(eq(workers.id, workerId)))[0].attributionCode;
 async function terms(db: Db, owner: Scope, input: { rate?: number; target?: number | null; bonus?: number | null } = {}) {
-  const { rate = 1_200, target = 65_000, bonus = 2_500 } = input;
+  // £13.00 is at or above the FairShift demo minimum on these dates (FS-WAGE-INTEL-DEC-002).
+  const { rate = 1_300, target = 65_000, bonus = 2_500 } = input;
   const [department] = await createDepartment(db, "Sales floor", owner);
   const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: rate, incentiveTargetMinor: target, incentiveBonusMinor: bonus }, "Casual with bonus", owner);
   return { department, policy };
@@ -107,18 +108,18 @@ describe("work to approved final payable", () => {
       const manager = await c.manager(), worker = await c.worker(manager), workerCode = await code(t.db, worker.workerId!);
       const [department] = await createDepartment(t.db, "Sales floor", c.ownerScope);
       // The Owner sets the target and bonus; the Manager only picks the policy.
-      expect(await act(c.ownerScope, createPolicyAction, { name: "Bonus terms", earningsModel: "HOURLY", rate: "12.00", incentiveTarget: "650.00", incentiveBonus: "25.00" })).toContain("status=saved");
+      expect(await act(c.ownerScope, createPolicyAction, { name: "Bonus terms", earningsModel: "HOURLY", rate: "13.00", incentiveTarget: "650.00", incentiveBonus: "25.00" })).toContain("status=saved");
       const [policy] = await t.db.select().from(workPolicies);
       expect(policy).toMatchObject({ incentiveTargetMinor: 65_000, incentiveBonusMinor: 2_500, currencyCode: "GBP" });
       expect(await render(manager, () => ManagerWorkspace({ area: "fill" }))).toContain("£25.00 bonus at £650.00 sales");
       const { shift, offer, allocation } = await bookedShift(t.db, manager, worker, { department, policy }, "2026-01-19T09:00:00Z", "2026-01-19T17:00:00Z");
       expect(shift).toMatchObject({ incentiveBasis: "INDIVIDUAL_ATTRIBUTED_SALES", incentiveTargetMinor: 65_000, incentiveAmountMinor: 2_500 });
-      expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ incentiveBasis: "INDIVIDUAL_ATTRIBUTED_SALES", incentiveTargetMinor: 65_000, incentiveAmountMinor: 2_500, currencyCode: "GBP", expectedEarningsMinor: 9_600 });
+      expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ incentiveBasis: "INDIVIDUAL_ATTRIBUTED_SALES", incentiveTargetMinor: 65_000, incentiveAmountMinor: 2_500, currencyCode: "GBP", expectedEarningsMinor: 10_400 });
       // The Owner's later changes reach none of it.
       await t.db.update(workPolicies).set({ rateMinor: 9_999, incentiveTargetMinor: 1, incentiveBonusMinor: 999_999 }).where(eq(workPolicies.id, policy.id));
       vi.setSystemTime(AFTER);
       const { payable } = await confirmWork(t.db, offer.id, manager);
-      expect(payable).toMatchObject({ baseAmountMinor: 9_600, incentiveRequired: true, incentiveAmountMinor: null, status: "PENDING_REVIEW" });
+      expect(payable).toMatchObject({ baseAmountMinor: 10_400, incentiveRequired: true, incentiveAmountMinor: null, status: "PENDING_REVIEW" });
       // No evidence yet: nothing reads as zero, and approval is blocked.
       let review = await render(manager, () => ManagerWorkspace({ area: "review" }));
       for (const text of ["None imported yet", "Not complete yet", "Imported · not provider-verified", "Confirm sales results first", "Sales results needed"]) expect(review).toContain(text);
@@ -134,7 +135,7 @@ describe("work to approved final payable", () => {
       const [result] = await t.db.select().from(workPerformanceResults);
       expect(result).toMatchObject({ salesCount: 2, salesMinor: 70_000, targetMinor: 65_000, bonusMinor: 2_500, earnedMinor: 2_500, evidenceProvenance: "IMPORTED_NOT_PROVIDER_VERIFIED" });
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      for (const text of ["Confirmed for payment", "Imported · not provider-verified", "target reached", "£121.00", "£96.00 base + £25.00 bonus", "Approve £121.00"]) expect(review).toContain(text);
+      for (const text of ["Confirmed for payment", "Imported · not provider-verified", "target reached", "£129.00", "£104.00 base + £25.00 bonus", "Approve £129.00"]) expect(review).toContain(text);
       // Confirmation never upgrades the evidence.
       for (const row of await t.db.select().from(attributedSales)) expect(row.verificationState).toBe("UNVERIFIED");
       // Approve exactly the final amount, however often, and whatever is posted.
@@ -142,20 +143,20 @@ describe("work to approved final payable", () => {
       expect(await act(manager, approvePayableAction, { payableId: payable!.id, approvedAmountMinor: "1", incentiveAmountMinor: "1" })).toContain("status=saved");
       expect(await act(manager, approvePayableAction, { payableId: payable!.id })).toContain("status=saved");
       const [approved] = await t.db.select().from(workPayables);
-      expect(approved).toMatchObject({ status: "APPROVED", baseAmountMinor: 9_600, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_100, currencyCode: "GBP" });
+      expect(approved).toMatchObject({ status: "APPROVED", baseAmountMinor: 10_400, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_900, currencyCode: "GBP" });
       // The payout boundary receives that amount, once.
       await savePayoutDestination(t.db, worker, "casey@example.test");
       const adapter = stubPayPal();
       await Promise.allSettled([submitWorkPayout(t.db, adapter, manager, approved.id), submitWorkPayout(t.db, adapter, manager, approved.id)]);
       await submitWorkPayout(t.db, adapter, manager, approved.id).catch(() => undefined);
       expect(adapter.createPayout).toHaveBeenCalledTimes(1);
-      expect(adapter.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "121.00", currency: "GBP" }));
-      expect(await t.db.select().from(workPayouts)).toEqual([expect.objectContaining({ amountMinor: 12_100, currencyCode: "GBP" })]);
+      expect(adapter.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "129.00", currency: "GBP" }));
+      expect(await t.db.select().from(workPayouts)).toEqual([expect.objectContaining({ amountMinor: 12_900, currencyCode: "GBP" })]);
       expect(await refreshWorkPayout(t.db, adapter, manager, approved.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
-      expect(await render(c.ownerScope, () => OwnerWorkspace({ area: "payments" }))).toContain("£121.00");
+      expect(await render(c.ownerScope, () => OwnerWorkspace({ area: "payments" }))).toContain("£129.00");
       // The Worker sees their own result; held is not paid.
       const earnings = await render(worker, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["Your sales", "£700.00", "£650.00", "reached", "Base earnings", "£96.00", "Bonus earned", "£25.00", "Total earnings", "£121.00", "Action required", "haven’t been checked by a sales provider"]) expect(earnings).toContain(text);
+      for (const text of ["Your sales", "£700.00", "£650.00", "reached", "Base earnings", "£104.00", "Bonus earned", "£25.00", "Total earnings", "£129.00", "Action required", "haven’t been checked by a sales provider"]) expect(earnings).toContain(text);
       expect(earnings).not.toMatch(/T1|T2|Zettle|VERIFIED/);
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -169,7 +170,7 @@ describe("work to approved final payable", () => {
       const shift = await createRequirement(t.db, { departmentId: s.pay.department.id, policyId: s.pay.policy.id, startsAt: new Date("2026-01-19T09:00:00Z"), endsAt: new Date("2026-01-19T17:00:00Z"), requiredHeadcount: 1 }, s.manager);
       await offerAssignment(t.db, shift.id, s.worker.workerId!, s.manager);
       const page = await render(s.worker, () => WorkerWorkspace({ area: "shifts" }));
-      for (const text of ["£96.00", "£25.00 bonus", "your own sales for this shift reach £650.00", "Up to", "£121.00", "Accept shift"]) expect(page).toContain(text);
+      for (const text of ["£104.00", "£25.00 bonus", "your own sales for this shift reach £650.00", "Up to", "£129.00", "Accept shift"]) expect(page).toContain(text);
       expect(page).not.toMatch(/team|commission/i);
     } finally { await t.close(); }
   });
@@ -183,7 +184,7 @@ describe("work to approved final payable", () => {
       expect(await getLocationPerformance(t.db, s.manager)).toEqual([]);
       await expect(confirmWorkPerformance(t.db, s.manager, allocation.id, { count: 0, minor: 0 })).rejects.toThrow("Work unavailable");
       expect((await importAttributedSales(t.db, s.manager, csv(["T1", s.code, "2026-01-19T10:00:00Z", "5.00", "GBP"]), AFTER)).rejected[0].reason).toBe("NO_MATCHING_SHIFT");
-      expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ approvedAmountMinor: 9_600 });
+      expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ approvedAmountMinor: 10_400 });
       expect(await render(s.worker, () => WorkerWorkspace({ area: "earnings" }))).not.toContain("Bonus");
     } finally { await t.close(); }
   });
@@ -203,9 +204,9 @@ describe("evidence truthfulness", () => {
       expect(await render(s.manager, () => ManagerWorkspace({ area: "review" }))).toContain("this worker made no attributed sales");
       await confirmWorkPerformance(t.db, s.manager, allocation.id, { count: 0, minor: 0 });
       expect(await t.db.select().from(workPerformanceResults)).toEqual([expect.objectContaining({ salesCount: 0, salesMinor: 0, earnedMinor: 0 })]);
-      expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ incentiveAmountMinor: 0, approvedAmountMinor: 9_600 });
+      expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ incentiveAmountMinor: 0, approvedAmountMinor: 10_400 });
       const earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["Your sales", "not reached", "Total earnings", "£96.00"]) expect(earnings).toContain(text);
+      for (const text of ["Your sales", "not reached", "Total earnings", "£104.00"]) expect(earnings).toContain(text);
     } finally { await t.close(); }
   });
 
@@ -334,14 +335,14 @@ describe("boundaries", () => {
       const { payable, allocation } = await finishedWork(t.db, s);
       // An incentive with no confirmed result is refused.
       await expect(t.db.update(workPayables).set({ incentiveAmountMinor: 2_500 }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
-      await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: s.manager.userId, approvedAmountMinor: 9_600, approvedCurrencyCode: "GBP" }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
+      await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: s.manager.userId, approvedAmountMinor: 10_400, approvedCurrencyCode: "GBP" }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       await importAttributedSales(t.db, s.manager, csv(["T1", s.code, "2026-01-19T10:00:00Z", "700.00", "GBP"]));
       const result = await confirmWorkPerformance(t.db, s.manager, allocation.id, { count: 1, minor: 70_000 });
       await expect(t.db.update(workPerformanceResults).set({ earnedMinor: 0 }).where(eq(workPerformanceResults.id, result.id))).rejects.toThrow();
       await expect(t.db.delete(workPerformanceResults).where(eq(workPerformanceResults.id, result.id))).rejects.toThrow();
       await expect(t.db.update(workPayables).set({ incentiveAmountMinor: 999_999 }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       await expect(t.db.update(workPayables).set({ incentiveRequired: false }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
-      await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: s.manager.userId, approvedAmountMinor: 9_600, approvedCurrencyCode: "GBP" }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
+      await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: s.manager.userId, approvedAmountMinor: 10_400, approvedCurrencyCode: "GBP" }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       // A policy can't mix a bonus with commission, or set half of one.
       for (const input of [{ earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", incentiveTargetMinor: 100, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 0, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 100, incentiveBonusMinor: -1 }]) {
         await expect(createWorkPolicy(t.db, input, "Bad", s.c.ownerScope)).rejects.toMatchObject({ feedback: "policy-incentive" });
@@ -353,9 +354,9 @@ describe("boundaries", () => {
 describe("no knowledge of any particular business", () => {
   // Nothing about the outcome may come from a constant: change every input and every output follows.
   it.each([
-    { name: "Target met", rows: [["300.00"], ["400.00"]], target: 65_000, bonus: 2_500, rate: 1_200, count: 2, sales: 70_000, earned: 2_500, final: 12_100 },
-    { name: "Same sales, higher target", rows: [["300.00"], ["400.00"]], target: 70_001, bonus: 2_500, rate: 1_200, count: 2, sales: 70_000, earned: 0, final: 9_600 },
-    { name: "Replacement evidence", rows: [["10.50"], ["0.25"], ["1.00"]], target: 1_175, bonus: 333, rate: 1_000, count: 3, sales: 1_175, earned: 333, final: 8_333 },
+    { name: "Target met", rows: [["300.00"], ["400.00"]], target: 65_000, bonus: 2_500, rate: 1_300, count: 2, sales: 70_000, earned: 2_500, final: 12_900 },
+    { name: "Same sales, higher target", rows: [["300.00"], ["400.00"]], target: 70_001, bonus: 2_500, rate: 1_300, count: 2, sales: 70_000, earned: 0, final: 10_400 },
+    { name: "Replacement evidence", rows: [["10.50"], ["0.25"], ["1.00"]], target: 1_175, bonus: 333, rate: 1_250, count: 3, sales: 1_175, earned: 333, final: 10_333 },
     { name: "Unrelated business, evidence just short", rows: [["11.74"]], target: 1_175, bonus: 1, rate: 1_500, count: 1, sales: 1_174, earned: 0, final: 12_000 },
   ])("follows the evidence: $name", async ({ rows, target, bonus, rate, count, sales, earned, final }) => {
     const t = await createTestDatabase();

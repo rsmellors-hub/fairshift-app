@@ -87,11 +87,12 @@ async function business(db: Db, locations: string[] = ["Northgate"], country = "
   };
   return { organisationId, rows, ownerScope, ownerAt, manager, worker };
 }
-// Amendment F: £96 base from £12.00 for 8 hours, £200 target, £25 bonus, in pence.
+// £104 base from £13.00 for 8 hours (at or above the FairShift demo minimum, FS-WAGE-INTEL-DEC-002),
+// £200 target, £25 bonus, in pence. Amendment F's £12.00 example is historical evidence, below that minimum.
 async function setup(db: Db, square = fakeSquare()) {
   const c = await business(db), manager = await c.manager(), worker = await c.worker(manager);
   const [department] = await createDepartment(db, "Sales floor", c.ownerScope);
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Casual with bonus", c.ownerScope);
+  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Casual with bonus", c.ownerScope);
   await connectSquare(db, c.ownerScope, { outletId: c.rows[0].id }, square.client, CREDENTIALS);
   return { c, manager, worker, department, policy, square };
 }
@@ -555,15 +556,15 @@ describe("the economics stay FairShift's", () => {
     await sync(db, s);
     return { s, work, payable: payable! };
   }
-  it("one penny below the target earns no bonus: £96 base only", () => withDb(async db => {
+  it("one penny below the target earns no bonus: £104 base only", () => withDb(async db => {
     const { s, work, payable } = await finished(db, [12_000, 7_999]);
     expect(await confirmWorkPerformance(db, s.manager, work.allocation.id, { count: 2, minor: 19_999 })).toMatchObject({ salesMinor: 19_999, earnedMinor: 0, evidenceProvenance: "SQUARE_TEAM_MEMBER" });
-    expect(await approveWorkPayable(db, s.manager, payable.id)).toMatchObject({ baseAmountMinor: 9_600, incentiveAmountMinor: 0, approvedAmountMinor: 9_600, currencyCode: "GBP" });
+    expect(await approveWorkPayable(db, s.manager, payable.id)).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 0, approvedAmountMinor: 10_400, currencyCode: "GBP" });
   }));
-  it("reaching the target earns the locked £25: £96 + £25 = £121", () => withDb(async db => {
+  it("reaching the target earns the locked £25: £104 + £25 = £129", () => withDb(async db => {
     const { s, work, payable } = await finished(db, [12_000, 8_000]);
     expect(await confirmWorkPerformance(db, s.manager, work.allocation.id, { count: 2, minor: 20_000 })).toMatchObject({ salesMinor: 20_000, targetMinor: 20_000, bonusMinor: 2_500, earnedMinor: 2_500, evidenceProvenance: "SQUARE_TEAM_MEMBER" });
-    expect(await approveWorkPayable(db, s.manager, payable.id)).toMatchObject({ baseAmountMinor: 9_600, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_100, currencyCode: "GBP" });
+    expect(await approveWorkPayable(db, s.manager, payable.id)).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_900, currencyCode: "GBP" });
   }));
   it("a duplicate sync doesn't move the result", () => withDb(async db => {
     const { s } = await finished(db, [12_000, 8_000]);
@@ -824,10 +825,10 @@ describe("what the pages say", () => {
     await sync(db, s);
     await confirmWorkPerformance(db, s.manager, work.allocation.id, { count: 2, minor: 20_000 });
     review = await render(s.manager, () => ManagerWorkspace({ area: "review" }));
-    for (const text of ["Square Sandbox attributed sales", "Confirmed for payment", "£96.00", "£25.00 · target reached", "£121.00"]) expect(review).toContain(text);
-    expect((await db.select().from(workPayables))[0]).toMatchObject({ baseAmountMinor: 9_600, incentiveAmountMinor: 2_500 });
+    for (const text of ["Square Sandbox attributed sales", "Confirmed for payment", "£104.00", "£25.00 · target reached", "£129.00"]) expect(review).toContain(text);
+    expect((await db.select().from(workPayables))[0]).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 2_500 });
     const earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
-    for (const text of ["Square Sandbox payments carrying your team-member identity", "£121.00"]) expect(earnings).toContain(text);
+    for (const text of ["Square Sandbox payments carrying your team-member identity", "£129.00"]) expect(earnings).toContain(text);
     expect(earnings).not.toMatch(/haven’t been checked by a sales provider|£777/);
     expect(earnings).not.toMatch(STRONGER_CLAIMS);
   }));

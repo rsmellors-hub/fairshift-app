@@ -140,7 +140,7 @@ describe("AI staffing intelligence", () => {
       expect((await getStaffingAssessmentView(t.db, manager, "LOCATION", await getWeeklyStaffing(t.db, manager, NOW))).state).toBe("CURRENT");
       // An allocated casual shift on Saturday changes coverage, so the evidence changes.
       const [department] = await createDepartment(t.db, "Sales floor", manager);
-      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Casual hourly", manager);
+      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual hourly", manager);
       const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-10-31T09:00:00Z"), endsAt: new Date("2026-10-31T17:00:00Z"), requiredHeadcount: 1 }, manager);
       const { worker } = await createActivatedTeamMember(t.db, { firstName: "Casual", surname: "Worker", telephone: "+441132000000", email: "casual@example.test" }, manager);
       const offer = await offerAssignment(t.db, shift.id, worker.id, manager);

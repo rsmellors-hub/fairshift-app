@@ -3,8 +3,9 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
+import { organisations, outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
+import { wageJurisdiction } from "@/server/domain/statutory-wage";
 
 // These workspaces retain the existing server-pinned environment scope.
 // Client route parameters select presentation only, never an organisation or worker.
@@ -63,8 +64,11 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;
   const availability = scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
-  const [location] = await db.select({ timezone: outlets.timezone }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
-  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, availability, timezone: location?.timezone ?? null };
+  const [location] = await db.select({ timezone: outlets.timezone, country: outlets.country, organisationCountry: organisations.country }).from(outlets)
+    .innerJoin(organisations, eq(organisations.id, outlets.organisationId)).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+  // Which statutory wage reference applies to this location: the location's own minimum-wage context, nothing about the worker.
+  const wage = location ? wageJurisdiction({ locationCountry: location.country, organisationCountry: location.organisationCountry }) : null;
+  return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, availability, timezone: location?.timezone ?? null, wageJurisdiction: wage };
 }
 
 export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DEMO_ORGANISATION_ID) {

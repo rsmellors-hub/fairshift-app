@@ -68,7 +68,8 @@ async function business(db: Db, input: { timezone?: string; country?: string; lo
   };
   return { organisationId, rows, ownerScope, manager, worker };
 }
-async function terms(db: Db, owner: Scope, rate = 1_200) {
+// £13.00 an hour: at or above the FairShift demo minimum (21-and-over rate) for these dates (FS-WAGE-INTEL-DEC-002).
+async function terms(db: Db, owner: Scope, rate = 1_300) {
   const [department] = await createDepartment(db, "Sales floor", owner);
   const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: rate }, "Casual hourly", owner);
   return { department, policy };
@@ -121,23 +122,23 @@ describe("opportunity to allocation, across roles", () => {
       // A UK Manager's 10:00 is 10:00 in the UK.
       expect(await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "2", startsAt: `${monday}T10:00`, endsAt: `${monday}T18:00`, planDate: monday })).toContain("status=saved");
       const [shift] = (await getOperations(t.db, manager)).requirements;
-      expect(shift).toMatchObject({ outletId: location, startsAt: new Date(`${monday}T10:00:00Z`), endsAt: new Date(`${monday}T18:00:00Z`), shiftDate: monday, currencyCode: "GBP", rateMinor: 1_200, expectedEarningsMinor: 9_600, requiredHeadcount: 2 });
+      expect(shift).toMatchObject({ outletId: location, startsAt: new Date(`${monday}T10:00:00Z`), endsAt: new Date(`${monday}T18:00:00Z`), shiftDate: monday, currencyCode: "GBP", rateMinor: 1_300, expectedEarningsMinor: 10_400, requiredHeadcount: 2 });
 
       // The worker appears in the pool, and an offer is sent.
       let page = await render(manager, () => ManagerWorkspace({ area: "fill", date: monday }));
       expect(page).toContain("Availability not provided");
       expect(page).toContain("expected earnings per worker");
-      expect(page).toContain("£96.00");
+      expect(page).toContain("£104.00");
       expect(await act(manager, offerAssignmentAction, { shiftId: shift.id, workerId: worker.workerId!, planDate: monday })).toContain("status=saved");
       const [offer] = await t.db.select().from(shiftOffers).where(eq(shiftOffers.shiftId, shift.id));
       expect(offer).toMatchObject({ workerId: worker.workerId, status: "OFFERED" });
 
       // The Worker sees those exact terms, in location time, before accepting.
       let shiftsPage = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
-      for (const text of ["New offer", "Sales floor", "Leeds Briggate", "Monday 19 January", "10:00 to 18:00", "£96.00", "You’ll earn this", "£12.00 an hour × 8 hours", "Accept shift", "Decline", "your manager confirms who is working"]) expect(shiftsPage).toContain(text);
+      for (const text of ["New offer", "Sales floor", "Leeds Briggate", "Monday 19 January", "10:00 to 18:00", "£104.00", "You’ll earn this", "£13.00 an hour × 8 hours", "Accept shift", "Decline", "your manager confirms who is working"]) expect(shiftsPage).toContain(text);
       for (const hidden of ["labour gap", "payable", "coverage", "allocation", "Terms version"]) expect(shiftsPage.toLowerCase()).not.toContain(hidden.toLowerCase());
       const home = await render(worker, () => WorkerWorkspace({ area: "home" }));
-      for (const text of ["You have a new shift offer", "£96.00", "Payment setup incomplete"]) expect(home).toContain(text);
+      for (const text of ["You have a new shift offer", "£104.00", "Payment setup incomplete"]) expect(home).toContain(text);
 
       // Live state leads Home: inbox notices about offers already answered must not outrank it.
       for (const hidden of ["New work assignment offer", "invited to FairShift"]) expect(home).not.toContain(hidden);
@@ -146,7 +147,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(await act(worker, respondAssignmentAction, { offerId: offer.id, termsVersion: "1", response: "ACCEPTED" })).toContain("status=error");
       expect(await act(worker, respondAssignmentAction, { offerId: offer.id, termsVersion: "1", response: "ACCEPTED", acknowledged: "yes", rateMinor: "99999", currencyCode: "USD", expectedEarningsMinor: "1" })).toContain("status=saved");
       const [acceptance] = await t.db.select().from(workAcceptances).where(eq(workAcceptances.offerId, offer.id));
-      expect(acceptance.snapshot).toMatchObject({ assignmentId: shift.id, rateMinor: 1_200, currencyCode: "GBP", expectedEarningsMinor: 9_600, startsAt: shift.startsAt.toISOString() });
+      expect(acceptance.snapshot).toMatchObject({ assignmentId: shift.id, rateMinor: 1_300, currencyCode: "GBP", expectedEarningsMinor: 10_400, startsAt: shift.startsAt.toISOString() });
       expect(await t.db.select().from(workAllocations)).toEqual([]);
       shiftsPage = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
       expect(shiftsPage).toContain("You’re not booked yet");
@@ -166,7 +167,7 @@ describe("opportunity to allocation, across roles", () => {
 
       // The Worker finds booked work again, and it is not called completed or paid.
       shiftsPage = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
-      for (const text of ["You’re booked", "Monday 19 January", "10:00 to 18:00", "£96.00"]) expect(shiftsPage).toContain(text);
+      for (const text of ["You’re booked", "Monday 19 January", "10:00 to 18:00", "£104.00"]) expect(shiftsPage).toContain(text);
       expect(shiftsPage).not.toContain("Finished");
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).toContain("Your next shift");
 
@@ -242,7 +243,7 @@ describe("opportunity to allocation, across roles", () => {
       await t.db.update(workPolicies).set({ currencyCode: "GBP" }).where(eq(workPolicies.id, pay.policy.id));
       const result = await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "1", startsAt: "2026-01-19T10:00", endsAt: "2026-01-19T12:00", locationId: c.rows[1].id, outletId: c.rows[1].id, rateMinor: "1" });
       expect(result).toContain("status=saved");
-      expect(await t.db.select().from(shifts)).toEqual([expect.objectContaining({ outletId: manager.locationId, rateMinor: 1_200 })]);
+      expect(await t.db.select().from(shifts)).toEqual([expect.objectContaining({ outletId: manager.locationId, rateMinor: 1_300 })]);
     } finally { await t.close(); }
   });
 });
@@ -501,7 +502,7 @@ describe("payment truthfulness and downstream regression", () => {
       await expect(confirmWork(t.db, offer.id, manager)).rejects.toThrow(/not ended/);
       vi.setSystemTime(new Date("2026-01-19T18:00:00Z"));
       const { payable } = await confirmWork(t.db, offer.id, manager);
-      expect(payable).toMatchObject({ baseAmountMinor: 9_600, currencyCode: "GBP", rateMinor: 1_200, status: "PENDING_REVIEW" });
+      expect(payable).toMatchObject({ baseAmountMinor: 10_400, currencyCode: "GBP", rateMinor: 1_300, status: "PENDING_REVIEW" });
       await approveWorkPayable(t.db, manager, payable!.id);
       const adapter = {
         createPayout: vi.fn(async () => ({ batchId: "BATCH1", itemId: null, status: "PENDING", batchStatus: "PENDING", itemStatus: null, transactionId: null })),
@@ -509,15 +510,15 @@ describe("payment truthfulness and downstream regression", () => {
       };
       vi.mocked(getPayPalPayoutClient).mockReturnValue(adapter as never);
       await submitWorkPayout(t.db, adapter, manager, payable!.id);
-      expect(adapter.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "96.00", currency: "GBP" }));
+      expect(adapter.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "104.00", currency: "GBP" }));
       expect(await refreshWorkPayout(t.db, adapter, manager, payable!.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
       expect(await t.db.select().from(workPayouts)).toHaveLength(1);
       // The worker sees a plain state and a next step, with no provider code and no Paid.
       const earnings = await render(worker, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["Action required", "PayPal is holding this payment", "check your PayPal account", "Base pay", "£96.00"]) expect(earnings).toContain(text);
+      for (const text of ["Action required", "PayPal is holding this payment", "check your PayPal account", "Base pay", "£104.00"]) expect(earnings).toContain(text);
       expect(earnings).not.toContain("PENDING_RECIPIENT");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
-      expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).not.toContain("£96.00 paid");
+      expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).not.toContain("£104.00 paid");
       // The manager still sees the provider detail.
       expect(await render(manager, () => ManagerWorkspace({ area: "review" }))).toContain("PENDING_RECIPIENT_NON_HOLDING_CURRENCY_PAYMENT_PREFERENCE");
       // Booked work that finished is no longer called upcoming.
@@ -537,15 +538,17 @@ describe("payment truthfulness and downstream regression", () => {
       const manager = await c.manager(), worker = await c.worker(manager);
       expect(await render(worker, () => WorkerWorkspace({ area: "shifts" }))).toContain("No shift offers yet");
       const [department] = await createDepartment(t.db, "Weekend visual merchandising and stockroom replenishment assistant", c.ownerScope);
-      const [small] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 5 }, "Small", c.ownerScope);
+      // Small earnings come from a short shift at a rate an England offer can carry (FS-WAGE-INTEL-DEC-002):
+      // £13.00 an hour for 15 minutes is £3.25. A lower rate would be refused, not rendered.
+      const [small] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Small", c.ownerScope);
       const [large] = await createWorkPolicy(t.db, { earningsModel: "DAILY", rateMinor: 123_456_789 }, "Large", c.ownerScope);
-      for (const [policy, start] of [[small, 0], [large, 24]] as const) {
-        const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: future(start), endsAt: future(start + 2), requiredHeadcount: 1 }, manager);
+      for (const [policy, start, length] of [[small, 0, 0.25], [large, 24, 2]] as const) {
+        const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: future(start), endsAt: future(start + length), requiredHeadcount: 1 }, manager);
         await offerAssignment(t.db, shift.id, worker.workerId!, manager);
       }
       const page = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
       expect(page.match(/New offer</g)).toHaveLength(2);
-      for (const text of ["£0.10", "£1,234,567.89", "Weekend visual merchandising", "Northern Quarter"]) expect(page).toContain(text);
+      for (const text of ["£3.25", "£1,234,567.89", "Weekend visual merchandising", "Northern Quarter"]) expect(page).toContain(text);
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).toContain("You have 2 new shift offers");
       const availability = await render(worker, () => WorkerWorkspace({ area: "availability" }));
       for (const text of ["When can you work?", "Monday", "Sunday", "Unavailable", "Not set", "You don’t need to give a reason"]) expect(availability).toContain(text);

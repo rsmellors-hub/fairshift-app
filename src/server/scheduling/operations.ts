@@ -9,6 +9,7 @@ import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
 import { resolveLocationCurrency } from "@/server/domain/currency";
 import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAcceptedTerms } from "@/server/domain/work-payable";
 import { localDate } from "@/server/intelligence/forecast";
+import { checkWage, termsForWageCheck, wageAllowsOffer, wageJurisdiction } from "@/server/domain/statutory-wage";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import { shiftInteraction } from "@/server/domain/shift-change";
@@ -28,6 +29,24 @@ async function location(db: DatabaseSession, scope:OperatingScope=demoScope) {
 async function locationCurrency(db: DatabaseSession, outlet: typeof outlets.$inferSelect) {
   const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, outlet.organisationId));
   return resolveLocationCurrency({ locationCountry: outlet.country, organisationCountry: organisation?.country });
+}
+// Which statutory wage reference applies here, from the same countries as the currency.
+export async function locationWageJurisdiction(db: DatabaseSession, outlet: typeof outlets.$inferSelect) {
+  const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, outlet.organisationId));
+  return wageJurisdiction({ locationCountry: outlet.country, organisationCountry: organisation?.country });
+}
+// FS-WAGE-INTEL-DEC-001 / -DEC-002: where the demo wage floor applies, a shift is created and offered
+// only on terms checked against the 21-and-over rate in force on its local date. Terms below it, terms
+// that can't be checked, and dates without a verified rate are all refused here, whatever the UI shows.
+// Locations outside the reference keep their existing behaviour.
+async function assertWageAllowsOffer(db: DatabaseSession, outlet: typeof outlets.$inferSelect, shift: { earningsModel: string; rateMinor: number | null; currencyCode: string; startsAt: Date; endsAt: Date }) {
+  const jurisdiction = await locationWageJurisdiction(db, outlet);
+  const terms = termsForWageCheck(shift, shift) ?? { earningsModel: "HOURLY" as const, rateMinor: -1 };
+  const check = checkWage({ jurisdiction, date: localDate(shift.startsAt, outlet.timezone), currencyCode: shift.currencyCode, terms });
+  if (wageAllowsOffer(check)) return;
+  if (check.status === "BELOW_DEMO_MINIMUM") throw new UserFacingError("wage-below-minimum", "This pay is below the FairShift demo minimum for the shift's date, so it can't be offered.");
+  if (check.status === "REFERENCE_UNAVAILABLE") throw new UserFacingError("wage-reference-unavailable", "FairShift has no verified minimum wage for the shift's date, so it can't be offered.");
+  throw new UserFacingError("wage-not-checkable", "This pay can't be checked against the FairShift demo minimum, so it can't be offered here.");
 }
 const teamInput = z.object({ firstName: z.string().trim().min(1).max(100), surname: z.string().trim().min(1).max(100), telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/), email: z.string().trim().email().max(254) });
 export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope=demoScope) {
@@ -86,7 +105,7 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
     .orderBy(desc(workPayables.confirmedAt));
   const workerIds = team.map(row => row.worker.id);
   const availability = workerIds.length ? await db.select({ workerId: workerAvailability.workerId, isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(inArray(workerAvailability.workerId, workerIds)) : [];
-  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone };
+  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone, wageJurisdiction: await locationWageJurisdiction(db, outlet) };
 }
 // The planning location's time zone: the only basis for reading a Manager's local times.
 export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {
@@ -105,6 +124,7 @@ export async function createRequirement(db: Database, input: { departmentId: str
     let expected: number | null;
     try { expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt); }
     catch (error) { throw new UserFacingError("earnings-not-whole", error instanceof Error ? error.message : "These terms cannot be calculated."); }
+    await assertWageAllowsOffer(tx, outlet, { ...policy, startsAt: input.startsAt, endsAt: input.endsAt });
     const [row] = await tx.insert(shifts).values({ id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
@@ -142,6 +162,7 @@ async function eligible(db: DatabaseSession, workerId: string, shift: typeof shi
 export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope=demoScope) {
   return db.transaction(async (tx) => {
     const shift = await scopedShift(tx, shiftId, scope);
+    await assertWageAllowsOffer(tx, await location(tx, scope), { ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) });
     await eligible(tx, workerId, shift, true, scope, { requireActivation: true });
     // Capacity / over-invitation policy is unresolved: do not create offers beyond headcount.
     const existing = await tx.select().from(shiftOffers).where(eq(shiftOffers.shiftId, shift.id));

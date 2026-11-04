@@ -127,7 +127,13 @@ describe("preserved history and firewalls", () => {
 
   it("states the frozen rules in authority, and no public page claims the retired method", async () => {
     const agents = await readFile("AGENTS.md", "utf8"), spec = await readFile("docs/FAIRSHIFT_PRODUCT_UX_SPEC.md", "utf8");
-    for (const text of ["fast-casual", "7 transactions per operational staff-hour", "AUTHORISED ≠ IMPLEMENTED ≠ VERIFIED ≠ DEMO-READY", "anti-tuning", "No new Zettle implementation"]) expect(agents).toContain(text);
+    for (const text of ["fast-casual", "7 transactions per operational staff-hour", "anti-tuning", "No new Zettle implementation"]) expect(agents).toContain(text);
+    // Status discipline: AGENTS.md keeps each claim separate, in the governance ladder's order, and the
+    // authority register states the same ladder (wording set by governance commit 5b0d902).
+    const ladder = ["APPROVED", "IMPLEMENTED", "TESTED", "VERIFIED LOCALLY", "DEPLOYED", "VERIFIED ON HOSTED", "DEMO-READY"];
+    expect(agents).toContain(`${ladder.join(" ≠ ")}. Each is a separate claim that needs its own evidence.`);
+    const register = await readFile("docs/FS-DOCUMENT-AUTHORITY-REGISTER.md", "utf8");
+    expect(register).toContain(`**Status ladder:** ${ladder.map(step => step.toLowerCase()).join(", ")}. Each is a separate claim that needs its own evidence.`);
     for (const text of ["7 completed transactions per operational staff-hour", "Golden Path anti-tuning rule", "Opportunity Demand", "tip allocation method"]) expect(spec).toContain(text);
     for (const file of ["src/app/page.tsx", "src/app/product/page.tsx", "src/app/faq/page.tsx", "src/app/components/plan-cards.tsx", "src/app/demo/page.tsx"]) {
       const copy = await readFile(file, "utf8");

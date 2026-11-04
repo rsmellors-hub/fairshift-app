@@ -33,8 +33,10 @@ type Policy = { earningsModel: "HOURLY" | "DAILY"; rateMinor: number } | { earni
 // Tue 20 Oct 2026, 09:00 in London: in the past, so the scheduled work has ended.
 const START = Date.parse("2026-10-20T08:00:00Z");
 const at = (hours: number) => new Date(START + hours * 3_600_000);
-const FUTURE = Date.parse("2030-01-10T09:00:00Z");
-const HOURLY_12 = { earningsModel: "HOURLY", rateMinor: 1_200 } as const;
+// Not yet worked, and inside the verified wage reference (the 2027–28 demo minimum is £13.21).
+const FUTURE = Date.parse("2028-03-10T09:00:00Z");
+// £13.00 an hour: at or above the FairShift demo minimum (21-and-over rate) for these dates (FS-WAGE-INTEL-DEC-002).
+const HOURLY_13 = { earningsModel: "HOURLY", rateMinor: 1_300 } as const;
 
 let n = 0;
 async function user(db: Db) {
@@ -53,7 +55,7 @@ async function company(db: Db, locations = 1, country = "United Kingdom") {
   for (const row of rows) scopes.push({ userId: await user(db), organisationId, locationId: row.id, role: "MANAGER", organisationName: `${country} company`, locationName: row.name });
   return { organisationId, scopes };
 }
-async function terms(db: Db, scope: Scope, policy: Policy = HOURLY_12, startsAt = at(0), endsAt = at(6), headcount = 3) {
+async function terms(db: Db, scope: Scope, policy: Policy = HOURLY_13, startsAt = at(0), endsAt = at(6), headcount = 3) {
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, scope);
   const [created] = await createWorkPolicy(db, policy, "Casual terms", scope);
   const shift = await createRequirement(db, { departmentId: department.id, policyId: created.id, startsAt, endsAt, requiredHeadcount: headcount }, scope);
@@ -83,10 +85,10 @@ describe("confirmed work and authoritative base payables", () => {
       const manager = c.scopes[0];
       const { policy, shift } = await terms(t.db, manager);
       expect(policy.currencyCode).toBe("GBP");
-      expect(shift).toMatchObject({ currencyCode: "GBP", earningsModel: "HOURLY", rateMinor: 1_200, expectedEarningsMinor: 7_200 });
+      expect(shift).toMatchObject({ currencyCode: "GBP", earningsModel: "HOURLY", rateMinor: 1_300, expectedEarningsMinor: 7_800 });
       const { worker, offer } = await allocated(t.db, manager, shift.id);
       const [acceptance] = await t.db.select().from(workAcceptances).where(eq(workAcceptances.offerId, offer.id));
-      expect(acceptance.snapshot).toMatchObject({ currencyCode: "GBP", earningsModel: "HOURLY", rateMinor: 1_200, expectedEarningsMinor: 7_200, termsVersion: 1 });
+      expect(acceptance.snapshot).toMatchObject({ currencyCode: "GBP", earningsModel: "HOURLY", rateMinor: 1_300, expectedEarningsMinor: 7_800, termsVersion: 1 });
 
       // Confirm-as-scheduled: no attendance, timesheet or performance input exists or is needed.
       const result = await confirmWork(t.db, offer.id, manager);
@@ -94,7 +96,7 @@ describe("confirmed work and authoritative base payables", () => {
       expect(result.payable).toMatchObject({
         organisationId: c.organisationId, outletId: manager.locationId, shiftId: shift.id, workerId: worker.id, offerId: offer.id,
         allocationId: result.allocationId, acceptanceId: acceptance.id, termsVersion: 1, calculationMethod: "confirm-as-scheduled-v1",
-        earningsModel: "HOURLY", currencyCode: "GBP", rateMinor: 1_200, baseAmountMinor: 7_200, status: "PENDING_REVIEW",
+        earningsModel: "HOURLY", currencyCode: "GBP", rateMinor: 1_300, baseAmountMinor: 7_800, status: "PENDING_REVIEW",
         scheduledStartsAt: at(0), scheduledEndsAt: at(6), confirmedAt: result.confirmedAt, confirmedBy: manager.userId,
       });
       expect(await t.db.select().from(shiftIncentives)).toHaveLength(0);
@@ -129,22 +131,22 @@ describe("confirmed work and authoritative base payables", () => {
     } finally { await t.close(); }
   });
 
-  it("keeps the accepted £12/hour after the Owner policy changes, and never pays unaccepted terms", async () => {
+  it("keeps the accepted £13/hour after the Owner policy changes, and never pays unaccepted terms", async () => {
     const t = await createTestDatabase();
     try {
       const manager = (await company(t.db)).scopes[0];
       const { policy, shift } = await terms(t.db, manager);
       const { offer } = await allocated(t.db, manager, shift.id);
       // Owner/Admin later raises the policy and creates new £13/hour terms.
-      await t.db.update(workPolicies).set({ rateMinor: 1_300 }).where(eq(workPolicies.id, policy.id));
-      const revised = await terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_300 }, at(24), at(30));
-      expect(revised.shift).toMatchObject({ rateMinor: 1_300, expectedEarningsMinor: 7_800, currencyCode: "GBP" });
-      expect((await confirmWork(t.db, offer.id, manager)).payable).toMatchObject({ rateMinor: 1_200, baseAmountMinor: 7_200, currencyCode: "GBP" });
+      await t.db.update(workPolicies).set({ rateMinor: 1_400 }).where(eq(workPolicies.id, policy.id));
+      const revised = await terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_400 }, at(24), at(30));
+      expect(revised.shift).toMatchObject({ rateMinor: 1_400, expectedEarningsMinor: 8_400, currencyCode: "GBP" });
+      expect((await confirmWork(t.db, offer.id, manager)).payable).toMatchObject({ rateMinor: 1_300, baseAmountMinor: 7_800, currencyCode: "GBP" });
 
       // Changing an allocated shift's own terms reopens the offer for reacceptance; it cannot be confirmed.
-      const other = await terms(t.db, manager, HOURLY_12, at(48), at(54));
+      const other = await terms(t.db, manager, HOURLY_13, at(48), at(54));
       const changed = await allocated(t.db, manager, other.shift.id);
-      await t.db.update(shifts).set({ rateMinor: 1_300, expectedEarningsMinor: 7_800, guaranteedBasePayMinor: 7_800 }).where(eq(shifts.id, other.shift.id));
+      await t.db.update(shifts).set({ rateMinor: 1_400, expectedEarningsMinor: 8_400, guaranteedBasePayMinor: 8_400 }).where(eq(shifts.id, other.shift.id));
       await expect(confirmWork(t.db, changed.offer.id, manager)).rejects.toThrow(/Accepted work required/);
       expect((await t.db.select().from(workAllocations).where(eq(workAllocations.offerId, changed.offer.id)))[0].state).toBe("REACCEPTANCE_REQUIRED");
       expect(await payableCount(t.db)).toBe(1);
@@ -155,7 +157,7 @@ describe("confirmed work and authoritative base payables", () => {
     const t = await createTestDatabase();
     try {
       const manager = (await company(t.db)).scopes[0];
-      const { shift } = await terms(t.db, manager, HOURLY_12, at(0), at(6), 5);
+      const { shift } = await terms(t.db, manager, HOURLY_13, at(0), at(6), 5);
       const offeredOnly = await offerAssignment(t.db, shift.id, (await member(t.db, manager)).id, manager);
       const acceptedWorker = await member(t.db, manager);
       const acceptedOnly = await offerAssignment(t.db, shift.id, acceptedWorker.id, manager);
@@ -167,11 +169,11 @@ describe("confirmed work and authoritative base payables", () => {
       await expect(confirmWork(t.db, acceptedOnly.id, manager)).rejects.toThrow(/Allocate accepted work/);
       await expect(confirmWork(t.db, declined.id, manager)).rejects.toThrow(/Accepted work required/);
 
-      const unfinished = await terms(t.db, manager, HOURLY_12, new Date(FUTURE), new Date(FUTURE + 6 * 3_600_000));
+      const unfinished = await terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_400 }, new Date(FUTURE), new Date(FUTURE + 6 * 3_600_000));
       const future = await allocated(t.db, manager, unfinished.shift.id);
       await expect(confirmWork(t.db, future.offer.id, manager)).rejects.toThrow(/not ended/);
 
-      const cancelledShift = await terms(t.db, manager, HOURLY_12, at(24), at(30));
+      const cancelledShift = await terms(t.db, manager, HOURLY_13, at(24), at(30));
       const cancelled = await allocated(t.db, manager, cancelledShift.shift.id);
       await changeAssignment(t.db, manager, cancelledShift.shift.id, { cancel: true });
       // Cancellation closes the offer; the shift itself is no longer confirmable either.
@@ -199,7 +201,7 @@ describe("confirmed work and authoritative base payables", () => {
 
       // The Owner, operating at the location, follows the same organisation scope.
       const owner: Scope = { ...managerA, userId: await user(t.db), role: "OWNER" };
-      expect((await confirmWork(t.db, offer.id, owner)).payable).toMatchObject({ baseAmountMinor: 7_200, confirmedBy: owner.userId });
+      expect((await confirmWork(t.db, offer.id, owner)).payable).toMatchObject({ baseAmountMinor: 7_800, confirmedBy: owner.userId });
       expect((await getOperations(t.db, managerA)).payables).toHaveLength(1);
       expect((await getOperations(t.db, managerB)).payables).toHaveLength(0);
       expect((await getOperations(t.db, other.scopes[0])).payables).toHaveLength(0);
@@ -211,14 +213,14 @@ describe("confirmed work and authoritative base payables", () => {
     try {
       const c = await company(t.db);
       const manager = c.scopes[0];
-      const six = await terms(t.db, manager, HOURLY_12, at(0), at(6));
-      const eight = await terms(t.db, manager, HOURLY_12, at(0), at(8));
+      const six = await terms(t.db, manager, HOURLY_13, at(0), at(6));
+      const eight = await terms(t.db, manager, HOURLY_13, at(0), at(8));
       const a = await allocated(t.db, manager, six.shift.id), b = await allocated(t.db, manager, eight.shift.id);
       const payableA = (await confirmWork(t.db, a.offer.id, manager)).payable!;
       const payableB = (await confirmWork(t.db, b.offer.id, manager)).payable!;
       const view = await getWorkerWorkspace(t.db, { organisationId: c.organisationId, locationId: manager.locationId, workerId: a.worker.id });
       expect(view.assignments).toHaveLength(1);
-      expect(view.assignments[0].payable).toMatchObject({ id: payableA.id, baseAmountMinor: 7_200, currencyCode: "GBP", status: "PENDING_REVIEW" });
+      expect(view.assignments[0].payable).toMatchObject({ id: payableA.id, baseAmountMinor: 7_800, currencyCode: "GBP", status: "PENDING_REVIEW" });
       expect(Object.keys(view.assignments[0].payable!)).not.toContain("acceptanceId");
       expect(Object.keys(view.assignments[0].payable!)).not.toContain("confirmedBy");
       const json = JSON.stringify(view);
@@ -251,9 +253,13 @@ describe("confirmed work and authoritative base payables", () => {
   it("confirms commission work without creating a payable, since no verified attribution exists", async () => {
     const t = await createTestDatabase();
     try {
-      const manager = (await company(t.db)).scopes[0];
+      // Commission has no guaranteed hourly pay, so it can't be offered where the FairShift demo minimum applies.
+      const england = (await company(t.db)).scopes[0];
+      await expect(terms(t.db, england, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" })).rejects.toMatchObject({ feedback: "wage-not-checkable" });
+      // Outside the wage reference, existing commission behaviour is unchanged.
+      const manager = (await company(t.db, 1, "South Africa")).scopes[0];
       const { shift } = await terms(t.db, manager, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" });
-      expect(shift).toMatchObject({ currencyCode: "GBP", expectedEarningsMinor: null });
+      expect(shift).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: null });
       const { offer } = await allocated(t.db, manager, shift.id);
       for (let attempt = 0; attempt < 2; attempt++) expect(await confirmWork(t.db, offer.id, manager)).toMatchObject({ payable: null, payableState: "ATTRIBUTION_REQUIRED" });
       expect((await t.db.select().from(workAllocations))[0].confirmedAt).toBeInstanceOf(Date);
@@ -265,12 +271,12 @@ describe("confirmed work and authoritative base payables", () => {
     const t = await createTestDatabase();
     try {
       const manager = (await company(t.db)).scopes[0];
-      const quarter = await terms(t.db, manager, HOURLY_12, at(0), at(6.25));
-      expect(quarter.shift.expectedEarningsMinor).toBe(7_500);
-      expect((await confirmWork(t.db, (await allocated(t.db, manager, quarter.shift.id)).offer.id, manager)).payable).toMatchObject({ baseAmountMinor: 7_500 });
+      const quarter = await terms(t.db, manager, HOURLY_13, at(0), at(6.25));
+      expect(quarter.shift.expectedEarningsMinor).toBe(8_125);
+      expect((await confirmWork(t.db, (await allocated(t.db, manager, quarter.shift.id)).offer.id, manager)).payable).toMatchObject({ baseAmountMinor: 8_125 });
       // 23:00 BST Sat 24 Oct → 06:00 GMT Sun 25 Oct 2026: eight elapsed hours across the clock change.
-      const overnight = await terms(t.db, manager, HOURLY_12, new Date("2026-10-24T22:00:00Z"), new Date("2026-10-25T06:00:00Z"));
-      expect((await confirmWork(t.db, (await allocated(t.db, manager, overnight.shift.id)).offer.id, manager)).payable).toMatchObject({ baseAmountMinor: 9_600 });
+      const overnight = await terms(t.db, manager, HOURLY_13, new Date("2026-10-24T22:00:00Z"), new Date("2026-10-25T06:00:00Z"));
+      expect((await confirmWork(t.db, (await allocated(t.db, manager, overnight.shift.id)).offer.id, manager)).payable).toMatchObject({ baseAmountMinor: 10_400 });
       // Terms that do not resolve to whole minor units are refused before they can be offered.
       await expect(terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_201 }, at(100), at(100.25))).rejects.toThrow(/whole cents/);
     } finally { await t.close(); }
@@ -298,7 +304,7 @@ describe("confirmed work and authoritative base payables", () => {
         { workerId: otherWorker.id },
         { acceptanceId: payable.acceptanceId },
         { baseAmountMinor: 7_300 },
-        { rateMinor: 1_300, baseAmountMinor: 7_800 },
+        { rateMinor: 1_400, baseAmountMinor: 8_400 },
         { currencyCode: "USD" },
         { earningsModel: "COMMISSION" },
         { status: "PAID" },
@@ -308,7 +314,7 @@ describe("confirmed work and authoritative base payables", () => {
       await t.db.insert(workPayables).values(valid);
       expect(await payableCount(t.db)).toBe(2);
 
-      for (const change of [{ baseAmountMinor: 1 }, { currencyCode: "USD" }, { rateMinor: 1_300 }, { workerId: unit.worker.id }, { status: "PAID" }]) {
+      for (const change of [{ baseAmountMinor: 1 }, { currencyCode: "USD" }, { rateMinor: 1_400 }, { workerId: unit.worker.id }, { status: "PAID" }]) {
         await expect(t.db.update(workPayables).set(change).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       }
       await expect(t.db.delete(workPayables).where(eq(workPayables.id, payable.id))).rejects.toThrow();
@@ -319,10 +325,10 @@ describe("confirmed work and authoritative base payables", () => {
   it("keeps existing USD locations in USD", async () => {
     const t = await createTestDatabase();
     try {
-      const [policy] = await createWorkPolicy(t.db, HOURLY_12, "Demo hourly");
+      const [policy] = await createWorkPolicy(t.db, HOURLY_13, "Demo hourly");
       expect(policy.currencyCode).toBe("USD");
       const [department] = await createDepartment(t.db, "Kitchen");
-      expect(await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 })).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: 7_200 });
+      expect(await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 })).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: 7_800 });
       const [organisation] = await t.db.select().from(organisations).where(eq(organisations.id, DEMO_ORGANISATION_ID));
       expect(organisation).toBeDefined();
       expect((await getOperations(t.db, { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID })).currency).toBe("USD");
@@ -350,11 +356,11 @@ describe("confirmed work and authoritative base payables", () => {
 
       // Before work is confirmed: GBP terms and expected earnings only.
       const shiftsHtml = await render(workerScope, () => WorkerWorkspace({ area: "shifts" }));
-      expect(shiftsHtml).toContain("£12.00 an hour × 6 hours");
-      expect(shiftsHtml).toContain("£72.00");
+      expect(shiftsHtml).toContain("£13.00 an hour × 6 hours");
+      expect(shiftsHtml).toContain("£78.00");
       noDollars(shiftsHtml);
       let earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      expect(earnings).toContain("£72.00 expected");
+      expect(earnings).toContain("£78.00 expected");
       expect(earnings).toContain("Awaiting work confirmation");
       expect(earnings).not.toContain("<h3>Earned</h3>");
       noDollars(earnings);
@@ -379,19 +385,19 @@ describe("confirmed work and authoritative base payables", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
 
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
-      for (const text of ["Payments &amp; approvals", "£72.00", "£12.00/hour × 6 hours scheduled", "Awaiting approval", "Approve £72.00", "shows as Paid only after PayPal reports it as successful"]) expect(review).toContain(text);
+      for (const text of ["Payments &amp; approvals", "£78.00", "£13.00/hour × 6 hours scheduled", "Awaiting approval", "Approve £78.00", "shows as Paid only after PayPal reports it as successful"]) expect(review).toContain(text);
       // Approval is the only action offered: nothing can be sent before it.
       expect(review).not.toContain("payout with PayPal");
       noDollars(review);
       noPayment(review);
       earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
-      for (const text of ["<h3>Earned</h3>", "£72.00", "£12.00/hour × 6 hours scheduled", "Awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms it"]) expect(earnings).toContain(text);
+      for (const text of ["<h3>Earned</h3>", "£78.00", "£13.00/hour × 6 hours scheduled", "Awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms it"]) expect(earnings).toContain(text);
       noDollars(earnings);
       noPayment(earnings);
-      expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£72.00 confirmed · awaiting approval");
+      expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£78.00 confirmed · awaiting approval");
       const policies = await render(owner, () => OwnerWorkspace({ area: "policies" }));
       expect(policies).toContain("Rate (GBP)");
-      expect(policies).toContain("£12.00 / hour");
+      expect(policies).toContain("£13.00 / hour");
       expect(policies).not.toContain("Rate (USD)");
     } finally { fetchSpy.mockRestore(); await t.close(); }
   });

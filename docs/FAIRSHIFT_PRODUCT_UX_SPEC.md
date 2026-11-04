@@ -284,6 +284,58 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 - Unchanged: prices, location limits, Enterprise, setup fees (none), per-worker fees (none), the subscription webhook and worker payouts.
 - Reason: a free start lowers the barrier to trying FairShift, while keeping PayPal Subscriptions in the sign-up path.
 
+### Owner decision FS-WAGE-INTEL-DEC-001: intelligent wage configuration and transparent earnings
+
+**Superseded in part.** FS-WAGE-INTEL-DEC-002, below, replaces this decision's demo enforcement for uncertain rates (the "Verification required" band). The rest of this record stands as written, including the design that FS-HACK-WAGE-INTEL-001 implemented.
+
+**Status: APPROVED. Decision date: 4 November 2026. Implementation: IMPLEMENTED and tested locally under FS-HACK-WAGE-INTEL-001. Not committed, pushed or deployed. Not verified in a browser. The AI explanation has not been exercised with a genuine model call.** Source: the Owner's work package FS-HACK-WAGE-INTEL-001, supplied by the Owner on 4 November 2026, which records this decision as "OWNER APPROVED — IMPLEMENTATION AUTHORISED UNDER THIS WORK PACKAGE". Evidence: [`WAGE_INTELLIGENCE_EVIDENCE.md`](WAGE_INTELLIGENCE_EVIDENCE.md).
+
+The Owner approved:
+
+1. Location-sensitive statutory wage discovery.
+2. Automatic prepopulation of verified wage benchmarks in Owner compensation settings.
+3. Owner control over compensation policy.
+4. AI-assisted explanation of wage rules and suggested competitive rates.
+5. Visible statutory benchmark and source information.
+6. Validation of shift offers against applicable minimum-wage requirements.
+7. Transparent worker-facing earnings.
+8. Integration into existing shift and payment workflows.
+9. An attractive, professional demonstration of responsible AI and fair casual work.
+
+Rules stated in the package and applied:
+
+- The applicable statutory reference comes from the location, the worker category and the effective date. Where a proposed wage is below an applicable verified statutory floor, FairShift identifies the problem and does not send an ordinary offer. Where applicability is uncertain, FairShift shows "Verification required" instead of a legal conclusion.
+- FairShift doesn't infer apprentice eligibility from age, and doesn't impose one worker-category minimum as universally applicable to every worker.
+- Statuses are RATE CHECKED, VERIFICATION REQUIRED and BELOW APPLICABLE MINIMUM. FairShift never claims a rate is legally compliant.
+- AI explains in words. It doesn't invent rates, decide exemptions, overwrite a verified rate, change policy or approve pay. Every binding wage comparison is deterministic.
+- Existing Owner-set rates are never silently replaced. The payable formula, tip allocation, holiday pay, PayPal and Square are unchanged.
+
+Implementation design, recorded here as the package's own choices, not new product rules:
+
+- **Reference:** a versioned UK dataset (`fs-uk-nmw-v1`) taken from GOV.UK and checked on 4 November 2026. It covers 1 April 2024 to 31 March 2028, including the published April 2027 rates. It applies to locations in England, Scotland and Wales. Northern Ireland is not assumed, because its source couldn't be read.
+- **Worker facts:** FairShift holds neither age nor apprenticeship status, and no schema change was authorised, so every category remains possible. Pay below every category's rate is BELOW APPLICABLE MINIMUM, and shifts and offers are blocked. Pay at or above every rate is RATE CHECKED. Pay in between is VERIFICATION REQUIRED and can still be offered. The category rule uses age and apprenticeship whenever they are supplied.
+- **Suggested rates** are deterministic: new hourly terms start at the 21-and-over rate, and the next published change is shown. The AI explanation contains no figures.
+
+**Relationship with FS-PAY-TERMS-DEC-001.** FS-PAY-TERMS-DEC-001 rejects any casual rate below £12.71 for every worker and says FairShift never collects ages. This decision asks for categories by age and apprenticeship, and for verification where applicability is uncertain. For rates between the lowest category rate and the 21-and-over rate, the two decisions point in different directions. This package implemented the FS-WAGE-INTEL-DEC-001 text, which names no supersession, and collects no ages. The register records the open question as R-14 (section 5).
+
+### Owner decision FS-WAGE-INTEL-DEC-002: the adult rate as the demo minimum
+
+**Status: APPROVED. Decision date: 4 November 2026. Implementation: IMPLEMENTED and tested locally under FS-HACK-WAGE-INTEL-001R. Not committed, pushed or deployed.** Source: the Owner's work package FS-HACK-WAGE-INTEL-001R, 4 November 2026, which quotes the Owner's instruction:
+
+> "Use the adult 21+ rate as the default enforceable minimum for every demo shift, without adding age or apprenticeship records before the hackathon."
+
+The Owner also confirmed England as the demonstration jurisdiction. This decision resolves register conflict R-14 for the demo. It supersedes FS-WAGE-INTEL-DEC-001's demo behaviour, in which a rate between the lowest category rate and the adult rate was marked "Verification required" but could still be offered.
+
+- **Floor.** Every shift at the demo company's England locations must pay at least the GOV.UK rate for workers aged 21 and over in force on the shift's local date: £12.71 from 1 April 2026, and £13.21 from 1 April 2027. A published future rate does not apply before its date. Daily terms are compared as pay per scheduled hour.
+- **Enforcement.** Pay at or above the floor shows "Rate checked". Pay below it shows "Below FairShift demo minimum", and the server refuses both shift creation and offer sending. If no verified rate exists for the date, or the terms can't be compared (commission, another currency), the result is "Statutory reference unavailable" or "Pay can't be checked". Nothing is shown as checked or offered.
+- **No youth or apprentice exceptions** in the competition demo, and no worker age or apprenticeship fields or records. The other statutory categories stay visible as reference information.
+- **Wording.** The adult rate is shown as a FairShift competition policy. FairShift does not claim that younger workers or apprentices are legally owed the adult rate.
+- **Unchanged.** Existing Owner rates are kept and flagged, never raised. The payable formula, tips, holiday pay, PayPal and Square are unchanged.
+
+**Scope, as implemented (constrained by FS-HACK-WAGE-INTEL-001C).** The floor applies to the approved England demo jurisdiction only: locations whose country, or failing that the business's country, is England or a plain UK value ("United Kingdom", "UK", "GB", "Great Britain"). Plain UK values are included because nothing else would place such a location in England, and FS-HACK-WAGE-INTEL-001R requires that ambiguous information must not bypass the safeguard. Scotland and Wales share the GOV.UK rates, but wider enforcement was not authorised: there pay isn't checked or enforced, and they are shown "Outside demo jurisdiction". Other countries, Northern Ireland, and locations with no recorded country keep their existing behaviour and are shown "Statutory reference unavailable".
+
+**Relationship with FS-PAY-TERMS-DEC-001.** For the demo, the outcome matches that decision's "£12.71 for every casual worker, and FairShift never collects ages", with the floor following the date. FS-PAY-TERMS-DEC-001 remains a recorded decision awaiting Owner confirmation for anything this decision doesn't cover (hourly-only pay, the Real Living Wage indicator, holiday pay, cancellation pay).
+
 ## 2. Product principles
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.

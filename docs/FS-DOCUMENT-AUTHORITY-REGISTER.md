@@ -36,7 +36,7 @@ Rules that follow from the register:
 
 | Item | Value |
 |---|---|
-| Last completed | **FS-HACK-GOV-APPLY-001A**: governance controls, documentation only, closed with one local commit. Not pushed or deployed. Source audit: FS-HACK-GOV-RECON-001, read-only, whose report is not in the repository |
+| Last completed | **FS-HACK-WAGE-INTEL-001C**, 4 November 2026: closeout of FS-HACK-WAGE-INTEL-001 and its correction FS-HACK-WAGE-INTEL-001R (FS-WAGE-INTEL-DEC-001 and -DEC-002). The adult demo minimum is enforced for the England demo jurisdiction only, R-14 is resolved for the demo, and a stale governance test is repaired. Closed with one local commit; **not pushed or deployed**. Evidence: [`WAGE_INTELLIGENCE_EVIDENCE.md`](WAGE_INTELLIGENCE_EVIDENCE.md). Before them: FS-HACK-GOV-APPLY-001A (governance, one local commit) |
 | Active implementation package | **NONE** |
 | Next package | Requires explicit Owner authorisation. Roadmap section 21 proposes FS-HACK-GOLDEN-RECON-001; this register does not activate it |
 | Updating this pointer | Each authorised package updates this table when it starts and when it ends |
@@ -89,6 +89,7 @@ None of these directs work. They are the best record of implementation state for
 | [`WORKLOAD_INTELLIGENCE_EVIDENCE.md`](WORKLOAD_INTELLIGENCE_EVIDENCE.md) | FS-WORKLOAD-INTELLIGENCE-001 | Transaction workload model | 2 Nov 2026 | Current, with a later-change note | NO | — | — |
 | [`AI_STAFFING_INTELLIGENCE_EVIDENCE.md`](AI_STAFFING_INTELLIGENCE_EVIDENCE.md) | FS-AI-001 | AI staffing interpretation | 31 Oct 2026 | Current, with a later-change note | NO | — | — |
 | [`SUBSCRIPTION_TRIAL_EVIDENCE.md`](SUBSCRIPTION_TRIAL_EVIDENCE.md) | FS-SUBSCRIPTION-TRIAL-001 | 30-day PayPal Subscriptions trial | 3 Nov 2026 | Current, verified locally against PayPal Sandbox | NO | Says "NOT deployed". `9571b5d` is on `origin`, so its code may be live, while hosted plan IDs are unchanged. NOT VERIFIED | Hosted check |
+| [`WAGE_INTELLIGENCE_EVIDENCE.md`](WAGE_INTELLIGENCE_EVIDENCE.md) | FS-HACK-WAGE-INTEL-001 | UK statutory wage reference, offer safeguard, transparent pay terms | 4 Nov 2026 | Current, including FS-HACK-WAGE-INTEL-001R and -001C. Tested and verified locally (browser run recorded there); committed locally, not pushed or deployed; no genuine AI call | NO | — | — |
 | [`SUBSCRIPTION_FIRST_ONBOARDING_EVIDENCE.md`](SUBSCRIPTION_FIRST_ONBOARDING_EVIDENCE.md) | — | Subscription-first acquisition | 16 Oct 2026 | Current | NO | — | — |
 | [`SUBSCRIPTION_WORKPLACE_JOURNEY_EVIDENCE.md`](SUBSCRIPTION_WORKPLACE_JOURNEY_EVIDENCE.md) | — | Subscription confirmation and workplace setup | 16 Oct 2026 | Current | NO | — | — |
 | [`AUTHENTICATED_TENANCY_EVIDENCE.md`](AUTHENTICATED_TENANCY_EVIDENCE.md) | — | Identity, sessions, memberships, invitations | 15 Oct 2026 | Current repository evidence. Hosted onboarding has since run once (`HOSTED_RELEASE_002_EVIDENCE.md` section 8) | NO | — | — |
@@ -133,6 +134,7 @@ All are EVIDENCE ASSETS: they direct nothing and are read through the record tha
 | `evidence/fs-context-signals-001/` | 4, 1 JSON | `CONTEXT_SIGNALS_EVIDENCE.md` | Real listing data was removed from this folder and from published history |
 | `evidence/fs-context-signals-closeout-001/` | 7, 1 JSON | `CONTEXT_SIGNALS_EVIDENCE.md` | Screenshots labelled synthetic |
 | `evidence/fs-demand-context-001/` | 17, 1 JSON | `DEMAND_CONTEXT_EVIDENCE.md` | Genuine OpenAI records |
+| `evidence/fs-hack-wage-intel-001r/` | 13, 1 JSON | `WAGE_INTELLIGENCE_EVIDENCE.md` | Local isolated browser run on a disposable database; TEST data only |
 | `evidence/fs-hospitality-policy-freeze-001/` | 15 | `HOSPITALITY_POLICY_FREEZE_EVIDENCE.md` | Reference data, SIMULATED |
 | `evidence/fs-hosted-rehearsal-001/` | 10 | `HOSTED_REHEARSAL_EVIDENCE.md` | Hosted, historical |
 | `evidence/fs-hosted-release-001/` | 7 | `HOSTED_RELEASE_EVIDENCE.md` | Two `local-paypal-reference-*` files are local only |
@@ -174,11 +176,12 @@ Each row below is unresolved. **Neither the roadmap clause nor the dated decisio
 | R-06 | Section 11: do not reframe the payout as an earned-wage advance unless separately authorised | FS-PRODUCT-PLAN-DEC-001 and FS-PAY-TERMS-DEC-001: payout "presented as an advance of earned pay, reported through the venue's payroll". Wording NEEDS VERIFICATION | Opposite presentation instructions | **OWNER DECISION REQUIRED** |
 | R-07 | Sections 3, 10 and 15 step 11: allocated tips in the payable; "existing approved ... tip decisions should be implemented" | FS-TIP-DEC-001: formula approved, written tip rule OPEN, Square `tip_money` behaviour unverified, FS-HOSPITALITY-EARNINGS-001 not authorised | No implementable tip rule exists | **OWNER DECISION REQUIRED**: the written tipping-policy rule, then a work package |
 | R-08 | Section 13: future pricing across locations, capabilities and usage | Spec section 8: approved location-based catalogue. Final pricing OPEN | A new pricing direction, post-hackathon | No implementation. **Owner decision** before any pricing work |
-| R-09 | Section 14: no new UK employment-compliance engine | FS-PAY-TERMS-DEC-001: hourly-only casual pay and a £12.71 minimum-rate check, which also resolves decision D1 that blocks hosted shift creation | Whether the hourly-only and minimum-rate parts fall inside the freeze | **OWNER DECISION REQUIRED** |
+| R-09 | Section 14: no new UK employment-compliance engine | FS-PAY-TERMS-DEC-001: hourly-only casual pay and a £12.71 minimum-rate check, which also resolves decision D1 that blocks hosted shift creation | Whether the hourly-only and minimum-rate parts fall inside the freeze | **Minimum-wage check: authorised by the Owner** in FS-WAGE-INTEL-DEC-001, and set to the adult rate for every demo shift by FS-WAGE-INTEL-DEC-002 (both 4 Nov 2026). It is a focused safeguard, not a compliance system, and is implemented locally. Commission can't be offered where the floor applies, because it can't be checked; daily terms remain. **Hourly-only pay as a rule: OWNER DECISION REQUIRED** |
 | R-10 | Sections 6 and 7: payment disputes on Payments and Worker surfaces | Spec section 21: dispute state machine OPEN | No dispute rule exists | No implementation until the rule is decided |
 | R-11 | Sections 6, 9 and 15 step 4: Bryntum as the Staffing Planner showing forecast gaps | Spec section 18: Bryntum on Shift Allocations | A product refinement on the Owner's explicit instruction (section 6, P-22) | Approved direction, **NOT IMPLEMENTED**, not yet a dated decision in the specification |
 | R-12 | Section 16 delivery sequence R0–R8 | Spec section 24: package order recorded by FS-AUTHORITY-REPAIR-001 on 2 Nov | Two sequences | The roadmap is the newer delivery sequence. FS-HOSPITALITY-EARNINGS-001 still needs its own authorisation |
 | R-13 | Section 12: does not choose between Zettle, Square or another source until reconciled | `AGENTS.md` section 4 and the spec: Square Sandbox is the active provider | The roadmap asks for reconciliation of a choice the repository records as made | FS-HACK-GOLDEN-RECON-001 to report. No change here |
+| R-14 | — | FS-PAY-TERMS-DEC-001: reject any casual rate below £12.71 for every casual worker; FairShift never collects ages. FS-WAGE-INTEL-DEC-001 (newer): account for age and apprenticeship categories; do not impose one category's minimum on every worker; show "Verification required" where applicability is uncertain | Rates at or above the lowest category rate (£8.00 from April 2026) but below £12.71. FS-HACK-WAGE-INTEL-001 implemented the newer text: such rates are VERIFICATION REQUIRED and can still be offered, and no ages are collected. FS-PAY-TERMS-DEC-001 is OCR and not named by that package, so its blanket rejection was not built | **RESOLVED for the demo** by FS-WAGE-INTEL-DEC-002 (4 Nov 2026, package FS-HACK-WAGE-INTEL-001R). Every demo shift must pay the 21-and-over rate for its date, with no age or apprenticeship records. Implemented locally. Whether FairShift should ever hold age or apprenticeship status after the hackathon stays open |
 
 Consistent with the specification, and recorded for completeness: the business-user permission model (roadmap section 4, FS-ROLES-DEC-001); no new forecasting features (roadmap section 8, FS-PRODUCT-PLAN-DEC-001 guardrail 3); location-bound casual workers; AI never approves pay or moves money.
 
@@ -216,6 +219,8 @@ Golden-path steps use roadmap section 15 numbers.
 | P-22 | Bryntum forecast-gap Staffing Planner | Section 10.1 Bryntum for Shift Allocations | Roadmap sections 6, 9, 15 step 4; FS-HACK-GOV-APPLY-001A Phase 5 states it is the Owner's explicit instruction | Yes: Owner's explicit instruction in the current package | **NOT IMPLEMENTED.** Not yet a dated decision in the specification | Steps 4, 9 | CORROBORATED. Implementation needs its own package |
 | P-23 | Package order (FS-AUTHORITY-REPAIR-001, 2 Nov) | Section 14 phases | Spec section 24, commit `0c7f0bd` | No | Items 1–3 done | Sequence | OCR. The roadmap sequence is newer (R-12) |
 | P-24 | Retail demo direction (`57b2725`, 15 Oct) | Section 3 retail | Spec history | Superseded by P-06 | Historical | — | Superseded |
+| P-25 | FS-WAGE-INTEL-DEC-001 (4 Nov): statutory wage reference, benchmark prefill, offer safeguard, AI explanation, transparent earnings | None directly. Spec FS-PAY-TERMS-DEC-001 is partly in tension (R-14) | Spec section 1; the Owner's work package FS-HACK-WAGE-INTEL-001 | Yes: the current Owner work package states the decision | Yes, locally and uncommitted. Not deployed. Demo enforcement superseded in part by P-26. AI explanation tested only against a stub provider | Steps 5, 8, 11, 15 | CORROBORATED |
+| P-26 | FS-WAGE-INTEL-DEC-002 (4 Nov): the 21-and-over rate as the enforced minimum for every demo shift; England the demo jurisdiction; no age or apprenticeship records | None directly. Resolves R-14 for the demo | Spec section 1; the Owner's work package FS-HACK-WAGE-INTEL-001R, which quotes the Owner's instruction | Yes: the current Owner work package | Yes, locally and uncommitted. Not deployed | Steps 5, 7, 8 | CORROBORATED |
 
 ## 7. Items requiring the Owner
 
@@ -226,6 +231,7 @@ Golden-path steps use roadmap section 15 numbers.
 5. **Hosted verification of Owner Operations** (`b281c8e`), once its push is authorised.
 6. **Hosted revision:** confirm which commit is live, because pushes after `77ae36d` auto-deploy.
 7. **Pricing (R-08), disputes (R-10)** and the public `/demo` copy that cites the retail £121 example.
+8. **R-14** is resolved for the demo by FS-WAGE-INTEL-DEC-002. Still open after the hackathon: whether FairShift should hold worker age and apprenticeship status.
 
 ## 8. Maintenance
 
