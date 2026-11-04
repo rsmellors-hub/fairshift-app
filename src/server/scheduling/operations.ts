@@ -86,10 +86,11 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
   const departmentRows = await db.select().from(departments).where(eq(departments.outletId, scope.locationId));
   const policies = await db.select().from(workPolicies).where(eq(workPolicies.outletId, scope.locationId));
   const requirements = await db.select().from(shifts).where(eq(shifts.outletId, scope.locationId));
-  const offers = await db.select({ offer: shiftOffers, workerName: workers.displayName, allocation: workAllocations })
+  const offers = await db.select({ offer: shiftOffers, workerName: workers.displayName, allocation: workAllocations, acceptance: workAcceptances })
     .from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))
     .innerJoin(workers, eq(workers.id, shiftOffers.workerId))
     .leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id))
+    .leftJoin(workAcceptances, eq(workAcceptances.id, workAllocations.acceptanceId))
     .where(and(eq(shifts.outletId, scope.locationId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId)));
   const paymentIssues = await db.select({ id: shiftIncentives.id, status: shiftIncentives.status, shiftDate: shifts.shiftDate, workerName: workers.displayName }).from(shiftIncentives)
     .innerJoin(shifts, eq(shifts.id, shiftIncentives.shiftId)).innerJoin(workers, eq(workers.id, shiftIncentives.workerId))

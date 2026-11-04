@@ -6,7 +6,7 @@ import Link from "next/link";
 import { DataLabel, PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, payableLabel, scheduledHours, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
 import { getLocationPerformance, type ImportRejection } from "@/server/performance/attribution";
-import { finalPayableMinor } from "@/server/domain/work-payable";
+import { basePayableFromAcceptedTerms, finalPayableMinor } from "@/server/domain/work-payable";
 import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
 import { publishDemoShiftAction } from "@/app/scheduling-actions";
@@ -72,9 +72,9 @@ function shiftWageCheck(shift: { earningsModel: string; rateMinor: number | null
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
 
-export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, importResult }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; importResult?: string }) {
+export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, importResult, financialScope, financialOnly = false }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
-  const scope=await requireScope(["OWNER","MANAGER"]);
+  const scope=financialScope ?? await requireScope(["OWNER","MANAGER"]);
   let data;
   try { data = await getOperations(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
   const { team, departments, policies, paymentIssues, payables, availability, timezone, wageJurisdiction: wageReference } = data;
@@ -110,6 +110,20 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
     availability: availabilityForShift(stated(worker.id), shiftWeekdays(shift, timezone)),
   });
   const now = new Date();
+  // Subscription-independent settlement may confirm only an existing, accepted and
+  // allocated work unit whose scheduled period ended and whose current accepted terms
+  // can still produce the ordinary deterministic payable. confirmWork rechecks every
+  // condition transactionally when the manager explicitly confirms performance.
+  const financialConfirmationCandidates = financialOnly ? offers.filter(row => {
+    const shift = requirements.find(item => item.id === row.offer.shiftId);
+    if (!shift || row.offer.status !== "ACCEPTED" || row.allocation?.state !== "ALLOCATED" || row.allocation.confirmedAt || shift.endsAt > now) return false;
+    if (!row.acceptance || row.acceptance.offerId !== row.offer.id || row.acceptance.termsVersion !== shift.termsVersion) return false;
+    try {
+      return basePayableFromAcceptedTerms(row.acceptance.snapshot, {
+        workerId: row.offer.workerId, offerId: row.offer.id, shiftId: shift.id, locationId: shift.outletId, termsVersion: shift.termsVersion,
+      }).state === "CALCULATED";
+    } catch { return false; }
+  }) : [];
   // Square connection and mappings are read from FairShift's own records, not from Square.
   let squareConnected = false, mappedWorkers = new Set<string>();
   if (area === "team" || area === "fill") { try { squareConnected = !!await liveSquareConnection(getDatabase(), scope); if (squareConnected) mappedWorkers = new Set((await getSquareMappings(getDatabase(), scope)).map(row => row.workerId)); } catch { squareConnected = false; } }
@@ -118,7 +132,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
   if (area === "review") { try { work = await getLocationPerformance(getDatabase(), scope); } catch { work = null; } }
   return <>
     <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Forecast & staffing", fill: "Fill shifts", allocations: "Allocations", team: "Workers", review: "Review & pay" }[area]} description={{ overview: undefined, plan: "Next week’s demand by time of day, what you already have covered, and what’s left to fill.", fill: "Turn a casual requirement into a shift, then offer it to workers at this location.", allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: "Check finished work, approve what was earned, and pay it through PayPal." }[area]} />
-    {area === "plan" || area === "fill" || area === "allocations" || area === "review" ? <ManagerJourney current={area} /> : null}
+    {!financialOnly && (area === "plan" || area === "fill" || area === "allocations" || area === "review") ? <ManagerJourney current={area} /> : null}
     <ActionFeedback status={status} saved={area === "fill" ? "Saved. Check the shifts below for your next step" : "Changes saved"} />
     {area === "overview" ? <ManagerToday today={localDate(now, timezone)} now={now} timezone={timezone} staffing={planningOutlet} requirements={requirements} offers={offers} payables={payables} paymentIssues={paymentIssues} departments={departments} team={team} /> : null}
     {area === "team" ? <>
@@ -172,6 +186,15 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
     {area === "review" ? <>
+      {financialOnly ? <section className="panel" id="confirm-work"><h2>Confirm completed work</h2>
+        {financialConfirmationCandidates.length ? financialConfirmationCandidates.map(row => { const shift = requirements.find(item => item.id === row.offer.shiftId)!; return <article className="requirement" key={row.offer.id}>
+          <h3>{row.workerName} · {dayLabel(shift.startsAt, timezone)} · {timeRange(shift.startsAt, shift.endsAt, timezone)}</h3>
+          <ShiftTermsBar shift={shift} />
+          <form action={confirmWorkAction} className="workspace-form"><input name="offerId" type="hidden" value={row.offer.id} /><label className="acceptance-check"><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button">Confirm work and calculate payable</button></form>
+        </article>; }) : <p className="note">No finished allocated work is waiting for confirmation.</p>}
+        <p className="note">Only accepted and allocated work with ended, unchanged terms appears here. Confirmation records the manager’s decision; elapsed time alone does not prove the work was performed.</p>
+      </section> : null}
+      {!financialOnly ? <>
       <ReviewStages stages={[
         { label: "Work confirmed", waiting: offers.filter(o => o.allocation?.state === "ALLOCATED" && !o.allocation.confirmedAt && requirements.find(s => s.id === o.offer.shiftId)!.endsAt <= new Date()).length, href: "#confirm-work" },
         { label: "Sales checked", waiting: payables.filter(p => p.payable.status === "PENDING_REVIEW" && p.payable.incentiveRequired && p.payable.incentiveAmountMinor === null).length, href: "#performance" },
@@ -187,6 +210,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       </> : <form action={confirmWorkAction} className="workspace-form"><input name="offerId" type="hidden" value={o.offer.id} /><label className="acceptance-check"><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > now}>Confirm work</button>{r.endsAt > now ? <small>Available after the scheduled end.</small> : null}</form>}</div>; };
         return <section className="panel" id="confirm-work"><h2>Confirm work performed</h2>{waiting.length ? waiting.map(item) : <p className="note">No finished work is waiting to be confirmed.</p>}{upcoming.length ? <details className="disclosure-inline"><summary>Not finished yet · {upcoming.length}</summary>{upcoming.map(item)}</details> : null}{done.length ? <details className="disclosure-inline"><summary>Already confirmed · {done.length}</summary>{done.map(item)}</details> : null}</section>; })()}
       {await PerformanceReview(scope, payables, timezone, work, importResult)}
+      </> : null}
       <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Payments &amp; approvals</h2>
         {payables.length ? <>
           <div className="overview-strip">

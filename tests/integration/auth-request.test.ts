@@ -10,7 +10,7 @@ import { getDatabase } from "@/server/db/client";
 import { registerIdentity,createIdentityToken,redeemIdentityToken,issueSession } from "@/server/auth/identity";
 import { inviteMember,redeemInvitation } from "@/server/auth/tenancy";
 import { resolveScope } from "@/server/auth/access";
-import { requireScope,requireMembershipScope,requireOperator,selectMembership } from "@/server/auth/request";
+import { requireFinancialScope,requireScope,requireMembershipScope,requireOperator,selectMembership } from "@/server/auth/request";
 import { createPolicyAction,createRequirementAction,respondAssignmentAction,saveAvailabilityAction } from "@/app/operations-actions";
 import { createDepartment,createWorkPolicy,createRequirement,offerAssignment } from "@/server/scheduling/operations";
 import { users,shiftOffers,memberships,subscriptions,outlets,organisations } from "@/server/db/schema";
@@ -24,6 +24,7 @@ import Subscribe from "@/app/subscribe/page";
 import Register from "@/app/register/page";
 import Onboarding from "@/app/onboarding/page";
 import Account from "@/app/account/page";
+import SettlementsPage from "@/app/settlements/page";
 import { POST as createOrder } from "@/app/api/paypal/orders/route";
 import { inviteAction, selectLocationAction, refreshSubscriptionAction, selectMembershipAction, savePersonalAction, saveBusinessAction } from "@/app/auth-actions";
 import { importAttributedSalesAction, confirmPerformanceAction } from "@/app/operations-actions";
@@ -162,9 +163,16 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
     for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
-    for (const action of [connectZettleAction,syncZettleAction,disconnectZettleAction,createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,confirmWorkAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,approvePayableAction,sendPayoutAction,refreshPayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
+    for (const action of [connectZettleAction,syncZettleAction,disconnectZettleAction,createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
+    expect(await requireFinancialScope(["OWNER","MANAGER"])).toMatchObject({organisationId:o.o.organisationId,role:"OWNER"});
+    const settlements=renderToStaticMarkup(await SettlementsPage({searchParams:Promise.resolve({})}));
+    expect(settlements).toContain("Payments &amp; approvals");
+    expect(settlements).toContain("Confirm completed work");
+    expect(settlements).toContain("No finished allocated work is waiting for confirmation.");
+    for (const operational of ["Create a shift","Send offer","Finalise allocation","Confirm sales results","Forecast &amp; staffing"]) expect(settlements).not.toContain(operational);
+    for (const action of [confirmWorkAction,approvePayableAction,sendPayoutAction,refreshPayoutAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=error");
    }
    await expect(Onboarding()).rejects.toThrow("REDIRECT:/subscribe");
    await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");
@@ -197,6 +205,7 @@ describe("subscription gate at real application boundaries",()=>{
     await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=subscription-required");
     const layout=role === "MANAGER" ? ManagerLayout:WorkerLayout;
     await expect(layout({children:"Protected"})).rejects.toThrow("REDIRECT:/account?status=subscription-required");
+    if(role === "MANAGER") expect(await requireFinancialScope(["OWNER","MANAGER"])).toMatchObject({role:"MANAGER",organisationId:o.o.organisationId,locationId:o.o.locationId});
     await t.db.update(subscriptions).set({status:"ACTIVE"}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await t.db.update(organisations).set({setupCompletedAt:null}).where(eq(organisations.id,o.o.organisationId));
     await expect(requireScope([role])).rejects.toThrow("REDIRECT:/account?status=setup-required");
