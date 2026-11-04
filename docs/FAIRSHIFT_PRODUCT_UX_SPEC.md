@@ -419,6 +419,8 @@ The Owner approved:
 
 **Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-PAYOUT-GOV-001, supplied by the Owner on 4 November 2026, which records this decision as "OWNER APPROVED — NOT IMPLEMENTED".
 
+**Superseded in part, 4 November 2026, by FS-PAYOUT-TIMING-DEC-002 (below).** Part B's mandatory 50% PayPal tip payment for permanent staff is superseded. Early access is now voluntary, its ceiling is 50% of approved tips, and an employee who doesn't elect it receives the full tip entitlement through normal payroll. Declining early access does not reduce entitlement. Part A (casual workers) is unchanged, and normal permanent salaries stay on the existing payroll cycle. Part C (payroll transaction statement) still applies to each early-access disbursement. The original text below is retained as the record.
+
 **A. Casual / temporary workers: full payment per shift.**
 
 - Casual workers receive **100% of their approved shift entitlement** immediately following shift completion and Manager/Owner approval.
@@ -430,7 +432,7 @@ The Owner approved:
 
 "Any other applicable approved pay component already authorised" does not yet include holiday pay or cancellation pay: both are in unresolved conflict with the roadmap (register, section 5, R-02 and R-03).
 
-**B. Regular / permanent workers: 50% of approved tips early.**
+**B. Regular / permanent workers: 50% of approved tips early.** *Superseded, 4 November 2026, by FS-PAYOUT-TIMING-DEC-002: early access is voluntary, up to 50%.*
 
 - Permanent workers receive **50% of their approved tip entitlement** through an immediate PayPal payout after tip-pool finalisation and approval, subject to applicable payroll/tax clearance.
 - The remaining 50% is reconciled through the employer's regular payroll process.
@@ -470,6 +472,48 @@ A CSV export is the minimum demonstration mechanism to be assessed. A live payro
 - This decision sets payment timing. It doesn't adopt an earned-wage-advance or credit model, and it doesn't settle the "advance of earned pay" presentation wording, which stays with the Owner (register, section 5, R-06).
 - FS-HACK-ROADMAP-002 section 14 freezes "payroll export" until the Golden Path reaches PASS. The statement requirement stands as recorded. When it is built is an Owner decision (register, section 5, R-15).
 - No FS-HACK-MASTER-001 clause is amended. Its full-time staff records (section 4.4) and its "no separate Finance/Payroll user role" are consistent with this decision.
+
+### Owner decision FS-PAYOUT-TIMING-DEC-002: voluntary early tip access for permanent employees
+
+**Status: OWNER APPROVED. Decision date: 4 November 2026. Implementation: NOT IMPLEMENTED. No implementation package is authorised.** Source: the Owner's work package FS-HACK-PAYOUT-CHOICE-GOV-001, supplied by the Owner on 4 November 2026, which records this decision as "OWNER APPROVED — NOT IMPLEMENTED" and gives the Owner-approved wording:
+
+> "Permanent employees may voluntarily elect to receive up to 50% of their approved shift-tip entitlement through PayPal following allocation approval and required payroll clearance.
+>
+> Where early access is elected, the remaining entitlement is reconciled through normal payroll with a complete transaction statement.
+>
+> Employees who do not elect PayPal early access receive their full tip entitlement through normal payroll.
+>
+> Casual workers continue receiving 100% of approved shift earnings through PayPal following shift completion and approval."
+
+**Supersession.** This decision supersedes FS-PAYOUT-TIMING-DEC-001 part B's mandatory 50% PayPal tip payment for permanent staff. FS-PAYOUT-TIMING-DEC-001 is otherwise preserved.
+
+| FS-PAYOUT-TIMING-DEC-001 text | Effect |
+| --- | --- |
+| Part B: "Permanent workers receive 50% of their approved tip entitlement through an immediate PayPal payout …" | Superseded. Early access is voluntary, with a ceiling of 50% of approved tips |
+| Part B: "The remaining 50% is reconciled through the employer's regular payroll process." | Superseded. Where early access is elected, the remaining entitlement is reconciled through normal payroll. Where it isn't, the full tip entitlement goes through normal payroll |
+| Part B: "This is a 50% regular-worker tip payout. It is not an optional casual-worker advance." | Superseded for permanent staff: early access is now an option they may elect. Casual workers still have no split and no early-access option, and are paid in full |
+| Part B: salaries on the existing payroll schedule; 50% of tips, not of gross wages; no interest, loan, credit or tronc | Unchanged |
+| Part A (casual workers) and part C (payroll transaction statement) | Unchanged |
+
+Declining early access does not reduce entitlement. Approved tip-pool eligibility (FS-TIP-ELIGIBILITY-DEC-001) and proportional allocation (FS-TIP-POOL-DEC-001) are unchanged.
+
+**Payment safeguards, as stated by the Owner.**
+
+- No early payment before the tip entitlement is approved and any required payroll/tax clearance is given.
+- The employee's consent or election must be recorded.
+- Each PayPal disbursement must have an auditable payroll statement.
+- Payroll reconciles the early amount against the remaining entitlement.
+- Duplicate disbursements are prevented.
+- No fourth application user role.
+- No loan, interest or credit product.
+- No claim of guaranteed instantaneous PayPal settlement. An initiated payout is not a paid one (section 16).
+- PAYE and live-payment compliance remain **NEEDS VERIFICATION** (section 21).
+
+**Not decided.** The election mechanism, payroll integration and tax rules are not set by this decision, and none is invented here. The open details are in section 21.
+
+**Implementation status at `1b079c8`.** Nothing in this decision is implemented. No permanent-staff tip participation, election record, early-access payout or payroll statement exists. The casual base + incentive payout path described under FS-PAYOUT-TIMING-DEC-001 is unchanged.
+
+**Relationship with other decisions.** The "advance of earned pay" presentation wording stays with the Owner (register, section 5, R-06). This decision authorises no credit product. When the payroll statement is built stays an Owner decision (register, section 5, R-15).
 
 ## 2. Product principles
 
@@ -529,6 +573,8 @@ The worker experience is not an administrative analytics surface. Cross-location
 Full-time or regular staff are lightweight records used for coverage and allocation. They may appear in staffing capacity and shift allocations but are not a fourth primary authenticated role in the current scope. Full-time employee accounts are deferred.
 
 **Extended by FS-TIP-ELIGIBILITY-DEC-001 and FS-PAYOUT-TIMING-DEC-001 (section 1), 4 November 2026. Not implemented.** Eligible regular staff participate in service-period tip pools, and receive 50% of their approved tip entitlement through PayPal, with the rest reconciled through the employer's payroll. They stay lightweight records, not a fourth application role.
+
+**Amended by FS-PAYOUT-TIMING-DEC-002 (section 1), 4 November 2026. Not implemented.** PayPal early access is voluntary. A permanent employee may elect to receive up to 50% of their approved tips through PayPal. Otherwise the full tip entitlement goes through normal payroll.
 
 ## 4. Information architecture
 
@@ -1062,6 +1108,8 @@ The product must never show or log PayPal credentials, OAuth access tokens, sand
 
 **Payout timing (FS-PAYOUT-TIMING-DEC-001, section 1). Approved, not implemented.** Casual workers are paid 100% of their approved shift entitlement per shift. Regular staff receive 50% of their approved tips through PayPal, with a payroll transaction statement for each early payout. Principle 13 (section 2) applies to that statement as to every other surface: a pending or unknown payout is not a received one.
 
+*Amended, 4 November 2026, by FS-PAYOUT-TIMING-DEC-002:* regular staff's PayPal early access is voluntary and capped at 50% of approved tips. Without an election, the full tip entitlement goes through normal payroll. Each early-access disbursement still has a payroll transaction statement. FairShift never promises instantaneous PayPal settlement.
+
 ## 18. Integration strategy
 
 Integrations must strengthen the product and its evidence. FairShift does not add integrations merely to maximise sponsor count. Overall submission quality outranks sponsor accumulation, and no integration receives a stronger status until reproducible evidence supports it.
@@ -1182,7 +1230,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
   - late refunds and adjustments, and how the FS-TIP-DEC-001 refund rules apply to a pooled allocation;
   - corrections after approval;
   - whether base wages and tips must be paid together or separately;
-    - *4 November 2026:* answered in part by FS-PAYOUT-TIMING-DEC-001 (section 1): a casual worker's approved tip allocation is part of the shift entitlement paid in full, and regular staff receive 50% of approved tips through PayPal. Whether a casual worker's tips go in the same PayPal payout as base and incentive stays open, below;
+    - *4 November 2026:* answered in part by FS-PAYOUT-TIMING-DEC-001 (section 1): a casual worker's approved tip allocation is part of the shift entitlement paid in full, and regular staff receive 50% of approved tips through PayPal. Whether a casual worker's tips go in the same PayPal payout as base and incentive stays open, below. *Amended the same day by FS-PAYOUT-TIMING-DEC-002:* regular staff's PayPal early access is voluntary, up to 50% of approved tips;
   - how the service-period pool relates to the FS-TIP-DEC-001 requirement that the tip window match the sales-attribution window;
   - which tip-pool fields a worker sees, consistent with section 14.
 - Payout timing details (FS-PAYOUT-TIMING-DEC-001 and FS-TIP-ELIGIBILITY-DEC-001, section 1). No default is adopted:
@@ -1191,6 +1239,9 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
   - what happens when tip-pool finalisation, Square evidence or incentive verification delays the full casual entitlement. No partial-payment rule is approved;
   - what "payroll/tax clearance" consists of for a regular worker's early tip payout, who gives it, and how it is recorded;
   - the treatment of an odd minor unit when an approved tip entitlement is halved;
+    - *4 November 2026, FS-PAYOUT-TIMING-DEC-002:* 50% is now a ceiling, not a fixed split. The same question applies to calculating the ceiling;
+  - voluntary early access (FS-PAYOUT-TIMING-DEC-002): the election mechanism; how consent is captured and evidenced; whether an election is standing or made per shift or per tip pool; whether the employee chooses an amount below the ceiling or takes the ceiling; whether and when an election can be changed or withdrawn, and its effect on tips already approved; and the latest point at which an election counts for a given entitlement;
+  - whether "each PayPal disbursement must have an auditable payroll statement" (FS-PAYOUT-TIMING-DEC-002) reaches casual-worker payouts, or only permanent-staff early-access disbursements;
   - how a regular worker, who has no application account, supplies and confirms a PayPal payout destination;
   - the source and format of the payroll employee reference;
   - the payroll statement's recipient, delivery channel, re-export and correction handling, and who may see it (section 14);
@@ -1218,7 +1269,7 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 - The exact APIMatic implementation and evidence that materially supports the PayPal integration.
 - Whether performance incentive and allocated tips must be included in the 12.07% holiday-pay base, and the wording "advance of earned pay, reported through the venue's payroll". Both need professional payroll or legal confirmation before any claim (FS-PAY-TERMS-DEC-001).
 - Tip pools (FS-TIP-POOL-DEC-001): the holiday-pay treatment of tips (above, and register conflict R-02); Square Sandbox `tip_money` behaviour; and definitive UK tipping-policy compliance. FairShift makes no compliance claim for its tipping policy.
-- Early tip payouts to regular staff (FS-PAYOUT-TIMING-DEC-001): their PAYE and National Insurance treatment, HMRC reporting and its timing, whether a statement provided after disbursement is adequate, and the application of the Employment (Allocation of Tips) Act 2023 and its code of practice. Each needs professional payroll or legal confirmation. Also the suitability of PayPal Payouts, and of its payout purpose, for paying tips to employees.
+- Early tip payouts to regular staff (FS-PAYOUT-TIMING-DEC-001, made voluntary by FS-PAYOUT-TIMING-DEC-002): live-payment compliance, the form of employee consent it requires, their PAYE and National Insurance treatment, HMRC reporting and its timing, whether a statement provided after disbursement is adequate, and the application of the Employment (Allocation of Tips) Act 2023 and its code of practice. Each needs professional payroll or legal confirmation. Also the suitability of PayPal Payouts, and of its payout purpose, for paying tips to employees.
 
 ### DEFERRED
 
@@ -1286,7 +1337,7 @@ Recorded by FS-AUTHORITY-REPAIR-001, 2 November 2026:
 4. FS-HOSPITALITY-EARNINGS-001
 5. Full Golden Path rehearsal and hardening
 
-This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-TIP-ELIGIBILITY-DEC-001 and FS-PAYOUT-TIMING-DEC-001 (4 November 2026) are approved and not implemented, and no package implementing them is authorised. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
+This records order only. Each later package still needs its own authorisation. Hospitality earnings are **not implemented**, and FS-HOSPITALITY-EARNINGS-001 is **not yet authorised**. FS-TIP-ELIGIBILITY-DEC-001, FS-PAYOUT-TIMING-DEC-001 and FS-PAYOUT-TIMING-DEC-002 (4 November 2026) are approved and not implemented, and no package implementing them is authorised. FS-PAYOUT-TIMING-DEC-002 supersedes FS-PAYOUT-TIMING-DEC-001's mandatory permanent-staff split. FS-DEMAND-CONTEXT-001 is implemented and verified locally, and its code is deployed on hosted without being exercised there (section 1).
 
 FS-HACK-ROADMAP-002 (3 November 2026) sets a newer, Owner-directed delivery sequence. The two sequences are reconciled in [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md), section 5. Neither removes the need for each package's own authorisation.
 
