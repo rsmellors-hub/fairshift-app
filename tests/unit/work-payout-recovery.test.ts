@@ -15,13 +15,16 @@ function fixture(reservedAt: unknown, status: string, afterAudit?: () => void) {
   const payableId = randomUUID();
   const payout = {
     id: randomUUID(), payableId, status, reservedAt, updatedAt: new Date(NOW.getTime() - 600_000),
-    paypalBatchId: null, submittedAt: new Date(NOW.getTime() - 1_000), createdAt: NOW,
+    currencyCode: "GBP", paypalBatchId: null, submittedAt: new Date(NOW.getTime() - 1_000), createdAt: NOW,
     lastError: { code: "TIMEOUT", outcome: "UNKNOWN" }, attempts: 1,
   } as WorkPayout;
   const claimed = { ...payout, status: "SUBMITTING", attempts: 2, updatedAt: NOW };
   const select = vi.fn()
     .mockReturnValueOnce({ from: () => ({ where: async () => [{ id: payableId }] }) })
-    .mockReturnValueOnce({ from: () => ({ where: async () => [payout] }) });
+    .mockReturnValueOnce({ from: () => ({ where: async () => [payout] }) })
+    // Otherwise eligible historical GB/GBP route; the cutoff, not an SA route
+    // refusal, must prevent the resend after claim/audit advances the clock.
+    .mockReturnValueOnce({ from: () => ({ innerJoin: () => ({ where: async () => [{ locationCountry: "GB", organisationCountry: "GB" }] }) }) });
   const set = vi.fn((values: Partial<WorkPayout>) => ({ where: () => ({ returning: async () => [{ ...claimed, ...values }] }) }));
   const update = vi.fn(() => ({ set }));
   const insert = vi.fn(() => ({ values: async () => { afterAudit?.(); } }));
