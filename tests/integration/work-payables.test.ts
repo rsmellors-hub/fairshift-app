@@ -289,7 +289,7 @@ describe("confirmed work and authoritative base payables", () => {
       // Outside the wage reference, existing commission behaviour is unchanged.
       const manager = (await company(t.db, 1, "South Africa")).scopes[0];
       const { shift } = await terms(t.db, manager, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" });
-      expect(shift).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: null });
+      expect(shift).toMatchObject({ currencyCode: "ZAR", expectedEarningsMinor: null });
       const { offer } = await allocated(t.db, manager, shift.id);
       for (let attempt = 0; attempt < 2; attempt++) expect(await confirmWork(t.db, offer.id, manager)).toMatchObject({ payable: null, payableState: "ATTRIBUTION_REQUIRED" });
       expect((await t.db.select().from(workAllocations))[0].confirmedAt).toBeInstanceOf(Date);

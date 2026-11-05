@@ -59,18 +59,22 @@ describe("base payable from accepted terms (confirm-as-scheduled)", () => {
 });
 
 describe("location currency", () => {
-  it("resolves the United Kingdom to GBP and keeps the established USD default elsewhere", () => {
+  it("resolves the United Kingdom to GBP, South Africa to ZAR, and keeps the established USD default elsewhere", () => {
     expect(currencyForCountry(" United Kingdom ")).toBe("GBP");
     expect(currencyForCountry("England")).toBe("GBP");
-    expect(currencyForCountry("South Africa")).toBeNull();
+    expect(currencyForCountry("South Africa")).toBe("ZAR");
+    expect(currencyForCountry(" za ")).toBe("ZAR");
+    expect(currencyForCountry("Ireland")).toBeNull();
     expect(DEFAULT_LOCATION_CURRENCY).toBe("USD");
     expect(resolveLocationCurrency({ locationCountry: "Wales" })).toBe("GBP");
     expect(resolveLocationCurrency({ locationCountry: null, organisationCountry: "United Kingdom" })).toBe("GBP");
     expect(resolveLocationCurrency({ locationCountry: " ", organisationCountry: "Scotland" })).toBe("GBP");
     // A location's own country decides; a South African location of a UK company is not paid in GBP.
-    expect(resolveLocationCurrency({ locationCountry: "South Africa", organisationCountry: "United Kingdom" })).toBe("USD");
+    expect(resolveLocationCurrency({ locationCountry: "South Africa", organisationCountry: "United Kingdom" })).toBe("ZAR");
     expect(resolveLocationCurrency({ locationCountry: "England", organisationCountry: "South Africa" })).toBe("GBP");
-    expect(resolveLocationCurrency({ locationCountry: "South Africa", organisationCountry: "South Africa" })).toBe("USD");
+    expect(resolveLocationCurrency({ locationCountry: "South Africa", organisationCountry: "South Africa" })).toBe("ZAR");
+    expect(resolveLocationCurrency({ locationCountry: null, organisationCountry: "South Africa" })).toBe("ZAR");
+    expect(resolveLocationCurrency({ locationCountry: "Ireland" })).toBe("USD");
     expect(resolveLocationCurrency({})).toBe("USD");
   });
 });

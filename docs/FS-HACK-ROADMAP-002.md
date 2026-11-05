@@ -1,3 +1,7 @@
+> **Payment-model correction — 5 November 2026.** Owner work package **FS-HACK-SA-ROADMAP-CORRECTION-001** records **DEC-SA-011** in [the SA amendment](FS-HACK-SA-AMENDMENT-001.md). Casual compensation is preauthorised and accepted; manager-confirmed completion triggers automatic genuine model-backed Pay Agent orchestration, deterministic server checks and eligible Sandbox settlement. No casual-worker payout request or second discretionary Owner payment approval. Permanent-tip allocation approval and permitted employee request remain required; both paths use one settlement engine. The original manual approval/send narrative below is historical, not the current casual requirement. External provider/funding/currency/POS gates remain unresolved.
+
+> **Superseded delivery roadmap — 5 November 2026.** Owner work package **FS-HACK-SA-ROADMAP-LOCK-001** authorises [FS-HACK-SA-AMENDMENT-001 / DEC-SA-001–010](FS-HACK-SA-AMENDMENT-001.md) and [FS-HACK-SA-ROADMAP-001](FS-HACK-SA-ROADMAP-001.md). The SA roadmap now controls the fourteen-step Golden Demo Path, REQUIRED Pay Agent, stage dependencies and future work-package references. This document's original status, dates, fifteen-step path, R0–R8 schedule and section 21 next-action wording are retained as history and do not activate work. Unaffected product constraints continue only as reconciled by the dated amendment and authority register. England/GBP evidence is historical, not current SA operating policy.
+
 # FAIRSHIFT
 
 ## Official Competition Delivery Roadmap

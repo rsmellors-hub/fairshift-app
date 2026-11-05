@@ -138,6 +138,8 @@ const FEEDBACK: Record<string, string> = {
   "policy-incentive": "A sales target and bonus must both be set, as amounts above zero, on hourly or daily terms.",
   "payout-investigation-required": "This payment is still unconfirmed. It cannot be safely resent. Investigate the original payout with PayPal before taking further payment action.",
   "payout-already-sent": "This payment has already gone to PayPal, so no second payment was made. Its status is below.",
+  "payout-route-unverified": "A PayPal payout route for this South African business or location isn’t verified yet, so nothing was sent. The earnings stay recorded as unpaid.",
+  "payout-currency-unverified": "PayPal payouts in this currency aren’t verified for FairShift yet, so nothing was sent. The earnings stay recorded as unpaid.",
   "performance-required": "Confirm this shift’s sales results before approving its payment.",
   "sales-changed": "Sales for this shift changed after you opened this page. Check the new figures and confirm again.",
   "work-not-confirmed": "Confirm the work before its sales results.",

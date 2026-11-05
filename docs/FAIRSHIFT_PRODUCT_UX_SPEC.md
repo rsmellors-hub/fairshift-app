@@ -5,9 +5,48 @@
 **Scope:** FairShift customer product, worker experience, and bounded FairShift operator surface
 **Implementation note:** The current manager and worker pages are functional scaffolding. They demonstrate working data and state transitions but are not the approved target experience.
 **Historical baseline:** [`FS-HACK-MASTER-001.md`](FS-HACK-MASTER-001.md) is the Phase 0 Master Project Plan. Dated Owner decisions in this specification prevail where they apply.
-**Authority index:** [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, lists unresolved conflicts with the delivery roadmap [`FS-HACK-ROADMAP-002.md`](FS-HACK-ROADMAP-002.md) (section 5), and traces the provenance of each decision below (section 6).
+**Authority index:** [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, identifies [`FS-HACK-SA-ROADMAP-001.md`](FS-HACK-SA-ROADMAP-001.md) as current delivery authority, retains conflicts from the historical [`FS-HACK-ROADMAP-002.md`](FS-HACK-ROADMAP-002.md) (section 5), and traces decision provenance (section 6).
+
+> **Current hackathon direction — 5 November 2026.** [FS-HACK-SA-AMENDMENT-001](FS-HACK-SA-AMENDMENT-001.md), authorised by Owner work package **FS-HACK-SA-ROADMAP-LOCK-001**, records **DEC-SA-001–010**, amended by **DEC-SA-011** from Owner work package **FS-HACK-SA-ROADMAP-CORRECTION-001**, and is incorporated into this decision register. It supersedes older England/GBP demo requirements. Casual payment uses preauthorised accepted compensation and manager-confirmed completion to trigger REQUIRED automatic genuine model-backed Pay Agent orchestration, with no casual request or second discretionary Owner payment approval. Permanent-staff permitted early tips remain employee-requested after approved allocation. The canonical fourteen-step Golden Demo Path, delivery sequence and gates are [FS-HACK-SA-ROADMAP-001](FS-HACK-SA-ROADMAP-001.md). Unaffected rules remain binding. Historical text below is retained; approval does not establish implementation or SA payment eligibility.
+
+> **Single active roadmap — Owner decision, 5 November 2026.** Supplied directly by the Owner in the SA consolidation instruction of 5 November 2026 (no package ID given): FairShift has **one** active product roadmap, the South African roadmap governed by DEC-SA-011 ([FS-HACK-SA-ROADMAP-001](FS-HACK-SA-ROADMAP-001.md)). The **UK Heads-up Rewards proposal is superseded**, and the UK and SA product models are not to be merged. No repository copy of that proposal was found; any copy elsewhere is history and directs no work. UK/England/GBP rules and evidence below remain history for their own scope.
 
 ## 1. Product thesis
+
+### Owner amendment DEC-SA-001–010 — SA demo and required Pay Agent
+
+**OWNER APPROVED / LOCKED. Decision date: 5 November 2026.** Source: Owner-supplied FS-HACK-SA-ROADMAP-LOCK-001, phase 3 (complete decision text in [FS-HACK-SA-AMENDMENT-001 section 2](FS-HACK-SA-AMENDMENT-001.md#2-complete-owner-decision-register)). This package records governance only; no SA implementation, provider operation or readiness is established.
+
+| Decision | Approved direction |
+|---|---|
+| DEC-SA-001 | South Africa replaces England for the demo; ZAR operating currency |
+| DEC-SA-002 | Independently usable multi-tenant SaaS, not a prepopulated guided application |
+| DEC-SA-003 | Fictional five-location SA demonstration data isolated; never a runtime prerequisite |
+| DEC-SA-004 | Original worker-requested casual loop superseded by DEC-SA-011; original dated wording retained in the amendment |
+| DEC-SA-005 | Pay Agent REQUIRED; casual request sequencing amended by DEC-SA-011; server financial authority and no AI invention/bypass retained |
+| DEC-SA-006 | Official Toolkit/MCP only for supported capabilities; controlled custom Payouts API tool only after eligibility verification |
+| DEC-SA-007 | Functional Sandbox payment demo; production payroll/tax/regulatory integrations DEFERRED; no unsupported claims |
+| DEC-SA-008 | POS-attributed permanent-staff tips in scope; lightweight records, no fourth user role |
+| DEC-SA-009 | Each genuine employer needs its own authorised funding/payment arrangement; isolated demo merchant cannot fund customer flows by default |
+| DEC-SA-010 | ZAR operational earnings distinct from provider payout currency; SA category/currency/merchant/recipient permission NEEDS VERIFICATION |
+
+The addendum's section 3 states exact supersession and retained controls. DEC-SA-011 below is the latest payment trigger/authority decision. The deterministic demand baseline, Manager staffing control, accepted preauthorised compensation, completion confirmation and permanent-tip allocation approval remain. No tip formula, release percentage, SA statutory wage or provider currency is invented. Older UK company, wage and GBP evidence remain historical for those contexts.
+
+### DEC-SA-011 — Event-Triggered Casual Payment and Worker-Requested Permanent-Staff Tip Release
+
+**Decision date:** 5 November 2026. **Status:** OWNER APPROVED / LOCKED; REQUIRED target behaviour, not implemented by this amendment. **Authorising source:** Owner-supplied work package **FS-HACK-SA-ROADMAP-CORRECTION-001**, OWNER AUTHORITY, CORRECT MODEL and tasks 2–10, supplied directly in this session. This is the latest applicable Owner decision.
+
+**Casual workers:** preauthorised shift compensation → accepted offer → manager-confirmed completed shift → automatic FairShift Pay Agent orchestration → deterministic financial checks → eligible PayPal Sandbox payment → reconciliation and worker history. No casual-worker payout request is required. No second discretionary Owner payment approval is required. The authorised compensation terms and the worker's acceptance precede work; manager confirmation establishes completed work, and deterministic checks establish whether payment is eligible under that existing authority. This is not permission to bypass missing performance evidence, unapproved tip allocation, funding authority or provider eligibility.
+
+**Permanent staff:** POS evidence → approved tip allocation → employee requests permitted early tip release → Pay Agent → shared settlement service → PayPal status and financial history. Permanent staff remain lightweight records, not a fourth application user role. Limited access, request authentication, destination confirmation, election/consent and exact tip-ceiling policy remain subject to explicit policy design. This decision does not invent a new ceiling or resolve the open details of the previously recorded voluntary up-to-50% election.
+
+**Pay Agent:** REQUIRED genuine model-backed orchestration, triggered automatically by manager-confirmed completed casual work; for permanent staff, triggered by their permitted early-tip request. It uses bounded, allowlisted server actions and verified records. It cannot invent financial data, independently determine or override amount, recipient, merchant, funding identity or payment authority, approve earnings, or execute an unrestricted provider operation. The server resolves and validates financial facts and authorises/executes the eligible payment through one shared settlement engine. Duplicate events/tool calls and uncertain outcomes require idempotency and safe recovery; a model failure or missing evidence is not payment success and must not erase the obligation or authorise an unsafe resend.
+
+**Explicit supersession:** the casual-worker request requirements in DEC-SA-004/005 and the original SA Golden Demo Path steps 8–10, specifically steps 9/10, are superseded. The corrected fourteen steps are in FS-HACK-SA-ROADMAP-001 section 2. Older manual post-completion payable approval/initiation wording is historical for the revised casual path wherever it would impose a second discretionary payment approval. Preauthorisation, accepted terms, manager completion confirmation, deterministic financial controls and permanent-tip allocation approval remain required. Dated earlier decisions and evidence are retained with this bounded supersession.
+
+**Retained gates:** SA PayPal merchant and recipient eligibility, payment category, supported provider currency, tenant-specific funding authority, ZAR/provider-currency separation and any FX/fee/rounding policy, SA POS provider feasibility, and Sandbox/production isolation remain NEEDS VERIFICATION or OPEN. Approval supplies no permission for a prohibited payment category. Independent SaaS onboarding and isolated fictional demonstration data remain required. Production payroll/tax integrations remain DEFERRED; no production compliance or provider permission is claimed. Implementation, provider exercises, commits and integration each require a separately authorised work package.
+
+### Earlier thesis and decision history
 
 FairShift connects a business's factual POS sales activity to workforce decisions and payment. It ingests and normalises sales, forecasts commercial and operational demand deterministically from that history, explains it with AI, helps managers offer the right shifts, measures performance against transparent incentives, and turns approved work into PayPal-powered payments.
 
@@ -96,6 +135,8 @@ The three components have distinct sources.
   - *Superseded in part, 4 November 2026, by FS-TIP-POOL-DEC-002:* "venue-wide tronc/tip pooling, and hours-based pooling" no longer excludes the FS-TIP-POOL-DEC-001 model (separate service-period pools at one location, allocated by eligible worker-hours). Cash tips and service charges stay out of scope. A pool that mixes service periods is contrary to FS-TIP-POOL-DEC-001, and neither decision addresses a tronc arrangement.
 
 **AI has no role in** tip amount, tip allocation, incentive arithmetic, earnings arithmetic, manager approval, or PayPal payout.
+
+*Amended narrowly, 5 November 2026, by DEC-SA-005 and then DEC-SA-011:* the REQUIRED genuine model-backed Pay Agent automatically orchestrates after manager-confirmed casual completion; only permitted permanent-tip release requires an employee request. Server financial authority and deterministic controls remain binding. The historical Manager approval/hold wording above does not impose a second discretionary casual payment approval; permanent-tip allocation still requires approval (FS-HACK-SA-AMENDMENT-001 section 3).
 
 **Refund rule**
 
@@ -198,6 +239,8 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 **Positioning.** FairShift is not a payroll, not a staffing marketplace and not a generic rota tool. The claims firewall in FS-TIP-DEC-001 continues to apply.
 
+**Historical market direction, superseded for the hackathon demo by DEC-SA-001 on 5 November 2026.**
+
 **Market.** UK hospitality first. Other countries appear only in the pitch, as a path in which the loop stays the same and only the rules change.
 
 **Unchanged by this decision:**
@@ -213,7 +256,7 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 
 *Scope*
 1. A feature must serve one step of the loop for the business or the worker. If it serves neither, it is out.
-2. UK hospitality only, until the loop works end to end.
+2. UK hospitality only, until the loop works end to end. *Superseded for the demo by DEC-SA-001, 5 November 2026: South Africa/ZAR; no SA legal or provider capability inferred.*
 3. No new forecasting features until Fair Offers, Fair Pay and Pathway work.
 
 *Pay*
@@ -221,7 +264,7 @@ Listings are not filtered by event size, genre or name keywords chosen to shape 
 5. Holiday pay, allocated tips and cancellation pay are separate lines. None is ever folded into the base rate.
 6. Tips follow FS-TIP-DEC-001. The written tipping policy is visible to every worker.
 7. FairShift shows gross amounts. It never claims to calculate or handle tax or National Insurance.
-8. A payout is made only after a person with approval permission approves it. AI never approves pay and never moves money.
+8. A payout is made only after a person with approval permission approves it. AI never approves pay and never moves money. *Superseded in part, 5 November 2026, by DEC-SA-011: for casual work, authority is preauthorised compensation plus acceptance and manager-confirmed completion, enforced by deterministic server checks; no second discretionary Owner payment approval. Permanent-tip allocation approval and permitted employee request remain required. Genuine model-backed orchestration uses bounded actions; server authorisation/execution remain exclusive.*
 
 *Offers and the pathway*
 9. Offers follow FS-OFFER-ORDER-DEC-001, and the criteria are printed on the offer. A shift is never resized or split to avoid an offer or a threshold.
@@ -326,6 +369,8 @@ Implementation design, recorded here as the package's own choices, not new produ
 **Relationship with FS-PAY-TERMS-DEC-001.** FS-PAY-TERMS-DEC-001 rejects any casual rate below £12.71 for every worker and says FairShift never collects ages. This decision asks for categories by age and apprenticeship, and for verification where applicability is uncertain. For rates between the lowest category rate and the 21-and-over rate, the two decisions point in different directions. This package implemented the FS-WAGE-INTEL-DEC-001 text, which names no supersession, and collects no ages. The register records the open question as R-14 (section 5).
 
 ### Owner decision FS-WAGE-INTEL-DEC-002: the adult rate as the demo minimum
+
+**Historical demo jurisdiction, superseded 5 November 2026 by DEC-SA-001.** The England/GBP demo floor below is not an SA requirement. Existing UK implementation/evidence is preserved; SA reference/rate applicability remains NEEDS VERIFICATION. See FS-HACK-SA-AMENDMENT-001 section 3.
 
 **Status: APPROVED. Decision date: 4 November 2026. Implementation: IMPLEMENTED and tested locally under FS-HACK-WAGE-INTEL-001R. Not committed, pushed or deployed.** Source: the Owner's work package FS-HACK-WAGE-INTEL-001R, 4 November 2026, which quotes the Owner's instruction:
 
@@ -539,7 +584,7 @@ Declining early access does not reduce entitlement. Approved tip-pool eligibilit
 
 1. **Turn intelligence into action.** A forecast is useful when it helps a manager decide how many people are needed and proceed into staffing.
 2. **Keep facts, predictions, decisions, and outcomes distinct.** Historical sales, forecasts, staffing recommendations, manager plans, shift allocations, performance results, and payments are separate records and must be presented as such.
-3. **Keep managers in control.** AI recommends. Managers create shifts, choose invitees, finalise allocations, and approve payable amounts.
+3. **Keep managers in control.** Managers control staffing, offers, final allocation and completion confirmation under preauthorised compensation. DEC-SA-011 requires automatic genuine model-backed casual payment orchestration after confirmed completion; no casual request or second discretionary Owner payment approval. Permanent-tip allocation approval/request and deterministic server authority remain required.
 4. **Make work terms clear before acceptance.** A worker sees date, time, location, guaranteed or base pay, and any incentive opportunity before responding to an offer.
 5. **Use deterministic financial rules.** Base pay, incentive eligibility, payable amounts, approval rules, and payout reconciliation are application logic, not AI output.
 6. **Protect worker dignity and privacy.** Worker views are personal, practical, mobile-oriented, and free of rankings, surveillance-style analytics, customer data, and other workers' performance.
@@ -578,7 +623,7 @@ The Admin / Owner is a customer-company role. It is distinct from the FairShift 
 
 A manager operates within one or more authorised locations. One-location managers enter their location implicitly. Multi-location managers receive a clear current-location control containing only authorised locations.
 
-Managers translate operational intelligence into staffing decisions. They create shifts, choose eligible workers, send offers, review responses, finalise allocations, review performance and calculated amounts, approve payouts, and monitor payment state. Server-side location and financial-operation authorisation must support this UX; hiding controls is insufficient.
+Managers translate operational intelligence into staffing decisions. They create shifts under preauthorised compensation, choose eligible workers, send offers, review responses, finalise allocations, confirm completed work, review performance and monitor payment state. DEC-SA-011 makes casual orchestration automatic after confirmed completion, without a second discretionary Owner payment approval; permanent-tip allocations still require approval. Server-side location and financial-operation authorisation must support this UX; hiding controls is insufficient.
 
 **Amended by FS-ROLES-DEC-001 (section 1), 3 November 2026.** The Owner can perform every Manager action at every location. Manager is a permission the Owner grants per location, not a required step.
 
@@ -658,9 +703,9 @@ Every value must be classified and presented as a **factual metric**, **calculat
 
 The manager experience makes the FairShift thesis visible as an operational sequence:
 
-> What happened → what FairShift predicts → required staffing → manager decision → shift offers → accepted allocation → measured result → calculated incentive → approval → payment
+> What happened → what FairShift predicts → required staffing → manager decision → preauthorised shift offers → accepted allocation → manager-confirmed completion → verified deterministic earnings → automatic Pay Agent → server financial checks → eligible payment → history
 
-The Overview is an action-oriented entry point for the current location. It should show the next staffing gap, offers awaiting responses, upcoming allocations, completed shifts requiring performance review, incentives awaiting approval, and payout exceptions.
+The Overview is an action-oriented entry point for the current location. It should show the next staffing gap, offers awaiting responses, upcoming allocations, completed shifts requiring confirmation/performance evidence, tip allocations awaiting approval, and orchestration/payment exceptions.
 
 Forecast & Staffing provides the evidence behind the recommendation. Fill Shifts begins a manager-controlled workflow rather than automatically publishing a roster. Worker Pool supports selection within deterministic eligibility boundaries. Shift Allocations is the authoritative view of who is working when. Performance and Payments & Approvals complete the operational loop.
 
@@ -742,7 +787,13 @@ Weekly totals may aid orientation but must not obscure daily timing and capacity
 
 ## 10. Golden-path UX
 
-### Target golden path
+### Current target golden path — DEC-SA-011
+
+The canonical fourteen steps are [FS-HACK-SA-ROADMAP-001 section 2](FS-HACK-SA-ROADMAP-001.md#2-final-golden-demo-path--canonical-step-numbers). Casual work follows preauthorised compensation → accepted offer → manager-confirmed completion → automatic genuine model-backed Pay Agent → deterministic server checks → eligible PayPal Sandbox payment → reconciliation/history. No casual request or second discretionary Owner payment approval. Permanent staff follow POS evidence → approved tip allocation → permitted employee early-release request → Pay Agent → the same settlement engine → status/history, with limited access/ceilings still requiring policy design. None of this corrected path is claimed implemented or provider-verified.
+
+### Historical target narrative — retained implementation context
+
+The following earlier UK/GBP target and manual payable approval sequence is superseded for current SA delivery by DEC-SA-001–011 and the canonical roadmap. It is not a second current fourteen-step path.
 
 The strongest intended demonstration is one connected hospitality story (section 1). Its current hackathon architecture is:
 
@@ -773,7 +824,7 @@ The story runs:
 13. **FairShift initiates a PayPal Sandbox payout.** Provider identifiers and status are persisted with idempotent submission protection.
 14. **Worker sees payment confirmation.** FairShift reconciles provider status and presents the confirmed result in natural language.
 
-### Current verified golden path
+### Historical locally verified UK/GBP path
 
 The Square Sandbox journey is verified locally from allocation to worker payment confirmation ([`SQUARE_LIVE_EVIDENCE.md`](SQUARE_LIVE_EVIDENCE.md), [`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)):
 
@@ -818,7 +869,7 @@ For the hackathon MVP:
 
 More sophisticated net-sales and refund incentive policy is deferred (section 21). This decision covers performance and incentives. The refund treatment of allocated tips is set by FS-TIP-DEC-001 (section 1).
 
-The final demonstration narrative should also visibly demonstrate at least one scheduling or eligibility control, the approval-before-payment gate, and duplicate PayPal payout protection. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
+The corrected demonstration narrative should visibly demonstrate scheduling/eligibility control, casual preauthorisation/acceptance/completion and deterministic payment eligibility (permanent-tip allocation approval on the supporting path), and duplicate PayPal payout protection. DEC-SA-011 removes a second discretionary casual payment approval. These controls should support the story rather than turn the presentation into a test-suite walkthrough.
 
 ## 11. Key screen specifications
 
@@ -866,8 +917,8 @@ The final demonstration narrative should also visibly demonstrate at least one s
 
 - **Purpose:** Present the current location's work queue and near-term operating picture.
 - **Primary user question:** “What do I need to decide or complete next?”
-- **Key information:** next staffing gap, open offers, upcoming shifts, allocation exceptions, completed shifts awaiting results, incentives awaiting approval, and payment status exceptions.
-- **Primary actions:** Fill Shifts, review offers, open an allocation, record or review performance, and approve eligible payment.
+- **Key information:** next staffing gap, open offers, upcoming shifts, allocation exceptions, completed shifts awaiting confirmation/evidence, permanent-tip allocations awaiting approval, and orchestration/payment exceptions.
+- **Primary actions:** Fill Shifts, review offers, open an allocation, confirm completed work, review performance evidence, approve permanent-tip allocation within scope, and monitor/reconcile payment. Casual payment orchestration is automatic under DEC-SA-011.
 - **State and feedback:** success, pending, blocking, and exception states use natural language and clear next actions.
 - **Data restrictions:** only authorised location data; no arbitrary location identifier from the client is trusted.
 - **Golden-path relationship:** is the manager's control centre for progressing the loop.
@@ -924,13 +975,13 @@ The final demonstration narrative should also visibly demonstrate at least one s
 
 ### Manager: Payments & Approvals
 
-- **Purpose:** Review final payable amounts, approve them, and monitor PayPal state.
-- **Primary user question:** “Is this amount correct and ready to approve, and what happened after submission?”
-- **Key information:** worker, shift, accepted base terms, deterministic incentive result, final payable amount, approval state, payout destination readiness, PayPal status, and exception reason.
-- **Primary actions:** approve, initiate eligible payout, refresh or reconcile status, and inspect history.
-- **State and feedback:** calculated, awaiting approval, approved, submitted, processing, paid, and failed states use clear wording. Duplicate submission is prevented and uncertain failures are not disguised as success.
-- **Data restrictions:** authorised managers only; credentials, access tokens, unnecessary recipient data, and raw provider payloads are never shown.
-- **Golden-path relationship:** completes human approval and PayPal payment.
+- **Purpose:** Confirm completed casual work, inspect deterministic entitlement and automatic payment progress, and approve permanent-tip allocations within scope.
+- **Primary user question:** “Has completed work been confirmed, are the financial checks satisfied, and what happened to payment?”
+- **Key information:** worker, accepted preauthorised terms, completion, verified performance, entitlement, applicable tip-allocation approval, destination/funding readiness, agent/payment status and exceptions.
+- **Primary actions:** confirm completed work, review evidence, approve permanent-tip allocation, safely reconcile/recover existing payments and inspect history. No casual-worker request or second discretionary Owner payment approval.
+- **State and feedback:** awaiting completion/evidence, eligible, orchestration pending, processing, paid and needs-attention remain distinct. Model failure is not payment; duplicate triggers cannot duplicate settlement.
+- **Data restrictions:** authorised organisation/location scope; no credentials, unnecessary recipient data or raw provider payloads.
+- **Golden-path relationship:** completion triggers genuine model-backed orchestration; deterministic server authority governs payment. Permanent early tips require the employee request after approved allocation.
 
 ### Worker: Home
 
@@ -976,9 +1027,9 @@ The final demonstration narrative should also visibly demonstrate at least one s
 
 - **Purpose:** Show what the worker has earned and whether payment has completed.
 - **Primary user question:** “How much is due or paid, and what is its status?”
-- **Key information:** base pay, incentive, final approved amount, pending total, paid total, payment date, and natural-language status history.
+- **Key information:** base pay, incentive, applicable approved tip allocation, deterministic entitlement, pending/paid totals, payment date and natural-language orchestration/payment history.
 - **Primary actions:** open a payment record, navigate to payment settings when required, and eventually raise a dispute once rules exist.
-- **State and feedback:** awaiting approval, approved, processing, paid, and failed states include appropriate next steps without exposing provider plumbing.
+- **State and feedback:** awaiting completion/evidence, eligible, orchestration pending, processing, paid and needs-attention states include appropriate next steps. Casual workers are not asked to request payout or obtain a second discretionary Owner payment approval. Permanent-tip allocation/request states remain separate, subject to limited-access policy.
 - **Data restrictions:** the worker's own amounts and minimal payment reference only.
 - **Golden-path relationship:** is the worker-facing proof of completion.
 
@@ -1077,7 +1128,7 @@ When a critical operation fails, FairShift should preserve valid prior state whe
 | **Overlapping accepted allocation** | Detect the overlap deterministically and prevent the invalid allocation. | Explain the conflict to the manager without exposing unnecessary personal data. Preserve the existing valid allocation. | Automated conflict test. Preferred judge-visible scheduling-control example. |
 | **Worker declines an offer** | Persist the decline and do not allocate that worker to the shift. | Worker sees confirmation; manager sees the accurate response and remaining gap or next action. | Automated offer/allocation test where implemented. |
 | **Current demo performance target not achieved** | Under the implemented demo rule, calculate no earned incentive. | Show that the target was not met and that no incentive was earned; do not imply that the demo formula is universal policy. | Automated exact-boundary and below-target tests. |
-| **Incentive earned but manager has not approved it** | Enforce the approval gate; payout is ineligible. | Show “Awaiting approval” and prevent payout initiation. | Automated payout-eligibility test. Preferred judge-visible approval-control example. |
+| **Casual terms not preauthorised/accepted, completion unconfirmed, or evidence incomplete** | Deterministic checks refuse payment; the agent cannot supply authority. Permanent tips additionally require approved allocation and a permitted employee request. | Explain the missing prerequisite, preserve entitlement evidence and block unsafe payment. No second discretionary casual payment approval. | Required corrected-path negative tests; automatic orchestration is NOT IMPLEMENTED by this amendment. |
 | **Missing or invalid payout destination** | Reject payout submission before a provider request. | Tell the worker or manager that payment details must be completed, with a link to the appropriate setting. | Automated eligibility/validation test. |
 | **PayPal rejects or fails a payout operation** | Never mark the payout `PAID`. Persist or represent an accurate failed or unresolved state and preserve idempotency. | Show processing, unresolved, or needs-attention language with a safe recovery route; never show false confirmation or raw provider payloads. | Mocked/API-boundary failure tests are required; Sandbox evidence should be added only when actually executed. High engineering priority. |
 | **Duplicate payout after the payable item was submitted or paid** | Block the duplicate before another PayPal payout request. | Show that payment was already submitted or completed and direct the user to its status rather than offering another payment action. | **VERIFIED** against the current Sandbox-connected implementation. Preferred judge-visible payment-integrity example. |
@@ -1089,7 +1140,7 @@ When a critical operation fails, FairShift should preserve valid prior state whe
 The final hackathon presentation should deliberately show approximately two or three high-value controls, not become a test-suite walkthrough. Preferred examples are:
 
 1. **Scheduling conflict:** FairShift prevents selection or allocation of an unavailable worker or a worker with an overlapping accepted allocation. This demonstrates operational integrity and scheduling intelligence.
-2. **Approval gate:** an earned incentive cannot be paid until a manager explicitly approves it. This demonstrates human control and payment governance.
+2. **Payment authority gate (DEC-SA-011):** casual payment requires preauthorised accepted terms, manager-confirmed completion and verified deterministic entitlement; no second discretionary Owner approval. Permanent-tip allocation approval and permitted employee request remain required. The agent cannot bypass missing authority or evidence. Corrected-path verification remains pending.
 3. **Duplicate PayPal payout protection:** a second attempt for the same submitted or paid incentive is rejected before another PayPal request. This demonstrates payment integrity and real-integration robustness.
 
 A different failure may replace one of these if later implementation evidence shows that it communicates the product more clearly. Only behavior with reproducible evidence should appear as a working demo claim.
@@ -1120,13 +1171,13 @@ Continue to distinguish integration states: **MOCKED**, **SIMULATED**, **SANDBOX
 
 PayPal appears to workers primarily as the payment method, payout confirmation, and payment history. Provider API mechanics belong in operational diagnostics, not ordinary worker screens.
 
-Before approval, managers see the accepted base terms, deterministic incentive result, and final payable amount. Approval is a distinct human action. After submission, natural states such as “Processing,” “Paid,” or “Payment needs attention” take precedence over raw provider enum values. Provider references may be available in authorised detail views for support and audit purposes.
+For the corrected casual path, managers see accepted preauthorised terms, completion and verified deterministic earnings; confirming completed work triggers automatic Pay Agent orchestration without a second discretionary Owner payment approval. Permanent-tip allocation approval and permitted employee request remain distinct prerequisites. Earlier manual payable approval is retained as implementation history, not the current casual target. After submission, natural states such as “Processing,” “Paid,” or “Payment needs attention” take precedence over raw provider enum values. Provider references may be available in authorised detail views for support and audit purposes.
 
 The current payout integration is **SANDBOX-CONNECTED**. Verified evidence includes successful Sandbox OAuth, one controlled $25 payout accepted by PayPal, item status `SUCCESS`, FairShift state persisted as `PAID`, duplicate submission prevention, and successful status refresh. One genuine GBP 121.00 Sandbox payout on Square-attributed work also reached item `SUCCESS` and `PAID`, locally ([`PAYPAL_FINAL_EVIDENCE.md`](PAYPAL_FINAL_EVIDENCE.md)). Historical verification transaction IDs must not be hard-coded into product behaviour or fixtures.
 
 The product must never show or log PayPal credentials, OAuth access tokens, sandbox passwords, or unnecessary recipient data. It must not present a submitted or uncertain payout as paid until provider state supports that conclusion.
 
-**Payout timing (FS-PAYOUT-TIMING-DEC-001, section 1). Approved, not implemented.** Casual workers are paid 100% of their approved shift entitlement per shift. Regular staff receive 50% of their approved tips through PayPal, with a payroll transaction statement for each early payout. Principle 13 (section 2) applies to that statement as to every other surface: a pending or unknown payout is not a received one.
+**Payout timing (historical FS-PAYOUT-TIMING-DEC-001, section 1; amended by DEC-SA-011 for the casual trigger/approval sequence). Approved direction, not implemented as the corrected SA path.** Casual workers are paid 100% of their approved shift entitlement per shift. Regular staff receive 50% of their approved tips through PayPal, with a payroll transaction statement for each early payout. Principle 13 (section 2) applies to that statement as to every other surface: a pending or unknown payout is not a received one.
 
 *Amended, 4 November 2026, by FS-PAYOUT-TIMING-DEC-002:* regular staff's PayPal early access is voluntary and capped at 50% of approved tips. Without an election, the full tip entitlement goes through normal payroll. Each early-access disbursement still has a payroll transaction statement. FairShift never promises instantaneous PayPal settlement.
 
@@ -1150,7 +1201,7 @@ PayPal may support three distinct parts of the product. Their statuses must neve
 
 #### PayPal — SANDBOX-CONNECTED
 
-- **Purpose:** Execute manager-approved worker incentive/payments and reconcile provider state.
+- **Purpose:** Execute server-authorised eligible payments from the shared settlement engine and reconcile provider state. DEC-SA-011 governs the target automatic casual trigger and permanent-tip request; historical Sandbox evidence below exercised manual approval/send only.
 - **Product placement:** Manager Payments & Approvals and worker Earnings/payment confirmation.
 - **Current evidence:** Sandbox OAuth succeeded; one controlled $25 payout was accepted; the PayPal item reached `SUCCESS`; FairShift persisted `PAID`; duplicate submission prevention and status refresh passed. One genuine GBP 121.00 payout on Square-attributed work reached `SUCCESS` and `PAID` locally ([evidence](PAYPAL_FINAL_EVIDENCE.md)).
 - **Boundary:** This status applies to the Sandbox payout path. It does not imply production capability or live verification of every PayPal feature.
@@ -1234,10 +1285,12 @@ Avoid raw enum strings, database terminology, “persisted,” internal IDs, met
 
 ## 21. Open, needs-verification, and deferred decisions
 
+**DEC-SA-011 boundary, 5 November 2026:** casual-worker release requests and a second discretionary Owner payment approval are no longer open design options or requirements; that sequence is superseded. Limited permanent-staff access, request authentication/consent, destination confirmation and exact tip-ceiling implementation remain OPEN. No new role, ceiling, partial-payment rule, provider permission or production payroll/tax integration is authorised.
+
 ### OPEN
 
 - Final fictional hospitality group brand and venue names.
-- The exact wording of the written tipping-policy rule and the tip terms. FS-TIP-DEC-001 (section 1) settles the earnings formula, tip evidence, exclusions, Manager limits and refund treatment, but doesn't state the rule itself. Nothing about tips is implemented.
+- The exact wording of the written tipping-policy rule and the tip terms. FS-TIP-DEC-001 (section 1) settles the earnings formula, tip evidence, exclusions, Manager limits and refund treatment, but doesn't state the rule itself. Square tip-evidence capture is implemented (`commerce_payment_evidence.tip_amount_minor`, `0025_square_tip_evidence.sql`, adapter and regression tests); tip allocation, approved tip entitlement and shared tip settlement remain incomplete. Evidence capture does not establish SA POS feasibility or genuine tip-provider acceptance for the revised demo.
   - *4 November 2026:* FS-TIP-POOL-DEC-001 and FS-TIP-POOL-DEC-002 (section 1) set the allocation model: a separate pool for each service period at a location, allocated in proportion to eligible worker-hours, then reviewed and approved. They supersede the earlier pooling exclusions for the hospitality MVP only. The written rule is still incomplete: the details below remain open.
 - Tip-pool allocation details (FS-TIP-POOL-DEC-001). No default is adopted, including any proposed by the read-only assessment FS-HACK-TIP-POOL-001:
   - the precise eligible staff population;
@@ -1338,16 +1391,20 @@ The current implementation is valuable functional evidence. Migration should pre
 | Worker acceptance status and confirmation time | **REPOSITION** | Show natural confirmation in Shifts and Schedule; remove persistence terminology. |
 | “ACCEPTED · PERSISTED” and other raw state labels | **REMOVE FROM USER-FACING UX** | Use plain-language states; retain technical evidence only in tests or authorised diagnostics. |
 | Payout email form inside the shift/incentive card | **REPOSITION** | Move to Profile → Payment settings; show only a contextual completion prompt when payment is blocked. |
-| Deterministic incentive calculation, approval gate, integer-cent handling, and payout eligibility | **KEEP** | Reuse behind Performance, Payments & Approvals, and worker Earnings. |
-| Manager's combined result/approval/payout demo panel | **REDESIGN** | Separate performance review from payable approval and payment status while preserving the state machine. |
+| Deterministic incentive calculation, exact monetary arithmetic, and server payout eligibility | **KEEP** | Retain source/evidence and financial safeguards; adapt the casual authority/trigger under DEC-SA-011, preserving permanent-tip allocation approval. |
+| Manager's combined result/approval/payout demo panel | **REDESIGN** | Apply DEC-SA-011: casual completion triggers genuine model-backed orchestration under existing authority; permanent-tip allocation approval/request remains separate; preserve settlement/recovery truth. |
 | PayPal batch/status display and manual refresh action | **REPOSITION** | Show natural payment status in ordinary UI; retain provider references and refresh controls in authorised detail/operations views. |
 | Direct worker-to-manager and manager-to-technical-evidence links | **REMOVE FROM USER-FACING UX** | Replace with role-specific navigation; keep demo/developer navigation outside normal product surfaces if still needed. |
 | Database and migration error copy exposed in normal pages | **REDESIGN** | Provide user-safe unavailable states; log actionable diagnostics for operators without leaking internals. |
 | Current shared visual styling | **REDESIGN** | Build distinct owner/manager operational and worker mobile patterns from this specification. |
 
-Functionality that must survive redesign includes truthful provenance, validated forecast and AI contracts, server-side scope, explicit manager control, exact monetary arithmetic, acceptance persistence, incentive state transitions, approval before payout, PayPal idempotency, provider status reconciliation, and clear failure states.
+Functionality that must survive redesign includes truthful provenance, validated forecast and AI contracts, server-side scope, manager staffing control and completion confirmation, exact monetary arithmetic, accepted preauthorised compensation, deterministic eligibility, permanent-tip allocation approval/request, PayPal idempotency, provider status reconciliation and clear failure states. DEC-SA-011 replaces a separate discretionary casual approval/manual-send step with automatic genuine model-backed orchestration under existing authority.
 
 ## 24. Implementation sequencing recommendation
+
+**Historical sequence notice, 5 November 2026:** the recommendations below do not direct current delivery. FS-HACK-SA-ROADMAP-001, corrected by DEC-SA-011, controls new step numbers and dependencies. Earlier manager-approval/manual-send references below describe the existing implementation, not a second discretionary casual approval or worker-request requirement. The read-only reconciliation FS-HACK-SA-GOLDEN-RECON-001 is complete; its findings and remaining blockers are summarised in FS-HACK-SA-ROADMAP-CORRECTION-001_EVIDENCE.md. No implementation successor is activated.
+
+**Superseded delivery direction, 5 November 2026.** [FS-HACK-SA-ROADMAP-001](FS-HACK-SA-ROADMAP-001.md) controls all new step numbers, stages and gates. The package order below is historical and authorises no successor. This governance package authorises no implementation.
 
 ### Current authorised package order
 

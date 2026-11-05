@@ -8,13 +8,15 @@ Use this authority order:
 
 1. **Competition requirements:** current official PayPal AI Hackathon and Devpost sources. Repository copies of transient competition details may become stale.
 2. **FS-HACK-MASTER-001:** the historical Phase 0 baseline, held at [`docs/FS-HACK-MASTER-001.md`](docs/FS-HACK-MASTER-001.md).
-3. **Approved dated Owner amendments,** with the newest applicable amendment prevailing. These are recorded in [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), the current authoritative product/UX specification.
-4. **FS-HACK-ROADMAP-002,** the Owner-directed delivery roadmap at [`docs/FS-HACK-ROADMAP-002.md`](docs/FS-HACK-ROADMAP-002.md): delivery sequence, scope freeze, golden-path acceptance and step numbers. It controls delivery sequencing and does not on its own redefine product rules. Its Owner-directed refinements stand where their provenance is traceable: Bryntum forecast-gap planning and allocated tips in the payable (register, section 6). Where a roadmap clause conflicts with a dated Owner decision, neither directs implementation of the contested part until the Owner decides.
+3. **Approved dated Owner amendments,** with the newest applicable amendment prevailing. These are recorded in [`docs/FAIRSHIFT_PRODUCT_UX_SPEC.md`](docs/FAIRSHIFT_PRODUCT_UX_SPEC.md), incorporating [`docs/FS-HACK-SA-AMENDMENT-001.md`](docs/FS-HACK-SA-AMENDMENT-001.md): Owner-approved **DEC-SA-001–010** from **FS-HACK-SA-ROADMAP-LOCK-001**, as amended by **DEC-SA-011** from **FS-HACK-SA-ROADMAP-CORRECTION-001**, both dated 5 November 2026.
+4. **FS-HACK-SA-ROADMAP-001,** at [`docs/FS-HACK-SA-ROADMAP-001.md`](docs/FS-HACK-SA-ROADMAP-001.md): the LOCKED current delivery reference, fourteen-step Golden Demo Path and SA-R/SA-G dependencies. The Pay Agent is REQUIRED. FS-HACK-ROADMAP-002 delivery sequence and step numbers are historical. The SA roadmap cannot independently invent product policy or establish implementation. Unaffected older controls and unresolved authority conflicts remain binding/gated as recorded in the register.
 5. **Repository reality** for implementation state: the current repository and reproducible runtime evidence.
 6. **The current authorised work package.**
 7. **Implementation preference.**
 
-[`docs/FS-DOCUMENT-AUTHORITY-REGISTER.md`](docs/FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, says whether it may direct new work, lists the open roadmap conflicts (section 5), traces the provenance of each Owner decision (section 6), and holds the current work-package pointer (section 2). Read its sections 1 and 2 before substantive work.
+**One active roadmap (Owner decision, 5 November 2026):** FS-HACK-SA-ROADMAP-001, governed by DEC-SA-011, is the only active product roadmap. The UK Heads-up Rewards proposal is superseded. Do not merge the UK and SA product models, and do not create a parallel roadmap. FS-HACK-ROADMAP-002 and all UK/GBP plans are history.
+
+[`docs/FS-DOCUMENT-AUTHORITY-REGISTER.md`](docs/FS-DOCUMENT-AUTHORITY-REGISTER.md) classifies every document, says whether it may direct new work, lists the open roadmap conflicts (section 5), traces the provenance of each Owner decision (section 6), and holds the current work-package pointer (section 2). Read its sections 1 and 2, the SA amendment and the SA roadmap before substantive work. These requirements apply to every subsequent coding session in a checkout containing this governance change; other worktrees are not updated by this package.
 
 Historical evidence, reports and handoffs never direct new work. Their "next step", "recommended package" or "tomorrow" text is history, not a current task. Neither is a roadmap "next action", an earlier conversation, or an agent's own recommendation.
 
@@ -28,18 +30,9 @@ When a material implementation or submission decision depends on a deadline, eli
 
 Protect this operational loop:
 
-POS sales
-→ FairShift ingestion and normalisation
-→ canonical historical sales
-→ deterministic commercial and operational forecast
-→ staffing requirement and Opportunity Demand
-→ manager scheduling
-→ worker shift acceptance
-→ performance evidence
-→ deterministic earnings calculation
-→ manager approval
-→ PayPal payout
-→ confirmation
+sales intelligence → AI forecast → staffing → preauthorised casual shift offer → acceptance → allocation → manager-confirmed completion → verified performance and deterministic earnings → automatic FairShift Pay Agent orchestration → server financial checks → eligible PayPal Sandbox payment → reconciliation and worker history.
+
+The canonical fourteen-step path is FS-HACK-SA-ROADMAP-001 section 2, corrected by DEC-SA-011. Casual compensation is preauthorised before offer and accepted by the worker; manager-confirmed completion triggers REQUIRED genuine model-backed orchestration through bounded, allowlisted server actions. No casual-worker payout request or second discretionary Owner payment approval applies. Performance evidence and financial eligibility stay deterministic; the server resolves entitlement, sender/merchant, recipient, amount, currency and existing payment authority. AI cannot invent or override those facts. Permanent staff follow POS evidence → approved tip allocation → permitted employee early-release request → Pay Agent → the same settlement engine → provider status/history; limited access and tip ceilings need explicit policy design, with no fourth application role.
 
 The detailed roles, information architecture, navigation, golden-path UX, visibility rules, screen behavior, responsive expectations, terminology, and implementation sequence live in the authoritative product specification. Reference it rather than duplicating it here.
 
@@ -76,17 +69,23 @@ If an unresolved product-authority conflict affects the work, stop that work and
 
 ### Active reference company
 
-The reference company is one fictional five-location UK fast-casual cafe and dining group, defined in the product specification, section 1. Hospitality is the demo vertical, not an architectural restriction. Retail reference work is historical evidence.
+The reference company is one fictional five-location **South African** fast-casual cafe and dining group with **ZAR operating currency** (DEC-SA-001–003). It is isolated demonstration data, never a runtime prerequisite for the independently usable multi-tenant SaaS product. England/GBP and retail reference requirements remain history. Hospitality is the demo vertical, not an architectural restriction. SA venue names, reference data and rates are not yet selected. **Implemented and tested locally, uncommitted:** a South African location's new work policies, shifts, accepted terms and payables are in ZAR, and the payout path refuses any currency without recorded genuine PayPal Sandbox payout evidence (currently GBP and USD only), so ZAR earnings stay recorded and unpaid until a provider route is verified (DEC-SA-010). The SA route gate also refuses legacy GBP/USD obligations for an SA business or location before reservation or provider-client creation; historical currency evidence grants no SA merchant permission. Known-batch status reconciliation remains available, while no-batch resends pass the route gate.
 
 - Staffing comes from expected **transactions by time of day**, the business's capacity and minimum cover, and coverage. **Sales value does not set staffing.** The £100-per-labour-hour method is retired.
 - Reference policy: **7 transactions per operational staff-hour, minimum 2 operational staff while open**, organisation level. This is a fictional-company assumption, never a benchmark or legal requirement, and never learned from data.
 - Transactions are an MVP workload proxy. Do not claim they capture covers, item complexity, kitchen bottlenecks or queue length. Do not add those variables, or role-specific forecasting, before submission.
 - **Golden Path anti-tuning:** discover the example from accepted rules. Never select or alter rules, reference demand, capacity, regular cover or forecast parameters to manufacture a preferred example. The historical 14:00–20:00, £96, £200, £25, £121 example is not a hospitality target.
-- **Earnings (FS-TIP-DEC-001):** the authorised formula is guaranteed base earnings + performance incentive + allocated tips = total approved earnings. This is **not implemented**, and the exact written tip-allocation rule remains open for FS-HOSPITALITY-EARNINGS-001. Do not implement or claim tips without a work package. FS-PAY-TERMS-DEC-001 adds a holiday-pay line that FS-HACK-ROADMAP-002 does not include; that conflict is unresolved (register, section 5), so implement neither form of the holiday-pay line without an Owner decision.
+- **Earnings (FS-TIP-DEC-001):** the authorised formula is guaranteed base earnings + performance incentive + allocated tips = total approved earnings. This is **not implemented**, and the exact written tip-allocation rule remains open for FS-HOSPITALITY-EARNINGS-001. Square tip-evidence capture is already implemented (`commerce_payment_evidence.tip_amount_minor`, migration `0025_square_tip_evidence.sql`); allocation and settlement remain incomplete. Do not claim that evidence capture is tip entitlement, SA provider verification or completed settlement, and do not implement the missing parts without a work package. FS-PAY-TERMS-DEC-001 adds a holiday-pay line that FS-HACK-ROADMAP-002 does not include; that conflict is unresolved (register, section 5), so implement neither form of the holiday-pay line without an Owner decision.
 - **Contextual AI (FS-DEMAND-CONTEXT-001, FS-DEMAND-CONTEXT-DEC-001) is implemented and verified locally with a genuine model call.** Its code is deployed on hosted at `77ae36d` ([`docs/HOSTED_RELEASE_002_EVIDENCE.md`](docs/HOSTED_RELEASE_002_EVIDENCE.md)), where no AI proposal has been made. The baseline stays deterministic and canonical. AI chooses a named scenario from a closed set and cites supplied signals, code owns the fixed percentages, and only a Manager's acceptance changes staffing. Evidence: [`docs/DEMAND_CONTEXT_EVIDENCE.md`](docs/DEMAND_CONTEXT_EVIDENCE.md).
 - **Context signals (FS-CONTEXT-SIGNALS-DEC-001) are implemented and verified locally.** Their code is deployed on hosted at `77ae36d`, where one signal refresh per venue has run and no AI proposal has been made. Open-Meteo weather, Ticketmaster listings (key-gated) and structured Manager signals inform time-targeted scenarios. No code applies an effect by venue, weather or event. Open-Meteo's free tier is non-commercial, and Ticketmaster's terms are **NOT VERIFIED** for this use, and real listing data stays out of the repository. Published history was rewritten before any push (`58eaf48`), so `c567f2e`, which holds real listing data, is on no remote. It survives only on the local branch `backup/pre-squash-db2dfde`, which must never be pushed. Making the repository public is a separate Owner decision. FS-CONTEXT-SIGNALS-DEC-002 sets the event influence window and listing filter. Evidence: [`docs/CONTEXT_SIGNALS_EVIDENCE.md`](docs/CONTEXT_SIGNALS_EVIDENCE.md).
 
-### PayPal — SANDBOX-CONNECTED
+### Current SA payment gates — NEEDS VERIFICATION
+
+DEC-SA-005 as amended by DEC-SA-011 makes genuine model-backed FairShift Pay Agent orchestration REQUIRED; DEC-SA-006 limits official Toolkit/MCP use to verified supported capabilities. Native Payouts creation is not established by its reviewed documented tool inventory; a policy-bound custom Payouts API tool is permitted only after eligibility verification. The server authorises and executes through one shared settlement architecture for casual earnings and permanent-staff tips. Permanent staff remain lightweight records, never a fourth role; their request-access mechanism is unresolved.
+
+Each genuine employer needs its own authorised funding/payment arrangement. A dedicated isolated demo merchant is permitted for the demo only; shared demo sender credentials must never become customer merchant credentials. ZAR earnings and provider payout currency are distinct. SA payout category, currency, merchant and recipient permission remain NEEDS VERIFICATION. Do not relabel GBP as ZAR, invent FX/fees, assume SA POS availability or infer authorisation from historical UK evidence. Production payroll, tax and regulatory integrations are DEFERRED.
+
+### PayPal — historical UK/GBP Sandbox evidence, SANDBOX-CONNECTED
 
 PayPal is the central worker-payment integration. Current evidence establishes:
 
@@ -99,7 +98,7 @@ PayPal is the central worker-payment integration. Current evidence establishes:
 
 This evidence does not imply production capability or verification of every PayPal feature. Never represent an unverified, pending, failed, or unknown operation as successful.
 
-### Current hackathon architecture
+### Historical exercised architecture and retained provider boundaries
 
 Reference historical commerce
 → deterministic demand model
@@ -121,9 +120,9 @@ Provider responsibilities:
 - **FairShift:** business logic, worker and shift identity, compensation, incentive, attribution eligibility, and approval.
 - **PayPal:** FairShift subscription infrastructure and worker payout.
 
-This chain states the intended path. The stages from allocation to worker confirmation have been exercised locally on Square Sandbox evidence and a genuine PayPal Sandbox payout ([`docs/PAYPAL_FINAL_EVIDENCE.md`](docs/PAYPAL_FINAL_EVIDENCE.md)), on a short real shift rather than the 14:00–20:00 window. The reference-history forecast to allocation stages were not part of that one run. The hospitality engine's code is deployed on hosted ([`docs/HOSTED_RELEASE_002_EVIDENCE.md`](docs/HOSTED_RELEASE_002_EVIDENCE.md)), but no Golden Path has been run there, and the revision live after later pushes is NOT VERIFIED. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
+This chain records the earlier UK/GBP path; the current required path is FS-HACK-SA-ROADMAP-001 section 2. It does not establish SA readiness. The stages from allocation to worker confirmation have been exercised locally on Square Sandbox evidence and a genuine PayPal Sandbox payout ([`docs/PAYPAL_FINAL_EVIDENCE.md`](docs/PAYPAL_FINAL_EVIDENCE.md)), on a short real shift rather than the 14:00–20:00 window. The reference-history forecast to allocation stages were not part of that one run. The hospitality engine's code is deployed on hosted ([`docs/HOSTED_RELEASE_002_EVIDENCE.md`](docs/HOSTED_RELEASE_002_EVIDENCE.md)), but no Golden Path has been run there, and the revision live after later pushes is NOT VERIFIED. See the product specification, section 10, for current status, the Golden Path economics, and the MVP refund decision.
 
-### Square Sandbox — SANDBOX-CONNECTED, active hackathon commerce provider
+### Square Sandbox — SANDBOX-CONNECTED UK evidence; SA applicability NEEDS VERIFICATION
 
 Evidence: [`docs/SQUARE_LIVE_EVIDENCE.md`](docs/SQUARE_LIVE_EVIDENCE.md). **VERIFIED** on Square Sandbox:
 
@@ -179,7 +178,7 @@ Use deterministic application logic for:
 - financial reconciliation;
 - other exact business rules.
 
-AI must not determine whether a worker gets paid, approve payouts, fabricate financial results, or make consequential employment decisions.
+AI must not independently determine payment entitlement or authority, approve payouts, fabricate financial results, or make consequential employment decisions. DEC-SA-011 requires genuine model-backed Pay Agent orchestration automatically after manager-confirmed completed casual work, and on a permitted permanent-staff early-tip request. Only bounded, allowlisted server actions may be invoked; financial authorisation and execution remain server-side. Duplicate triggers, repeated tool calls and uncertain outcomes require idempotency and safe recovery. A failed model call is not a payment, must preserve valid financial state and must not permit an unsafe resend.
 
 ## 6. Core domain and data boundaries
 
@@ -206,7 +205,7 @@ Submission-critical functionality must fail safely and truthfully:
 
 On critical failure, preserve valid prior state where appropriate, block unsafe downstream action, provide understandable user-facing feedback, support a safe recovery or retry path where appropriate, and retain enough evidence for diagnosis.
 
-Golden-path work should include positive verification and relevant negative-path verification. Priority judge-visible controls are scheduling conflict prevention, the manager approval gate, and duplicate PayPal payout protection. Keep demonstrations focused; do not build exhaustive enterprise-grade fault infrastructure for the hackathon.
+Golden-path work should include positive verification and relevant negative-path verification. Priority judge-visible controls are scheduling conflict prevention, preauthorised accepted compensation plus manager-confirmed casual completion (and approved permanent-tip allocation), deterministic server payment eligibility, and duplicate PayPal payout protection. No second discretionary Owner approval is added to the casual path. Keep demonstrations focused; do not build exhaustive enterprise-grade fault infrastructure for the hackathon.
 
 ## 8. Evidence and status discipline
 
@@ -236,7 +235,7 @@ Product-facing copy should use natural language while remaining truthful about d
 
 Before substantive implementation, debugging, architecture, integration, repository review, or coding-agent handoff:
 
-1. read this `AGENTS.md`, and sections 1 and 2 of the authority register;
+1. read this `AGENTS.md`, sections 1 and 2 of the authority register, FS-HACK-SA-AMENDMENT-001 and FS-HACK-SA-ROADMAP-001;
 2. verify the current working directory;
 3. verify the current branch;
 4. verify HEAD;
@@ -316,7 +315,7 @@ Prioritise:
 4. scheduling, availability, and overlap conflicts;
 5. worker offer response and acceptance;
 6. deterministic performance and incentive calculation;
-7. manager approval gate;
+7. casual preauthorisation/acceptance/completion and deterministic payment gate; permanent-tip allocation approval;
 8. PayPal API behavior;
 9. payout persistence and status reconciliation;
 10. duplicate/idempotency protection;
@@ -380,12 +379,12 @@ The work package should state:
 - recommended agent/model;
 - reasoning/effort;
 - objective and definition of done;
-- the golden-path step or steps it advances, by FS-HACK-ROADMAP-002 section 15 number. If none, it is deferred unless competition compliance or a blocker repair requires it, and the package says which;
+- the golden-path step or steps it advances, by **FS-HACK-SA-ROADMAP-001 section 2** number, plus applicable SA-R stages and SA-G dependency/exit gates. If none, it is deferred unless competition compliance or a blocker repair requires it, and the package says which;
 - any Owner decision it relies on that the register marks OWNER CONFIRMATION REQUIRED;
 - authorised scope;
 - prohibited actions;
 - repository baseline and verification;
-- tests and verification;
+- material risks, positive and relevant negative-path tests, and verification;
 - stopping condition;
 - commit policy.
 

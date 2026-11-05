@@ -6,10 +6,15 @@
 // the original demonstration location and its PayPal Sandbox payouts.
 export const DEFAULT_LOCATION_CURRENCY = "USD";
 
-// Mirrored by the policy backfill in drizzle/0013_work_payables.sql.
+// The UK entries are mirrored by the one-off policy backfill in drizzle/0013_work_payables.sql.
+// South Africa operates in ZAR (DEC-SA-001). Applies to policies created from now on: existing
+// policies, shifts, accepted terms and payables keep the currency they were made in, and a
+// policy in another currency cannot create shifts here. The operating currency says nothing
+// about which currency PayPal can pay out in (DEC-SA-010); see payments/work-payouts.ts.
 const COUNTRY_CURRENCIES: Readonly<Record<string, string>> = {
   "united kingdom": "GBP", uk: "GBP", gb: "GBP", "great britain": "GBP",
   england: "GBP", scotland: "GBP", wales: "GBP", "northern ireland": "GBP",
+  "south africa": "ZAR", za: "ZAR",
 };
 
 // Amounts are held in minor units and shown divided by one hundred, so only known

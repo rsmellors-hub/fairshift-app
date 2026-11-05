@@ -10,16 +10,17 @@ import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { savePayoutDestination } from "@/server/auth/operations";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { auditEvents, organisations, outlets, subscriptions, users, workPayables, workPayouts, workPolicies, workers } from "@/server/db/schema";
+import { auditEvents, departments, organisations, outlets, paypalConnections, subscriptions, users, workAcceptances, workPayables, workPayouts, workPolicies, workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { PayPalPayoutError, type PayPalPayoutAdapter, type PayoutResult } from "@/server/integrations/paypal/payout-client";
 import { allocateAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
-import { approveWorkPayable, PaymentDetailsRequiredError, payoutAmount, PayoutCurrencyUnsupportedError, payoutSenderIds, payoutStatusFromProvider, refreshWorkPayout, STALE_SUBMISSION_MS, submitWorkPayout } from "@/server/payments/work-payouts";
+import { approveWorkPayable, isVerifiedPayoutCurrency, PaymentDetailsRequiredError, payoutAmount, PayoutCurrencyUnsupportedError, payoutSenderIds, payoutStatusFromProvider, refreshWorkPayout, STALE_SUBMISSION_MS, submitWorkPayout } from "@/server/payments/work-payouts";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { approvePayableAction, confirmWorkAction, refreshPayoutAction, sendPayoutAction } from "@/app/operations-actions";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { createActivatedTeamMember } from "../helpers/workers";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
@@ -40,15 +41,16 @@ async function user(db: Db) {
   await db.insert(users).values({ id, email: `payout-user${++n}-${id.slice(0, 6)}@example.test`, name: "Test user", passwordHash: "test", emailVerifiedAt: new Date() });
   return id;
 }
-async function company(db: Db, locations = 1) {
+async function company(db: Db, locations = 1, country = "United Kingdom") {
   const organisationId = randomUUID();
-  await db.insert(organisations).values({ id: organisationId, name: "UK company", country: "United Kingdom" });
+  await db.insert(organisations).values({ id: organisationId, name: "Independent company", country });
   await db.insert(subscriptions).values({ id: randomUUID(), organisationId, requestId: randomUUID() });
   await entitled(db, organisationId);
-  const rows = Array.from({ length: locations }, (_, i) => ({ id: randomUUID(), organisationId, name: `Store ${i + 1}`, timezone: "Europe/London" }));
+  const timezone = country === "South Africa" ? "Africa/Johannesburg" : "Europe/London";
+  const rows = Array.from({ length: locations }, (_, i) => ({ id: randomUUID(), organisationId, name: `Store ${i + 1}`, timezone }));
   await db.insert(outlets).values(rows);
   const scopes: Scope[] = [];
-  for (const row of rows) scopes.push({ userId: await user(db), organisationId, locationId: row.id, role: "MANAGER", organisationName: "UK company", locationName: row.name });
+  for (const row of rows) scopes.push({ userId: await user(db), organisationId, locationId: row.id, role: "MANAGER", organisationName: "Independent company", locationName: row.name });
   return { organisationId, scopes };
 }
 // Shift → offer → acceptance → allocation, through the normal operations.
@@ -765,5 +767,148 @@ describe("uncertain no-batch recovery safety window", () => {
       expect(html).not.toContain("which PayPal pays at most once");
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
     } finally { await t.close(); }
+  });
+});
+
+// DEC-SA-001 / DEC-SA-010: South African work is denominated in ZAR, and ZAR is not a verified
+// PayPal payout currency for FairShift. Earnings are kept, never converted, relabelled or sent.
+describe("South African operating currency and the provider payout-currency gate", () => {
+  it("keeps preauthorised ZAR terms through acceptance, confirmation and approval, then refuses to send them", async () => {
+    const t = await createTestDatabase();
+    try {
+      // Migrations seed a legacy demo; remove its empty rows from this test DB to
+      // verify that the ordinary-tenant flow has no runtime dependency on them.
+      await t.db.delete(paypalConnections).where(eq(paypalConnections.outletId, DEMO_OUTLET_ID));
+      await t.db.delete(departments).where(eq(departments.outletId, DEMO_OUTLET_ID));
+      await t.db.delete(outlets).where(eq(outlets.id, DEMO_OUTLET_ID));
+      await t.db.delete(organisations).where(eq(organisations.id, DEMO_ORGANISATION_ID));
+      const c = await company(t.db, 1, "South Africa");
+      const manager = c.scopes[0];
+      const { policy, shift, offer, worker } = await allocatedWork(t.db, manager);
+      expect(policy).toMatchObject({ currencyCode: "ZAR", rateMinor: 1_300 });
+      expect(shift).toMatchObject({ currencyCode: "ZAR", expectedEarningsMinor: 7_800 });
+      expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ currencyCode: "ZAR", rateMinor: 1_300, expectedEarningsMinor: 7_800, acknowledged: true });
+      // Only this independently created tenant exists: no seeded demo company is needed.
+      expect(await t.db.select().from(organisations)).toHaveLength(1);
+      const { payable } = await confirmWork(t.db, offer.id, manager);
+      expect(payable).toMatchObject({ workerId: worker.id, currencyCode: "ZAR", baseAmountMinor: 7_800, status: "PENDING_REVIEW" });
+      const approved = await approveWorkPayable(t.db, manager, payable!.id);
+      expect(approved).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "ZAR" });
+
+      const paypal = fakePayPal();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(submitWorkPayout(t.db, paypal, manager, payable!.id)).rejects.toMatchObject({ feedback: "payout-currency-unverified" });
+      }
+      expect(paypal.createPayout).not.toHaveBeenCalled();
+      expect(await payoutsOf(t.db)).toHaveLength(0);
+      expect(await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_RESERVED"))).toHaveLength(0);
+      // The obligation is preserved exactly as approved.
+      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "ZAR" });
+      await expect(refreshWorkPayout(t.db, paypal, manager, payable!.id)).rejects.toThrow("No payout has been sent");
+
+      // The Manager action reports the refusal truthfully rather than as an error or a payment.
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
+      vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
+      await expect(sendPayoutAction(form({ payableId: payable!.id, amount: "1", currency: "USD" }))).rejects.toThrow("REDIRECT:/settlements?status=payout-currency-unverified");
+      expect(getPayPalPayoutClient).not.toHaveBeenCalled();
+      expect(paypal.createPayout).not.toHaveBeenCalled();
+      expect(await payoutsOf(t.db)).toHaveLength(0);
+    } finally { await t.close(); }
+  });
+
+  it("refuses a UK policy's currency at a South African location rather than relabelling it", async () => {
+    const t = await createTestDatabase();
+    try {
+      const manager = (await company(t.db, 1, "South Africa")).scopes[0];
+      const [department] = await createDepartment(t.db, "Floor", manager);
+      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual terms", manager);
+      await t.db.update(workPolicies).set({ currencyCode: "GBP" }).where(eq(workPolicies.id, policy.id));
+      await expect(createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, manager)).rejects.toMatchObject({ feedback: "policy-currency" });
+    } finally { await t.close(); }
+  });
+
+  it.each([
+    { currency: "GBP", countryOn: "organisation" },
+    { currency: "USD", countryOn: "organisation" },
+    { currency: "GBP", countryOn: "location" },
+    { currency: "USD", countryOn: "location" },
+  ])("refuses legacy $currency for an SA $countryOn before client creation or reservation", async ({ currency, countryOn }) => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db, 1, currency === "GBP" ? "United Kingdom" : "United States"), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      // Persisted historical denomination is retained; it supplies no SA permission.
+      expect(payable.currencyCode).toBe(currency);
+      if (countryOn === "organisation") {
+        await t.db.update(organisations).set({ country: " za " }).where(eq(organisations.id, c.organisationId));
+        // An explicit UK work location must not authorise an unverified SA employer.
+        await t.db.update(outlets).set({ country: "United Kingdom" }).where(eq(outlets.id, manager.locationId));
+      } else {
+        await t.db.update(outlets).set({ country: "South Africa" }).where(eq(outlets.id, manager.locationId));
+      }
+      const paypal = fakePayPal(), factory = vi.fn(() => paypal);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(submitWorkPayout(t.db, factory, manager, payable.id)).rejects.toMatchObject({ feedback: "payout-route-unverified" });
+      }
+      expect(factory).not.toHaveBeenCalled();
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
+      await expect(sendPayoutAction(form({ payableId: payable.id, currency: "ZAR" }))).rejects.toThrow("REDIRECT:/settlements?status=payout-route-unverified");
+      expect(getPayPalPayoutClient).not.toHaveBeenCalled();
+      expect(paypal.createPayout).not.toHaveBeenCalled();
+      expect(await payoutsOf(t.db)).toHaveLength(0);
+      expect(await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_RESERVED"))).toHaveLength(0);
+      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: currency });
+    } finally { await t.close(); }
+  });
+
+  it.each(["ZAR", "USD"])("blocks no-batch recovery in %s for SA before client creation or changing the reservation", async currency => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db, 1, currency === "ZAR" ? "South Africa" : "United States"), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const [reservation] = await t.db.insert(workPayouts).values({
+        id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
+        amountMinor: 7_800, currencyCode: currency, recipient: "casual.sandbox@example.test", ...payoutSenderIds(payable.id),
+        status: "SUBMITTING", requestedBy: manager.userId, reservedAt: new Date(), updatedAt: new Date(),
+      }).returning();
+      const [held] = await t.db.update(workPayouts).set({ status: "RECONCILIATION_REQUIRED" }).where(eq(workPayouts.id, reservation.id)).returning();
+      await t.db.update(organisations).set({ country: "South Africa" }).where(eq(organisations.id, c.organisationId));
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
+      const feedback = currency === "ZAR" ? "payout-currency-unverified" : "payout-route-unverified";
+      await expect(refreshPayoutAction(form({ payableId: payable.id }))).rejects.toThrow(`REDIRECT:/settlements?status=${feedback}`);
+      expect(getPayPalPayoutClient).not.toHaveBeenCalled();
+      expect((await payoutsOf(t.db))[0]).toEqual(held);
+      expect(await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_RECONCILIATION_REQUESTED"))).toHaveLength(0);
+    } finally { await t.close(); }
+  });
+
+  it("retains known-batch GET reconciliation after an SA route becomes blocked", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal(), factory = vi.fn(() => paypal);
+      const first = await submitWorkPayout(t.db, factory, manager, payable.id);
+      await t.db.update(organisations).set({ country: "South Africa" }).where(eq(organisations.id, c.organisationId));
+      expect(await refreshWorkPayout(t.db, factory, manager, payable.id)).toMatchObject({ status: "PAID", currencyCode: "GBP", paypalStatus: "SUCCESS" });
+      expect(paypal.getPayout).toHaveBeenCalledWith(first.payout.paypalBatchId, first.payout.senderItemId);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+      expect(await submitWorkPayout(t.db, factory, manager, payable.id)).toMatchObject({ submitted: false });
+      expect(factory).toHaveBeenCalledTimes(2); // First submission and known-batch read only.
+    } finally { await t.close(); }
+  });
+
+  it("allows payouts only in currencies with recorded Sandbox payout evidence", () => {
+    for (const code of ["GBP", "USD"]) expect(isVerifiedPayoutCurrency(code)).toBe(true);
+    for (const code of ["ZAR", "EUR", "gbp", ""]) expect(isVerifiedPayoutCurrency(code)).toBe(false);
   });
 });

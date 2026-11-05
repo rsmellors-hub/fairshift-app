@@ -1,4 +1,5 @@
 import { UserFacingError } from "@/server/domain/errors";
+import { currencyForCountry } from "@/server/domain/currency";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -6,7 +7,7 @@ import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, workers, workPayables, workPayouts } from "@/server/db/schema";
+import { auditEvents, organisations, outlets, workers, workPayables, workPayouts } from "@/server/db/schema";
 import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
 
 // Manager approval of confirmed work payables and their PayPal Sandbox payout.
@@ -60,6 +61,35 @@ export function payoutAmount(amountMinor: number, currencyCode: string) {
   if (!/^[A-Z]{3}$/.test(currencyCode) || digits !== 2) throw new PayoutCurrencyUnsupportedError(currencyCode);
   return `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, "0")}`;
 }
+
+// Operating currency and provider payout currency are separate (DEC-SA-010). A payout is
+// sent only in a currency with a recorded genuine PayPal Sandbox payout for FairShift
+// (docs/PAYPAL_FINAL_EVIDENCE.md: USD and GBP). Anything else, including ZAR, is refused
+// before a payout is reserved: no conversion, no substitute currency, and the approved
+// earnings stay recorded and unpaid. This historical currency evidence does not authorise
+// an SA merchant, even for legacy GBP/USD payables. Widening the route needs verification.
+const VERIFIED_PAYOUT_CURRENCIES: ReadonlySet<string> = new Set(["GBP", "USD"]);
+export function isVerifiedPayoutCurrency(currencyCode: string) {
+  return VERIFIED_PAYOUT_CURRENCIES.has(currencyCode);
+}
+
+// No SA sender/merchant route is verified. Check persisted tenant/location geography as
+// well as currency so old USD-labelled SA obligations cannot use the historical route.
+async function assertPayoutRoute(db: DatabaseSession, scope: PayoutScope, currencyCode: string) {
+  if (!isVerifiedPayoutCurrency(currencyCode)) throw new UserFacingError("payout-currency-unverified", `PayPal payouts in ${currencyCode} are not verified for FairShift.`);
+  const [location] = await db.select({ locationCountry: outlets.country, organisationCountry: organisations.country })
+    .from(outlets).innerJoin(organisations, eq(organisations.id, outlets.organisationId))
+    .where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+  if (!location) throw new Error("Location unavailable.");
+  if ([location.locationCountry, location.organisationCountry].some(country => currencyForCountry(country) === "ZAR")) {
+    throw new UserFacingError("payout-route-unverified", "A South African PayPal payout route has not been verified for FairShift.");
+  }
+}
+
+// HTTP callers pass a factory so refusals happen before reading provider credentials
+// or constructing a client. Tests/internal callers may supply an existing adapter.
+type PayoutClientSource = PayPalPayoutAdapter | (() => PayPalPayoutAdapter);
+const payoutClient = (source: PayoutClientSource) => typeof source === "function" ? source() : source;
 
 // PayPal statuses mapped conservatively. Only an item-level SUCCESS is paid; a batch
 // that is processed or successful says nothing certain about the worker's item.
@@ -194,18 +224,20 @@ export type SubmitResult = { payout: WorkPayout; submitted: boolean };
 // Sends the approved payable to PayPal once. A repeat, retry or concurrent request
 // finds the existing reservation and returns it without calling PayPal; only a payout
 // that certainly never reached PayPal (NOT_SENT) can be sent again, with the same IDs.
-export async function submitWorkPayout(db: Database, paypal: PayPalPayoutAdapter, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
+export async function submitWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
   authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [existing] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (existing && existing.status !== "NOT_SENT") return { payout: existing, submitted: false };
   if (payable.status !== "APPROVED" || payable.approvedAmountMinor === null || payable.approvedCurrencyCode === null) throw new Error("Approve the payable before payout.");
   const amountMinor = payable.approvedAmountMinor, currencyCode = payable.approvedCurrencyCode;
+  await assertPayoutRoute(db, scope, currencyCode);
   payoutAmount(amountMinor, currencyCode);
   const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
     .where(and(eq(workers.id, payable.workerId), eq(workers.organisationId, scope.organisationId)));
   const recipient = recipientSchema.safeParse(worker?.email ?? "");
   if (!recipient.success) throw new PaymentDetailsRequiredError();
+  const client = payoutClient(paypal);
 
   const now = new Date();
   let reserved: WorkPayout | undefined;
@@ -226,13 +258,13 @@ export async function submitWorkPayout(db: Database, paypal: PayPalPayoutAdapter
   await audit(db, scope, "PAYOUT_RESERVED", "work_payout", reserved.id, payable.id, {
     amountMinor, currencyCode, senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId, attempt: reserved.attempts,
   });
-  return { payout: await sendReserved(db, paypal, scope, reserved, "FIRST"), submitted: true };
+  return { payout: await sendReserved(db, client, scope, reserved, "FIRST"), submitted: true };
 }
 
 // Obtains the latest provider state. With a PayPal batch ID it reads the payout; with
 // an unknown outcome it may re-send the identical request (same sender_batch_id,
 // amount, currency and recipient) only within the conservative recovery window.
-export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapter, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
+export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
   authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
@@ -242,7 +274,7 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
     const now = new Date();
     let result: PayoutResult;
     try {
-      result = await paypal.getPayout(payout.paypalBatchId, payout.senderItemId);
+      result = await payoutClient(paypal).getPayout(payout.paypalBatchId, payout.senderItemId);
     } catch (error) {
       const code = error instanceof PayPalPayoutError ? error.code : "STATUS_REQUEST_FAILED";
       await db.update(workPayouts).set({ lastError: { code, httpStatus: error instanceof PayPalPayoutError ? error.status ?? null : null, debugId: error instanceof PayPalPayoutError ? error.debugId ?? null : null, outcome: "STATUS_UNAVAILABLE" }, updatedAt: now })
@@ -267,6 +299,10 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
   const stale = new Date(Date.now() - STALE_SUBMISSION_MS);
   if (payout.status === "RECONCILIATION_REQUIRED" || (payout.status === "SUBMITTING" && payout.updatedAt < stale)) {
     assertNoBatchRecoveryWindow(payout);
+    // A no-batch refresh can create a payment; it must pass the same route gate.
+    // Known-batch GET reconciliation above stays available for existing obligations.
+    await assertPayoutRoute(db, scope, payout.currencyCode);
+    const client = payoutClient(paypal);
     const [claimed] = await db.update(workPayouts).set({ status: "SUBMITTING", attempts: sql`${workPayouts.attempts} + 1`, updatedAt: new Date() })
       .where(and(eq(workPayouts.id, payout.id), eq(workPayouts.status, payout.status), payout.status === "SUBMITTING" ? lt(workPayouts.updatedAt, stale) : eq(workPayouts.updatedAt, payout.updatedAt))).returning();
     if (!claimed) {
@@ -283,7 +319,7 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
         .where(and(eq(workPayouts.id, claimed.id), eq(workPayouts.status, "SUBMITTING"), eq(workPayouts.updatedAt, claimed.updatedAt)));
       throw error;
     }
-    const reconciled = await sendReserved(db, paypal, scope, claimed, "RECONCILE");
+    const reconciled = await sendReserved(db, client, scope, claimed, "RECONCILE");
     // An adopted earlier payout is read straight away for its item status.
     return reconciled.paypalBatchId && !reconciled.paypalStatus ? refreshWorkPayout(db, paypal, scope, payableId) : reconciled;
   }
