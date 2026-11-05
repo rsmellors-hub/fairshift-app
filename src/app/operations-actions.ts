@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
 import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
+import { assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { confirmWorkPerformance, importAttributedSales } from "@/server/performance/attribution";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
@@ -156,13 +157,17 @@ export async function approvePayableAction(form: FormData) {
 export async function sendPayoutAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
   return perform("/settlements", async () => {
+    assertSandboxFinancialScope(scope);
     const { submitted } = await submitWorkPayout(getDatabase(), getPayPalPayoutClient, scope, field(form, "payableId"));
     if (!submitted) throw new UserFacingError("payout-already-sent", "This payment has already gone to PayPal.");
   });
 }
 export async function refreshPayoutAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
-  return perform("/settlements", () => refreshWorkPayout(getDatabase(), getPayPalPayoutClient, scope, field(form, "payableId")));
+  return perform("/settlements", () => {
+    assertSandboxFinancialScope(scope);
+    return refreshWorkPayout(getDatabase(), getPayPalPayoutClient, scope, field(form, "payableId"));
+  });
 }
 // Owner-only staffing inputs, for the organisation or the Owner's selected location.
 // Whole numbers only. A blank or malformed value is refused, never read as zero.

@@ -7,18 +7,22 @@ import { describe, expect, it, vi } from "vitest";
 import ManagerPage from "@/app/manager/page";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { getConfigurationStatus } from "@/server/config/env";
-import { DEMO_OUTLET_ID } from "@/server/constants";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { getDatabase } from "@/server/db/client";
 import { listDemoOutletTransactions } from "@/server/db/repository";
 import { outlets, saleTransactions } from "@/server/db/schema";
 import { DEMO_AS_OF, seedDemoHistory } from "@/server/intelligence/demo";
-import { getManagerForecast } from "@/server/intelligence/manager";
+import { getManagerForecast as scopedGetManagerForecast } from "@/server/intelligence/manager";
 import { ManagerForecast } from "@/app/components/manager-forecast";
 import { createTestDatabase } from "../helpers/database";
 
 vi.mock("@/server/auth/request",()=>({requireScope:async()=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",role:"MANAGER",organisationName:"Demo",locationName:"Rosebank Kitchen"})}));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
+vi.mock("@/server/demo/config", () => ({ demoConfig: () => ({ organisationId: "10000000-0000-4000-8000-000000000001" }) }));
+
+const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID, demo: { persona: "MANAGER" as const, group: "isolated-test" } };
+const getManagerForecast = (db: Awaited<ReturnType<typeof createTestDatabase>>["db"], now: Date) => scopedGetManagerForecast(db, now, demoScope);
 
 describe("persisted commercial history to manager output", () => {
   it("seeds idempotently in the normalized table and renders an explainable demo recommendation", async () => {
@@ -60,7 +64,7 @@ describe("persisted commercial history to manager output", () => {
       expect(html).toContain("Configuration required");
       expect(html).toContain("service capacity and minimum cover");
       expect(html).not.toMatch(/Casual labour gap<\/span><strong>/);
-      expect(html).toContain("Historical evidence");
+      expect(html).toContain("No eligible sales history");
       expect(singleDay).toContain("comparison assumption, not a saved plan");
       expect(singleDay).toContain("comparable-days-recency-v1");
       expect(singleDay).toContain("not a calibrated confidence interval");

@@ -26,6 +26,7 @@ import { createActivatedTeamMember } from "../helpers/workers";
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
+vi.mock("@/server/demo/config", () => ({ demoConfig: () => ({ organisationId: process.env.FAIRSHIFT_TEST_DEMO_ORG }) }));
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
@@ -35,12 +36,13 @@ const WEEK = Array.from({ length: 7 }, (_, i) => shiftDate("2026-10-26", i));
 
 async function referenceCompany(db: Db, from = "2026-09-21") {
   const organisationId = randomUUID();
+  process.env.FAIRSHIFT_TEST_DEMO_ORG = organisationId;
   await db.insert(organisations).values({ id: organisationId, name: "Staffing company", country: "United Kingdom" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} venue`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
   await provisionReferenceHistory(db, { organisationId, outlets: mapping, from, through: "2026-10-18" });
-  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Staffing company", locationName: rows[0].name };
+  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Staffing company", locationName: rows[0].name, demo: { persona: "OWNER", group: "isolated-test" } };
   return { organisationId, rows, mapping, owner };
 }
 

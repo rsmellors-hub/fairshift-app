@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { legacyPlanFixture, planFixture, regularCycleOf } from "../helpers/subscription-plans";
 import { organisationEntitled } from "@/server/billing/entitlement";
 import { personal, business } from "../helpers/onboarding";
@@ -14,6 +15,7 @@ import type { SubscriptionAdapter } from "@/server/billing/paypal";
 async function setup(db:Awaited<ReturnType<typeof createTestDatabase>>["db"]) {
  const userId=randomUUID();await db.insert(users).values({id:userId,email:"owner@example.test",name:"Owner",passwordHash:"not-used",...personal,emailVerifiedAt:new Date()});
  const org=await createOrganisation(db,userId,{...business,name:"My Co",locationName:"HQ"});
+ sandboxFixture(org.organisationId);
  const scope=await resolveScope(db,userId,org.membershipId);
  await db.update(subscriptions).set({status:"UNCONFIGURED",verifiedAt:null,providerId:null,planId:null,tier:null,billingPeriod:null,locationLimit:null}).where(eq(subscriptions.organisationId,org.organisationId));
  let status:"ACTIVE"|"APPROVAL_PENDING"|"SUSPENDED"|"CANCELLED"|"EXPIRED"="APPROVAL_PENDING";

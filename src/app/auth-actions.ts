@@ -1,4 +1,5 @@
 "use server";
+import { assertSandboxDeployment, assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
@@ -102,7 +103,7 @@ export async function checkSubscriptionStatusAction():Promise<{destination:strin
  const scope=await requireOwnerCustomer(),db=getDatabase();
  let destination=await ownerDestination(db,scope.organisationId);
  if (destination !== "/subscribe") return {destination};
- try {await refreshSubscription(db,scope,getSubscriptionAdapter());} catch {
+ try {assertSandboxFinancialScope(scope);await refreshSubscription(db,scope,getSubscriptionAdapter());} catch {
   destination=await ownerDestination(db,scope.organisationId);
   return destination !== "/subscribe" ? {destination} : {destination:null,message:"We couldn’t confirm your subscription yet. Check the payment status or try again shortly."};
  }
@@ -162,8 +163,12 @@ export async function startSubscriptionAction(form:FormData) {
  const {user,session}=await requireIdentity();
  let approval:string|null|undefined;
  try {
+  assertSandboxDeployment();
+  // Resolve an existing verified Owner before acquisition can create a subscription row.
+  assertSandboxFinancialScope(await requireOwnerCustomer());
   const selection=planSelection.parse({tier:field(form,"tier"),billingPeriod:field(form,"billingPeriod")});
   const member=await ensureCustomerOrganisation(getDatabase(),user.id,session.membershipId);
+  assertSandboxFinancialScope({organisationId:member.organisationId});
   await selectMembership(member.id);
   approval=(await startSubscription(getDatabase(),{userId:user.id,organisationId:member.organisationId,role:member.role},getSubscriptionAdapter(),selection))?.approvalUrl;
  } catch {redirect("/subscribe?status=unavailable");}
@@ -172,7 +177,7 @@ export async function startSubscriptionAction(form:FormData) {
 }
 export async function refreshSubscriptionAction() {
  const scope=await requireOwnerCustomer();
- try {await refreshSubscription(getDatabase(),scope,getSubscriptionAdapter());} catch {redirect("/subscribe?status=error");}
+ try {assertSandboxFinancialScope(scope);await refreshSubscription(getDatabase(),scope,getSubscriptionAdapter());} catch {redirect("/subscribe?status=error");}
  redirect(await ownerDestination(getDatabase(),scope.organisationId));
 }
 export async function resendInvitationAction(form:FormData) {

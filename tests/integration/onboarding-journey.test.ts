@@ -1,3 +1,5 @@
+import { sandboxFixture } from "../helpers/sandbox";
+import Subscribe from "@/app/subscribe/page";
 import { planFixture } from "../helpers/subscription-plans";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -24,12 +26,13 @@ async function customer(db:ReturnType<typeof getDatabase>) {
  const u=await registerIdentity(db,{email:"owner@example.test",password:"test-password-for-account"});
  await redeemIdentityToken(db,await createIdentityToken(db,u.id,"VERIFY_EMAIL"),"VERIFY_EMAIL");
  const m=await ensureCustomerOrganisation(db,u.id);
+ sandboxFixture(m.organisationId);
  jar.set("fairshift_session",await issueSession(db,u.id));
  await db.update(subscriptions).set({status:"APPROVAL_PENDING",providerId:"I-JOURNEY",planId:"P-JOURNEY",tier:"SINGLE_OUTLET",billingPeriod:"MONTHLY",locationLimit:1}).where(eq(subscriptions.organisationId,m.organisationId));
  const adapter:SubscriptionAdapter={getPlan:vi.fn(async id=>planFixture(id)),create:vi.fn(),get:vi.fn(async()=>({id:"I-JOURNEY",plan_id:"P-JOURNEY",custom_id:m.organisationId,status:"ACTIVE" as const})),verifyWebhookSignature:vi.fn()};
  return {u,m,adapter};
 }
-afterEach(()=>{jar.clear();vi.clearAllMocks();vi.mocked(getSubscriptionAdapter).mockReturnValue(null);});
+afterEach(()=>{vi.unstubAllEnvs();jar.clear();vi.clearAllMocks();vi.mocked(getSubscriptionAdapter).mockReturnValue(null);});
 describe("confirmation to workplace journey",()=>{
  it("keeps browser return non-authoritative and renders human confirmation for every non-active state",async()=>{
   const t=await createTestDatabase();try {
@@ -106,3 +109,23 @@ function WorkplaceElement(sameAddress:boolean) {
  return createElement(WorkplaceForm,{email:"owner@example.test",initial:{...setupFields,name:"Known Business",locationName:"Known Location",sameAddress}});
 }
 import { createElement } from "react";
+
+
+it("offers a saved Sandbox approval link only to the configured isolated organisation", async () => {
+ const t=await createTestDatabase();try {
+  const {m,adapter}=await customer(t.db);
+  vi.mocked(getSubscriptionAdapter).mockReturnValue(adapter);
+  await t.db.update(subscriptions).set({approvalUrl:"https://www.sandbox.paypal.com/approve?token=fixture"}).where(eq(subscriptions.organisationId,m.organisationId));
+  const page=()=>Subscribe({searchParams:Promise.resolve({})});
+  expect(renderToStaticMarkup(await page())).toContain("Continue in PayPal");
+  vi.mocked(getSubscriptionAdapter).mockClear();
+  vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE","LIVE_CUSTOMER");
+  const live=renderToStaticMarkup(await page());
+  expect(live).not.toContain("Continue in PayPal");
+  expect(live).not.toContain("https://www.sandbox.paypal.com/approve");
+  expect(getSubscriptionAdapter).not.toHaveBeenCalled();
+  sandboxFixture("22222222-2222-4222-8222-222222222222");
+  expect(renderToStaticMarkup(await page())).not.toContain("Continue in PayPal");
+  expect(getSubscriptionAdapter).not.toHaveBeenCalled();
+ }finally{await t.close();}
+});

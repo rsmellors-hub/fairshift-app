@@ -1,3 +1,5 @@
+import { assertSandboxOrganisation } from "@/server/config/deployment";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { randomUUID } from "node:crypto";
 
 import { DEMO_OUTLET_ID } from "@/server/constants";
@@ -32,6 +34,7 @@ export async function createSandboxOrder(
   paypal: PayPalAdapter,
   config: PayPalConfig,
 ) {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const saleId = randomUUID();
   const internalReference = `FS-${saleId}`;
   const amountMinor = decimalToMinorUnits(config.PAYPAL_SANDBOX_AMOUNT);
@@ -91,6 +94,7 @@ export async function captureSandboxOrder(
   paypal: PayPalAdapter,
   orderId: string,
 ) {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const sale = await getSaleByOrderId(db, orderId);
   if (!sale) throw new TransactionError("ORDER_NOT_FOUND", 404);
 
@@ -147,6 +151,7 @@ export async function reconcileCapture(
   paypal: PayPalAdapter,
   captureId: string,
 ): Promise<SaleTransaction | null> {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const capture = await paypal.getCapture(captureId);
   const relatedOrderId = capture.supplementary_data?.related_ids.order_id;
   const sale =

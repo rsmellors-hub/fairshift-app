@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// This calculation suite supplies synthetic fixtures under an explicit mocked demo
+// authority. Real configuration and ordinary-account rejection are tested separately.
+vi.mock("@/server/intelligence/sales-history", async importOriginal => ({
+  ...await importOriginal<typeof import("@/server/intelligence/sales-history")>(),
+  syntheticHistoryAllowed: () => true,
+}));
 import { createTestDatabase } from "../helpers/database";
 import { ALL_DAY, hours, ingestTimedBills, requiredFor } from "../helpers/workload";
 import { entitled } from "../helpers/onboarding";

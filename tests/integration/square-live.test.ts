@@ -313,13 +313,13 @@ describe("provider behaviour during sync", () => {
 
 describe("connected Square sales and the forecast", () => {
   const days = (count: number, from: string) => Array.from({ length: count }, (_, i) => { const date = shiftDate(from, -i); return payment(`D-${date}`, undefined, `${date}T12:00:00.000Z`, 200_000); });
-  it("thin Square history shows as insufficient and reference history stays the labelled source", () => withDb(async db => {
+  it("thin Square history stays insufficient and cannot borrow reference history", () => withDb(async db => {
     const s = await setup(db);
     await ingestCommerceObservations(db, { organisationId: s.c.organisationId, source: "REFERENCE", sourceSystem: "reference", now: BEFORE, observations: Array.from({ length: 56 }, (_, i) => { const date = shiftDate("2026-01-14", -i); return { outletId: s.c.rows[0].id, sourceTransactionId: date, occurredAt: `${date}T12:00:00Z`, currencyCode: "GBP", grossAmountMinor: 100_000, status: "COMPLETED" }; }) });
     s.square.state.payments = days(4, "2026-01-14");
     await sync(db, s);
     const selection = (await getWeeklyForecast(db, s.c.ownerScope, BEFORE)).outlets[0].selection;
-    expect(selection).toMatchObject({ status: "SELECTED", source: "REFERENCE" });
+    expect(selection).toMatchObject({ status: "NONE" });
     expect(selection.rejected).toEqual(expect.arrayContaining([expect.objectContaining({ source: "SQUARE", reason: "INSUFFICIENT_DAYS" })]));
   }));
   it("Square sales made only today say so: too few completed days, not that another source won", () => withDb(async db => {
@@ -330,7 +330,8 @@ describe("connected Square sales and the forecast", () => {
     await sync(db, s);
     const html = await render(s.c.ownerScope, () => OwnerWorkspace({ area: "reporting" }));
     expect(html).toContain("0 of 28 required completed days. Today counts once it has finished.");
-    expect(html).toContain("Drives this location’s forecast");
+    expect(html).toContain("Not used for forecast");
+    expect(html).not.toContain("Reference sales history · synthetic");
     const square = html.slice(html.indexOf("Square Sandbox sales · connected seller"), html.indexOf("Reference sales history · synthetic"));
     expect(square).not.toContain("another source takes precedence");
   }));

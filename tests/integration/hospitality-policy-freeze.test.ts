@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { hours } from "../helpers/workload";
 import type { Scope } from "@/server/auth/access";
@@ -13,17 +13,19 @@ import { calculateDayWorkload, resolveWorkloadPolicy } from "@/server/intelligen
 import { provisionReferenceHistory } from "@/server/reference/provision";
 import { REFERENCE_DATASET, REFERENCE_STORE_CODES, REFERENCE_WORKLOAD_POLICY, referenceCoverage, referenceTradingHours } from "@/server/reference/uk-hospitality";
 import { REFERENCE_DATASET as RETAIL_DATASET, referenceTransactions as retailTransactions } from "@/server/reference/uk-retail";
+vi.mock("@/server/demo/config", () => ({ demoConfig: () => ({ organisationId: process.env.FAIRSHIFT_TEST_DEMO_ORG }) }));
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const NOW = new Date("2026-10-25T10:00:00Z");
 const WEEK = [0, 1, 2, 3, 4, 5, 6];
 async function company(db: Db) {
   const organisationId = randomUUID();
+  process.env.FAIRSHIFT_TEST_DEMO_ORG = organisationId;
   await db.insert(organisations).values({ id: organisationId, name: "Reference", country: "United Kingdom" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code}`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
-  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Reference", locationName: rows[0].name };
+  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Reference", locationName: rows[0].name, demo: { persona: "OWNER", group: "isolated-test" } };
   return { organisationId, rows, mapping, owner };
 }
 const WINDOW = { from: "2026-10-12", through: "2026-10-18" };

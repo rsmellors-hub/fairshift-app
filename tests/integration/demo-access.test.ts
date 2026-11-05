@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -88,6 +89,7 @@ async function business(db: Db, name: string) {
 async function prepared(db: Db) {
   vi.setSystemTime(new Date("2026-01-15T12:00:00Z"));
   const b = await business(db, "Demo retailer");
+  sandboxFixture(b.organisationId);
   const manager = await b.invite("MANAGER"), worker = await b.invite("TEAM_MEMBER");
   const [department] = await createDepartment(db, "Sales floor", b.ownerScope);
   const [policy] = await createWorkPolicy(db, { earningsModel: "DAILY", rateMinor: 9_600, incentiveTargetMinor: 20_000, incentiveBonusMinor: 2_500 }, "Golden Path terms", b.ownerScope);

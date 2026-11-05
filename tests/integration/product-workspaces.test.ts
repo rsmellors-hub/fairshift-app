@@ -10,22 +10,25 @@ import OperatorAreaPage from "@/app/operator/[area]/page";
 import { ManagerWorkspace, managerAreas } from "@/app/manager/workspace";
 import { WorkerWorkspace, workerAreas } from "@/app/worker/workspace";
 import { OwnerWorkspace, ownerAreas } from "@/app/owner/workspace";
-import { OperatorWorkspace, operatorAreas } from "@/app/operator/workspace";
-import { startNewDemoCycleAction } from "@/app/operator/actions";
+import { operatorAreas } from "@/app/operator/workspace";
 import { acceptDemoShiftAction, approveDemoIncentiveAction, publishDemoShiftAction, recordDemoPerformanceAction, refreshDemoIncentivePayoutAction, saveDemoPayoutDestinationAction, submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
-import { getDemoWorkerShift } from "@/server/scheduling/demo";
-import { getDemoIncentive } from "@/server/incentives/demo";
-import { getOwnerWorkspace, getWorkerWorkspace } from "@/server/product/workspace";
-import { organisations, outlets, shiftIncentives, shifts, workers, users, memberships, subscriptions } from "@/server/db/schema";
+import { getOwnerWorkspace as scopedGetOwnerWorkspace, getWorkerWorkspace as scopedGetWorkerWorkspace } from "@/server/product/workspace";
+import { organisations, outlets, shifts, workers, users, memberships, subscriptions } from "@/server/db/schema";
 import { createTeamAction, createPolicyAction, createRequirementAction, respondAssignmentAction } from "@/app/operations-actions";
-import { getOperations, offerAssignment } from "@/server/scheduling/operations";
+import { getOperations as scopedGetOperations, offerAssignment as scopedOfferAssignment } from "@/server/scheduling/operations";
 import { publishDemoShift } from "@/server/scheduling/demo";
 import { ensureDemoCasualWorker } from "@/server/scheduling/demo";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
 import { createTestDatabase } from "../helpers/database";
+const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
+type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
+const getOwnerWorkspace = (db: Db) => scopedGetOwnerWorkspace(db, DEMO_ORGANISATION_ID);
+const getWorkerWorkspace = (db: Db) => scopedGetWorkerWorkspace(db, { ...demoScope, workerId: DEMO_CASUAL_WORKER_ID });
+const getOperations = (db: Db) => scopedGetOperations(db, demoScope);
+const offerAssignment = (db: Db, shiftId: string, workerId: string) => scopedOfferAssignment(db, shiftId, workerId, demoScope);
 
 vi.mock("@/server/auth/request", () => ({
  requireScope:vi.fn(async (roles:string[])=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",workerId:roles.includes("TEAM_MEMBER") ? "30000000-0000-4000-8000-000000000001":undefined,role:roles.includes("TEAM_MEMBER") ? "TEAM_MEMBER":"OWNER",organisationName:"Demo",locationName:"Rosebank Kitchen"})),
@@ -74,76 +77,27 @@ describe("functional product workspaces", () => {
     } finally { await testDb.close(); }
   });
 
-  it("runs the golden path through its functional actions, profile and operator cycle control", async () => {
-    const testDb = await createTestDatabase();
+  it("rejects legacy fixed-identity writes and never calls the old payout adapter", async () => {
+    const t = await createTestDatabase();
     try {
-      await configure(testDb.db);
-      const createPayout = vi.fn(async () => ({ batchId: "MOCK-BATCH", itemId: "MOCK-ITEM", status: "PENDING" }));
-      const getPayout = vi.fn(async () => ({ batchId: "MOCK-BATCH", itemId: "MOCK-ITEM", status: "SUCCESS" }));
-      vi.mocked(getPayPalPayoutClient).mockReturnValue({ createPayout, getPayout } as unknown as ReturnType<typeof getPayPalPayoutClient>);
-
+      await configure(t.db);
+      const createPayout = vi.fn();
+      vi.mocked(getPayPalPayoutClient).mockReturnValue({ createPayout } as unknown as ReturnType<typeof getPayPalPayoutClient>);
       await expect(saveDemoPayoutDestinationAction(form({ payoutEmail: "worker@example.test" }))).rejects.toThrow("REDIRECT:/worker/profile?status=saved");
-      expect((await getWorkerWorkspace(testDb.db)).profile?.paypalPayoutEmail).toBe("worker@example.test");
-      expect(await testDb.db.select().from(shifts)).toHaveLength(0);
+      expect((await getWorkerWorkspace(t.db)).profile?.paypalPayoutEmail).toBe("worker@example.test");
+      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("Access denied.");
+      await expect(acceptDemoShiftAction(form({ shiftId: randomUUID() }))).rejects.toThrow("Access denied.");
+      await expect(recordDemoPerformanceAction(form({ shiftId: randomUUID(), completed: "yes", performanceSales: "1" }))).rejects.toThrow("Access denied.");
+      await expect(approveDemoIncentiveAction(form({ incentiveId: randomUUID() }))).rejects.toThrow("Access denied.");
+      await expect(submitDemoIncentivePayoutAction(form({ incentiveId: randomUUID() }))).rejects.toThrow("Legacy incentive payout is unavailable.");
+      await expect(refreshDemoIncentivePayoutAction(form({ incentiveId: randomUUID() }))).rejects.toThrow("Legacy incentive payout is unavailable.");
+      expect(await t.db.select().from(shifts)).toHaveLength(0);
       expect(createPayout).not.toHaveBeenCalled();
-      const profileHtml = renderToStaticMarkup(await WorkerWorkspace({ area: "profile" }));
-      expect(profileHtml).toContain('name="payoutEmail"');
-      expect(profileHtml).not.toContain("worker@example.test");
-
-      await expect(publishDemoShiftAction(form({}))).rejects.toThrow("status=error");
-      await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("REDIRECT:/manager/fill?status=saved");
-      const current = (await getDemoWorkerShift(testDb.db))!;
-      // The seeded shift has a fixed date, so what the Worker sees is checked at a fixed clock.
-      vi.useFakeTimers({ now: new Date("2026-10-15T12:00:00Z"), toFake: ["Date"] });
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Accept shift");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("New offer");
-      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id, acknowledged: "yes", termsVersion: String(current.shift.termsVersion) }))).rejects.toThrow("REDIRECT:/worker/shifts?status=saved");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Waiting for your manager");
-      vi.setSystemTime(new Date("2026-10-16T14:00:00Z"));
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "shifts" }))).toContain("Finished");
-      vi.useRealTimers();
-
-      await expect(recordDemoPerformanceAction(form({ shiftId: randomUUID(), performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("status=error");
-      expect(await getDemoIncentive(testDb.db)).toBeNull();
-      await expect(recordDemoPerformanceAction(form({ shiftId: current.shift.id, performanceSales: "720.00", completed: "yes" }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
-      const earned = (await getDemoIncentive(testDb.db))!.incentive;
-      expect(earned).toMatchObject({ earnedAmountMinor: 2500, status: "EARNED", shiftId: current.shift.id });
-      let paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
-      expect(paymentHtml).toContain("Approve incentive");
-      expect(paymentHtml).not.toContain("Send approved incentive with PayPal");
-      await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=error");
-      expect(createPayout).not.toHaveBeenCalled();
-      await expect(approveDemoIncentiveAction(form({ incentiveId: earned.id }))).rejects.toThrow("REDIRECT:/manager/review?status=saved");
-      paymentHtml = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
-      expect(paymentHtml).toContain("Send approved incentive with PayPal");
-      await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=saved");
-      await expect(submitDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=error");
-      expect(createPayout).toHaveBeenCalledTimes(1);
-      await expect(refreshDemoIncentivePayoutAction(form({ incentiveId: earned.id }))).rejects.toThrow("status=saved");
-      expect(getPayout).toHaveBeenCalledWith("MOCK-BATCH", earned.paypalSenderItemId);
-      const historical = (await getDemoIncentive(testDb.db))!.incentive;
-      expect(historical.status).toBe("PAID");
-      const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
-      expect(earningsHtml).toContain("Paid");
-      expect(earningsHtml).toContain("$25.00");
-      expect(earningsHtml).not.toContain("MOCK-BATCH");
-      expect(renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }))).not.toContain("720");
-      expect(JSON.stringify(await getWorkerWorkspace(testDb.db))).not.toContain("performanceSalesMinor");
-      expect(renderToStaticMarkup(await OwnerWorkspace({ area: "payments" }))).toContain("Paid");
-
-      for (const area of managerAreas) expect(renderToStaticMarkup(await ManagerWorkspace({ area }))).not.toContain("Start new demo cycle");
-      expect(renderToStaticMarkup(await OperatorWorkspace({ area: "environment" }))).toContain("Start new demo cycle");
-      await expect(startNewDemoCycleAction()).rejects.toThrow("REDIRECT:/operator/environment?status=saved");
-      const next = (await getDemoWorkerShift(testDb.db))!;
-      expect(next.shift.id).not.toBe(current.shift.id);
-      expect(next.worker.paypalPayoutEmail).toBe("worker@example.test");
-      const [preserved] = await testDb.db.select().from(shiftIncentives).where(eq(shiftIncentives.id, historical.id));
-      expect(preserved).toEqual(historical);
-      await expect(acceptDemoShiftAction(form({ shiftId: current.shift.id, acknowledged: "yes", termsVersion: String(current.shift.termsVersion) }))).rejects.toThrow("status=error");
-      await expect(submitDemoIncentivePayoutAction(form({ incentiveId: historical.id }))).rejects.toThrow("status=error");
-      expect(createPayout).toHaveBeenCalledTimes(1);
-      expect((await getDemoWorkerShift(testDb.db))?.offer.status).toBe("OFFERED");
-    } finally { await testDb.close(); }
+      expect(getPayPalPayoutClient).not.toHaveBeenCalled();
+      const manager = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
+      expect(manager).not.toContain("Send approved incentive with PayPal");
+      expect(manager).not.toContain("Controlled demo assignment");
+    } finally { await t.close(); }
   });
 
   it("keeps owner queries within the organisation and worker queries within the worker", async () => {

@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { and, eq } from "drizzle-orm";
@@ -32,7 +33,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // Thursday 15 Jan 2026, GMT in London. The next seven local days start tomorrow.
 const NOW = new Date("2026-01-15T12:00:00Z");
 beforeEach(() => { vi.useFakeTimers({ now: NOW, toFake: ["Date"] }); });
-afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); vi.resetAllMocks(); });
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 let n = 0;
@@ -44,6 +45,7 @@ async function user(db: Db, email = `u${++n}-${randomUUID().slice(0, 6)}@example
 // A business set up as the product sets one up: invited Manager and Worker redeem real invitations.
 async function business(db: Db, input: { timezone?: string; country?: string; locations?: string[] } = {}) {
   const organisationId = randomUUID(), { timezone = "Europe/London", country = "United Kingdom", locations = ["Leeds Briggate"] } = input;
+  if (!process.env.FAIRSHIFT_SANDBOX_ORGANISATION_ID) sandboxFixture(organisationId);
   await db.insert(organisations).values({ id: organisationId, name: "Any Retail", country });
   await db.insert(subscriptions).values({ id: randomUUID(), organisationId, requestId: randomUUID() });
   await entitled(db, organisationId);

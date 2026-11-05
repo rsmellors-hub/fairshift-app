@@ -24,9 +24,9 @@ export async function getLocationWorkspace(db: DatabaseSession) {
   return { current, assignments, worker: worker ?? null };
 }
 
-export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId"|"workerId"> = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID,workerId:DEMO_CASUAL_WORKER_ID}) {
+export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId"|"workerId">) {
   const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode })
-    .from(workers).where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId))).limit(1);
+    .from(workers).where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId))).limit(1);
   // Deliberately exclude team revenue, transaction data, provider IDs and other workers.
   const assignments = await db.select({
     shift: shifts, offer: shiftOffers, allocation: workAllocations, departmentName: departments.name,
@@ -60,10 +60,10 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .leftJoin(workPayables, and(eq(workPayables.allocationId, workAllocations.id), eq(workPayables.workerId, workers.id), eq(workPayables.organisationId, workers.organisationId)))
     .leftJoin(workPayouts, and(eq(workPayouts.payableId, workPayables.id), eq(workPayouts.workerId, workers.id)))
     .leftJoin(workPerformanceResults, and(eq(workPerformanceResults.allocationId, workAllocations.id), eq(workPerformanceResults.workerId, workers.id)))
-    .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(shifts.outletId, scope.locationId)))
+    .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
-  const current = scope.workerId === DEMO_CASUAL_WORKER_ID ? await getDemoWorkerShift(db) : null;
-  const availability = scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
+  const current = assignments.find(row => row.shift.status === "PUBLISHED" && row.offer.status === "ACCEPTED");
+  const availability = profile && scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
   const [location] = await db.select({ timezone: outlets.timezone, country: outlets.country, organisationCountry: organisations.country }).from(outlets)
     .innerJoin(organisations, eq(organisations.id, outlets.organisationId)).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
   // Which statutory wage reference applies to this location: the location's own minimum-wage context, nothing about the worker.
@@ -71,7 +71,7 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
   return { profile: profile ?? null, assignments, currentShiftId: current?.shift.id ?? null, availability, timezone: location?.timezone ?? null, wageJurisdiction: wage };
 }
 
-export async function getOwnerWorkspace(db: DatabaseSession, organisationId = DEMO_ORGANISATION_ID) {
+export async function getOwnerWorkspace(db: DatabaseSession, organisationId: string) {
   const locations = await db.select().from(outlets).where(eq(outlets.organisationId, organisationId));
   // Record counts by provenance, aggregated in the database: reference histories hold
   // hundreds of thousands of rows that need not be loaded to be counted.

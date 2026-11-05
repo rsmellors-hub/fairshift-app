@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import type { Scope } from "@/server/auth/access";
 import { CommerceIngestionError, ingestCommerceObservations, ingestConnectedObservations } from "@/server/commerce/ingestion";
@@ -10,6 +10,7 @@ import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { provisionReferenceHistory, referencePrefix } from "@/server/reference/provision";
 import { REFERENCE_DATASET, REFERENCE_STORE_CODES, referenceDates, referenceTransactions } from "@/server/reference/uk-hospitality";
+vi.mock("@/server/demo/config", () => ({ demoConfig: () => ({ organisationId: process.env.FAIRSHIFT_TEST_DEMO_ORG }) }));
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 // Sunday 1 Nov 2026, 21:00 in London: today hasn't finished, so Saturday is the latest complete day.
@@ -19,11 +20,12 @@ const RECENT = { from: "2026-10-03" };
 
 async function company(db: Db, timezone = "Europe/London") {
   const organisationId = randomUUID();
+  process.env.FAIRSHIFT_TEST_DEMO_ORG = organisationId;
   await db.insert(organisations).values({ id: organisationId, name: "Refresh company", country: "United Kingdom" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code}`, timezone }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
-  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Refresh company", locationName: rows[0].name };
+  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Refresh company", locationName: rows[0].name, demo: { persona: "OWNER", group: "isolated-test" } };
   return { organisationId, rows, mapping, owner };
 }
 const count = async (db: Db) => (await db.select({ n: sql<number>`count(*)::int` }).from(saleTransactions))[0].n;

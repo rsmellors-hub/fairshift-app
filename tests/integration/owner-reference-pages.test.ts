@@ -38,17 +38,14 @@ describe("Owner pages with reference sales history", () => {
       const workspace = await getOwnerWorkspace(t.db, organisationId);
       expect(workspace.sales.length).toBeLessThanOrEqual(5);
       expect(workspace.sales.reduce((sum, row) => sum + row.records, 0)).toBe(loaded.expected);
-      expect((await getOwnerWorkspace(t.db)).sales.every(row => row.source !== "REFERENCE")).toBe(true);
+      expect((await getOwnerWorkspace(t.db, randomUUID())).sales.every(row => row.source !== "REFERENCE")).toBe(true);
 
       vi.mocked(getDatabase).mockReturnValue(t.db);
       vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
       vi.mocked(requireScope).mockResolvedValue({ userId: user.id, organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Reference pages company", locationName: rows[0].name });
       const reporting = renderToStaticMarkup(await OwnerWorkspace({ area: "reporting" }));
-      expect(reporting).toContain("Reference sales history · synthetic");
-      expect(reporting.match(/Reference sales history · synthetic/g)).toHaveLength(5);
-      expect(reporting).toContain("7 trading days, 2026-10-12 to 2026-10-18");
-      expect(reporting).toContain("£");
-      expect(reporting).not.toContain("No commercial history available");
+      expect(reporting).not.toContain("Reference sales history · synthetic");
+      expect(reporting).toContain("No commercial history available");
       const locations = renderToStaticMarkup(await OwnerWorkspace({ area: "locations" }));
       const uk01 = loaded.stores.find(store => store.code === "UK01")!;
       expect(locations).toContain(`${uk01.transactions} recorded commercial entries`);

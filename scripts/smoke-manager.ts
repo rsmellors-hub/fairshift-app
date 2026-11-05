@@ -13,9 +13,12 @@ import type { Database } from "../src/server/db/client";
 import * as schema from "../src/server/db/schema";
 import { DEMO_AS_OF, seedDemoHistory } from "../src/server/intelligence/demo";
 import { getManagerForecast } from "../src/server/intelligence/manager";
+import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "../src/server/constants";
+import { demoConfig } from "../src/server/demo/config";
 
 // Reproducible smoke of the real manager component and forecasting service with
 // disk-persisted PostgreSQL-compatible data. Not a live PostgreSQL/PayPal claim.
+if (demoConfig()?.organisationId !== DEMO_ORGANISATION_ID) throw new Error("Configure the explicit demo organisation before running this synthetic-history smoke.");
 const directory = await mkdtemp(path.join(tmpdir(), "fairshift-manager-smoke-"));
 const databasePath = path.join(directory, "database");
 const first = new PGlite(databasePath);
@@ -29,7 +32,8 @@ try {
 
 const reopened = new PGlite(databasePath);
 try {
-  const result = await getManagerForecast(drizzle(reopened, { schema }) as unknown as Database, DEMO_AS_OF);
+  const result = await getManagerForecast(drizzle(reopened, { schema }) as unknown as Database, DEMO_AS_OF,
+    { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID, demo: { persona: "MANAGER", group: "local-smoke" } });
   assert.equal(result.status, "AVAILABLE");
   if (result.status !== "AVAILABLE") throw new Error("Missing persisted forecast inputs");
   assert.equal(result.source, "DEMO_SEEDED");

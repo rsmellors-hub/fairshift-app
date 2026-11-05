@@ -3,9 +3,9 @@ import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets } from "@/server/db/schema";
 import { forecastFromHistory, localDate, LOOKBACK_DAYS, METHOD_VERSION, shiftDate, type DailySales, type SalesForecast, type SalesSource } from "@/server/intelligence/forecast";
-import { loadDailySales, type DailySalesRow } from "@/server/intelligence/sales-history";
+import { loadDailySales, syntheticHistoryAllowed, type DailySalesRow } from "@/server/intelligence/sales-history";
 
-export const SOURCE_RULE_VERSION = "source-eligibility-v3";
+export const SOURCE_RULE_VERSION = "source-eligibility-v4";
 export const PROVIDER_RULE = { minimumDays: 28, minimumPerWeekday: 3, maximumAgeDays: 2 } as const;
 // In precedence order: a merchant's connected trading comes before Sandbox test captures.
 const PROVIDER_SOURCES: readonly SalesSource[] = ["SQUARE", "ZETTLE", "PAYPAL_SANDBOX"];
@@ -34,8 +34,9 @@ function sufficientImported(entry: { source: SalesSource; currency: string; days
 }
 
 // Deterministic, versioned choice of one history per outlet. Histories are never
-// mixed. Precedence: eligible provider series, then sufficient imported history, then
-// labelled historical evidence (reference, then legacy demo). A provider series needs,
+// mixed. Precedence: eligible provider series, then sufficient imported history.
+// Explicit demo contexts may also use labelled reference or legacy demo history.
+// A provider series needs,
 // in the 56 days to yesterday, 28 distinct days, three of every weekday, recent data,
 // and the outlet's planning currency. Imported history needs the same depth in the 56
 // days to its own latest day: too little is rejected with its reason, so it can neither
@@ -44,11 +45,11 @@ function sufficientImported(entry: { source: SalesSource; currency: string; days
 // Every source plans the same horizon: the next seven local days from tomorrow.
 // Historical evidence keeps its own data-through date and is never re-dated; its
 // comparable weekdays are mapped onto the planning dates by the forecast method.
-export function selectForecastSource(rows: readonly DailySalesRow[], today: string): SourceSelection {
+export function selectForecastSource(rows: readonly DailySalesRow[], today: string, allowSynthetic = false): SourceSelection {
   const yesterday = shiftDate(today, -1);
   const series = new Map<string, { source: SalesSource; currency: string; days: DailySales[] }>();
   // Only completed local days count; any future-dated row is not evidence.
-  for (const row of rows) if (row.date <= yesterday && row.transactions > 0) {
+  for (const row of rows) if (row.date <= yesterday && row.transactions > 0 && (allowSynthetic || !HISTORICAL_SOURCES.includes(row.source))) {
     const key = `${row.source}:${row.currency}`;
     const entry = series.get(key) ?? { source: row.source, currency: row.currency, days: [] };
     entry.days.push({ date: row.date, salesMinor: row.salesMinor, transactions: row.transactions });
@@ -61,7 +62,7 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
   const imported = importedSeries.length === 1 && sufficientImported(importedSeries[0], rejected) ? importedSeries[0] : null;
   // The outlet's planning currency is that of its established history (imported,
   // else reference, else legacy demo), when that history has exactly one currency.
-  const established = imported ? [imported] : HISTORICAL_SOURCES.map(source => all.filter(entry => entry.source === source)).find(entries => entries.length);
+  const established = imported ? [imported] : allowSynthetic ? HISTORICAL_SOURCES.map(source => all.filter(entry => entry.source === source)).find(entries => entries.length) : undefined;
   const planningCurrency = established?.length === 1 ? established[0].currency : null;
 
   const eligibleProviders = all.filter(entry => PROVIDER_SOURCES.includes(entry.source)).filter(entry => {
@@ -91,7 +92,7 @@ export function selectForecastSource(rows: readonly DailySalesRow[], today: stri
       dataThrough: imported.days.at(-1)!.date, firstTarget: shiftDate(today, 1), days: imported.days, rejected };
   }
 
-  for (const source of HISTORICAL_SOURCES) {
+  for (const source of allowSynthetic ? HISTORICAL_SOURCES : []) {
     const candidates = all.filter(entry => entry.source === source);
     if (candidates.length > 1) {
       for (const entry of candidates) rejected.push({ source, currency: entry.currency, reason: "AMBIGUOUS", detail: "History exists in more than one currency; none was chosen." });
@@ -126,10 +127,11 @@ export async function getWeeklyForecast(db: DatabaseSession, scope: Scope, now =
     .orderBy(outlets.name);
   // Owners share the organisation-wide totals already loaded for Overview; managers load only their location.
   // (Same argument list as Overview's call, so the per-request memo applies.)
-  const daily = await (scope.role === "OWNER" ? loadDailySales(db, scope.organisationId) : loadDailySales(db, scope.organisationId, rows.map(row => row.id)));
+  const allowSynthetic = syntheticHistoryAllowed(scope);
+  const daily = await loadDailySales(db, scope.organisationId, scope.role === "OWNER" ? undefined : rows.map(row => row.id), allowSynthetic);
   const result: OutletWeeklyForecast[] = rows.map(outlet => {
     const today = localDate(now, outlet.timezone);
-    const selection = selectForecastSource(daily.filter(row => row.outletId === outlet.id), today);
+    const selection = selectForecastSource(daily.filter(row => row.outletId === outlet.id), today, allowSynthetic);
     if (selection.status === "NONE") return { outletId: outlet.id, outletName: outlet.name, timezone: outlet.timezone, today, selection, days: [], weeklyTotalMinor: null, evidenceDays: [] };
     const { days: history, ...summary } = selection;
     const days = Array.from({ length: 7 }, (_, i) => {

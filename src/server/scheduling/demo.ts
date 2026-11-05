@@ -186,6 +186,7 @@ export async function acceptDemoShift(db: Database, expectedShiftId?: string, ac
   const current = await getDemoWorkerShift(db);
   if (!current || (expectedShiftId && current.shift.id !== expectedShiftId)) throw new Error("Shift offer is unavailable.");
   if (expectedTermsVersion !== undefined && expectedTermsVersion !== current.shift.termsVersion) throw new Error("Assignment terms changed. Review the new version.");
-  await respondToAssignment(db, DEMO_CASUAL_WORKER_ID, current.offer.id, current.shift.termsVersion, "ACCEPTED", acknowledged);
+  await respondToAssignment(db, DEMO_CASUAL_WORKER_ID, current.offer.id, current.shift.termsVersion, "ACCEPTED", acknowledged,
+    { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID });
   return (await getDemoWorkerShift(db))!;
 }

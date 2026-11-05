@@ -1,3 +1,5 @@
+import { assertSandboxOrganisation, SandboxIsolationError } from "@/server/config/deployment";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -13,8 +15,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const rawBody = await request.text();
   try {
+    assertSandboxOrganisation(DEMO_ORGANISATION_ID);
+    const rawBody = await request.text();
     const result = await processPayPalWebhook({
       db: getDatabase(),
       paypal: getPayPalClient(),
@@ -26,6 +29,7 @@ export async function POST(request: Request) {
       { status: result.httpStatus },
     );
   } catch (error) {
+    if (error instanceof SandboxIsolationError) return NextResponse.json({ error: error.code }, { status: error.status });
     if (error instanceof WebhookError) {
       return NextResponse.json({ error: error.code }, { status: error.status });
     }

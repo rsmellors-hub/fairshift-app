@@ -1,7 +1,6 @@
 import { resendInvitationAction, revokeInvitationAction } from "@/app/auth-actions";
 import { requireScope } from "@/server/auth/request";
 import type { Scope } from "@/server/auth/access";
-import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import Link from "next/link";
 import { DataLabel, PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, payableLabel, scheduledHours, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
@@ -9,7 +8,6 @@ import { getLocationPerformance, type ImportRejection } from "@/server/performan
 import { basePayableFromAcceptedTerms, finalPayableMinor } from "@/server/domain/work-payable";
 import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
-import { publishDemoShiftAction } from "@/app/scheduling-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { getDatabase } from "@/server/db/client";
@@ -28,7 +26,6 @@ import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
 import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
 import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { AllocationScheduler } from "./allocation-scheduler";
-import { DemoReview } from "./review-workspace";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
 import { refreshContextFeedsIfDue } from "@/server/intelligence/demand-context-service";
 import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context";
@@ -183,7 +180,6 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
           </article>;
         }) : <StatePanel title="No work opportunities yet"><p>Create one above when you are ready to fill a gap, or start from a day on <Link href="/manager/plan">Forecast &amp; staffing</Link>.</p></StatePanel>}
       </section>
-      {scope.organisationId === DEMO_ORGANISATION_ID ? <details className="panel"><summary>Controlled demo assignment</summary><p>Fixed daily terms and the existing deterministic team incentive. This creates the established demonstration offer for Alex Morgan.</p><form action={publishDemoShiftAction}><label><input name="workerSelected" type="checkbox" value="yes" required /> Invite Alex Morgan</label><button className="secondary-button">Publish demo assignment</button></form></details> : null}
     </> : null}
     {area === "review" ? <>
       {financialOnly ? <section className="panel" id="confirm-work"><h2>Confirm completed work</h2>
@@ -238,7 +234,6 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
           <p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
         </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
       </section>
-      {scope.organisationId === DEMO_ORGANISATION_ID ? await DemoReview() : null}
     </> : null}
   </>;
 }

@@ -16,6 +16,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { OwnerOverview } from "@/app/owner/overview";
 import { getOwnerOverview, ownerForecastSummary } from "@/server/product/owner-overview";
+import { vi } from "vitest";
+
+vi.mock("@/server/demo/config", () => ({ demoConfig: () => ({ organisationId: process.env.FAIRSHIFT_TEST_DEMO_ORG }) }));
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const NOW = new Date("2026-10-25T10:00:00Z");
@@ -24,16 +27,43 @@ const WEEK = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-3
 
 async function referenceCompany(db: Db, from = "2026-08-24") {
   const organisationId = randomUUID();
+  process.env.FAIRSHIFT_TEST_DEMO_ORG = organisationId;
   await db.insert(organisations).values({ id: organisationId, name: "Weekly forecast company" });
   const rows = REFERENCE_STORE_CODES.map((code, i) => ({ id: randomUUID(), organisationId, name: `${i + 1} ${code} store`, timezone: "Europe/London" }));
   await db.insert(outlets).values(rows);
   const mapping = Object.fromEntries(REFERENCE_STORE_CODES.map((code, i) => [code, rows[i].id])) as Record<typeof REFERENCE_STORE_CODES[number], string>;
   await provisionReferenceHistory(db, { organisationId, outlets: mapping, from, through: "2026-10-18" });
-  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Weekly", locationName: rows[0].name };
+  const owner: Scope = { userId: randomUUID(), organisationId, locationId: rows[0].id, role: "OWNER", organisationName: "Weekly", locationName: rows[0].name, demo: { persona: "OWNER", group: "isolated-test" } };
   return { organisationId, rows, mapping, owner };
 }
 
 describe("weekly demand forecast", () => {
+  it("keeps a fresh business honest with zero, one or multiple locations", async () => {
+    const t = await createTestDatabase();
+    try {
+      const organisationId = randomUUID(), first = randomUUID(), second = randomUUID();
+      await t.db.insert(organisations).values({ id: organisationId, name: "New business" });
+      const scope: Scope = { userId: randomUUID(), organisationId, locationId: first, role: "OWNER", organisationName: "New business", locationName: "First" };
+      expect((await getWeeklyForecast(t.db, scope, NOW)).outlets).toEqual([]);
+      await t.db.insert(outlets).values({ id: first, organisationId, name: "First", timezone: "Europe/London" });
+      expect((await getWeeklyForecast(t.db, scope, NOW)).outlets).toMatchObject([{ selection: { status: "NONE" }, weeklyTotalMinor: null }]);
+      await t.db.insert(outlets).values({ id: second, organisationId, name: "Second", timezone: "Europe/London" });
+      const multiple = await getWeeklyForecast(t.db, scope, NOW);
+      expect(multiple.outlets).toHaveLength(2);
+      expect(multiple.outlets.every(row => row.selection.status === "NONE" && row.days.length === 0)).toBe(true);
+      expect(multiple.consolidated).toBeNull();
+    } finally { await t.close(); }
+  });
+
+  it("does not select reference rows for an ordinary account, even in the configured demo organisation", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await referenceCompany(t.db);
+      const ordinary = await getWeeklyForecast(t.db, { ...c.owner, demo: undefined }, NOW);
+      expect(ordinary.outlets).toHaveLength(5);
+      expect(ordinary.outlets.every(row => row.selection.status === "NONE" && row.weeklyTotalMinor === null)).toBe(true);
+    } finally { await t.close(); }
+  }, 180_000);
   it("forecasts seven days for each of five outlets from reference history, deterministically and in GBP", async () => {
     const t = await createTestDatabase();
     try {
@@ -112,7 +142,8 @@ describe("weekly demand forecast", () => {
     const t = await createTestDatabase();
     try {
       await seedDemoHistory(t.db);
-      const weekly = await getWeeklyForecast(t.db, { userId: randomUUID(), organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID, role: "OWNER", organisationName: "Demo", locationName: "Rosebank Kitchen" }, NOW);
+      process.env.FAIRSHIFT_TEST_DEMO_ORG = DEMO_ORGANISATION_ID;
+      const weekly = await getWeeklyForecast(t.db, { userId: randomUUID(), organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID, role: "OWNER", organisationName: "Demo", locationName: "Rosebank Kitchen", demo: { persona: "OWNER", group: "isolated-test" } }, NOW);
       expect(weekly.outlets[0].selection).toMatchObject({ source: "DEMO_SEEDED", currency: "USD", dataThrough: "2026-10-14", firstTarget: "2026-10-26" });
       expect(weekly.outlets[0].days).toHaveLength(7);
     } finally { await t.close(); }
@@ -167,7 +198,7 @@ describe("weekly demand forecast", () => {
     const t = await createTestDatabase();
     try {
       const c = await referenceCompany(t.db, "2026-10-05");
-      const result = await getManagerForecast(t.db, NOW, { organisationId: c.organisationId, locationId: c.mapping.UK02 });
+      const result = await getManagerForecast(t.db, NOW, { organisationId: c.organisationId, locationId: c.mapping.UK02, demo: c.owner.demo });
       expect(result).toMatchObject({ status: "UNAVAILABLE", reason: "NO_STAFFING_POLICY_FOR_CURRENCY", source: "REFERENCE", currency: "GBP", targetDate: "2026-10-26" });
       const html = renderToStaticMarkup(createElement(ManagerForecast, { result }));
       expect(html).toContain("demonstration worker estimate is defined in USD");

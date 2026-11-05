@@ -3,7 +3,7 @@ import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets, shiftIncentives, shifts, workers, workPayables, workPayouts } from "@/server/db/schema";
 import { shiftDate, type SalesSource } from "@/server/intelligence/forecast";
-import { loadDailySales } from "@/server/intelligence/sales-history";
+import { loadDailySales, syntheticHistoryAllowed } from "@/server/intelligence/sales-history";
 import type { WeeklyForecast } from "@/server/intelligence/weekly";
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 
@@ -29,7 +29,7 @@ export async function getOwnerOverview(db: DatabaseSession, scope: Scope) {
 
   // Each independently scoped source can fail without erasing the other section.
   const [salesResult, attentionResult, payablesResult] = await Promise.allSettled([
-    loadDailySales(db, scope.organisationId),
+    loadDailySales(db, scope.organisationId, undefined, syntheticHistoryAllowed(scope)),
     db.select({ id: shiftIncentives.id, locationId: outlets.id, locationName: outlets.name,
       date: shifts.shiftDate, status: shiftIncentives.status,
     }).from(shiftIncentives).innerJoin(shifts, eq(shiftIncentives.shiftId, shifts.id))

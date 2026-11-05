@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/server/db/client";
@@ -29,8 +30,8 @@ function fixture(reservedAt: unknown, status: string, afterAudit?: () => void) {
   return { db, paypal, payableId, payout, update, insert, set };
 }
 
-beforeEach(() => { vi.useFakeTimers({ now: NOW, toFake: ["Date"] }); });
-afterEach(() => { vi.useRealTimers(); });
+beforeEach(() => { sandboxFixture(scope.organisationId); vi.useFakeTimers({ now: NOW, toFake: ["Date"] }); });
+afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
 
 describe("no-batch recovery rejects an unreliable original attempt time", () => {
   for (const status of ["RECONCILIATION_REQUIRED", "SUBMITTING"]) {

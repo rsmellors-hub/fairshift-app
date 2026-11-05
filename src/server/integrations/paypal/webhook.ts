@@ -1,3 +1,5 @@
+import { assertSandboxOrganisation } from "@/server/config/deployment";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -50,6 +52,7 @@ export async function processPayPalWebhook(input: {
   rawBody: string;
   headers: Headers;
 }) {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const transmission = readPayPalTransmissionHeaders(input.headers);
   let payload: unknown;
   try {

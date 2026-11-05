@@ -8,13 +8,10 @@ import { revalidatePath } from "next/cache";
 
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import {
   approveDemoIncentive,
   markDemoShiftCompleted,
   recordDemoPerformance,
-  refreshDemoIncentivePayout,
-  submitDemoIncentivePayout,
 } from "@/server/incentives/demo";
 import {
   acceptDemoShift,
@@ -73,13 +70,15 @@ export async function approveDemoIncentiveAction(formData: FormData) {
 }
 
 export async function submitDemoIncentivePayoutAction(formData: FormData) {
-  await demoAuthority();
-  return performAction("/manager/review", async () => submitDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
+  await requireScope(["OWNER", "MANAGER"]);
+  void formData;
+  throw new Error("Legacy incentive payout is unavailable. Use the approved payable workflow.");
 }
 
 export async function refreshDemoIncentivePayoutAction(formData: FormData) {
-  await demoAuthority();
-  return performAction("/manager/review", async () => refreshDemoIncentivePayout(getDatabase(), getPayPalPayoutClient(), requiredDemoId(formData, "incentiveId")));
+  await requireScope(["OWNER", "MANAGER"]);
+  void formData;
+  throw new Error("Legacy incentive payout is unavailable. Use the approved payable workflow.");
 }
 
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
@@ -88,6 +87,8 @@ export async function saveDemoPayoutDestinationAction(formData: FormData) {
 }
 async function demoAuthority(worker=false) {
   const scope=await requireScope(worker ? ["TEAM_MEMBER"] : ["OWNER","MANAGER"]);
-  if (scope.organisationId !== DEMO_ORGANISATION_ID || scope.locationId !== DEMO_OUTLET_ID || (worker && scope.workerId !== DEMO_CASUAL_WORKER_ID)) throw new Error("Access denied.");
+  // Legacy fixed-identity operations are not customer operations. Public demo
+  // sessions cannot write through requireScope, so these actions stay closed.
+  if (!scope.demo || scope.organisationId !== DEMO_ORGANISATION_ID || scope.locationId !== DEMO_OUTLET_ID || (worker && scope.workerId !== DEMO_CASUAL_WORKER_ID)) throw new Error("Access denied.");
   return scope;
 }

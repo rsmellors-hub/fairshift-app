@@ -1,3 +1,4 @@
+import { sandboxOrganisationId } from "@/server/config/deployment";
 import type { Metadata } from "next";
 import { AcquisitionProgress } from "@/app/components/acquisition-progress";
 import { BillingToggle, PLAN_COPY, PlanPrice } from "@/app/components/plan-cards";
@@ -24,7 +25,7 @@ export default async function Subscribe({searchParams}:{searchParams:Promise<{pe
  if (scope && isEntitled(sub)) redirect(await ownerDestination(db,scope.organisationId));
  const {period,status,billing,verified}=await searchParams;
  const billingPeriod=period === "ANNUAL" ? "ANNUAL" : "MONTHLY";
- const configured=!!getSubscriptionAdapter(),contact=enterpriseContact();
+ const configured=!!scope && sandboxOrganisationId() === scope.organisationId && !!getSubscriptionAdapter(),contact=enterpriseContact();
  const awaiting=!!sub && ["APPROVAL_PENDING","APPROVED"].includes(sub.status);
  const needsHelp=!!sub && !["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status);
  return <main className="acquisition-shell plan-shell"><header className="acquisition-header"><FairShiftBrand /><form action={signOutAction}><button className="link-button">Sign out</button></form></header>
@@ -33,7 +34,7 @@ export default async function Subscribe({searchParams}:{searchParams:Promise<{pe
  <div className="workplace-heading"><h1>Choose your plan</h1><p>Every plan includes the full product. Choose by how many locations you run.</p></div>
  {status ? <p className="form-alert" role="alert">{status === "unavailable" ? "That checkout isn’t available right now, or another subscription is already in progress. Your account is saved." : "We couldn’t confirm your subscription just now. Please try again shortly."}</p> : null}
  {billing === "cancelled" ? <p className="form-notice" role="status">You cancelled the PayPal approval. Nothing was charged. Continue when you’re ready.</p> : null}
- {awaiting || needsHelp ? <section className="panel"><h2>{needsHelp ? "Your subscription needs attention" : "Your subscription is awaiting confirmation"}</h2><p>{needsHelp ? "Contact FairShift to review it before starting another checkout." : "Finish approving it in PayPal, or check whether PayPal has already confirmed it."}</p><div className="button-row">{awaiting && sub?.approvalUrl && safeApproval(sub.approvalUrl) ? <a className="primary-button button-link" href={sub.approvalUrl}>Continue in PayPal</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form>{needsHelp ? <Link className="secondary-button button-link" href="/settlements">Settle existing worker payments</Link> : null}</div></section> : null}
+ {awaiting || needsHelp ? <section className="panel"><h2>{needsHelp ? "Your subscription needs attention" : "Your subscription is awaiting confirmation"}</h2><p>{needsHelp ? "Contact FairShift to review it before starting another checkout." : "Finish approving it in PayPal, or check whether PayPal has already confirmed it."}</p><div className="button-row">{configured && awaiting && sub?.approvalUrl && safeApproval(sub.approvalUrl) ? <a className="primary-button button-link" href={sub.approvalUrl}>Continue in PayPal</a> : null}<form action={refreshSubscriptionAction}><button className="secondary-button">Check payment status</button></form>{needsHelp ? <Link className="secondary-button button-link" href="/settlements">Settle existing worker payments</Link> : null}</div></section> : null}
  <BillingToggle current={billingPeriod} basePath="/subscribe"/>
  <div className="plan-grid">{(["SINGLE_OUTLET","MULTI_OUTLET"] as const).map(tier=>{
   const available=configured && !!configuredPlan({tier,billingPeriod});

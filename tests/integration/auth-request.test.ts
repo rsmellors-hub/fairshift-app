@@ -159,6 +159,7 @@ describe("subscription gate at real application boundaries",()=>{
   const t=await createTestDatabase();try {
    vi.mocked(getDatabase).mockReturnValue(t.db);
    vi.stubEnv("DATABASE_URL","postgresql://localhost/not-used");
+   vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE","LIVE_CUSTOMER");
    const o=await bootstrap(t.db);
    const invitation=await inviteMember(t.db,o.scope,{role:"MANAGER",email:"manager@example.test",firstName:"Pat",surname:"Manager",telephone:"+441130000001"});
    const manager=await registerIdentity(t.db,{email:"manager@example.test",password});
@@ -182,6 +183,7 @@ describe("subscription gate at real application boundaries",()=>{
   const t=await createTestDatabase();try {
    vi.mocked(getDatabase).mockReturnValue(t.db);
    vi.stubEnv("DATABASE_URL","postgresql://localhost/not-used");
+   vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE","LIVE_CUSTOMER");
    const o=await bootstrap(t.db);jar.set("fairshift_session",await issueSession(t.db,o.u.id));
    for (const status of ["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED","SUSPENDED","CANCELLED","EXPIRED"]) {
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
@@ -198,7 +200,8 @@ describe("subscription gate at real application boundaries",()=>{
     expect(settlements).toContain("Confirm completed work");
     expect(settlements).toContain("No finished allocated work is waiting for confirmation.");
     for (const operational of ["Create a shift","Send offer","Finalise allocation","Confirm sales results","Forecast &amp; staffing"]) expect(settlements).not.toContain(operational);
-    for (const action of [confirmWorkAction,approvePayableAction,sendPayoutAction,refreshPayoutAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=error");
+    for (const action of [confirmWorkAction,approvePayableAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=error");
+    for (const action of [sendPayoutAction,refreshPayoutAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=sandbox-isolation-required");
    }
    await expect(Onboarding()).rejects.toThrow("REDIRECT:/subscribe");
    await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");

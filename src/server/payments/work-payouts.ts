@@ -1,3 +1,4 @@
+import { assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
 import { finalPayableMinor } from "@/server/domain/work-payable";
@@ -19,7 +20,7 @@ import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "
 // them. No-batch recovery is limited to 28 days, inside PayPal's 30-day protection.
 
 export type WorkPayout = typeof workPayouts.$inferSelect;
-type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId">;
+type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId" | "demo">;
 
 export class PaymentDetailsRequiredError extends Error {
   constructor() { super("Payment details required."); this.name = "PaymentDetailsRequiredError"; }
@@ -225,6 +226,7 @@ export type SubmitResult = { payout: WorkPayout; submitted: boolean };
 // finds the existing reservation and returns it without calling PayPal; only a payout
 // that certainly never reached PayPal (NOT_SENT) can be sent again, with the same IDs.
 export async function submitWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
+  assertSandboxFinancialScope(scope);
   authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [existing] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
@@ -265,6 +267,7 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
 // an unknown outcome it may re-send the identical request (same sender_batch_id,
 // amount, currency and recipient) only within the conservative recovery window.
 export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
+  assertSandboxFinancialScope(scope);
   authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
   const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));

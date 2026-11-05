@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +24,7 @@ async function setup() {
   await test.db.insert(users).values({ id: userId, email: "owner@example.test", name: "Owner", passwordHash: "not-used", ...personal, emailVerifiedAt: new Date() });
   const org = await createOrganisation(test.db, userId, { ...business, name: "Example Co", locationName: "HQ" });
   await test.db.update(subscriptions).set({ providerId: "I-BOUND", planId: "P-BOUND", status: "APPROVAL_PENDING", tier: "SINGLE_OUTLET", billingPeriod: "MONTHLY", locationLimit: 1, verifiedAt: null }).where(eq(subscriptions.organisationId, org.organisationId));
+  sandboxFixture(org.organisationId);
   const details = { id: "I-BOUND", plan_id: "P-BOUND", custom_id: org.organisationId, status: "ACTIVE" as const, plan_overridden: false };
   const adapter: SubscriptionAdapter = {
     create: vi.fn(),
@@ -135,4 +137,19 @@ describe("subscription webhook HTTP financial integrity", () => {
       expect(await t.db.select().from(subscriptionEvents)).toHaveLength(1);
     } finally { await t.close(); }
   });
+});
+
+
+it("refuses a signed webhook for a subscription outside the deployment organisation without changing entitlement", async () => {
+  const t = await setup();
+  try {
+    const before = await t.stored();
+    sandboxFixture(randomUUID());
+    const response = await POST(request());
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "SANDBOX_ISOLATION_REQUIRED" });
+    expect(t.adapter.get).not.toHaveBeenCalled();
+    expect(await t.stored()).toEqual(before);
+    expect(await t.db.select().from(subscriptionEvents)).toHaveLength(0);
+  } finally { await t.close(); }
 });

@@ -2,7 +2,6 @@ import type { Scope } from "@/server/auth/access";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { FORECAST_RESOURCE, REGULAR_RESOURCE, toAllocationSchedule, type PlanningRange } from "@/app/manager/allocation-model";
 import { money } from "@/app/components/format";
-import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets, shiftOffers, shifts, workerAvailability, workers, workAllocations, workPayables, workPayouts, workPerformanceResults } from "@/server/db/schema";
 import { shiftInteraction } from "@/server/domain/shift-change";
@@ -27,7 +26,7 @@ function paymentLabel(payable: string | null, payout: string | null, paypalStatu
 
 // The Manager's schedule for one location, read from the same records as everything else:
 // offers, acceptances, allocations, results and payments. It holds no state of its own.
-export async function getAllocationSchedule(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId"> = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID}, now = new Date(), planning: PlanningRange[] = []) {
+export async function getAllocationSchedule(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId">, now = new Date(), planning: PlanningRange[] = []) {
   const rows = await db.select({
     shiftId: shifts.id, offerId: shiftOffers.id, workerId: workers.id, workerName: workers.displayName,
     roleName: shifts.roleName, startsAt: shifts.startsAt, endsAt: shifts.endsAt,

@@ -355,10 +355,11 @@ describe("confirmed work and authoritative base payables", () => {
   it("keeps existing USD locations in USD", async () => {
     const t = await createTestDatabase();
     try {
-      const [policy] = await createWorkPolicy(t.db, HOURLY_13, "Demo hourly");
+      const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
+      const [policy] = await createWorkPolicy(t.db, HOURLY_13, "Demo hourly", demoScope);
       expect(policy.currencyCode).toBe("USD");
-      const [department] = await createDepartment(t.db, "Kitchen");
-      expect(await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 })).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: 7_800 });
+      const [department] = await createDepartment(t.db, "Kitchen", demoScope);
+      expect(await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, demoScope)).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: 7_800 });
       const [organisation] = await t.db.select().from(organisations).where(eq(organisations.id, DEMO_ORGANISATION_ID));
       expect(organisation).toBeDefined();
       expect((await getOperations(t.db, { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID })).currency).toBe("USD");

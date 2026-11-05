@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomBytes, randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq, sql } from "drizzle-orm";
@@ -46,6 +47,7 @@ async function person(db: Db) {
 }
 async function business(db: Db, locations = ["Northgate"]) {
   const organisationId = randomUUID();
+  if (!process.env.FAIRSHIFT_SANDBOX_ORGANISATION_ID) sandboxFixture(organisationId);
   await db.insert(organisations).values({ id: organisationId, name: "Fictional Retail", country: "United Kingdom" });
   await db.insert(subscriptions).values({ id: randomUUID(), organisationId, requestId: randomUUID() });
   await entitled(db, organisationId);

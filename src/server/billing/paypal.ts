@@ -1,3 +1,4 @@
+import { sandboxOrganisationId } from "@/server/config/deployment";
 import { z } from "zod";
 import { PayPalClient } from "@/server/integrations/paypal/client";
 import type { PayPalTransmissionHeaders } from "@/server/integrations/paypal/client";
@@ -19,6 +20,7 @@ export class PayPalSubscriptions extends PayPalClient implements SubscriptionAda
  async get(id:string) {return subscriptionDetails.parse(await this.authorizedRequest(`/v1/billing/subscriptions/${encodeURIComponent(id)}`,{method:"GET"}));}
 }
 export function getSubscriptionAdapter():SubscriptionAdapter|null {
+ if (!sandboxOrganisationId()) return null;
  const parsed=z.object({PAYPAL_CLIENT_ID:z.string().min(1),PAYPAL_CLIENT_SECRET:z.string().min(1),PAYPAL_SUBSCRIPTION_WEBHOOK_ID:z.string().min(1),PAYPAL_ENV:z.literal("sandbox").optional(),PAYPAL_ENVIRONMENT:z.literal("sandbox").default("sandbox")}).safeParse(process.env);
  if (!parsed.success || parsed.data.PAYPAL_SUBSCRIPTION_WEBHOOK_ID === process.env.PAYPAL_WEBHOOK_ID) return null;
  return new PayPalSubscriptions({...parsed.data,PAYPAL_ENV:"sandbox",PAYPAL_WEBHOOK_ID:parsed.data.PAYPAL_SUBSCRIPTION_WEBHOOK_ID,APP_BASE_URL:applicationOrigin(),PAYPAL_SANDBOX_CURRENCY:"USD",PAYPAL_SANDBOX_AMOUNT:"5.00",apiBaseUrl:"https://api-m.sandbox.paypal.com"});

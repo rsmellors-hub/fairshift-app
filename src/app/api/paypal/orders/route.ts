@@ -1,3 +1,5 @@
+import { assertSandboxOrganisation, SandboxIsolationError } from "@/server/config/deployment";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { currentIdentity, operatorAllowed } from "@/server/auth/request";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
@@ -16,6 +18,8 @@ export async function POST(request: Request) {
     const identity=await currentIdentity();
     if (!identity) return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
     if (!operatorAllowed(identity.user)) return NextResponse.json({error:"FORBIDDEN"},{status:403});
+    if (identity.session.demoPersona) return NextResponse.json({error:"FORBIDDEN"},{status:403});
+    assertSandboxOrganisation(DEMO_ORGANISATION_ID);
     assertSameOrigin(request);
     const result = await createSandboxOrder(getDatabase(), getPayPalClient(), getPayPalConfig());
     return NextResponse.json(
@@ -23,6 +27,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof SandboxIsolationError) return NextResponse.json({ error: error.code }, { status: error.status });
     if (error instanceof OriginError) {
       return NextResponse.json({ error: "ORIGIN_REJECTED" }, { status: error.status });
     }

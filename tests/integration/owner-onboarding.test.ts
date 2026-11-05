@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { planFixture } from "../helpers/subscription-plans";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
@@ -18,6 +19,7 @@ async function customer(db:Awaited<ReturnType<typeof createTestDatabase>>["db"])
  const u=await registerIdentity(db,{email:"owner@example.test",password:"long-test-password-42"});
  await redeemIdentityToken(db,await createIdentityToken(db,u.id,"VERIFY_EMAIL"),"VERIFY_EMAIL");
  const m=await ensureCustomerOrganisation(db,u.id);
+ sandboxFixture(m.organisationId);
  return {u,m,scope:{userId:u.id,organisationId:m.organisationId,role:"OWNER"}};
 }
 async function activate(db:Awaited<ReturnType<typeof createTestDatabase>>["db"],scope:Awaited<ReturnType<typeof customer>>["scope"],tier:"SINGLE_OUTLET"|"MULTI_OUTLET"="SINGLE_OUTLET") {
@@ -142,6 +144,7 @@ describe("subscription-first acquisition",()=>{
   }finally{await t.close();}
  });
  it("keeps the Sandbox reconciliation adapter available independently of checkout mapping",()=>{
+  sandboxFixture();
   vi.stubEnv("PAYPAL_CLIENT_ID","fixture");vi.stubEnv("PAYPAL_CLIENT_SECRET","fixture");vi.stubEnv("PAYPAL_SUBSCRIPTION_WEBHOOK_ID","fixture");
   expect(getSubscriptionAdapter()).not.toBeNull();
   vi.stubEnv("PAYPAL_WEBHOOK_ID","fixture");expect(getSubscriptionAdapter()).toBeNull();

@@ -1,3 +1,7 @@
+import { sandboxFixture } from "../helpers/sandbox";
+import { beforeEach as beforeSandbox, afterEach as afterSandbox, vi as sandboxVi } from "vitest";
+beforeSandbox(() => sandboxFixture());
+afterSandbox(() => sandboxVi.unstubAllEnvs());
 import { count, eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 

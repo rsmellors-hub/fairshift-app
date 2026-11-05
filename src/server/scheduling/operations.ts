@@ -4,7 +4,6 @@ import { and, desc, eq, getTableColumns, inArray, lt, gt, sql } from "drizzle-or
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { departments, organisations, outlets, workers, workerAvailability, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
-import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
 import { resolveLocationCurrency } from "@/server/domain/currency";
 import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAcceptedTerms } from "@/server/domain/work-payable";
@@ -17,10 +16,8 @@ import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, INDIVIDUAL_INCENTIVE_BASIS } from "@/server/domain/incentive";
 import { availabilityForShift, isOfferable, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
 
-// Internal demo compatibility only; HTTP entrypoints always supply authenticated scope.
-const demoScope = {organisationId:DEMO_ORGANISATION_ID,locationId:DEMO_OUTLET_ID};
 type OperatingScope = Pick<Scope,"organisationId" | "locationId">;
-async function location(db: DatabaseSession, scope:OperatingScope=demoScope) {
+async function location(db: DatabaseSession, scope:OperatingScope) {
   const [row] = await db.select().from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
   if (!row) throw new Error("Location unavailable.");
   return row;
@@ -49,7 +46,7 @@ async function assertWageAllowsOffer(db: DatabaseSession, outlet: typeof outlets
   throw new UserFacingError("wage-not-checkable", "This pay can't be checked against the FairShift demo minimum, so it can't be offered here.");
 }
 const teamInput = z.object({ firstName: z.string().trim().min(1).max(100), surname: z.string().trim().min(1).max(100), telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/), email: z.string().trim().email().max(254) });
-export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope=demoScope) {
+export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope) {
   const value = teamInput.parse(input);
   return db.transaction(async (tx) => {
     await location(tx, scope);
@@ -58,11 +55,11 @@ export async function createTeamMember(db: Database, input: unknown, scope:Opera
     return { worker, invitation };
   });
 }
-export async function createDepartment(db: Database, name: string, scope:OperatingScope=demoScope) {
+export async function createDepartment(db: Database, name: string, scope:OperatingScope) {
   await location(db, scope);
   return db.insert(departments).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name) }).returning();
 }
-export async function createWorkPolicy(db: Database, input: unknown, name: string, scope:OperatingScope=demoScope) {
+export async function createWorkPolicy(db: Database, input: unknown, name: string, scope:OperatingScope) {
   const outlet = await location(db, scope);
   const terms = policyInput.parse(input);
   // An optional target and fixed bonus, together and positive, on fixed-pay terms only.
@@ -78,7 +75,7 @@ const managerPayoutColumns = (() => {
   delete columns.recipient;
   return columns as Omit<PayoutColumns, "recipient">;
 })();
-export async function getOperations(db: DatabaseSession, scope:OperatingScope=demoScope) {
+export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
   const outlet = await location(db, scope);
   const team = await db.select({ worker: workers, invitation: teamInvitations }).from(workers)
     .leftJoin(teamInvitations, eq(teamInvitations.workerId, workers.id))
@@ -112,7 +109,7 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope=de
 export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {
   return (await location(db, scope)).timezone;
 }
-export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope=demoScope) {
+export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope) {
   z.object({ departmentId: z.uuid(), policyId: z.uuid(), startsAt: z.date(), endsAt: z.date(), requiredHeadcount: z.number().int().min(1).max(1000) }).parse(input);
   return db.transaction(async (tx) => {
     const outlet = await location(tx, scope);
@@ -144,7 +141,7 @@ async function scopedShift(db: DatabaseSession, id: string, scope:OperatingScope
   if (!shift || shift.status !== "PUBLISHED") throw new Error("Assignment unavailable.");
   return shift;
 }
-async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts = true, scope:OperatingScope=demoScope, options: { requireActivation?: boolean } = {}) {
+async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts: boolean, scope:OperatingScope, options: { requireActivation?: boolean } = {}) {
   const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"))).for("update");
   if (!worker) throw new Error("Team member unavailable at this location.");
   if (!checkConflicts) return worker;
@@ -160,7 +157,7 @@ async function eligible(db: DatabaseSession, workerId: string, shift: typeof shi
   if (!isOfferable(state)) throw new Error("Team member unavailable at this location.");
   return worker;
 }
-export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope=demoScope) {
+export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope) {
   return db.transaction(async (tx) => {
     const shift = await scopedShift(tx, shiftId, scope);
     await assertWageAllowsOffer(tx, await location(tx, scope), { ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) });
@@ -173,7 +170,7 @@ export async function offerAssignment(db: Database, shiftId: string, workerId: s
     return offer;
   });
 }
-export async function respondToAssignment(db: Database, workerId: string, offerId: string, version: number, response: "ACCEPTED" | "DECLINED", acknowledged: boolean, scope:OperatingScope=demoScope) {
+export async function respondToAssignment(db: Database, workerId: string, offerId: string, version: number, response: "ACCEPTED" | "DECLINED", acknowledged: boolean, scope:OperatingScope) {
   if (response === "ACCEPTED" && acknowledged !== true) throw new Error("Review and acknowledge all assignment terms.");
   return db.transaction(async (tx) => {
     const [initial] = await tx.select().from(shiftOffers).where(and(eq(shiftOffers.id, offerId), eq(shiftOffers.workerId, workerId)));
@@ -200,7 +197,7 @@ export async function respondToAssignment(db: Database, workerId: string, offerI
     return updated;
   });
 }
-export async function allocateAssignment(db: Database, offerId: string, scope:OperatingScope=demoScope) {
+export async function allocateAssignment(db: Database, offerId: string, scope:OperatingScope) {
   return db.transaction(async (tx) => {
     const [offer] = await tx.select().from(shiftOffers).where(eq(shiftOffers.id, offerId));
     if (!offer || offer.status !== "ACCEPTED") throw new Error("Accept the offer before allocation.");
@@ -218,7 +215,7 @@ export async function allocateAssignment(db: Database, offerId: string, scope:Op
 // Idempotent: a repeat or retry returns the existing confirmation and payable and
 // never creates a second one. Commission work is confirmed without a payable, since
 // no verified attribution exists. Nothing is approved or paid here.
-export async function confirmWork(db: Database, offerId: string, scope:OperatingScope & { userId?: string }=demoScope) {
+export async function confirmWork(db: Database, offerId: string, scope:OperatingScope & { userId?: string }) {
   return db.transaction(async (tx) => {
     const [offer] = await tx.select().from(shiftOffers).where(eq(shiftOffers.id, offerId));
     if (!offer || offer.status !== "ACCEPTED") throw new Error("Accepted work required.");

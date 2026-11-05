@@ -1,3 +1,4 @@
+import { sandboxOrganisationId } from "./deployment";
 import { z } from "zod";
 
 const databaseSchema = z.object({
@@ -66,8 +67,8 @@ export function getConfigurationStatus() {
 
   return {
     databaseConfigured: database.success,
-    paypalConfigured: paypal.success,
-    paypalPayoutConfigured: payout.success,
+    paypalConfigured: paypal.success && !!sandboxOrganisationId(),
+    paypalPayoutConfigured: payout.success && !!sandboxOrganisationId(),
     aiConfigured: ai.success,
     environment: process.env.PAYPAL_ENV === "sandbox" ? "SANDBOX" : "NOT CONFIGURED",
     currency: process.env.PAYPAL_SANDBOX_CURRENCY === "USD" ? "USD" : "USD",

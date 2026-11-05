@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { shiftDate, type SalesSource } from "@/server/intelligence/forecast";
 import type { DailySalesRow } from "@/server/intelligence/sales-history";
-import { selectForecastSource } from "@/server/intelligence/weekly";
+import { selectForecastSource as chooseSource } from "@/server/intelligence/weekly";
 
 const TODAY = "2026-10-26";
 const YESTERDAY = "2026-10-25";
@@ -12,8 +12,14 @@ const range = (source: SalesSource, through: string, count: number, currency = "
   Array.from({ length: count }, (_, i) => shiftDate(through, -i)).filter(keep).map(date => row(source, date, currency));
 const reference = range("REFERENCE", "2025-12-28", 120);
 const notSunday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() !== 0;
+// Existing reference-fixture cases explicitly exercise the authorised demo mode.
+const selectForecastSource = (rows: DailySalesRow[], today: string) => chooseSource(rows, today, true);
 
 describe("forecast source eligibility", () => {
+  it("does not use synthetic rows for a normal account, even when complete", () => {
+    expect(chooseSource([...reference, ...range("DEMO_SEEDED", "2026-10-14", 56)], TODAY)).toEqual({ status: "NONE", rejected: [] });
+    expect(chooseSource([...reference, ...range("IMPORTED", "2026-10-20", 27)], TODAY)).toMatchObject({ status: "NONE", rejected: [{ source: "IMPORTED", reason: "INSUFFICIENT_DAYS" }] });
+  });
   it("uses reference history, keeping its own data-through date, for the real planning week", () => {
     expect(selectForecastSource(reference, TODAY)).toMatchObject({
       status: "SELECTED", source: "REFERENCE", currency: "GBP", kind: "HISTORICAL",

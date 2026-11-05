@@ -1,3 +1,4 @@
+import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
@@ -29,7 +30,7 @@ vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); vi.resetAllMocks(); vi.restoreAllMocks(); });
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const START = Date.parse("2026-10-20T08:00:00Z");
@@ -43,6 +44,7 @@ async function user(db: Db) {
 }
 async function company(db: Db, locations = 1, country = "United Kingdom") {
   const organisationId = randomUUID();
+  if (!process.env.FAIRSHIFT_SANDBOX_ORGANISATION_ID) sandboxFixture(organisationId);
   await db.insert(organisations).values({ id: organisationId, name: "Independent company", country });
   await db.insert(subscriptions).values({ id: randomUUID(), organisationId, requestId: randomUUID() });
   await entitled(db, organisationId);
@@ -911,4 +913,26 @@ describe("South African operating currency and the provider payout-currency gate
     for (const code of ["GBP", "USD"]) expect(isVerifiedPayoutCurrency(code)).toBe(true);
     for (const code of ["ZAR", "EUR", "gbp", ""]) expect(isVerifiedPayoutCurrency(code)).toBe(false);
   });
+});
+
+it.each(["LIVE_CUSTOMER", "wrong tenant", "public demo"])("preserves an existing approved payable and payout on isolation refusal: %s", async boundary => {
+  const t = await createTestDatabase();
+  try {
+    const c = await company(t.db), manager = c.scopes[0];
+    const { payable } = await confirmedPayable(t.db, manager);
+    await approveWorkPayable(t.db, manager, payable.id);
+    const paypal = fakePayPal();
+    await submitWorkPayout(t.db, paypal, manager, payable.id);
+    paypal.createPayout.mockClear(); paypal.getPayout.mockClear();
+    const snapshot = async () => Promise.all([t.db.select().from(workPayables), t.db.select().from(workPayouts), t.db.select().from(auditEvents)]);
+    const before = await snapshot();
+    let refused = manager;
+    if (boundary === "LIVE_CUSTOMER") vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE", "LIVE_CUSTOMER");
+    if (boundary === "wrong tenant") refused = { ...manager, organisationId: randomUUID() };
+    if (boundary === "public demo") refused = { ...manager, demo: { persona: "MANAGER", group: "public" } };
+    await expect(submitWorkPayout(t.db, paypal, refused, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
+    await expect(refreshWorkPayout(t.db, paypal, refused, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
+    expect(paypal.createPayout).not.toHaveBeenCalled(); expect(paypal.getPayout).not.toHaveBeenCalled();
+    expect(await snapshot()).toEqual(before);
+  } finally { await t.close(); }
 });

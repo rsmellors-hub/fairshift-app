@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// This calculation suite supplies synthetic fixtures under an explicit mocked demo
+// authority. Real configuration and ordinary-account rejection are tested separately.
+vi.mock("@/server/intelligence/sales-history", async importOriginal => ({
+  ...await importOriginal<typeof import("@/server/intelligence/sales-history")>(),
+  syntheticHistoryAllowed: () => true,
+}));
 import { createTestDatabase } from "../helpers/database";
 import type { Scope } from "@/server/auth/access";
 import { organisations, outlets, saleTransactions } from "@/server/db/schema";

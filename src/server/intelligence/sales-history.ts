@@ -1,5 +1,7 @@
 import { cache } from "react";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import type { Scope } from "@/server/auth/access";
+import { demoConfig } from "@/server/demo/config";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets, saleTransactions } from "@/server/db/schema";
 import type { SalesSource } from "@/server/intelligence/forecast";
@@ -29,18 +31,25 @@ const eligibleSale = sql`(
 
 export type DailySalesRow = { outletId: string; source: SalesSource; currency: string; date: string; salesMinor: number; transactions: number };
 
+// Synthetic history is readable only in a server-issued demo persona for the
+// explicitly configured demo organisation. Rows alone never grant demo access.
+export function syntheticHistoryAllowed(scope: Pick<Scope, "organisationId"> & Partial<Pick<Scope, "demo">>) {
+  return !!scope.demo && demoConfig()?.organisationId === scope.organisationId;
+}
+
 // Eligible daily totals per outlet, source and currency for one organisation,
 // aggregated in the database so long histories are never loaded row by row.
 // Memoised per server request: Overview needs the same organisation-wide totals
 // for recorded sales and for the weekly forecast. Outside a request it simply runs.
-export const loadDailySales = cache(async function loadDailySales(db: DatabaseSession, organisationId: string, outletIds?: string[]): Promise<DailySalesRow[]> {
+export const loadDailySales = cache(async function loadDailySales(db: DatabaseSession, organisationId: string, outletIds?: string[], allowSynthetic = false): Promise<DailySalesRow[]> {
   if (outletIds && !outletIds.length) return [];
   const rows = await db.select({
     outletId: outlets.id, source: saleTransactions.source, currency: saleTransactions.currencyCode, date: saleDate,
     salesMinor: sql<number>`sum(${saleTransactions.grossAmountMinor})`.mapWith(Number),
     transactions: sql<number>`count(*)`.mapWith(Number),
   }).from(saleTransactions).innerJoin(outlets, eq(saleTransactions.outletId, outlets.id))
-    .where(and(eq(outlets.organisationId, organisationId), outletIds ? inArray(outlets.id, outletIds) : undefined, eligibleSale))
+    .where(and(eq(outlets.organisationId, organisationId), outletIds ? inArray(outlets.id, outletIds) : undefined,
+      allowSynthetic ? undefined : notInArray(saleTransactions.source, ["REFERENCE", "DEMO_SEEDED"]), eligibleSale))
     .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleDate);
   return rows.map(row => ({ ...row, source: row.source as SalesSource }));
 });

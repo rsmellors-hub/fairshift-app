@@ -1,4 +1,3 @@
-import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { requireScope } from "@/server/auth/request";
 import { createLocationAction, inviteAction, refreshSubscriptionAction, selectLocationAction, revokeInvitationAction, resendInvitationAction } from "@/app/auth-actions";
 import { subscriptionFor } from "@/server/billing/service";
@@ -14,7 +13,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
-import { loadDailySales } from "@/server/intelligence/sales-history";
+import { loadDailySales, syntheticHistoryAllowed } from "@/server/intelligence/sales-history";
 import { OwnerWeeklyForecast } from "@/app/owner/weekly-forecast";
 import { getOwnerWorkspace } from "@/server/product/workspace";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
@@ -22,7 +21,6 @@ import { getStaffingConfiguration } from "@/server/intelligence/business-policy"
 import { StaffingConfiguration } from "@/app/owner/staffing-configuration";
 import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
 import { explainWageAction, generateOwnerAssessmentAction } from "@/app/intelligence-actions";
-import { DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 import { commerceConnectionsConfigured, getCommerceConnections } from "@/server/commerce/connections";
 import { OwnerSales, type SalesFilter } from "@/app/owner/sales";
 import { labourHours, longDate } from "@/app/components/staffing";
@@ -65,7 +63,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   try { data = await getOwnerWorkspace(getDatabase(),scope.organisationId); } catch { return <WorkspaceUnavailable />; }
   const { locations, sales, payments, workforce, workPayments } = data;
   let history: Awaited<ReturnType<typeof loadDailySales>> = [], historyUnavailable = false;
-  if (area === "reporting") { try { history = await loadDailySales(getDatabase(), scope.organisationId); } catch { historyUnavailable = true; } }
+  if (area === "reporting") { try { history = await loadDailySales(getDatabase(), scope.organisationId, undefined, syntheticHistoryAllowed(scope)); } catch { historyUnavailable = true; } }
   let weekly = null, connections: Awaited<ReturnType<typeof getCommerceConnections>> = [], connectionsAvailable = true;
   if (area === "reporting") { try { weekly = await getWeeklyForecast(getDatabase(), scope); } catch { weekly = null; } }
   if (area === "reporting" || area === "settings") { try { connections = await getCommerceConnections(getDatabase(), scope); } catch { connectionsAvailable = false; } }
@@ -121,7 +119,6 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     {area === "policies" && staffingConfiguration ? <StaffingConfiguration configuration={staffingConfiguration} locationName={scope.locationName} /> : null}
     {area === "policies" && operations ? <>
       <details className="panel disclosure"><summary>Departments · {scope.locationName}</summary>{operations.departments.map(d => <div className="record-row" key={d.id}>{d.name}</div>)}<form action={createDepartmentAction} className="inline-form"><label>Department name<input name="name" maxLength={100} required /></label><button className="primary-button">Add department</button></form></details>
-      {scope.organisationId === DEMO_ORGANISATION_ID ? <section className="panel"><h2>Controlled demo incentive</h2><p>{money(DEMO_SHIFT_TERMS.incentiveAmountMinor)} when the recorded team result reaches {money(DEMO_SHIFT_TERMS.incentiveTargetMinor)}. Manager approval is required. This demo rule is separate from the policies above.</p></section> : null}
     </> : null}
     {area === "payments" ? <section className="panel"><h2>Work earnings payments</h2><p className="panel-lede">Approve and send from Review &amp; pay at each location, yourself or through its manager. Paid shows only after PayPal confirms the payment.</p>{workPayments.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Approved work and payment status</caption><thead><tr><th scope="col">Location</th><th scope="col">Worker</th><th scope="col">Shift</th><th scope="col">Total</th><th scope="col">Status</th></tr></thead><tbody>{workPayments.map((payment) => <tr key={payment.id}><th scope="row">{locations.find((location) => location.id === payment.outletId)?.name}</th><td data-label="Worker">{payment.workerName}</td><td data-label="Shift">{longDate(payment.shiftDate)}</td><td data-label="Total"><strong>{money(payment.amountMinor, payment.currencyCode)}</strong></td><td data-label="Status"><PayableBadge status={payment.status} payout={payment.payout} /></td></tr>)}</tbody></table></div> : <p>No confirmed work payables yet.</p>}</section> : null}
     {area === "payments" && payments.length ? <section className="panel"><h2>Organisation incentive payments</h2>{payments.map((payment, index) => <div className="record-row" key={`${payment.outletId}-${payment.shiftDate}-${index}`}><span>{locations.find((location) => location.id === payment.outletId)?.name} · {payment.shiftDate} · {money(payment.amount, payment.currency)}</span><PaymentBadge status={payment.status} /></div>)}</section> : null}

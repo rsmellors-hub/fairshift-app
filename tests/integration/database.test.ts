@@ -1,3 +1,7 @@
+import { sandboxFixture } from "../helpers/sandbox";
+import { beforeEach as beforeSandbox, afterEach as afterSandbox, vi as sandboxVi } from "vitest";
+beforeSandbox(() => sandboxFixture());
+afterSandbox(() => sandboxVi.unstubAllEnvs());
 import { randomUUID } from "node:crypto";
 
 import { describe, expect, it } from "vitest";

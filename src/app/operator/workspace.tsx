@@ -8,6 +8,8 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { getConnection, listDemoOutletTransactions } from "@/server/db/repository";
 import { getLocationWorkspace, getOwnerWorkspace } from "@/server/product/workspace";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
+import { demoConfig } from "@/server/demo/config";
 
 export const operatorAreas = ["environment", "integrations"] as const;
 export type OperatorArea = "overview" | typeof operatorAreas[number];
@@ -20,10 +22,10 @@ export async function OperatorWorkspace({ area, status }: { area: OperatorArea; 
   let owner: Awaited<ReturnType<typeof getOwnerWorkspace>> | null = null;
   let connection: Awaited<ReturnType<typeof getConnection>> | null = null;
   let transactions: Awaited<ReturnType<typeof listDemoOutletTransactions>> = [];
-  if (config.databaseConfigured) {
+  if (config.databaseConfigured && demoConfig()?.organisationId === DEMO_ORGANISATION_ID) {
     try {
       const db = getDatabase();
-      [location, owner, connection, transactions] = await Promise.all([getLocationWorkspace(db), getOwnerWorkspace(db), getConnection(db), listDemoOutletTransactions(db)]);
+      [location, owner, connection, transactions] = await Promise.all([getLocationWorkspace(db), getOwnerWorkspace(db, DEMO_ORGANISATION_ID), getConnection(db), listDemoOutletTransactions(db)]);
       system = "Reachable";
     } catch { system = "Unavailable"; }
   }

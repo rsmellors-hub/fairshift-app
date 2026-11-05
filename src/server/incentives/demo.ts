@@ -1,3 +1,5 @@
+import { assertSandboxOrganisation } from "@/server/config/deployment";
+import { DEMO_ORGANISATION_ID } from "@/server/constants";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -105,6 +107,7 @@ function mapPayPalStatus(status: string) {
 }
 
 export async function submitDemoIncentivePayout(db: DatabaseSession, paypal: PayPalPayoutAdapter, expectedIncentiveId?: string) {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const current = await getDemoIncentive(db);
   if (!current || (expectedIncentiveId && current.incentive.id !== expectedIncentiveId) || current.incentive.status !== "APPROVED" || current.incentive.earnedAmountMinor <= 0 ||
       !current.incentive.approvedAt || !current.worker.paypalPayoutEmail || current.incentive.submittedAt || current.shift.currencyCode !== "USD") {
@@ -145,6 +148,7 @@ export async function submitDemoIncentivePayout(db: DatabaseSession, paypal: Pay
 }
 
 export async function refreshDemoIncentivePayout(db: DatabaseSession, paypal: PayPalPayoutAdapter, expectedIncentiveId?: string) {
+  assertSandboxOrganisation(DEMO_ORGANISATION_ID);
   const current = await getDemoIncentive(db);
   if (expectedIncentiveId && current?.incentive.id !== expectedIncentiveId) throw new Error("Demo incentive changed. Reload the page.");
   if (!current?.incentive.paypalBatchId) throw new Error("No PayPal payout batch is available to refresh.");
