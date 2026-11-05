@@ -15,7 +15,7 @@ import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "
 // recalculates pay from shifts, policies, rates or request input. Each payable has at
 // most one payout (unique payable reference), reserved in the database before PayPal
 // is called. Its sender batch/item IDs derive from the payable, so any retry reuses
-// them and PayPal pays a sender_batch_id at most once within 30 days.
+// them. No-batch recovery is limited to 28 days, inside PayPal's 30-day protection.
 
 export type WorkPayout = typeof workPayouts.$inferSelect;
 type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId">;
@@ -29,6 +29,21 @@ export class PayoutCurrencyUnsupportedError extends Error {
 
 // A payout that may still be in flight is not retried before this long has passed.
 export const STALE_SUBMISSION_MS = 2 * 60_000;
+// PayPal protects sender_batch_id for 30 days; leave a two-day safety margin.
+const NO_BATCH_RECOVERY_WINDOW_MS = 28 * 24 * 60 * 60_000;
+
+function assertNoBatchRecoveryWindow(payout: WorkPayout) {
+  // reservedAt is persisted before the FIRST create call and immutable in the DB.
+  // It is an earlier, conservative bound even if sending was delayed or NOT_SENT.
+  // submittedAt is only set after a response, and updatedAt moves on every retry.
+  // Never coerce missing/ambiguous timestamps or fall back to either of those fields.
+  const firstAttempt = payout.reservedAt instanceof Date ? payout.reservedAt.getTime() : NaN;
+  const age = Date.now() - firstAttempt;
+  if (!Number.isFinite(age) || age < 0 || age >= NO_BATCH_RECOVERY_WINDOW_MS) {
+    throw new UserFacingError("payout-investigation-required", "This payment is still unconfirmed. It cannot be safely resent. Investigate the original payout with PayPal before taking further payment action.");
+  }
+}
+
 const recipientSchema = z.string().trim().email().max(254);
 
 export const payoutSenderIds = (payableId: string) => {
@@ -215,8 +230,8 @@ export async function submitWorkPayout(db: Database, paypal: PayPalPayoutAdapter
 }
 
 // Obtains the latest provider state. With a PayPal batch ID it reads the payout; with
-// an unknown outcome it re-sends the identical request (same sender_batch_id, amount,
-// currency and recipient), which PayPal processes at most once, to learn the result.
+// an unknown outcome it may re-send the identical request (same sender_batch_id,
+// amount, currency and recipient) only within the conservative recovery window.
 export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapter, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
   authoriseFinancialObligation(scope);
   const payable = await scopedPayable(db, scope, payableId);
@@ -251,6 +266,7 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
 
   const stale = new Date(Date.now() - STALE_SUBMISSION_MS);
   if (payout.status === "RECONCILIATION_REQUIRED" || (payout.status === "SUBMITTING" && payout.updatedAt < stale)) {
+    assertNoBatchRecoveryWindow(payout);
     const [claimed] = await db.update(workPayouts).set({ status: "SUBMITTING", attempts: sql`${workPayouts.attempts} + 1`, updatedAt: new Date() })
       .where(and(eq(workPayouts.id, payout.id), eq(workPayouts.status, payout.status), payout.status === "SUBMITTING" ? lt(workPayouts.updatedAt, stale) : eq(workPayouts.updatedAt, payout.updatedAt))).returning();
     if (!claimed) {
@@ -258,6 +274,15 @@ export async function refreshWorkPayout(db: Database, paypal: PayPalPayoutAdapte
       return current;
     }
     await audit(db, scope, "PAYOUT_RECONCILIATION_REQUESTED", "work_payout", claimed.id, payable.id, { attempt: claimed.attempts, senderBatchId: claimed.senderBatchId });
+    // Claiming/auditing can take time. Check again immediately before provider create.
+    try {
+      assertNoBatchRecoveryWindow(claimed);
+    } catch (error) {
+      // No provider request was made. Keep the prior provider error and all evidence.
+      await db.update(workPayouts).set({ status: "RECONCILIATION_REQUIRED", updatedAt: new Date() })
+        .where(and(eq(workPayouts.id, claimed.id), eq(workPayouts.status, "SUBMITTING"), eq(workPayouts.updatedAt, claimed.updatedAt)));
+      throw error;
+    }
     const reconciled = await sendReserved(db, paypal, scope, claimed, "RECONCILE");
     // An adopted earlier payout is read straight away for its item status.
     return reconciled.paypalBatchId && !reconciled.paypalStatus ? refreshWorkPayout(db, paypal, scope, payableId) : reconciled;

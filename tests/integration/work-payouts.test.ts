@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import { requireEntitlement } from "@/server/billing/entitlement";
@@ -28,7 +28,7 @@ vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
 vi.mock("@/server/integrations/paypal/factory", () => ({ getPayPalPayoutClient: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-afterEach(() => { vi.resetAllMocks(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); vi.restoreAllMocks(); });
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const START = Date.parse("2026-10-20T08:00:00Z");
@@ -480,7 +480,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
         await expect(t.db.insert(workPayouts).values({ ...reservation, ...invalid })).rejects.toThrow();
       }
       await t.db.insert(workPayouts).values(reservation);
-      for (const change of [{ amountMinor: 1 }, { currencyCode: "USD" }, { senderBatchId: "OTHER" }, { recipient: "other@example.test" }, { status: "NOT_SENT", paypalBatchId: "B" },
+      for (const change of [{ amountMinor: 1 }, { currencyCode: "USD" }, { senderBatchId: "OTHER" }, { senderItemId: "OTHER" }, { reservedAt: new Date(0) }, { recipient: "other@example.test" }, { status: "NOT_SENT", paypalBatchId: "B" },
         { status: "PAID", paypalBatchId: "B", paypalStatus: "PENDING", paidAt: new Date() }, { status: "PAID", paypalBatchId: "B", paypalStatus: "SUCCESS" }, { status: "PROCESSING" }]) {
         await expect(t.db.update(workPayouts).set(change).where(eq(workPayouts.id, reservation.id))).rejects.toThrow();
       }
@@ -620,6 +620,150 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
       expect(earnings).toContain("Payment details required");
       expect(earnings).toContain("/worker/profile");
+    } finally { await t.close(); }
+  });
+});
+
+
+describe("uncertain no-batch recovery safety window", () => {
+  const DAY = 24 * 60 * 60_000;
+  const FIRST = new Date("2026-11-05T12:00:00Z");
+  const timeout = () => new PayPalPayoutError("Response lost", "TIMEOUT", undefined, undefined, undefined, "UNKNOWN");
+  beforeEach(() => { vi.useFakeTimers({ now: FIRST, toFake: ["Date"] }); });
+
+  const boundaries = [
+    { label: "one hour", age: 3_600_000, retry: true },
+    { label: "27 days", age: 27 * DAY, retry: true },
+    { label: "one millisecond below 28 days", age: 28 * DAY - 1, retry: true },
+    { label: "exactly 28 days", age: 28 * DAY, retry: false },
+    { label: "29 days", age: 29 * DAY, retry: false },
+    { label: "30 days", age: 30 * DAY, retry: false },
+    { label: "90 days", age: 90 * DAY, retry: false },
+  ];
+  for (const state of ["RECONCILIATION_REQUIRED", "SUBMITTING"]) {
+    it.each(boundaries)(`${state}: enforces the recovery cutoff at $label after subscription cancellation`, async ({ age, retry }) => {
+      const t = await createTestDatabase();
+      try {
+        const c = await company(t.db), manager = c.scopes[0];
+        const { payable, workerScope } = await confirmedPayable(t.db, manager);
+        await approveWorkPayable(t.db, manager, payable.id);
+        const paypal = fakePayPal({ createPayout: vi.fn().mockRejectedValue(timeout()) });
+        const first = await submitWorkPayout(t.db, paypal, manager, payable.id);
+        expect(first.payout).toMatchObject({ reservedAt: FIRST, submittedAt: null, paypalBatchId: null, paidAt: null });
+        // Emulate an interrupted recovery after the original response was lost.
+        if (state === "SUBMITTING") await t.db.update(workPayouts).set({ status: state }).where(eq(workPayouts.id, first.payout.id));
+        await savePayoutDestination(t.db, workerScope, "changed@example.test");
+        await subscriptionStatus(t.db, c.organisationId, "CANCELLED");
+        vi.setSystemTime(new Date(FIRST.getTime() + age));
+        const [before] = await payoutsOf(t.db);
+        const auditBefore = await t.db.select().from(auditEvents);
+        if (retry) {
+          const recovered = await refreshWorkPayout(t.db, paypal, manager, payable.id);
+          expect(recovered).toMatchObject({ status: "RECONCILIATION_REQUIRED", reservedAt: FIRST, submittedAt: null, attempts: 2, paidAt: null });
+          expect(paypal.createPayout.mock.calls[1][0]).toEqual(paypal.createPayout.mock.calls[0][0]);
+          expect(paypal.createPayout.mock.calls[1][0]).toMatchObject({ ...payoutSenderIds(payable.id), amount: "78.00", currency: "GBP", recipient: "casual.sandbox@example.test" });
+          // Repeated uncertainty must never restart the original safety window.
+          vi.setSystemTime(new Date(FIRST.getTime() + 28 * DAY));
+          await expect(refreshWorkPayout(t.db, paypal, manager, payable.id)).rejects.toMatchObject({ feedback: "payout-investigation-required" });
+        } else {
+          for (let check = 0; check < 2; check++) await expect(refreshWorkPayout(t.db, paypal, manager, payable.id)).rejects.toMatchObject({ feedback: "payout-investigation-required" });
+          expect((await payoutsOf(t.db))[0]).toEqual(before);
+          expect(await t.db.select().from(auditEvents)).toEqual(auditBefore);
+        }
+        expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
+        expect(paypal.createPayout).toHaveBeenCalledTimes(retry ? 2 : 1);
+        expect(paypal.getPayout).not.toHaveBeenCalled();
+        expect(await payoutsOf(t.db)).toHaveLength(1);
+        expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP" });
+      } finally { await t.close(); }
+    });
+  }
+
+  it("does not extend the original reservation time after a delayed NOT_SENT retry", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal({ createPayout: vi.fn()
+        .mockRejectedValueOnce(new PayPalPayoutError("No request", "AUTHENTICATION_FAILURE", 401, undefined, undefined, "NOT_SENT"))
+        .mockRejectedValue(timeout()) });
+      await submitWorkPayout(t.db, paypal, manager, payable.id);
+      vi.setSystemTime(new Date(FIRST.getTime() + 27 * DAY));
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).payout).toMatchObject({ status: "RECONCILIATION_REQUIRED", reservedAt: FIRST, submittedAt: null, attempts: 2 });
+      vi.setSystemTime(new Date(FIRST.getTime() + 28 * DAY));
+      await expect(refreshWorkPayout(t.db, paypal, manager, payable.id)).rejects.toMatchObject({ feedback: "payout-investigation-required" });
+      expect(paypal.createPayout).toHaveBeenCalledTimes(2);
+      expect(paypal.createPayout.mock.calls[1][0]).toEqual(paypal.createPayout.mock.calls[0][0]);
+    } finally { await t.close(); }
+  });
+
+  it("preserves GET reconciliation of a 90-day-old known batch", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal();
+      const first = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      vi.setSystemTime(new Date(FIRST.getTime() + 90 * DAY));
+      await subscriptionStatus(t.db, c.organisationId, "EXPIRED");
+      expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "PAID", paypalStatus: "SUCCESS", amountMinor: 7_800, currencyCode: "GBP", reservedAt: FIRST });
+      expect(paypal.getPayout).toHaveBeenCalledWith(first.payout.paypalBatchId, first.payout.senderItemId);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+    } finally { await t.close(); }
+  });
+
+  it("claims only one concurrent no-batch recovery and keeps one immutable reservation", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal({ createPayout: vi.fn().mockRejectedValueOnce(timeout()) });
+      const first = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      vi.setSystemTime(new Date(FIRST.getTime() + 27 * DAY));
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      paypal.createPayout.mockImplementation(async () => { await gate; throw timeout(); });
+      let completed = 0;
+      let competitorsDone!: () => void;
+      const competitors = new Promise<void>(resolve => { competitorsDone = resolve; });
+      const recoveries = [1, 2, 3, 4].map(async () => {
+        const result = await refreshWorkPayout(t.db, paypal, manager, payable.id);
+        if (++completed === 3) competitorsDone();
+        return result;
+      });
+      // Three losing callers finish while the claimed provider request is in flight.
+      await competitors;
+      expect(paypal.createPayout).toHaveBeenCalledTimes(2); // one initial create, one recovery
+      release();
+      await Promise.all(recoveries);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(2);
+      expect(paypal.createPayout.mock.calls[1][0]).toEqual(paypal.createPayout.mock.calls[0][0]);
+      expect(await payoutsOf(t.db)).toHaveLength(1);
+      expect((await payoutsOf(t.db))[0]).toMatchObject({ id: first.payout.id, status: "RECONCILIATION_REQUIRED", attempts: 2, reservedAt: FIRST });
+    } finally { await t.close(); }
+  });
+
+  it("returns investigation feedback through the existing settlement action", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db), manager = c.scopes[0];
+      const { payable } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal({ createPayout: vi.fn().mockRejectedValue(timeout()) });
+      await submitWorkPayout(t.db, paypal, manager, payable.id);
+      vi.setSystemTime(new Date(FIRST.getTime() + 28 * DAY));
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(requireFinancialScope).mockResolvedValue(manager);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(getPayPalPayoutClient).mockReturnValue(paypal as unknown as ReturnType<typeof getPayPalPayoutClient>);
+      await expect(refreshPayoutAction(form({ payableId: payable.id }))).rejects.toThrow("REDIRECT:/settlements?status=payout-investigation-required");
+      const html = renderToStaticMarkup(await ManagerWorkspace({ area: "review", status: "payout-investigation-required", financialScope: manager, financialOnly: true }));
+      expect(html).toContain("Investigate the original payout with PayPal");
+      expect(html).not.toContain("which PayPal pays at most once");
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
     } finally { await t.close(); }
   });
 });
