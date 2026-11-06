@@ -1,6 +1,7 @@
 import { assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
+import { resolveProviderAmount } from "@/server/domain/provider-currency";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -13,11 +14,15 @@ import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "
 
 // Manager approval of confirmed work payables and their PayPal Sandbox payout.
 //
-// The amount sent is the approved amount persisted on the payable; nothing here
-// recalculates pay from shifts, policies, rates or request input. Each payable has at
-// most one payout (unique payable reference), reserved in the database before PayPal
-// is called. Its sender batch/item IDs derive from the payable, so any retry reuses
-// them. No-batch recovery is limited to 28 days, inside PayPal's 30-day protection.
+// The approved amount persisted on the payable is the worker's entitlement; nothing here
+// recalculates pay from shifts, policies, rates or request input. When PayPal cannot pay that
+// operating currency (ZAR), the payout is sent in a supported provider currency (USD) instead,
+// converted exactly once from the approved demo rate and frozen on the reservation, so a retry
+// or recovery re-sends the identical provider amount and never re-converts (DEC-SA-012); with
+// no conversion the provider leg equals the entitlement. Each payable has at most one payout
+// (unique payable reference), reserved in the database before PayPal is called. Its sender
+// batch/item IDs derive from the payable, so any retry reuses them. No-batch recovery is
+// limited to 28 days, inside PayPal's 30-day protection.
 
 export type WorkPayout = typeof workPayouts.$inferSelect;
 type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId" | "demo">;
@@ -63,26 +68,28 @@ export function payoutAmount(amountMinor: number, currencyCode: string) {
   return `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, "0")}`;
 }
 
-// Operating currency and provider payout currency are separate (DEC-SA-010). A payout is
-// sent only in a currency with a recorded genuine PayPal Sandbox payout for FairShift
-// (docs/PAYPAL_FINAL_EVIDENCE.md: USD and GBP). Anything else, including ZAR, is refused
-// before a payout is reserved: no conversion, no substitute currency, and the approved
-// earnings stay recorded and unpaid. This historical currency evidence does not authorise
-// an SA merchant, even for legacy GBP/USD payables. Widening the route needs verification.
+// Operating currency and provider payout currency are separate (DEC-SA-010). The currency
+// actually sent to PayPal must be one with a recorded genuine PayPal Sandbox payout for
+// FairShift (docs/PAYPAL_FINAL_EVIDENCE.md: USD and GBP). A ZAR operating entitlement is never
+// sent as ZAR; it reaches PayPal only through the frozen USD demo conversion (DEC-SA-012).
 const VERIFIED_PAYOUT_CURRENCIES: ReadonlySet<string> = new Set(["GBP", "USD"]);
 export function isVerifiedPayoutCurrency(currencyCode: string) {
   return VERIFIED_PAYOUT_CURRENCIES.has(currencyCode);
 }
 
-// No SA sender/merchant route is verified. Check persisted tenant/location geography as
-// well as currency so old USD-labelled SA obligations cannot use the historical route.
-async function assertPayoutRoute(db: DatabaseSession, scope: PayoutScope, currencyCode: string) {
-  if (!isVerifiedPayoutCurrency(currencyCode)) throw new UserFacingError("payout-currency-unverified", `PayPal payouts in ${currencyCode} are not verified for FairShift.`);
+// The currency sent must be verified, and no SA sender/merchant route is verified, so a ZAR
+// tenant/location is refused unless this payout is the authorised demo conversion to a verified
+// provider currency. `conversionAuthorised` is true only when a frozen rate converted the ZAR
+// entitlement to its provider leg; it never comes from request input. Legacy USD-labelled SA
+// obligations carry no conversion, so they are still refused: historical currency evidence does
+// not authorise an SA merchant. Non-SA GBP/USD payouts are unaffected.
+async function assertPayoutRoute(db: DatabaseSession, scope: PayoutScope, providerCurrency: string, conversionAuthorised: boolean) {
+  if (!isVerifiedPayoutCurrency(providerCurrency)) throw new UserFacingError("payout-currency-unverified", `PayPal payouts in ${providerCurrency} are not verified for FairShift.`);
   const [location] = await db.select({ locationCountry: outlets.country, organisationCountry: organisations.country })
     .from(outlets).innerJoin(organisations, eq(organisations.id, outlets.organisationId))
     .where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
   if (!location) throw new Error("Location unavailable.");
-  if ([location.locationCountry, location.organisationCountry].some(country => currencyForCountry(country) === "ZAR")) {
+  if (!conversionAuthorised && [location.locationCountry, location.organisationCountry].some(country => currencyForCountry(country) === "ZAR")) {
     throw new UserFacingError("payout-route-unverified", "A South African PayPal payout route has not been verified for FairShift.");
   }
 }
@@ -103,15 +110,15 @@ export function payoutStatusFromProvider(result: Pick<PayoutResult, "itemStatus"
   return "PROCESSING";
 }
 
-// PayPal's SUCCESS confirms payment only of the amount FairShift approved. An item reporting
-// another amount or currency, or none, stays unconfirmed: the money is not called paid, and it
-// is not resent either, because PayPal may already have paid something.
-function reconciledStatus(result: PayoutResult, payout: Pick<WorkPayout, "amountMinor" | "currencyCode">) {
+// PayPal's SUCCESS confirms payment only of the provider amount and currency FairShift sent.
+// An item reporting another amount or currency, or none, stays unconfirmed: the money is not
+// called paid, and it is not resent either, because PayPal may already have paid something.
+function reconciledStatus(result: PayoutResult, payout: Pick<WorkPayout, "providerAmountMinor" | "providerCurrency">) {
   const status = payoutStatusFromProvider(result);
   if (status !== "PAID") return { status, amountError: null };
   const returned = result.itemAmount;
   if (!returned) return { status: "PROCESSING" as const, amountError: "PROVIDER_AMOUNT_UNAVAILABLE" };
-  if (returned.currency !== payout.currencyCode || returned.value !== payoutAmount(payout.amountMinor, payout.currencyCode)) return { status: "PROCESSING" as const, amountError: "PROVIDER_AMOUNT_MISMATCH" };
+  if (returned.currency !== payout.providerCurrency || returned.value !== payoutAmount(payout.providerAmountMinor, payout.providerCurrency)) return { status: "PROCESSING" as const, amountError: "PROVIDER_AMOUNT_MISMATCH" };
   return { status, amountError: null };
 }
 
@@ -207,8 +214,8 @@ async function sendReserved(db: DatabaseSession, paypal: PayPalPayoutAdapter, sc
       senderBatchId: payout.senderBatchId,
       senderItemId: payout.senderItemId,
       recipient: payout.recipient,
-      amount: payoutAmount(payout.amountMinor, payout.currencyCode),
-      currency: payout.currencyCode,
+      amount: payoutAmount(payout.providerAmountMinor, payout.providerCurrency),
+      currency: payout.providerCurrency,
       purpose: "SERVICES",
       emailSubject: "FairShift work earnings",
       emailMessage: "Your manager-approved FairShift work earnings have been sent to your PayPal account.",
@@ -233,8 +240,15 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
   if (existing && existing.status !== "NOT_SENT") return { payout: existing, submitted: false };
   if (payable.status !== "APPROVED" || payable.approvedAmountMinor === null || payable.approvedCurrencyCode === null) throw new Error("Approve the payable before payout.");
   const amountMinor = payable.approvedAmountMinor, currencyCode = payable.approvedCurrencyCode;
-  await assertPayoutRoute(db, scope, currencyCode);
-  payoutAmount(amountMinor, currencyCode);
+  // The provider leg actually sent to PayPal. For a new reservation it is resolved and frozen
+  // now — a ZAR entitlement converts to USD at the approved demo rate, or fails closed when no
+  // rate is configured. For re-sending an unsent payout the frozen values are reused, so a
+  // later rate change cannot alter the reservation and the amount is never re-converted.
+  const providerLeg = existing
+    ? { providerCurrency: existing.providerCurrency, providerAmountMinor: existing.providerAmountMinor, fxRateMicros: existing.fxRateMicros, fxRateSource: existing.fxRateSource }
+    : resolveProviderAmount({ amountMinor, currencyCode });
+  await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
+  payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
   const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
     .where(and(eq(workers.id, payable.workerId), eq(workers.organisationId, scope.organisationId)));
   const recipient = recipientSchema.safeParse(worker?.email ?? "");
@@ -246,7 +260,9 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
   if (!existing) {
     [reserved] = await db.insert(workPayouts).values({
       id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
-      amountMinor, currencyCode, recipient: recipient.data, ...payoutSenderIds(payable.id),
+      amountMinor, currencyCode,
+      providerCurrency: providerLeg.providerCurrency, providerAmountMinor: providerLeg.providerAmountMinor, fxRateMicros: providerLeg.fxRateMicros, fxRateSource: providerLeg.fxRateSource,
+      recipient: recipient.data, ...payoutSenderIds(payable.id),
       status: "SUBMITTING", requestedBy: scope.userId, reservedAt: now, updatedAt: now,
     }).onConflictDoNothing({ target: workPayouts.payableId }).returning();
   } else {
@@ -258,7 +274,9 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
     return { payout: current, submitted: false };
   }
   await audit(db, scope, "PAYOUT_RESERVED", "work_payout", reserved.id, payable.id, {
-    amountMinor, currencyCode, senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId, attempt: reserved.attempts,
+    amountMinor, currencyCode, providerAmountMinor: reserved.providerAmountMinor, providerCurrency: reserved.providerCurrency,
+    fxRateMicros: reserved.fxRateMicros, fxRateSource: reserved.fxRateSource,
+    senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId, attempt: reserved.attempts,
   });
   return { payout: await sendReserved(db, client, scope, reserved, "FIRST"), submitted: true };
 }
@@ -302,9 +320,11 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
   const stale = new Date(Date.now() - STALE_SUBMISSION_MS);
   if (payout.status === "RECONCILIATION_REQUIRED" || (payout.status === "SUBMITTING" && payout.updatedAt < stale)) {
     assertNoBatchRecoveryWindow(payout);
-    // A no-batch refresh can create a payment; it must pass the same route gate.
-    // Known-batch GET reconciliation above stays available for existing obligations.
-    await assertPayoutRoute(db, scope, payout.currencyCode);
+    // A no-batch refresh can create a payment; it must pass the same route gate, using the
+    // frozen provider currency and the frozen fact that this payout was an authorised
+    // conversion (fxRateMicros present). The rate is never re-read, so a config change cannot
+    // change recovery. Known-batch GET reconciliation above stays available for existing obligations.
+    await assertPayoutRoute(db, scope, payout.providerCurrency, payout.fxRateMicros !== null);
     const client = payoutClient(paypal);
     const [claimed] = await db.update(workPayouts).set({ status: "SUBMITTING", attempts: sql`${workPayouts.attempts} + 1`, updatedAt: new Date() })
       .where(and(eq(workPayouts.id, payout.id), eq(workPayouts.status, payout.status), payout.status === "SUBMITTING" ? lt(workPayouts.updatedAt, stale) : eq(workPayouts.updatedAt, payout.updatedAt))).returning();

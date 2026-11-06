@@ -71,6 +71,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
         {payable.incentiveRequired ? <div><dt>Bonus{bonusUnknown ? null : <small>{payable.incentiveAmountMinor! > 0 ? "Target reached" : "Target not reached"}</small>}</dt><dd>{bonusUnknown ? "Not known yet" : `+ ${amount(payable.incentiveAmountMinor!)}`}</dd></div> : null}
         <div className="earning-total"><dt>{row.payout?.status === "PAID" ? "Paid" : payable.status === "APPROVED" ? "Final approved earnings" : "Total"}{row.payout?.status !== "PAID" && payable.status !== "APPROVED" ? <small>Not final until your manager approves it</small> : null}</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
       </dl>
+      {row.payout?.fxRateMicros ? <p className="note payout-conversion">Your {payable.currencyCode} earnings are paid in {row.payout.providerCurrency}: {money(row.payout.providerAmountMinor, row.payout.providerCurrency)} for {amount(row.payout.amountMinor)}, at the fixed demo rate of {money(Math.round(row.payout.fxRateMicros / 10_000), payable.currencyCode)} per {row.payout.providerCurrency}.</p> : null}
       <PayoutProgress status={payable.status} payout={row.payout} />
       {row.payout?.status === "PAID" && row.payout.paidAt ? <p className="paid-confirmation">PayPal confirmed: paid to your PayPal account {dateTime(row.payout.paidAt, timezone)} ({timezone})</p> : null}
       {row.payout?.status === "FAILED" ? <p>Your payment needs attention: ask your manager to review it.</p> : null}

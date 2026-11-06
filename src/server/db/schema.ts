@@ -784,6 +784,17 @@ export const workPayouts = pgTable("work_payouts", {
   workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
   amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
   currencyCode: text("currency_code").notNull(),
+  // amountMinor/currencyCode are the worker's approved entitlement, copied from the payable
+  // and checked against it by a trigger. When PayPal cannot pay that currency the payout is
+  // sent in a provider currency instead: providerAmountMinor/providerCurrency are what is
+  // actually sent to PayPal, and the frozen conversion rate (operating-currency micro-units
+  // per one provider unit) and its source are recorded so a reservation is never re-converted
+  // (DEC-SA-012). With no conversion the provider fields equal the entitlement and the rate is
+  // null; see payments/work-payouts.ts and domain/provider-currency.ts.
+  providerCurrency: text("provider_currency").notNull(),
+  providerAmountMinor: bigint("provider_amount_minor", { mode: "number" }).notNull(),
+  fxRateMicros: bigint("fx_rate_micros", { mode: "number" }),
+  fxRateSource: text("fx_rate_source"),
   recipient: text("recipient").notNull(),
   senderBatchId: text("sender_batch_id").notNull(),
   senderItemId: text("sender_item_id").notNull(),
@@ -815,6 +826,13 @@ export const workPayouts = pgTable("work_payouts", {
   index("work_payouts_worker_idx").on(t.workerId),
   check("work_payouts_status_check", sql`${t.status} in ('SUBMITTING', 'NOT_SENT', 'PROCESSING', 'PAID', 'FAILED', 'RECONCILIATION_REQUIRED')`),
   check("work_payouts_amount_check", sql`${t.amountMinor} > 0 and ${t.amountMinor} <= 9007199254740991 and ${t.currencyCode} ~ '^[A-Z]{3}$' and ${t.attempts} > 0`),
+  check("work_payouts_provider_amount_check", sql`${t.providerAmountMinor} > 0 and ${t.providerAmountMinor} <= 9007199254740991 and ${t.providerCurrency} ~ '^[A-Z]{3}$'`),
+  // The provider leg is either an identity (same currency, no rate) or a recorded conversion:
+  // a positive rate and a source, a different provider currency, and a provider amount that is
+  // exactly the entitlement converted down to the cent (truncated integer division, which for
+  // these positive values is floor). This freezes the conversion in the row, so no rate change
+  // can alter a reservation and recovery never re-converts.
+  check("work_payouts_provider_conversion_check", sql`(${t.fxRateMicros} is null and ${t.fxRateSource} is null and ${t.providerCurrency} = ${t.currencyCode} and ${t.providerAmountMinor} = ${t.amountMinor}) or (${t.fxRateMicros} is not null and ${t.fxRateMicros} > 0 and ${t.fxRateSource} is not null and ${t.providerCurrency} <> ${t.currencyCode} and ${t.providerAmountMinor} = div(${t.amountMinor}::numeric * 1000000, ${t.fxRateMicros}::numeric))`),
   // Processing and paid payouts have a PayPal batch; a reservation or unsent payout cannot.
   check("work_payouts_provider_check", sql`(${t.status} not in ('PROCESSING', 'PAID') or ${t.paypalBatchId} is not null) and (${t.status} not in ('SUBMITTING', 'NOT_SENT') or ${t.paypalBatchId} is null)`),
   check("work_payouts_paid_check", sql`(${t.status} = 'PAID') = (${t.paidAt} is not null and coalesce(${t.paypalStatus}, '') = 'SUCCESS')`),

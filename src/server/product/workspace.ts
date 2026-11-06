@@ -46,10 +46,16 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
       salesCount: workPerformanceResults.salesCount, salesMinor: workPerformanceResults.salesMinor, currencyCode: workPerformanceResults.currencyCode,
       targetMinor: workPerformanceResults.targetMinor, bonusMinor: workPerformanceResults.bonusMinor, earnedMinor: workPerformanceResults.earnedMinor, evidenceProvenance: workPerformanceResults.evidenceProvenance,
     },
-    // Its payout state, without PayPal identifiers, recipient or error internals.
+    // Its payout state, without PayPal identifiers, recipient or error internals. amountMinor/
+    // currencyCode are the worker's earned entitlement in the operating currency; when PayPal
+    // cannot pay that currency the payout is sent in providerCurrency for providerAmountMinor at
+    // the frozen demo rate fxRateMicros (operating-currency micro-units per one provider unit),
+    // with fxRateSource. The rate and both amounts are shown to the worker (DEC-SA-012). status
+    // is PAID only on a genuine provider SUCCESS (enforced by the database).
     payout: {
       id: workPayouts.id, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, amountMinor: workPayouts.amountMinor,
-      currencyCode: workPayouts.currencyCode, submittedAt: workPayouts.submittedAt, paidAt: workPayouts.paidAt,
+      currencyCode: workPayouts.currencyCode, providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency,
+      fxRateMicros: workPayouts.fxRateMicros, fxRateSource: workPayouts.fxRateSource, submittedAt: workPayouts.submittedAt, paidAt: workPayouts.paidAt,
     },
   }).from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))

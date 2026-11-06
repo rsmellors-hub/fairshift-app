@@ -15,7 +15,8 @@ function fixture(reservedAt: unknown, status: string, afterAudit?: () => void) {
   const payableId = randomUUID();
   const payout = {
     id: randomUUID(), payableId, status, reservedAt, updatedAt: new Date(NOW.getTime() - 600_000),
-    currencyCode: "GBP", paypalBatchId: null, submittedAt: new Date(NOW.getTime() - 1_000), createdAt: NOW,
+    currencyCode: "GBP", providerCurrency: "GBP", providerAmountMinor: 7_800, fxRateMicros: null, fxRateSource: null,
+    paypalBatchId: null, submittedAt: new Date(NOW.getTime() - 1_000), createdAt: NOW,
     lastError: { code: "TIMEOUT", outcome: "UNKNOWN" }, attempts: 1,
   } as WorkPayout;
   const claimed = { ...payout, status: "SUBMITTING", attempts: 2, updatedAt: NOW };
