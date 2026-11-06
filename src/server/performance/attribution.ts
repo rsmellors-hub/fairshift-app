@@ -9,6 +9,7 @@ import { attributedSales, auditEvents, commerceConnections, commerceSyncRuns, sh
 import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, calculateIncentive } from "@/server/domain/incentive";
 import { decimalToMinorUnits } from "@/server/domain/money";
+import { recordPayAgentEvent } from "@/server/pay-agent/journal";
 
 // Worker-attributed sales evidence. It arrives through this location-scoped import, matched on
 // the worker's attribution code, or from a connected provider's team member identity (see
@@ -196,6 +197,9 @@ export async function confirmWorkPerformance(db: Database, scope: PerformanceSco
     await tx.update(workPayables).set({ incentiveAmountMinor: earnedAmountMinor, performanceResultId: result.id, updatedAt: new Date() }).where(eq(workPayables.id, payable.id));
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_PERFORMANCE_CONFIRMED", entityType: "work_performance_result", entityId: result.id, correlationId: `payable:${payable.id}`,
       metadata: { actorUserId: scope.userId ?? null, salesCount: totals.count, salesMinor: totals.minor, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor, provenance } });
+    // The incentive is now known, so the payable has new evidence: its Pay Agent event (DEC-SA-011)
+    // commits with this confirmation, and is processed only after the commit.
+    await recordPayAgentEvent(tx, scope, payable.id, "PERFORMANCE_CONFIRMED", scope.userId ?? null);
     return result;
   });
 }

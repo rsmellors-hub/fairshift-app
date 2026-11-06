@@ -5,6 +5,10 @@ import { defineConfig } from "vitest/config";
 const directory = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Never load .env, .env.local, .env.test or .env.test.local into tests: with Vite's default
+  // envDir, VITE_-prefixed values from those files reach process.env and import.meta.env.
+  // Tests must not pick up a developer's local credentials or configuration.
+  envDir: false,
   resolve: {
     alias: { "@": path.resolve(directory, "src") },
   },

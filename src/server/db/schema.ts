@@ -1094,6 +1094,76 @@ export const auditEvents = pgTable(
   ],
 );
 
+// The durable FairShift Pay Agent event for one work payable at one evidence version
+// (DEC-SA-011), together with its processing journal. It is written in the same transaction
+// as the manager's work confirmation (or a later performance confirmation), so confirmed work
+// never loses its orchestration intent, and is processed only after that commit. One row per
+// payable and evidence version. `status` follows an explicit state machine, and identity
+// columns, decisions and manager resolutions are final; a database trigger enforces both
+// (drizzle/0027_pay_agent_events.sql). Claims are atomic conditional updates fenced by
+// `claim_token`. Nothing here holds an amount, currency, recipient or funding identity: those
+// stay on the payable and its payout, resolved by the shared settlement engine.
+export const payAgentEvents = pgTable("pay_agent_events", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  payableId: uuid("payable_id").notNull().references(() => workPayables.id, { onDelete: "restrict" }),
+  // SHA-256 of the persisted evidence fields listed in server/pay-agent/evidence.ts.
+  evidenceVersion: text("evidence_version").notNull(),
+  trigger: text("trigger").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  status: text("status").notNull(),
+  // Authoritative reason for the current state (a block, skip, failure or settlement result).
+  outcomeCode: text("outcome_code"),
+  // Classified model/transport failure, never a raw provider message.
+  errorClass: text("error_class"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  modelCallCount: integer("model_call_count").notNull().default(0),
+  claimToken: uuid("claim_token"),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  configuredModel: text("configured_model"),
+  responseModel: text("response_model"),
+  responseId: text("response_id"),
+  // The validated model recommendation: SETTLE, or HOLD with a reason and short summary.
+  decision: text("decision"),
+  reasonCode: text("reason_code"),
+  summary: text("summary"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  dryRun: boolean("dry_run"),
+  payoutId: uuid("payout_id").references(() => workPayouts.id, { onDelete: "restrict" }),
+  // A manager's release or rejection of a HOLD, by an existing Owner/Manager.
+  resolution: text("resolution"),
+  resolvedBy: uuid("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolutionNote: text("resolution_note"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("pay_agent_events_payable_version_unique").on(t.payableId, t.evidenceVersion),
+  index("pay_agent_events_scope_idx").on(t.organisationId, t.outletId, t.payableId, t.createdAt),
+  index("pay_agent_events_recovery_idx").on(t.status, t.nextAttemptAt),
+  check("pay_agent_events_status_check", sql`${t.status} in ('PENDING', 'CLAIMED', 'SKIPPED', 'BLOCKED', 'REJECTED_OUTPUT', 'FAILED_RETRYABLE', 'FAILED_TERMINAL', 'DECIDED_SETTLE', 'DECIDED_HOLD', 'HOLD_RELEASED', 'HOLD_REJECTED', 'SETTLING', 'DRY_RUN_ELIGIBLE', 'SETTLEMENT_BLOCKED', 'SETTLEMENT_SUBMITTED')`),
+  check("pay_agent_events_trigger_check", sql`${t.trigger} in ('WORK_CONFIRMED', 'PERFORMANCE_CONFIRMED', 'EVIDENCE_REFRESHED')`),
+  check("pay_agent_events_version_check", sql`${t.evidenceVersion} ~ '^[0-9a-f]{64}$'`),
+  check("pay_agent_events_counts_check", sql`${t.attemptCount} >= 0 and ${t.modelCallCount} >= 0 and ${t.modelCallCount} <= ${t.attemptCount}`),
+  check("pay_agent_events_claim_check", sql`(${t.status} in ('CLAIMED', 'SETTLING')) = (${t.claimToken} is not null and ${t.leaseExpiresAt} is not null and ${t.claimedAt} is not null)`),
+  check("pay_agent_events_outcome_check", sql`${t.status} in ('PENDING', 'CLAIMED', 'DECIDED_SETTLE', 'DECIDED_HOLD', 'HOLD_RELEASED', 'SETTLING') or ${t.outcomeCode} is not null`),
+  check("pay_agent_events_error_check", sql`${t.status} not in ('REJECTED_OUTPUT', 'FAILED_RETRYABLE', 'FAILED_TERMINAL') or ${t.errorClass} is not null`),
+  check("pay_agent_events_codes_check", sql`coalesce(char_length(${t.outcomeCode}), 0) <= 64 and coalesce(char_length(${t.errorClass}), 0) <= 64 and coalesce(char_length(${t.responseId}), 0) <= 200 and coalesce(char_length(${t.configuredModel}), 0) <= 100 and coalesce(char_length(${t.responseModel}), 0) <= 100`),
+  check("pay_agent_events_decision_check", sql`(${t.decision} is null and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is null)
+    or (${t.decision} = 'SETTLE' and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is not null)
+    or (${t.decision} = 'HOLD' and ${t.reasonCode} in ('HOURS_MISMATCH', 'INCOMPLETE_EVIDENCE', 'CONFIRMATION_DELAY', 'CONFLICTING_RECORDS') and char_length(${t.summary}) between 1 and 200 and ${t.decidedAt} is not null)`),
+  check("pay_agent_events_decided_status_check", sql`(${t.status} not in ('DECIDED_HOLD', 'HOLD_RELEASED', 'HOLD_REJECTED') or ${t.decision} = 'HOLD') and (${t.status} <> 'DECIDED_SETTLE' or ${t.decision} = 'SETTLE')`),
+  check("pay_agent_events_resolution_check", sql`(${t.resolution} is null and ${t.resolvedBy} is null and ${t.resolvedAt} is null and ${t.resolutionNote} is null)
+    or (${t.resolution} = 'RELEASED' and ${t.decision} = 'HOLD' and ${t.resolvedBy} is not null and ${t.resolvedAt} is not null and coalesce(char_length(${t.resolutionNote}), 0) <= 500)
+    or (${t.resolution} = 'REJECTED' and ${t.decision} = 'HOLD' and ${t.resolvedBy} is not null and ${t.resolvedAt} is not null and char_length(${t.resolutionNote}) between 1 and 500)`),
+  check("pay_agent_events_resolved_status_check", sql`(${t.status} <> 'HOLD_RELEASED' or ${t.resolution} = 'RELEASED') and (${t.status} <> 'HOLD_REJECTED' or ${t.resolution} = 'REJECTED') and (${t.status} <> 'DECIDED_HOLD' or ${t.resolution} is null)`),
+  check("pay_agent_events_payout_check", sql`(${t.status} = 'SETTLEMENT_SUBMITTED') = (${t.payoutId} is not null)`),
+]);
+
 export const schema = {
   users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
   organisations,
@@ -1113,4 +1183,5 @@ export const schema = {
   shiftOffers,
   shiftIncentives,
   auditEvents,
+  payAgentEvents,
 };
