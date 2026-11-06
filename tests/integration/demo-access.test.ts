@@ -458,7 +458,7 @@ describe("demo session lifetime and the feature flag", () => {
 
 describe("default deny", () => {
   it("only the named actions opt in to demo writes, and no other server code does", async () => {
-    const files = ["auth-actions", "operations-actions", "schedule-actions", "scheduling-actions", "square-actions", "commerce-actions", "intelligence-actions", "operator/actions"];
+    const files = ["auth-actions", "operations-actions", "schedule-actions", "scheduling-actions", "square-actions", "intelligence-actions", "operator/actions"];
     const named: string[] = [];
     for (const file of files) {
       const source = await readFile(`src/app/${file}.ts`, "utf8");

@@ -1,5 +1,4 @@
 import { offerFromScheduleAction } from "@/app/schedule-actions";
-import { connectZettleAction, disconnectZettleAction, syncZettleAction } from "@/app/commerce-actions";
 import { createOrganisation } from "../helpers/onboarding";
 import { personal, business, entitled, setupFields } from "../helpers/onboarding";
 import { randomUUID } from "node:crypto";
@@ -189,7 +188,7 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
     for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
-    for (const action of [connectZettleAction,syncZettleAction,disconnectZettleAction,createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
+    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
     await expect(ManagerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");

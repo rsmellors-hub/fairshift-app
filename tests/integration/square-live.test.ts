@@ -8,7 +8,7 @@ import { resolveScope, type Scope } from "@/server/auth/access";
 import { workerRespond } from "@/server/auth/operations";
 import { requireScope } from "@/server/auth/request";
 import { inviteMember, redeemInvitation } from "@/server/auth/tenancy";
-import { getCommerceConnections, disconnectZettle, syncZettle } from "@/server/commerce/connections";
+import { getCommerceConnections, disconnectCommerceConnection } from "@/server/commerce/connections";
 import { ingestCommerceObservations } from "@/server/commerce/ingestion";
 import { connectSquare, getSquareActivity, getSquareFreshness, refreshSquareSales, SQUARE_REFRESH_POLL_MS, SQUARE_VISIBLE_WITHIN_MS, syncSquare } from "@/server/commerce/square-connection";
 import { prepareDemoShift, recordSquareSandboxSale } from "@/server/commerce/square-demo";
@@ -162,19 +162,13 @@ describe("connecting Square Sandbox", () => {
     await expect(syncSquare(db, s.manager, s.c.rows[0].id, s.square.client)).rejects.toThrow("Access denied");
     await expect(syncSquare(db, s.worker, s.c.rows[0].id, s.square.client)).rejects.toThrow("Access denied");
     await expect(syncSquare(db, rival.ownerScope, s.c.rows[0].id, s.square.client)).rejects.toMatchObject({ feedback: "commerce-location" });
-    await expect(disconnectZettle(db, rival.ownerScope, s.c.rows[0].id)).rejects.toMatchObject({ feedback: "commerce-location" });
-  }));
-  it("never hands a Square connection's credentials to the dormant Zettle sync", () => withDb(async db => {
-    const s = await setup(db);
-    const zettle = { accessToken: vi.fn(async () => "x"), merchantId: vi.fn(async () => "x"), purchases: vi.fn(async () => ({ purchases: [], lastPurchaseHash: null })) };
-    await expect(syncZettle(db, s.c.ownerScope, s.c.rows[0].id, zettle)).rejects.toMatchObject({ feedback: "commerce-not-connected" });
-    expect(zettle.accessToken).not.toHaveBeenCalled();
+    await expect(disconnectCommerceConnection(db, rival.ownerScope, s.c.rows[0].id)).rejects.toMatchObject({ feedback: "commerce-location" });
   }));
   it("disconnecting erases the token, keeps history and stops attribution reads", () => withDb(async db => {
     const s = await setup(db);
     s.square.state.payments = [payment("P1", "TM-A", "2026-01-14T12:00:00.000Z", 100)];
     await sync(db, s);
-    await disconnectZettle(db, s.c.ownerScope, s.c.rows[0].id);
+    await disconnectCommerceConnection(db, s.c.ownerScope, s.c.rows[0].id);
     expect((await db.select().from(commerceConnections))[0]).toMatchObject({ status: "DISCONNECTED", sealedCredentials: null });
     expect(await squareSales(db)).toHaveLength(1);
     await expect(sync(db, s)).rejects.toMatchObject({ feedback: "commerce-not-connected" });
@@ -613,7 +607,7 @@ describe("the economics stay FairShift's", () => {
   }));
   it("evidence from before a connection is not upgraded: mixed results stay imported", () => withDb(async db => {
     const s = await setup(db);
-    await disconnectZettle(db, s.c.ownerScope, s.c.rows[0].id);
+    await disconnectCommerceConnection(db, s.c.ownerScope, s.c.rows[0].id);
     const work = await booked(db, s);
     vi.setSystemTime(DURING);
     const [{ code }] = await db.execute<{ code: string }>(sql`select attribution_code as code from workers where id = ${s.worker.workerId}`).then(result => (result as unknown as { rows: { code: string }[] }).rows);

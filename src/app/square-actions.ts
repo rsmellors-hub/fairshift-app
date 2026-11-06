@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireScope } from "@/server/auth/request";
-import { disconnectZettle } from "@/server/commerce/connections";
+import { disconnectCommerceConnection } from "@/server/commerce/connections";
 import { connectSquare, getSquareFreshness, refreshSquareSales, squareSandboxCredentials, syncSquare } from "@/server/commerce/square-connection";
 import { prepareDemoShift, recordSquareSandboxSale } from "@/server/commerce/square-demo";
 import { mapSquareTeamMember, removeSquareMapping } from "@/server/commerce/square-mapping";
@@ -37,7 +37,7 @@ export async function syncSquareAction(form: FormData) {
 }
 export async function disconnectSquareAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);
-  return perform(OWNER_SALES, async () => { await disconnectZettle(getDatabase(), scope, field(form, "outletId")); return "saved"; });
+  return perform(OWNER_SALES, async () => { await disconnectCommerceConnection(getDatabase(), scope, field(form, "outletId")); return "saved"; });
 }
 export async function mapSquareTeamMemberAction(form: FormData) {
   const scope = await requireScope(["OWNER", "MANAGER"]);

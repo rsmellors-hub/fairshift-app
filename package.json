@@ -21,7 +21,6 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "node --env-file-if-exists=.env.local --import tsx scripts/seed-demo.ts",
     "reference:load": "node --env-file-if-exists=.env.local --import tsx scripts/load-reference-history.ts",
-    "zettle:probe": "node --env-file-if-exists=.env.local --import tsx scripts/zettle-live-probe.ts",
     "smoke:manager": "tsx scripts/smoke-manager.ts"
   },
   "dependencies": {
