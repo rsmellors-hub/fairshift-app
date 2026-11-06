@@ -28,7 +28,7 @@ it("sees none of the disk canaries", () => {
 });
 `);
     const child = spawnSync(process.execPath, [path.join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root], {
-      cwd: root, encoding: "utf8", timeout: 120_000, env: { PATH: process.env.PATH ?? "" },
+      cwd: root, encoding: "utf8", timeout: 120_000, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test" },
     });
     expect(child.status, `${child.stdout}\n${child.stderr}`).toBe(0);
     expect(child.stdout).toMatch(/1 passed/);

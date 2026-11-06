@@ -1,15 +1,15 @@
-import { assertSandboxFinancialScope } from "@/server/config/deployment";
+import { assertSandboxFinancialScope, assertSandboxOrganisation } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
 import { resolveProviderAmount } from "@/server/domain/provider-currency";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { randomUUID } from "node:crypto";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, organisations, outlets, workers, workPayables, workPayouts } from "@/server/db/schema";
+import { auditEvents, organisations, outlets, payAgentEvents, workers, workPayables, workPayouts } from "@/server/db/schema";
 import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
 
 // Manager approval of confirmed work payables and their PayPal Sandbox payout.
@@ -25,7 +25,12 @@ import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "
 // limited to 28 days, inside PayPal's 30-day protection.
 
 export type WorkPayout = typeof workPayouts.$inferSelect;
+type WorkPayable = typeof workPayables.$inferSelect;
 type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId" | "demo">;
+// Who records a payable or payout write: a signed-in Owner or Manager, or the Pay Agent service
+// acting on DEC-SA-011 authority (no user, service named). The audit keeps the distinction.
+type PayoutActor = { userId: string | null; organisationId: string; locationId: string; service?: "fairshift-pay-agent" };
+type Tenancy = Pick<PayoutActor, "organisationId" | "locationId">;
 
 export class PaymentDetailsRequiredError extends Error {
   constructor() { super("Payment details required."); this.name = "PaymentDetailsRequiredError"; }
@@ -83,7 +88,7 @@ export function isVerifiedPayoutCurrency(currencyCode: string) {
 // entitlement to its provider leg; it never comes from request input. Legacy USD-labelled SA
 // obligations carry no conversion, so they are still refused: historical currency evidence does
 // not authorise an SA merchant. Non-SA GBP/USD payouts are unaffected.
-async function assertPayoutRoute(db: DatabaseSession, scope: PayoutScope, providerCurrency: string, conversionAuthorised: boolean) {
+async function assertPayoutRoute(db: DatabaseSession, scope: Tenancy, providerCurrency: string, conversionAuthorised: boolean) {
   if (!isVerifiedPayoutCurrency(providerCurrency)) throw new UserFacingError("payout-currency-unverified", `PayPal payouts in ${providerCurrency} are not verified for FairShift.`);
   const [location] = await db.select({ locationCountry: outlets.country, organisationCountry: organisations.country })
     .from(outlets).innerJoin(organisations, eq(organisations.id, outlets.organisationId))
@@ -96,7 +101,7 @@ async function assertPayoutRoute(db: DatabaseSession, scope: PayoutScope, provid
 
 // HTTP callers pass a factory so refusals happen before reading provider credentials
 // or constructing a client. Tests/internal callers may supply an existing adapter.
-type PayoutClientSource = PayPalPayoutAdapter | (() => PayPalPayoutAdapter);
+export type PayoutClientSource = PayPalPayoutAdapter | (() => PayPalPayoutAdapter);
 const payoutClient = (source: PayoutClientSource) => typeof source === "function" ? source() : source;
 
 // PayPal statuses mapped conservatively. Only an item-level SUCCESS is paid; a batch
@@ -122,7 +127,7 @@ function reconciledStatus(result: PayoutResult, payout: Pick<WorkPayout, "provid
   return { status, amountError: null };
 }
 
-async function scopedPayable(db: DatabaseSession, scope: PayoutScope, payableId: string, lock = false) {
+async function scopedPayable(db: DatabaseSession, scope: Tenancy, payableId: string, lock = false) {
   z.uuid().parse(payableId);
   const query = db.select().from(workPayables).where(and(
     eq(workPayables.id, payableId), eq(workPayables.organisationId, scope.organisationId), eq(workPayables.outletId, scope.locationId),
@@ -136,8 +141,18 @@ function authoriseFinancialObligation(scope: PayoutScope) {
   assertRole(scope as Scope, ["OWNER", "MANAGER"]);
 }
 
-async function audit(db: DatabaseSession, scope: PayoutScope, action: string, entityType: string, entityId: string, payableId: string, metadata: Record<string, unknown>) {
-  await db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action, entityType, entityId, correlationId: `payable:${payableId}`, metadata: { actorUserId: scope.userId, ...metadata } });
+async function audit(db: DatabaseSession, scope: PayoutActor, action: string, entityType: string, entityId: string, payableId: string, metadata: Record<string, unknown>) {
+  await db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action, entityType, entityId, correlationId: `payable:${payableId}`,
+    metadata: { actorUserId: scope.userId, ...(scope.service ? { actorService: scope.service } : {}), ...metadata } });
+}
+
+// A Pay Agent hold awaiting a manager, or a manager's rejection of one, also stops the manual
+// approve and send actions, so a rejected payment stays unpaid (DEC-SA-011 hold resolution).
+async function assertNoPayAgentHold(db: DatabaseSession, payableId: string) {
+  const events = await db.select({ status: payAgentEvents.status }).from(payAgentEvents)
+    .where(eq(payAgentEvents.payableId, payableId)).orderBy(desc(payAgentEvents.createdAt));
+  if (events.some(event => event.status === "HOLD_REJECTED")) throw new UserFacingError("pay-agent-rejected", "A manager rejected this payment, so it stays unpaid.");
+  if (events[0]?.status === "DECIDED_HOLD") throw new UserFacingError("pay-agent-hold", "The Pay Agent is holding this payment for review. Release or reject the hold first.");
 }
 
 // Explicit manager approval of the calculated amount. The approved amount and currency
@@ -148,6 +163,7 @@ export async function approveWorkPayable(db: Database, scope: PayoutScope, payab
   return db.transaction(async (tx) => {
     const payable = await scopedPayable(tx, scope, payableId, true);
     if (payable.status === "APPROVED") return payable;
+    await assertNoPayAgentHold(tx, payable.id);
     if (payable.status !== "PENDING_REVIEW") throw new Error("Payable cannot be approved.");
     if (scope.workerId && scope.workerId === payable.workerId) throw new Error("A payable cannot be approved by its own worker.");
     if (payable.baseAmountMinor <= 0) throw new Error("There is no amount to approve.");
@@ -171,7 +187,7 @@ type Mode = "FIRST" | "RECONCILE";
 // Records what PayPal said about a create request. On a reconciliation attempt, a
 // refusal or a request that never left cannot prove the earlier request did not pay,
 // so the payout stays under reconciliation rather than becoming NOT_SENT or FAILED.
-async function recordCreateOutcome(db: DatabaseSession, scope: PayoutScope, payout: WorkPayout, mode: Mode, outcome: { result: PayoutResult } | { error: unknown }) {
+async function recordCreateOutcome(db: DatabaseSession, scope: PayoutActor, payout: WorkPayout, mode: Mode, outcome: { result: PayoutResult } | { error: unknown }) {
   const now = new Date();
   let values: Partial<WorkPayout>;
   if ("result" in outcome) {
@@ -207,7 +223,7 @@ async function recordCreateOutcome(db: DatabaseSession, scope: PayoutScope, payo
   return updated;
 }
 
-async function sendReserved(db: DatabaseSession, paypal: PayPalPayoutAdapter, scope: PayoutScope, payout: WorkPayout, mode: Mode) {
+async function sendReserved(db: DatabaseSession, paypal: PayPalPayoutAdapter, scope: PayoutActor, payout: WorkPayout, mode: Mode) {
   let outcome: { result: PayoutResult } | { error: unknown };
   try {
     outcome = { result: await paypal.createPayout({
@@ -229,30 +245,34 @@ async function sendReserved(db: DatabaseSession, paypal: PayPalPayoutAdapter, sc
 
 export type SubmitResult = { payout: WorkPayout; submitted: boolean };
 
-// Sends the approved payable to PayPal once. A repeat, retry or concurrent request
-// finds the existing reservation and returns it without calling PayPal; only a payout
-// that certainly never reached PayPal (NOT_SENT) can be sent again, with the same IDs.
-export async function submitWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
-  assertSandboxFinancialScope(scope);
-  authoriseFinancialObligation(scope);
-  const payable = await scopedPayable(db, scope, payableId);
+// Every pre-reservation check of this engine, without any write: the provider leg actually sent
+// to PayPal (for a new reservation it is resolved now — a ZAR entitlement converts to USD at the
+// approved demo rate, or fails closed when no rate is configured; re-sending an unsent payout
+// reuses its frozen values, so a later rate change cannot alter the reservation and the amount is
+// never re-converted), the verified provider currency and route, a two-decimal amount, and the
+// worker's own saved payment destination. The Pay Agent's dry run evaluates exactly these checks.
+export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, input: { workerId: string; amountMinor: number; currencyCode: string; existing?: WorkPayout }) {
+  const providerLeg = input.existing
+    ? { providerCurrency: input.existing.providerCurrency, providerAmountMinor: input.existing.providerAmountMinor, fxRateMicros: input.existing.fxRateMicros, fxRateSource: input.existing.fxRateSource }
+    : resolveProviderAmount({ amountMinor: input.amountMinor, currencyCode: input.currencyCode });
+  await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
+  payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
+  const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
+    .where(and(eq(workers.id, input.workerId), eq(workers.organisationId, scope.organisationId)));
+  const recipient = recipientSchema.safeParse(worker?.email ?? "");
+  if (!recipient.success) throw new PaymentDetailsRequiredError();
+  return { providerLeg, recipient: recipient.data };
+}
+
+// Reserves and sends an approved payable once. A repeat, retry or concurrent request finds the
+// existing reservation and returns it without calling PayPal; only a payout that certainly never
+// reached PayPal (NOT_SENT) can be sent again, with the same IDs.
+async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, actor: PayoutActor, payable: WorkPayable): Promise<SubmitResult> {
   const [existing] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (existing && existing.status !== "NOT_SENT") return { payout: existing, submitted: false };
   if (payable.status !== "APPROVED" || payable.approvedAmountMinor === null || payable.approvedCurrencyCode === null) throw new Error("Approve the payable before payout.");
   const amountMinor = payable.approvedAmountMinor, currencyCode = payable.approvedCurrencyCode;
-  // The provider leg actually sent to PayPal. For a new reservation it is resolved and frozen
-  // now — a ZAR entitlement converts to USD at the approved demo rate, or fails closed when no
-  // rate is configured. For re-sending an unsent payout the frozen values are reused, so a
-  // later rate change cannot alter the reservation and the amount is never re-converted.
-  const providerLeg = existing
-    ? { providerCurrency: existing.providerCurrency, providerAmountMinor: existing.providerAmountMinor, fxRateMicros: existing.fxRateMicros, fxRateSource: existing.fxRateSource }
-    : resolveProviderAmount({ amountMinor, currencyCode });
-  await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
-  payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
-  const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
-    .where(and(eq(workers.id, payable.workerId), eq(workers.organisationId, scope.organisationId)));
-  const recipient = recipientSchema.safeParse(worker?.email ?? "");
-  if (!recipient.success) throw new PaymentDetailsRequiredError();
+  const { providerLeg, recipient } = await prepareWorkPayout(db, actor, { workerId: payable.workerId, amountMinor, currencyCode, existing });
   const client = payoutClient(paypal);
 
   const now = new Date();
@@ -262,23 +282,70 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
       id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
       amountMinor, currencyCode,
       providerCurrency: providerLeg.providerCurrency, providerAmountMinor: providerLeg.providerAmountMinor, fxRateMicros: providerLeg.fxRateMicros, fxRateSource: providerLeg.fxRateSource,
-      recipient: recipient.data, ...payoutSenderIds(payable.id),
-      status: "SUBMITTING", requestedBy: scope.userId, reservedAt: now, updatedAt: now,
+      recipient, ...payoutSenderIds(payable.id),
+      status: "SUBMITTING", requestedBy: actor.userId, reservedAt: now, updatedAt: now,
     }).onConflictDoNothing({ target: workPayouts.payableId }).returning();
   } else {
-    [reserved] = await db.update(workPayouts).set({ status: "SUBMITTING", recipient: recipient.data, attempts: sql`${workPayouts.attempts} + 1`, requestedBy: scope.userId, updatedAt: now })
+    [reserved] = await db.update(workPayouts).set({ status: "SUBMITTING", recipient, attempts: sql`${workPayouts.attempts} + 1`, requestedBy: actor.userId, updatedAt: now })
       .where(and(eq(workPayouts.id, existing.id), eq(workPayouts.status, "NOT_SENT"))).returning();
   }
   if (!reserved) {
     const [current] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
     return { payout: current, submitted: false };
   }
-  await audit(db, scope, "PAYOUT_RESERVED", "work_payout", reserved.id, payable.id, {
+  await audit(db, actor, "PAYOUT_RESERVED", "work_payout", reserved.id, payable.id, {
     amountMinor, currencyCode, providerAmountMinor: reserved.providerAmountMinor, providerCurrency: reserved.providerCurrency,
     fxRateMicros: reserved.fxRateMicros, fxRateSource: reserved.fxRateSource,
     senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId, attempt: reserved.attempts,
   });
-  return { payout: await sendReserved(db, client, scope, reserved, "FIRST"), submitted: true };
+  return { payout: await sendReserved(db, client, actor, reserved, "FIRST"), submitted: true };
+}
+
+// Sends the manager-approved payable to PayPal once (see submitApprovedPayout).
+export async function submitWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
+  assertSandboxFinancialScope(scope);
+  authoriseFinancialObligation(scope);
+  const payable = await scopedPayable(db, scope, payableId);
+  await assertNoPayAgentHold(db, payable.id);
+  return submitApprovedPayout(db, paypal, scope, payable);
+}
+
+export type ConfirmedWorkAuthority = {
+  organisationId: string; locationId: string;
+  // The manager whose confirmation completed the work, or who released a Pay Agent hold.
+  authorisedBy: string; basis: "MANAGER_CONFIRMED_COMPLETION" | "MANAGER_RELEASED_HOLD"; payAgentEventId: string;
+  // Re-checks the Pay Agent's evidence under the payable's row lock; throws to refuse.
+  verify: (tx: DatabaseSession, payable: WorkPayable) => Promise<void>;
+};
+
+// The Pay Agent's entry to this engine (DEC-SA-011). Casual compensation was preauthorised and
+// accepted before the work, and a manager confirmed the work, so no second discretionary approval
+// is asked for: the payable is approved on that existing authority (recorded as the authorising
+// manager, with the basis and the service in the audit), then reserved and sent exactly as
+// submitWorkPayout does, with the same frozen provider leg, route gate, uniqueness and recovery.
+export async function submitConfirmedWorkPayout(db: Database, paypal: PayoutClientSource, authority: ConfirmedWorkAuthority, payableId: string): Promise<SubmitResult> {
+  assertSandboxOrganisation(authority.organisationId);
+  const actor: PayoutActor = { userId: null, organisationId: authority.organisationId, locationId: authority.locationId, service: "fairshift-pay-agent" };
+  const payable = await db.transaction(async tx => {
+    const locked = await scopedPayable(tx, actor, payableId, true);
+    await authority.verify(tx, locked);
+    if (locked.status === "APPROVED") return locked;
+    if (locked.status !== "PENDING_REVIEW") throw new Error("Payable cannot be approved.");
+    if (locked.baseAmountMinor <= 0) throw new Error("There is no amount to approve.");
+    if (locked.incentiveRequired && locked.incentiveAmountMinor === null) throw new UserFacingError("performance-required", "Confirm the sales results for this shift first.");
+    const [approved] = await tx.update(workPayables).set({
+      status: "APPROVED", approvedAt: new Date(), approvedBy: authority.authorisedBy,
+      approvedAmountMinor: finalPayableMinor(locked), approvedCurrencyCode: locked.currencyCode, updatedAt: new Date(),
+    }).where(and(eq(workPayables.id, locked.id), eq(workPayables.status, "PENDING_REVIEW"))).returning();
+    if (!approved) throw new Error("Payable approval changed concurrently.");
+    await audit(tx, actor, "PAYABLE_APPROVED", "work_payable", approved.id, approved.id, {
+      basis: authority.basis, authorisedBy: authority.authorisedBy, payAgentEventId: authority.payAgentEventId,
+      approvedAmountMinor: approved.approvedAmountMinor, approvedCurrencyCode: approved.approvedCurrencyCode, baseAmountMinor: approved.baseAmountMinor, incentiveAmountMinor: approved.incentiveAmountMinor,
+      allocationId: approved.allocationId, acceptanceId: approved.acceptanceId, termsVersion: approved.termsVersion,
+    });
+    return approved;
+  });
+  return submitApprovedPayout(db, paypal, actor, payable);
 }
 
 // Obtains the latest provider state. With a PayPal batch ID it reads the payout; with
