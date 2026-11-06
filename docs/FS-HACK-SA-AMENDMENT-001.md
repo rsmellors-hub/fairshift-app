@@ -109,3 +109,15 @@ POS staff attribution is evidence/input, not automatic tip ownership. The employ
 The amendment does not choose a payout currency, conversion rate, FX/fee/rounding policy, payout category, merchant identity, recipient permission, SA POS provider, SA statutory wage, tax treatment, new release percentage or tip-policy edge case. Those remain NEEDS VERIFICATION or OPEN and block dependent implementation. Existing authority-register conflicts are not silently resolved. Production payroll/tax/regulatory integration is DEFERRED, not approved for production use.
 
 Use one shared settlement engine with two authorised entry paths under DEC-SA-011: casual preauthorised terms + acceptance + manager-confirmed completion → automatic Pay Agent orchestration; permanent approved tip allocation + permitted employee request → Pay Agent orchestration. Both pass through deterministic entitlement/funding/provider checks → server-authorised execution → persisted actual status → reconciliation/history. There is no casual-worker request or second discretionary Owner payment approval. This governance amendment authorises no implementation or provider operation.
+
+## 5. Addendum
+
+### DEC-SA-012 — Operating currency, Sandbox provider payout currency and fixed demo rate
+
+**Decision date:** 6 November 2026. **Status:** OWNER APPROVED. **Authorising source:** Owner-supplied work package **FS-HACK-SA-SUBMISSION-001**. Requirements only; this decision records no code and implements nothing.
+
+- The operating currency is **ZAR**.
+- The Sandbox provider payout currency is **USD**, because PayPal does not support ZAR.
+- One fixed Sandbox demo rate of **<RATE> ZAR = 1 USD** applies, and it is shown to the worker. The value of `<RATE>` is **not yet recorded**: the Owner must supply it before any code or payout depends on this decision.
+- The USD amount is rounded **down** to the cent.
+- The rate, the USD amount and the rate source are **frozen on the payout reservation**, so recovery never re-converts.
