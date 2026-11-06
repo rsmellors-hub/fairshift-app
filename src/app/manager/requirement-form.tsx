@@ -5,7 +5,8 @@ import { money, scheduledHours } from "@/app/components/format";
 import { localDateTimeToInstant, LocalTimeError } from "@/server/domain/timezone";
 import { expectedWorkEarnings, type WorkPolicy } from "@/server/domain/work-terms";
 import { checkWage, termsForWageCheck, wageAllowsOffer, type WageCheck, type WageJurisdiction } from "@/server/domain/statutory-wage";
-import { WageCheckLine } from "@/app/components/wage-check";
+import { SaWageIndicatorLine, saIndicatorFor, WageCheckLine } from "@/app/components/wage-check";
+import type { SaWageIndicator } from "@/server/domain/sa-wage-reference";
 
 // The shift's date at the work location, as the server reads it.
 const zonedDate = (instant: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
@@ -35,7 +36,7 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
   const [endsAt, setEndsAt] = useState(defaults.endsAt);
   const policy = policies.find(row => row.id === policyId);
   let preview: string;
-  let terms: { hours: string; hourly: string; base: number | null; bonus: number | null; currency: string; check: WageCheck | null } | null = null;
+  let terms: { hours: string; hourly: string; base: number | null; bonus: number | null; currency: string; check: WageCheck | null; sa: SaWageIndicator | null } | null = null;
   try {
     if (!startsAt || !endsAt) preview = "Enter a start and end to see the duration and earnings.";
     else {
@@ -52,7 +53,8 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
           : policy.earningsModel === "DAILY" ? `${money(policy.rateMinor ?? 0, policy.currencyCode)} for the shift · ${money(Math.floor(((policy.rateMinor ?? 0) * 3_600_000) / (end.getTime() - start.getTime())), policy.currencyCode)} an hour`
           : `${(policy.commissionBps ?? 0) / 100}% commission`;
         terms = { hours: scheduledHours(start, end), hourly, base: expected, bonus: policy.incentiveBonusMinor, currency: policy.currencyCode,
-          check: checkWage({ jurisdiction: wageJurisdiction, date: zonedDate(start, timeZone), currencyCode: policy.currencyCode, terms: wageTerms ?? { earningsModel: "HOURLY", rateMinor: -1 } }) };
+          check: checkWage({ jurisdiction: wageJurisdiction, date: zonedDate(start, timeZone), currencyCode: policy.currencyCode, terms: wageTerms ?? { earningsModel: "HOURLY", rateMinor: -1 } }),
+          sa: saIndicatorFor(wageJurisdiction, zonedDate(start, timeZone), policy.currencyCode, wageTerms) };
       }
     }
   } catch (error) {
@@ -73,7 +75,7 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
         <div><dt>Guaranteed base pay · per worker</dt><dd>{terms.base === null ? "Depends on verified sales" : money(terms.base, terms.currency)}<small> for {terms.hours}</small></dd></div>
         <div><dt>Potential variable earnings</dt><dd>{terms.bonus ? `Up to ${money(terms.bonus, terms.currency)} bonus` : "No incentive"}<small> · tips not included</small></dd></div>
       </dl>
-      {terms.check ? <WageCheckLine check={terms.check} /> : null}
+      {terms.sa ? <SaWageIndicatorLine indicator={terms.sa} /> : terms.check ? <WageCheckLine check={terms.check} /> : null}
     </div> : null}
     <p className="form-span note">Pay comes from the Owner&apos;s work policy and can&apos;t be changed here. The bonus is paid only if the worker&apos;s own sales reach the target; FairShift doesn&apos;t allocate tips. Creating this doesn&apos;t offer it to anyone yet.</p>
     <button className="primary-button" disabled={!!terms?.check && !wageAllowsOffer(terms.check)}>Create shift</button>

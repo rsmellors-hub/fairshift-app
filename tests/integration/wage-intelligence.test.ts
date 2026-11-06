@@ -176,7 +176,8 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
   });
 
   it.each([
-    { country: "South Africa", currency: "ZAR", badge: "Statutory reference unavailable" },
+    // FS-HACK-SA-SUBMISSION-001: the SA minimum wage reference is shown instead, and never enforced.
+    { country: "South Africa", currency: "ZAR", badge: "Below minimum wage reference" },
     // Same GOV.UK rates, but outside the approved England demo scope: behaviour as before this package.
     { country: "Scotland", currency: "GBP", badge: "Outside demo jurisdiction" },
     { country: "Wales", currency: "GBP", badge: "Outside demo jurisdiction" },

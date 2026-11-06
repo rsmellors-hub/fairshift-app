@@ -21,6 +21,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "node --env-file-if-exists=.env.local --import tsx scripts/seed-demo.ts",
     "reference:load": "node --env-file-if-exists=.env.local --import tsx scripts/load-reference-history.ts",
+    "reference:sa": "node --env-file-if-exists=.env.local --import tsx scripts/load-sa-reference.ts",
     "smoke:manager": "tsx scripts/smoke-manager.ts"
   },
   "dependencies": {

@@ -4,6 +4,7 @@ import { AssignmentResponse } from "@/app/components/assignment-response";
 import { money, scheduledHours } from "@/app/components/format";
 import { availabilityForShift, shiftWeekdays } from "@/server/scheduling/worker-pool";
 import { checkWage, termsForWageCheck, UK_MINIMUM_WAGE_SOURCE, type WageJurisdiction } from "@/server/domain/statutory-wage";
+import { SaWageIndicatorLine, saIndicatorFor } from "@/app/components/wage-check";
 
 type Row = { shift: { id: string; roleName: string; shiftDate: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
   offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null };
@@ -32,6 +33,8 @@ export function shiftWhen(startsAt: Date, endsAt: Date, timeZone: string) {
 function WageNote({ shift, wage }: { shift: Row["shift"]; wage: WageJurisdiction }) {
   const terms = termsForWageCheck({ ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) }, shift);
   if (!terms || terms.earningsModel === "COMMISSION") return null;
+  const sa = saIndicatorFor(wage, shift.shiftDate, shift.currencyCode, terms);
+  if (sa) return <SaWageIndicatorLine indicator={sa} />;
   const check = checkWage({ jurisdiction: wage, date: shift.shiftDate, currencyCode: shift.currencyCode, terms });
   const source = <a href={UK_MINIMUM_WAGE_SOURCE.url} target="_blank" rel="noreferrer">GOV.UK minimum wage rates</a>;
   if (check.status === "RATE_CHECKED") return <p className="note wage-note">This pay is at or above the 21-and-over National Living Wage for this date ({source}).</p>;

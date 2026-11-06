@@ -1,6 +1,7 @@
 import { StatusBadge } from "@/app/components/product-ui";
 import { money } from "@/app/components/format";
-import { UK_MINIMUM_WAGE_SOURCE, WAGE_CATEGORY_LABEL, WAGE_REFERENCE_VERSION, WAGE_STATUS_LABEL, wageCheckExplanation, type RatePeriod, type WageCheck } from "@/server/domain/statutory-wage";
+import { UK_MINIMUM_WAGE_SOURCE, WAGE_CATEGORY_LABEL, WAGE_REFERENCE_VERSION, WAGE_STATUS_LABEL, wageCheckExplanation, type RatePeriod, type WageCheck, type WageJurisdiction, type WageTerms } from "@/server/domain/statutory-wage";
+import { isSouthAfricanJurisdiction, SA_MINIMUM_WAGE_SOURCE, SA_WAGE_STATUS_LABEL, saWageIndicator, saWageIndicatorExplanation, type SaWageIndicator } from "@/server/domain/sa-wage-reference";
 
 // Shared presentation of the deterministic wage check (FS-WAGE-INTEL-DEC-001, -DEC-002).
 // Plain components with no server dependencies, used by Owner, Manager and Worker pages alike.
@@ -35,6 +36,18 @@ export function WageRates({ period, highlight }: { period: RatePeriod; highlight
 export function WageSource({ period }: { period?: RatePeriod | null }) {
   return <p className="note wage-source"><span className="provenance">Statutory reference · {UK_MINIMUM_WAGE_SOURCE.publisher}</span>{" "}
     {period ? `In force ${longDay(period.validFrom)} to ${longDay(period.validTo)}. ` : ""}Source: <a href={UK_MINIMUM_WAGE_SOURCE.url} target="_blank" rel="noreferrer">{UK_MINIMUM_WAGE_SOURCE.title}</a>, checked {longDay(UK_MINIMUM_WAGE_SOURCE.retrievedOn)} (reference {WAGE_REFERENCE_VERSION}).</p>;
+}
+
+// South African minimum wage reference: an indicator beside the terms, never a gate.
+const SA_TONE = { ABOVE_REFERENCE: "success", EQUAL_TO_REFERENCE: "success", BELOW_REFERENCE: "warning", NOT_COMPARED: "neutral" } as const;
+export function saIndicatorFor(jurisdiction: WageJurisdiction | null | undefined, date: string, currencyCode: string, terms: WageTerms | null) {
+  return isSouthAfricanJurisdiction(jurisdiction) ? saWageIndicator({ country: jurisdiction!.country, date, currencyCode, terms }) : null;
+}
+export function SaWageIndicatorLine({ indicator }: { indicator: SaWageIndicator }) {
+  return <p className={`wage-check wage-check-sa-${indicator.status.toLowerCase().replaceAll("_", "-")}`} role="status">
+    <StatusBadge tone={SA_TONE[indicator.status]}>{SA_WAGE_STATUS_LABEL[indicator.status]}</StatusBadge>{" "}
+    <span>{saWageIndicatorExplanation(indicator, minor => money(minor, "ZAR"))} Source: <a href={SA_MINIMUM_WAGE_SOURCE.url} target="_blank" rel="noreferrer">South African Government, {longDay(SA_MINIMUM_WAGE_SOURCE.publishedOn)}</a>.</span>
+  </p>;
 }
 
 // The competition policy, said plainly wherever the enforced floor appears (FS-WAGE-INTEL-DEC-002).

@@ -35,7 +35,7 @@ import { getSquareFreshness, liveSquareConnection } from "@/server/commerce/squa
 import { getSquareMappings } from "@/server/commerce/square-mapping";
 import { SquarePanel } from "./square-panel";
 import { checkWage, termsForWageCheck, wageAllowsOffer, type WageJurisdiction } from "@/server/domain/statutory-wage";
-import { WageCheckLine } from "@/app/components/wage-check";
+import { SaWageIndicatorLine, saIndicatorFor, WageCheckLine } from "@/app/components/wage-check";
 
 const DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const INVITATION: Record<string, string> = { CREATED_NOT_SENT: "Prepared · not sent", SENT: "Invited", DELIVERY_FAILED: "Invitation couldn’t be sent", REDEEMED: "Active", REVOKED: "Invitation revoked" };
@@ -64,6 +64,11 @@ function shiftWageCheck(shift: { earningsModel: string; rateMinor: number | null
   const terms = termsForWageCheck({ ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) }, shift);
   // Unreadable terms are checked as unreadable, never skipped: the same rule the server applies.
   return checkWage({ jurisdiction, date: shift.shiftDate, currencyCode: shift.currencyCode, terms: terms ?? { earningsModel: "HOURLY", rateMinor: -1 } });
+}
+// The South African minimum wage reference for the same stored terms: shown, never enforced.
+function shiftSaIndicator(shift: Parameters<typeof shiftWageCheck>[0], jurisdiction: WageJurisdiction) {
+  const terms = termsForWageCheck({ ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) }, shift);
+  return saIndicatorFor(jurisdiction, shift.shiftDate, shift.currencyCode, terms);
 }
 
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
@@ -172,7 +177,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
           return <article id={`requirement-${r.id}`} className="shift-card" key={r.id}>
           <header><div><h3>{dayLabel(r.startsAt, timezone)} · {timeRange(r.startsAt, r.endsAt, timezone)}</h3><p>{departments.find(d => d.id === r.departmentId)?.name ?? r.roleName} · {scope.locationName} · {scheduledHours(r.startsAt, r.endsAt)}</p></div><p className="shift-count"><strong>{Math.max(0,r.requiredHeadcount-c.allocated)} still to fill</strong><small>{r.requiredHeadcount} needed · {c.allocated} allocated · {c.accepted} accepted · {c.pending} awaiting response</small></p></header>
           <ShiftTermsBar shift={r} />
-          {r.status === "PUBLISHED" ? <WageCheckLine check={wage} compact /> : null}
+          {r.status === "PUBLISHED" ? (() => { const sa = shiftSaIndicator(r, wageReference); return sa ? <SaWageIndicatorLine indicator={sa} /> : <WageCheckLine check={wage} compact />; })() : null}
           {shiftReasons.get(r.id) ? <WhyThisShift evidence={shiftReasons.get(r.id)!} /> : null}
           {rows.length ? <><h4>Responses</h4>{rows.map(o => <div className="record-row" key={o.offer.id}><span>{o.workerName} · {responseLabel(o)}</span>{o.offer.status === "ACCEPTED" && o.allocation?.state !== "ALLOCATED" ? <form action={allocateAssignmentAction} data-demo-write=""><PlanContext date={date} department={department} /><input name="offerId" type="hidden" value={o.offer.id} /><button className="primary-button">Finalise allocation</button></form> : null}</div>)}</> : null}
           {r.status === "PUBLISHED" ? <><h4>Worker pool · {scope.locationName}</h4>{pool.length ? <ul className="candidate-list">{pool.map(({worker, state}) => <li key={worker.id}><span><strong>{worker.displayName}</strong><StatusBadge tone={state === "AVAILABLE" ? "success" : isOfferable(state) ? "neutral" : "warning"}>{OPPORTUNITY_LABEL[state]}</StatusBadge></span>{isOfferable(state) && !payAllowed ? <small>{wage.status === "BELOW_DEMO_MINIMUM" ? "Pay is below the FairShift demo minimum, so this shift can’t be offered" : "Pay can’t be checked against the demo minimum, so this shift can’t be offered"}</small> : isOfferable(state) ? hasCapacity ? <form action={offerAssignmentAction} data-demo-write=""><PlanContext date={date} department={department} /><input type="hidden" name="shiftId" value={r.id} /><input type="hidden" name="workerId" value={worker.id} /><button className="secondary-button">Send offer<span className="visually-hidden"> to {worker.displayName}</span></button></form> : <small>All places are offered</small> : <small>{CANNOT_OFFER[state]}</small>}{isOfferable(state) ? <WorkerReadiness worker={worker} squareConnected={squareConnected} mapped={mappedWorkers} hasTarget={!!r.incentiveBasis} /> : null}</li>)}</ul> : <p>{team.length ? "Everyone at this location already has an offer for this work." : "No workers at this location yet. Add them under Workers."}</p>}<p className="note">Only workers at this location appear. Availability is what each worker has told FairShift. You choose who gets an offer.</p></> : null}
