@@ -218,7 +218,7 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       // 13. Guaranteed base pay, with where, when, how long and the hourly wage.
       for (const text of ["Leeds Briggate", "10:00 to 18:00", "8 hours", "Guaranteed base pay", "£104.00", "£13.00 an hour × 8 hours", "at or above the 21-and-over National Living Wage for this date", "Accept shift"]) expect(bonusCard).toContain(text);
       // 14. Variable earnings are labelled as not guaranteed, with no tip or holiday-pay amount invented.
-      for (const text of ["Potential variable earnings", "Not guaranteed", "£25.00", "Up to", "£129.00", "your own sales for this shift reach £650.00", "Tips", "FairShift doesn’t allocate tips",
+      for (const text of ["Potential variable earnings", "Not guaranteed", "£25.00", "Up to", "£129.00", "your own sales for this shift reach £650.00", "Tips", "none are promised here",
         "Final approved earnings", "then approves the total", "Holiday pay isn’t calculated in FairShift"]) expect(bonusCard).toContain(text);
       expect(bonusCard.indexOf("Guaranteed base pay")).toBeLessThan(bonusCard.indexOf("Potential variable earnings"));
       expect(bonusCard.indexOf("Potential variable earnings")).toBeLessThan(bonusCard.indexOf("Final approved earnings"));
@@ -241,7 +241,7 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       expect(earnings).toContain("Earnings recorded");
       expect(earnings).toContain("Your earnings are recorded from the terms you accepted.");
       expect(earnings).not.toContain("Final approved earnings");
-      expect(earnings).toContain("FairShift doesn’t allocate tips or calculate holiday pay");
+      expect(earnings).toContain("Tips are shown separately below. FairShift doesn’t calculate holiday pay.");
       await approveWorkPayable(t.db, manager, payable!.id);
       earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
       expect(earnings).toContain("Final approved earnings");

@@ -102,3 +102,58 @@ Exactly one PayPal payout was created; no retry or resend. The recipient is a Pa
 personal test account, not a South African recipient: SA recipient eligibility remains NOT VERIFIED.
 Checkpoint B changed no application or test code (local seed script and this file only); the
 Checkpoint A suite result applies to the unchanged application code.
+
+## Day 4, Checkpoint C — AI-verified shift-pool tip release (7 November 2026)
+
+Implements FS-TIP-DEC-002, FS-TIP-AGENT-DEC-001 and the Owner's append-only hold-record
+requirement (recorded verbatim in `docs/FS-HACK-SA-AMENDMENT-001.md`). Migration `0029_tip_release`.
+
+**Design, reused infrastructure.** Permanent staff are `workers` rows with `worker_type = REGULAR`
+(no login, never offered work: the casual pool, offer eligibility and the Bryntum team now filter
+`CASUAL`). Tip lines are paid through the existing payout engine: `work_payouts` gains a
+`tip_line_id` obligation (exactly one of payable or tip line, one payout per line), reusing
+`prepareWorkPayout` (frozen ECB leg, verified route, saved recipient), the reservation, sender IDs
+(`FSTP-…`), send and provider-outcome handling. The Pay Agent's existing model transport, service
+credential, dry-run flag, claim/lease/fencing rules and startup sweep are reused for a tip journal
+(`tip_agent_events`). Evidence rows, allocations, lines, holds, hold decisions and destination
+events are database-enforced immutable or append-only.
+
+**Demo locations.** Sandton (SA02) = SHIFT_POOL, blocks Morning 07:00–12:00, Afternoon
+12:00–17:00, Evening 17:00–23:00 (Africa/Johannesburg); Rosebank (SA01), Pretoria Central,
+Durban North, Cape Town Gardens = DIRECT. Auto-release cap R1,500 per staff member per day.
+`scripts/seed-sa-tips.ts` seeds five synthetic permanent staff (front and back of house), a Friday
+block roster and one casual confirmed shift (Sandton, 6 Nov 2026 11:00–15:00, inside Morning and
+Afternoon), and fills the synthetic CSV templates in `scripts/demo/` with each person's own
+(immutable) POS reference. All tip rows are synthetic demo data labelled `IMPORTED_POS_EVIDENCE`.
+
+**Runtime journey (headless Chrome over CDP, local server, dry run on):**
+
+| Step | Observed |
+|---|---|
+| Owner settings | Policy, cap, blocks and a roster saved through `/owner/tips` forms |
+| Sandton import | 12 rows, R778.51, policy shift pool; one row at 23:20 local is `OUTSIDE_BLOCKS`, unallocated and visible |
+| Allocation | Morning R100.50 → R33.50 × 3 (Busi, Kagiso, casual Naledi); Afternoon R90.01 → R30.01 / R30.00 / R30.00 (remainder to the lowest staff ID); Evening R580.00 → R290.00 × 2 |
+| Pay Agent (genuine OpenAI) | Morning **RELEASE** `resp_0b9d999982fea54e016aef029740b087d2917f3914e71947c0`; Afternoon **RELEASE** `resp_0319c13271717f44016aef029436f487d291658191ec1eefe6`; Evening **HOLD / TIP_OUTLIER** "One pooled tip row exceeds its bill." `resp_000a5d40a7746130016aef0290715887d298ca0474510a6ee4` (the R480 tip on a R120 bill) |
+| Gates before confirmation | Permanent staff `staff-destination-unconfirmed`; casual `payment-details-required` (no PayPal email saved) |
+| Owner hold decisions | "Kept held" then "Released as calculated", each by the Owner with a written reason and time; both shown permanently |
+| Staff statement (dev-only link) | Own shares only, policy in plain words, status "recorded", destination confirmed once; a second destination action through the same link is refused; token stripped from the address bar; 0 network requests carried it |
+| Token in logs | **Defect found and fixed:** Next.js development logged Server Function arguments, so the first link's token reached the local server log. `next.config.ts` now sets `logging: { serverFunctions: false }` (tested); that scratch link was revoked; after the fix the token appears 0 times in the log |
+| After confirmations, Owner reruns the checks | Every permanent-staff line `DRY_RUN_ELIGIBLE`, including Evening on the Owner's release; casual lines still blocked; **0 tip payouts** (dry run) |
+| Casual view (390 px) | "Your tips": Morning R33.50 and Afternoon R30.00 pooled shares, "Recorded" |
+| Rosebank (DIRECT) import | R151.80 to two permanent staff (R112.20, R39.60); the casual's R23.00 row recorded as `CASUAL_SHIFT_PAY`; **RELEASE** `resp_06c79ad84c55a2ea016aef077805e087d2b249d6654f286a8f`; lines blocked until the staff confirm destinations |
+| Manager | `/owner/tips` redirects a manager to `/account`; no tip actions |
+
+**Not done in this checkpoint.** No live tip payout was made (dry run; the Sandbox payout of
+Checkpoint B is the only PayPal request). A DIRECT casual's tips are recorded for shift pay, but the
+casual payable has no tip line yet, so FairShift does not pay them (stated on screen). Statement
+link email delivery is not connected; the development-only opener is refused in production builds.
+
+**Checkpoint C verification (after the last edit).** Typecheck PASS; lint PASS with 0 warnings;
+full suite with the real-PostgreSQL URL set: **88 files, 1,103 tests, all passed, 0 skipped**
+(1,148.57 s). The first full run failed 2 of 1,103 tests, both asserting the old "FairShift doesn't
+allocate tips" copy that FS-TIP-DEC-002's supersession required to change; those assertions now check
+the new copy (`square-live`, `wage-intelligence`), with every money assertion unchanged. New tests:
+`tests/unit/tip-policy.test.ts` (10), `tests/integration/tips.test.ts` (14),
+`tests/integration/tips-postgres.test.ts` (2, real PostgreSQL: concurrent releases fit under the cap
+once; six concurrent releases of one line reserve one payout and call PayPal once),
+`tests/unit/server-function-logging.test.ts` (1).

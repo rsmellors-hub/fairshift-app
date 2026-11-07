@@ -32,8 +32,11 @@ import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
 import { isFreshRateDate, latestFxReferenceRate } from "@/server/fx/reference-rates";
 import { sandboxOrganisationId } from "@/server/config/deployment";
+import { OwnerTips } from "@/app/owner/tips";
+import { getOwnerTipView } from "@/server/tips/view";
+import { devStatementLinksEnabled } from "@/server/tips/statement";
 
-export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "payments", "settings"] as const;
+export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "tips", "payments", "settings"] as const;
 export type OwnerArea = "overview" | typeof ownerAreas[number];
 
 const SUBSCRIPTION_STATE: Record<string, string> = { ACTIVE: "Active", UNCONFIGURED: "Not started", PENDING: "Not started", APPROVAL_PENDING: "Awaiting PayPal approval", APPROVED: "Awaiting confirmation" };
@@ -78,10 +81,12 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   const managers = area === "workforce" ? await getDatabase().select({ id: memberships.id, state: memberships.state, outletId: memberships.outletId, name: users.name, email: users.email }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(and(eq(memberships.organisationId, scope.organisationId), eq(memberships.role, "MANAGER"))) : [];
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
   const staffingConfiguration = area === "policies" ? await getStaffingConfiguration(getDatabase(),scope) : null;
+  let tipView: Awaited<ReturnType<typeof getOwnerTipView>> | null = null;
+  if (area === "tips") { try { tipView = await getOwnerTipView(getDatabase(), scope); } catch { tipView = null; } }
   let fxRate: Awaited<ReturnType<typeof latestFxReferenceRate>> = null;
   if (area === "payments") { try { fxRate = await latestFxReferenceRate(getDatabase()); } catch { fxRate = null; } }
-  const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", payments: "Payments", settings: "Settings" }[area];
-  const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your subscription and connected services." }[area];
+  const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", tips: "Tips", payments: "Payments", settings: "Settings" }[area];
+  const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", tips: "Your standing tip policy, imported POS tip evidence, deterministic allocations, the Pay Agent’s checks and every hold. Managers have no role here.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your subscription and connected services." }[area];
   const active = locations.filter(location => location.active);
   // Today at the selected location: the date the Owner's terms are checked against here.
   const today = operations ? localDate(new Date(), operations.timezone) : "";
@@ -107,6 +112,8 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       <section className="panel"><h2>Invitations</h2>{invitations.length ? invitations.map(i=><div className="record-row" key={i.id}><span><strong>{i.email}</strong><small>{i.role === "MANAGER" ? "Manager" : "Casual worker"} · {INVITATION_STATE[i.state] ?? "Pending"}</small></span>{!["REDEEMED","REVOKED"].includes(i.state) ? <div className="button-row"><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={i.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={i.id}/><button className="secondary-button">Revoke</button></form></div>:null}</div>) : <p>No invitations yet.</p>}</section>
       <section className="panel"><h2>Casual and regular staff</h2><p className="panel-lede">{workforce.filter(person => person.type === "CASUAL").length} casual workers and {workforce.filter(person => person.type !== "CASUAL").length} regular staff records. Managers look after these at each location.</p>{workforce.length ? <details className="disclosure-inline"><summary>Show everyone</summary>{workforce.map((person) => <div className="record-row" key={person.name}><strong>{person.name}</strong><span>{person.type === "CASUAL" ? "Casual worker" : "Regular staff record"} · {person.status === "ACTIVE" ? "Active" : "Inactive"}</span></div>)}</details> : <p>No worker profiles have been created.</p>}</section>
     </> : null}
+    {area === "tips" ? <form action={selectLocationAction} className="filter-row context-picker"><input type="hidden" name="next" value="/owner/tips" /><label>Location<select name="locationId" defaultValue={scope.locationId}>{active.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Switch location</button></form> : null}
+    {area === "tips" ? tipView ? <OwnerTips view={tipView} locationName={scope.locationName} devLinks={!scope.demo && devStatementLinksEnabled()} /> : <WorkspaceUnavailable /> : null}
     {area === "policies" ? <form action={selectLocationAction} className="filter-row context-picker" data-demo-write=""><label>Location<select name="locationId" defaultValue={scope.locationId}>{active.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Switch location</button></form> : null}
     {area === "policies" && operations ? <>
       <WageReferencePanel jurisdiction={operations.wageJurisdiction} today={today} locationName={scope.locationName} currency={operations.currency} />

@@ -47,7 +47,7 @@ export async function getAllocationSchedule(db: DatabaseSession, scope:Pick<Scop
       eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId)))
     .orderBy(desc(shifts.startsAt));
   const team = await db.select({ id: workers.id, name: workers.displayName }).from(workers)
-    .where(and(eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId)));
+    .where(and(eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.workerType, "CASUAL")));
   const published = await db.select({ id: shifts.id, roleName: shifts.roleName, startsAt: shifts.startsAt, endsAt: shifts.endsAt, shiftDate: shifts.shiftDate, status: shifts.status, requiredHeadcount: shifts.requiredHeadcount, termsVersion: shifts.termsVersion,
     currencyCode: shifts.currencyCode, guaranteedBasePayMinor: shifts.guaranteedBasePayMinor, earningsModel: shifts.earningsModel, commissionBps: shifts.commissionBps, incentiveBasis: shifts.incentiveBasis, incentiveAmountMinor: shifts.incentiveAmountMinor, incentiveTargetMinor: shifts.incentiveTargetMinor })
     .from(shifts).innerJoin(outlets, eq(shifts.outletId, outlets.id))

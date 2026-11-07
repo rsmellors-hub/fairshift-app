@@ -1,0 +1,13 @@
+source,location,row_ref,transaction_at,staff_ref,bill_amount,tip_amount,currency
+Synthetic demo POS export,Sandton,SDN-20261106-001,2026-11-06T07:42:00+02:00,{{FS-JTD-SDN-01}},186.50,18.50,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-002,2026-11-06T08:15:00+02:00,{{FS-JTD-SDN-02}},242.00,25.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-003,2026-11-06T09:03:00+02:00,,128.00,12.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-004,2026-11-06T10:27:00+02:00,{{FS-JTD-SDN-C1}},315.00,35.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-005,2026-11-06T11:48:00+02:00,{{FS-JTD-SDN-01}},98.00,10.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-006,2026-11-06T12:00:00+02:00,{{FS-JTD-SDN-02}},410.00,45.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-007,2026-11-06T13:22:00+02:00,{{FS-JTD-SDN-C1}},265.00,30.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-008,2026-11-06T14:51:00+02:00,,152.00,15.01,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-009,2026-11-06T18:10:00+02:00,{{FS-JTD-SDN-01}},520.00,60.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-010,2026-11-06T19:34:00+02:00,{{FS-JTD-SDN-02}},120.00,480.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-011,2026-11-06T21:05:00+02:00,{{FS-JTD-SDN-03}},340.00,40.00,ZAR
+Synthetic demo POS export,Sandton,SDN-20261106-012,2026-11-06T23:20:00+02:00,,88.00,8.00,ZAR

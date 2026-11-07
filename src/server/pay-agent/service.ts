@@ -146,4 +146,8 @@ export function startPayAgentRecovery() {
   void sweepPayAgentEvents(db, payAgentFor(db)).catch(error => {
     console.error("Pay Agent startup recovery did not complete; events remain for a later sweep or retry.", { error: error instanceof Error ? error.name : "unknown" });
   });
+  // The Pay Agent's tip checks (FS-TIP-AGENT-DEC-001) recover the same way, from their own journal.
+  void import("@/server/tips/wiring").then(({ sweepTips }) => sweepTips(db)).catch(error => {
+    console.error("Pay Agent tip recovery did not complete; events remain for a later sweep or retry.", { error: error instanceof Error ? error.name : "unknown" });
+  });
 }

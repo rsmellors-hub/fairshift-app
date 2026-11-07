@@ -142,8 +142,10 @@ function authoriseFinancialObligation(scope: PayoutScope) {
   assertRole(scope as Scope, ["OWNER", "MANAGER"]);
 }
 
-async function audit(db: DatabaseSession, scope: PayoutActor, action: string, entityType: string, entityId: string, payableId: string, metadata: Record<string, unknown>) {
-  await db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action, entityType, entityId, correlationId: `payable:${payableId}`,
+// The correlation of a payout's audit trail: its work payable, or its tip allocation line.
+const obligationOf = (payout: Pick<WorkPayout, "payableId" | "tipLineId">) => payout.payableId ? `payable:${payout.payableId}` : `tip-line:${payout.tipLineId}`;
+async function audit(db: DatabaseSession, scope: PayoutActor, action: string, entityType: string, entityId: string, correlation: string, metadata: Record<string, unknown>) {
+  await db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action, entityType, entityId, correlationId: correlation.includes(":") ? correlation : `payable:${correlation}`,
     metadata: { actorUserId: scope.userId, ...(scope.service ? { actorService: scope.service } : {}), ...metadata } });
 }
 
@@ -218,7 +220,7 @@ async function recordCreateOutcome(db: DatabaseSession, scope: PayoutActor, payo
   const [updated] = await db.update(workPayouts).set({ ...values, updatedAt: now })
     .where(and(eq(workPayouts.id, payout.id), eq(workPayouts.status, "SUBMITTING"))).returning();
   if (!updated) throw new Error("Payout state changed concurrently.");
-  await audit(db, scope, "PAYOUT_PROVIDER_RESPONSE", "work_payout", updated.id, updated.payableId, {
+  await audit(db, scope, "PAYOUT_PROVIDER_RESPONSE", "work_payout", updated.id, obligationOf(updated), {
     mode, status: updated.status, paypalBatchId: updated.paypalBatchId, paypalStatus: updated.paypalStatus, error: values.lastError ?? null,
   });
   return updated;
@@ -234,9 +236,9 @@ async function sendReserved(db: DatabaseSession, paypal: PayPalPayoutAdapter, sc
       amount: payoutAmount(payout.providerAmountMinor, payout.providerCurrency),
       currency: payout.providerCurrency,
       purpose: "SERVICES",
-      emailSubject: "FairShift work earnings",
-      emailMessage: "Your manager-approved FairShift work earnings have been sent to your PayPal account.",
-      note: "Manager-approved FairShift work earnings",
+      ...(payout.tipLineId
+        ? { emailSubject: "FairShift tips", emailMessage: "Your tips, released under your employer's standing tip policy, have been sent to your PayPal account.", note: "FairShift tip release" }
+        : { emailSubject: "FairShift work earnings", emailMessage: "Your manager-approved FairShift work earnings have been sent to your PayPal account.", note: "Manager-approved FairShift work earnings" }),
     }) };
   } catch (error) {
     outcome = { error };
@@ -366,6 +368,11 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
   const payable = await scopedPayable(db, scope, payableId);
   const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (!payout) throw new Error("No payout has been sent for this payable.");
+  return refreshPayout(db, paypal, scope, payout);
+}
+
+// The shared reconciliation of one payout row (a work payable's or a tip line's).
+async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payout: WorkPayout): Promise<WorkPayout> {
 
   if (payout.paypalBatchId) {
     const now = new Date();
@@ -388,7 +395,7 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
       statusCheckedAt: now, paidAt: status === "PAID" ? payout.paidAt ?? now : amountError ? null : payout.paidAt, updatedAt: now,
     }).where(and(eq(workPayouts.id, payout.id), eq(workPayouts.paypalBatchId, payout.paypalBatchId))).returning();
     if (updated.status !== payout.status || (amountError && (payout.lastError as { code?: string } | null)?.code !== amountError)) {
-      await audit(db, scope, "PAYOUT_STATUS_UPDATED", "work_payout", updated.id, payable.id, { from: payout.status, to: updated.status, paypalStatus: updated.paypalStatus, paypalBatchStatus: updated.paypalBatchStatus, amountError });
+      await audit(db, scope, "PAYOUT_STATUS_UPDATED", "work_payout", updated.id, obligationOf(updated), { from: payout.status, to: updated.status, paypalStatus: updated.paypalStatus, paypalBatchStatus: updated.paypalBatchStatus, amountError });
     }
     return updated;
   }
@@ -408,7 +415,7 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
       const [current] = await db.select().from(workPayouts).where(eq(workPayouts.id, payout.id));
       return current;
     }
-    await audit(db, scope, "PAYOUT_RECONCILIATION_REQUESTED", "work_payout", claimed.id, payable.id, { attempt: claimed.attempts, senderBatchId: claimed.senderBatchId });
+    await audit(db, scope, "PAYOUT_RECONCILIATION_REQUESTED", "work_payout", claimed.id, obligationOf(claimed), { attempt: claimed.attempts, senderBatchId: claimed.senderBatchId });
     // Claiming/auditing can take time. Check again immediately before provider create.
     try {
       assertNoBatchRecoveryWindow(claimed);
@@ -420,7 +427,60 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
     }
     const reconciled = await sendReserved(db, client, scope, claimed, "RECONCILE");
     // An adopted earlier payout is read straight away for its item status.
-    return reconciled.paypalBatchId && !reconciled.paypalStatus ? refreshWorkPayout(db, paypal, scope, payableId) : reconciled;
+    if (reconciled.paypalBatchId && !reconciled.paypalStatus) {
+      const [current] = await db.select().from(workPayouts).where(eq(workPayouts.id, reconciled.id));
+      return refreshPayout(db, paypal, scope, current);
+    }
+    return reconciled;
   }
   return payout;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tip allocation lines (FS-TIP-AGENT-DEC-001) through this same engine: the same verified route,
+// frozen ECB provider leg (prepareWorkPayout), unique reservation and recorded PayPal outcome.
+// The line's deterministic share is the amount; the recipient is the staff member's own saved
+// destination. At most one payout per line (unique tip_line_id), with sender IDs derived from it.
+export const tipPayoutSenderIds = (lineId: string) => {
+  const key = lineId.replaceAll("-", "").toUpperCase();
+  return { senderBatchId: `FSTP-B-${key}`, senderItemId: `FSTP-I-${key}` };
+};
+
+type TipLine = { id: string; organisationId: string; outletId: string; workerId: string; shareMinor: number; currencyCode: string };
+type PreparedPayout = Awaited<ReturnType<typeof prepareWorkPayout>>;
+
+// Reserves the line's payout inside the caller's transaction (which holds the line and the staff
+// member's day lock), or returns null when one already exists. The approver of record is the Owner
+// (FS-TIP-AGENT-DEC-001), recorded as requested_by and, with the basis, in the audit.
+export async function reserveTipLinePayout(tx: DatabaseSession, scope: Tenancy, line: TipLine, prepared: PreparedPayout, approver: { userId: string; basis: string }) {
+  const now = new Date();
+  const [reserved] = await tx.insert(workPayouts).values({
+    id: randomUUID(), tipLineId: line.id, organisationId: line.organisationId, outletId: line.outletId, workerId: line.workerId,
+    amountMinor: line.shareMinor, currencyCode: line.currencyCode,
+    providerCurrency: prepared.providerLeg.providerCurrency, providerAmountMinor: prepared.providerLeg.providerAmountMinor, fxRateMicros: prepared.providerLeg.fxRateMicros, fxRateSource: prepared.providerLeg.fxRateSource,
+    recipient: prepared.recipient, ...tipPayoutSenderIds(line.id),
+    status: "SUBMITTING", requestedBy: approver.userId, reservedAt: now, updatedAt: now,
+  }).onConflictDoNothing({ target: workPayouts.tipLineId }).returning();
+  if (!reserved) return null;
+  await audit(tx, { userId: null, ...scope, service: "fairshift-pay-agent" }, "PAYOUT_RESERVED", "work_payout", reserved.id, obligationOf(reserved), {
+    tipLineId: line.id, approverOfRecord: approver.userId, approverDecision: "FS-TIP-AGENT-DEC-001", approverBasis: approver.basis,
+    amountMinor: reserved.amountMinor, currencyCode: reserved.currencyCode, providerAmountMinor: reserved.providerAmountMinor, providerCurrency: reserved.providerCurrency,
+    fxRateMicros: reserved.fxRateMicros, fxRateSource: reserved.fxRateSource, senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId,
+  });
+  return reserved;
+}
+
+// Sends a reservation made by reserveTipLinePayout (status SUBMITTING), exactly as a work payout.
+export async function sendReservedPayout(db: Database, paypal: PayoutClientSource, scope: Tenancy, payout: WorkPayout) {
+  return sendReserved(db, payoutClient(paypal), { userId: null, ...scope, service: "fairshift-pay-agent" }, payout, "FIRST");
+}
+
+// Latest provider state of a tip line's payout, through the same reconciliation as a work payout.
+export async function refreshTipLinePayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, lineId: string) {
+  assertSandboxFinancialScope(scope);
+  if (scope.role !== "OWNER") throw new UserFacingError("tip-owner-only", "Only the Owner manages tip payments.");
+  z.uuid().parse(lineId);
+  const [payout] = await db.select().from(workPayouts).where(and(eq(workPayouts.tipLineId, lineId), eq(workPayouts.organisationId, scope.organisationId), eq(workPayouts.outletId, scope.locationId)));
+  if (!payout) throw new Error("No payout has been sent for this tip line.");
+  return refreshPayout(db, paypal, scope, payout);
 }

@@ -666,8 +666,10 @@ describe("Square tip evidence", () => {
     // Neither the tip nor sales including it reach a worker's pages.
     const home = await render(s.worker, () => WorkerWorkspace({ area: "home" })), earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
     for (const html of [home, earnings]) expect(html).not.toMatch(/£15\.00|£215\.00|£135\.00|£144\.00/);
-    // The existing statement stays true: nothing allocates a tip yet.
-    expect(earnings).toContain("FairShift doesn’t allocate tips");
+    // Square tip evidence is not an allocation (FS-TIP-DEC-002 allocates only imported, policy-bound
+    // tip rows): the worker sees no tip line from it, and the earnings say tips are shown separately.
+    expect(earnings).toContain("Tips are shown separately below");
+    expect(earnings).not.toContain("Your tips");
   }));
   it("a repeated sync keeps one sale, one evidence row and one tip, and a changed tip is refused", () => withDb(async db => {
     const s = await setup(db);

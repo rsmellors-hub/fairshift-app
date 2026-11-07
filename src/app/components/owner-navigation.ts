@@ -16,6 +16,7 @@ export const ownerNavigation: ProductNavItem[] = [
   { label: "Managers", href: "/owner/workforce", group: "People & pay" },
   { label: "Compensation", href: "/owner/policies" },
   { label: "Incentives", href: "/owner/policies#work-policies" },
+  { label: "Tips", href: "/owner/tips" },
   { label: "Payments", href: "/owner/payments" },
   { label: "Settings", href: "/owner/settings", group: "Business" },
 ];

@@ -79,9 +79,10 @@ const managerPayoutColumns = (() => {
 })();
 export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
   const outlet = await location(db, scope);
+  // The casual Worker Pool only: permanent staff are lightweight tip records, never offered work.
   const team = await db.select({ worker: workers, invitation: teamInvitations }).from(workers)
     .leftJoin(teamInvitations, eq(teamInvitations.workerId, workers.id))
-    .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId)));
+    .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(workers.workerType, "CASUAL")));
   const departmentRows = await db.select().from(departments).where(eq(departments.outletId, scope.locationId));
   const policies = await db.select().from(workPolicies).where(eq(workPolicies.outletId, scope.locationId));
   const requirements = await db.select().from(shifts).where(eq(shifts.outletId, scope.locationId));
@@ -147,7 +148,7 @@ async function scopedShift(db: DatabaseSession, id: string, scope:OperatingScope
   return shift;
 }
 async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts: boolean, scope:OperatingScope, options: { requireActivation?: boolean } = {}) {
-  const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"))).for("update");
+  const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"), eq(workers.workerType, "CASUAL"))).for("update");
   if (!worker) throw new Error("Team member unavailable at this location.");
   if (!checkConflicts) return worker;
   const conflicts = await db.select({ id: shifts.id }).from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))

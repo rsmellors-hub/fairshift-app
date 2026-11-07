@@ -15,6 +15,8 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
 import { getSquareFreshness } from "@/server/commerce/square-connection";
+import { getWorkerTips } from "@/server/tips/view";
+import { formatMinute } from "@/server/tips/policy";
 
 export const workerAreas = ["shifts", "earnings", "availability", "profile"] as const;
 export type WorkerArea = "home" | typeof workerAreas[number];
@@ -24,6 +26,8 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const scope=await requireScope(["TEAM_MEMBER"]);
   let data;
   try { data = await workerWorkspace(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
+  let tips: Awaited<ReturnType<typeof getWorkerTips>> = { pooled: [], shiftPayMinor: 0, currencyCode: null };
+  if (area === "earnings") { try { tips = await getWorkerTips(getDatabase(), scope); } catch { /* tips are shown only when they can be read */ } }
   const { profile, availability, timezone, targets } = data;
   // A demo reset closes shifts rather than deleting their evidence, so demo views leave them out.
   const assignments = scope.demo ? data.assignments.filter(row => row.shift.status !== "CANCELLED") : data.assignments;
@@ -137,8 +141,13 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
         {expected.length ? <div className="earnings-group"><h3>Coming up{expectedTotal ? ` · ${expectedTotal} expected` : ""}</h3>{expected.map(row => <div className="record-row" key={row.offer.id}><span><strong>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date}</strong><small>{row.departmentName ?? row.shift.roleName}</small></span><span>{row.shift.earningsModel === "COMMISSION" ? "Commission awaiting verified attributed sales" : `${money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode)} expected`}<small>{row.allocation?.confirmedAt ? row.shift.earningsModel === "COMMISSION" ? "Work confirmed" : "Work confirmed · earnings not yet recorded" : "Awaiting work confirmation"}</small></span></div>)}</div> : null}
         {!accepted.length ? <StatePanel title="No earnings yet"><p>When you accept a shift and finish it, your pay appears here.</p></StatePanel> : null}
         <p className="note">Your manager confirms the work, FairShift works out your earnings from the terms you accepted, and your manager approves them and sends them to your PayPal account. An amount shows as Paid only after PayPal confirms it. Questions about a payment? Ask your manager.</p>
-        <p className="note">Your earnings here are your base pay plus any bonus you earned. FairShift doesn’t allocate tips or calculate holiday pay, so neither is included. Amounts are before any tax or National Insurance.</p>
+        <p className="note">Your earnings here are your base pay plus any bonus you earned. Tips are shown separately below. FairShift doesn’t calculate holiday pay. Amounts are before any tax or National Insurance.</p>
       </section>
+      {tips.pooled.length || tips.shiftPayMinor ? <section className="panel" aria-labelledby="tips-title"><h2 id="tips-title">Your tips</h2>
+        {tips.pooled.map((line, index) => <div className="record-row" key={index}><span><strong>{line.localDate}</strong><small>{line.blockName ? `${line.blockName} ${formatMinute(line.blockStartMinute!)}–${formatMinute(line.blockEndMinute!)} · pooled share` : "Direct tips"}</small></span><span>{money(line.shareMinor, line.currencyCode)}<small>{line.payoutStatus === "PAID" ? "Paid (PayPal confirmed)" : line.payoutStatus && line.payoutStatus !== "FAILED" ? "Released, awaiting PayPal" : line.gateOutcome === "HELD" ? "Under review" : "Recorded"}</small></span></div>)}
+        {tips.pooled.length ? <p className="note">At this location tips are pooled by shift block: each block’s tips are split equally between everyone who worked it, and your share is paid through the pool, not with your shift pay.</p> : null}
+        {tips.shiftPayMinor && tips.currencyCode ? <p className="note">{money(tips.shiftPayMinor, tips.currencyCode)} in tips is recorded against your shifts at a direct-tip location. It stays on your shift pay, which FairShift doesn’t pay out yet.</p> : null}
+      </section> : null}
       {!profile?.paypalPayoutEmail && !paymentDetailsNeeded ? <StatePanel title="Payment setup incomplete" tone="warning"><p>Add your payment details before your approved earnings can be sent. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}
       {payments.length ? <h2>Incentive payments</h2> : null}
       {payments.length ? <section className="overview-strip"><div><span>Incentives paid</span><strong>{incentiveTotal(["PAID"])}</strong></div><div><span>Awaiting approval</span><strong>{incentiveTotal(["EARNED"])}</strong></div><div><span>Approved or processing</span><strong>{incentiveTotal(["APPROVED", "SUBMITTING", "SUBMITTED", "PROCESSING"])}</strong></div></section> : null}

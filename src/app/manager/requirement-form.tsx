@@ -73,11 +73,11 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
       <dl className="shift-terms">
         <div><dt>Hourly wage</dt><dd>{terms.hourly}</dd></div>
         <div><dt>Guaranteed base pay · per worker</dt><dd>{terms.base === null ? "Depends on verified sales" : money(terms.base, terms.currency)}<small> for {terms.hours}</small></dd></div>
-        <div><dt>Potential variable earnings</dt><dd>{terms.bonus ? `Up to ${money(terms.bonus, terms.currency)} bonus` : "No incentive"}<small> · tips not included</small></dd></div>
+        <div><dt>Potential variable earnings</dt><dd>{terms.bonus ? `Up to ${money(terms.bonus, terms.currency)} bonus` : "No incentive"}<small> · tips follow the location’s tip policy</small></dd></div>
       </dl>
       {terms.sa ? <SaWageIndicatorLine indicator={terms.sa} /> : terms.check ? <WageCheckLine check={terms.check} /> : null}
     </div> : null}
-    <p className="form-span note">Pay comes from the Owner&apos;s work policy and can&apos;t be changed here. The bonus is paid only if the worker&apos;s own sales reach the target; FairShift doesn&apos;t allocate tips. Creating this doesn&apos;t offer it to anyone yet.</p>
+    <p className="form-span note">Pay comes from the Owner&apos;s work policy and can&apos;t be changed here. The bonus is paid only if the worker&apos;s own sales reach the target. Tips aren&apos;t part of these terms: they follow the Owner&apos;s tip policy. Creating this doesn&apos;t offer it to anyone yet.</p>
     <button className="primary-button" disabled={!!terms?.check && !wageAllowsOffer(terms.check)}>Create shift</button>
   </form>;
 }

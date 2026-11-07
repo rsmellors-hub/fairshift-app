@@ -778,7 +778,10 @@ export const workPayables = pgTable("work_payables", {
 // against the approved payable (drizzle/0014_work_payouts.sql).
 export const workPayouts = pgTable("work_payouts", {
   id: uuid("id").primaryKey(),
-  payableId: uuid("payable_id").notNull().references(() => workPayables.id, { onDelete: "restrict" }),
+  // Exactly one obligation: an approved work payable, or one tip allocation line
+  // (FS-TIP-AGENT-DEC-001), both settled through this same engine.
+  payableId: uuid("payable_id").references(() => workPayables.id, { onDelete: "restrict" }),
+  tipLineId: uuid("tip_line_id").references((): AnyPgColumn => tipAllocationLines.id, { onDelete: "restrict" }),
   organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
   outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
   workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
@@ -819,6 +822,7 @@ export const workPayouts = pgTable("work_payouts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("work_payouts_payable_unique").on(t.payableId),
+  uniqueIndex("work_payouts_tip_line_unique").on(t.tipLineId),
   uniqueIndex("work_payouts_sender_batch_unique").on(t.senderBatchId),
   uniqueIndex("work_payouts_sender_item_unique").on(t.senderItemId),
   uniqueIndex("work_payouts_paypal_batch_unique").on(t.paypalBatchId),
@@ -1187,6 +1191,289 @@ export const fxReferenceRates = pgTable("fx_reference_rates", {
   check("fx_reference_rates_source_check", sql`(${t.source} = 'ECB_EUROFXREF_DAILY') or (${t.source} = 'OWNER_MANUAL' and ${t.recordedBy} is not null)`),
 ]);
 
+// ---------------------------------------------------------------------------------------------
+// Permanent-staff tips (FS-TIP-DEC-002, FS-TIP-AGENT-DEC-001, Owner decisions 7 November 2026).
+// Permanent staff are `workers` rows with worker_type REGULAR and no login. These tables hold the
+// Owner's standing tip settings, the imported POS tip evidence, the deterministic allocations and
+// their lines, the Pay Agent's tip journal, the append-only hold record and the staff statement
+// links. Database triggers keep evidence, allocations, holds and decisions immutable
+// (drizzle/0029_tip_release.sql).
+
+// One standing policy per location, set by the Owner before a period's tips are imported.
+export const tipLocationSettings = pgTable("tip_location_settings", {
+  outletId: uuid("outlet_id").primaryKey().references(() => outlets.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  policy: text("policy").notNull(),
+  // Owner-set auto-release cap per staff member per local day, in the location's currency.
+  autoReleaseCapMinor: bigint("auto_release_cap_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  setBy: uuid("set_by").notNull().references(() => users.id),
+  setAt: timestamp("set_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check("tip_location_settings_policy_check", sql`${t.policy} in ('DIRECT', 'SHIFT_POOL')`),
+  check("tip_location_settings_cap_check", sql`${t.autoReleaseCapMinor} between 1 and 9007199254740991 and ${t.currencyCode} ~ '^[A-Z]{3}$'`),
+]);
+
+// Shift blocks of a SHIFT_POOL location: [start, end) local minutes. Replaced as a set: old blocks
+// are deactivated, never edited, because allocations keep their snapshot and reference.
+export const tipShiftBlocks = pgTable("tip_shift_blocks", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  name: text("name").notNull(),
+  startMinute: integer("start_minute").notNull(),
+  endMinute: integer("end_minute").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("tip_shift_blocks_outlet_idx").on(t.outletId, t.active),
+  check("tip_shift_blocks_time_check", sql`${t.startMinute} >= 0 and ${t.endMinute} <= 1440 and ${t.startMinute} < ${t.endMinute}`),
+  check("tip_shift_blocks_name_check", sql`char_length(${t.name}) between 1 and 40`),
+]);
+
+// The Owner's standing weekly block roster of permanent staff.
+export const tipBlockRoster = pgTable("tip_block_roster", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  blockId: uuid("block_id").notNull().references(() => tipShiftBlocks.id, { onDelete: "restrict" }),
+  isoWeekday: integer("iso_weekday").notNull(),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_block_roster_unique").on(t.workerId, t.blockId, t.isoWeekday),
+  index("tip_block_roster_outlet_idx").on(t.outletId, t.isoWeekday),
+  check("tip_block_roster_weekday_check", sql`${t.isoWeekday} between 1 and 7`),
+]);
+
+// One import of labelled POS tip evidence (synthetic demo CSV; never live POS data). The same file
+// imported twice is the same import.
+export const tipImports = pgTable("tip_imports", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  label: text("label").notNull(),
+  fileSha256: text("file_sha256").notNull(),
+  // The location's policy when the tips were imported; every allocation of the import uses it.
+  policy: text("policy").notNull(),
+  rowCount: integer("row_count").notNull(),
+  duplicateRowsSkipped: integer("duplicate_rows_skipped").notNull(),
+  totalTipMinor: bigint("total_tip_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  importedBy: uuid("imported_by").notNull().references(() => users.id),
+  importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_imports_file_unique").on(t.outletId, t.fileSha256),
+  check("tip_imports_label_check", sql`${t.label} = 'IMPORTED_POS_EVIDENCE'`),
+  check("tip_imports_policy_check", sql`${t.policy} in ('DIRECT', 'SHIFT_POOL')`),
+  check("tip_imports_counts_check", sql`${t.rowCount} >= 0 and ${t.duplicateRowsSkipped} >= 0 and ${t.totalTipMinor} >= 0 and ${t.fileSha256} ~ '^[0-9a-f]{64}$'`),
+]);
+
+// One tip row of imported POS evidence, assigned exactly once: to one allocation, or left
+// unallocated with its reason. A row reference is stored once per location and source, so a
+// repeated row is never counted twice.
+export const tipEvidenceRows = pgTable("tip_evidence_rows", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  importId: uuid("import_id").notNull().references(() => tipImports.id, { onDelete: "restrict" }),
+  source: text("source").notNull(),
+  rowRef: text("row_ref").notNull(),
+  transactionAt: timestamp("transaction_at", { withTimezone: true }).notNull(),
+  localDate: date("local_date", { mode: "string" }).notNull(),
+  staffRef: text("staff_ref"),
+  // The staff member the POS row names, when the reference matches one at this location.
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "restrict" }),
+  billMinor: bigint("bill_minor", { mode: "number" }).notNull(),
+  tipMinor: bigint("tip_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  blockId: uuid("block_id").references(() => tipShiftBlocks.id, { onDelete: "restrict" }),
+  allocationId: uuid("allocation_id").references((): AnyPgColumn => tipAllocations.id, { onDelete: "restrict" }),
+  // POOL: in a SHIFT_POOL block's pool. DIRECT: to the permanent staff member on the row.
+  // CASUAL_SHIFT_PAY: a DIRECT row naming a casual worker, whose tips stay on shift pay.
+  // UNATTRIBUTED / OUTSIDE_BLOCKS: unallocated and visible.
+  disposition: text("disposition").notNull(),
+  importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_evidence_rows_ref_unique").on(t.outletId, t.source, t.rowRef),
+  index("tip_evidence_rows_allocation_idx").on(t.allocationId),
+  check("tip_evidence_rows_amount_check", sql`${t.billMinor} between 0 and 9007199254740991 and ${t.tipMinor} between 1 and 9007199254740991 and ${t.currencyCode} ~ '^[A-Z]{3}$'`),
+  // An UNATTRIBUTED row of a DIRECT day belongs to that day's allocation as its unallocated part.
+  check("tip_evidence_rows_disposition_check", sql`(${t.disposition} in ('POOL', 'DIRECT') and ${t.allocationId} is not null) or (${t.disposition} in ('CASUAL_SHIFT_PAY', 'OUTSIDE_BLOCKS') and ${t.allocationId} is null) or ${t.disposition} = 'UNATTRIBUTED'`),
+]);
+
+// One deterministic allocation: a SHIFT_POOL block's pool on one local date, or a DIRECT
+// location's tips for one local date. Totals reconcile to the evidence to the cent.
+export const tipAllocations = pgTable("tip_allocations", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  importId: uuid("import_id").notNull().references(() => tipImports.id, { onDelete: "restrict" }),
+  policy: text("policy").notNull(),
+  localDate: date("local_date", { mode: "string" }).notNull(),
+  // DAY for DIRECT; the block ID for SHIFT_POOL.
+  blockKey: text("block_key").notNull(),
+  blockId: uuid("block_id").references(() => tipShiftBlocks.id, { onDelete: "restrict" }),
+  blockName: text("block_name"),
+  blockStartMinute: integer("block_start_minute"),
+  blockEndMinute: integer("block_end_minute"),
+  totalTipMinor: bigint("total_tip_minor", { mode: "number" }).notNull(),
+  allocatedMinor: bigint("allocated_minor", { mode: "number" }).notNull(),
+  unallocatedMinor: bigint("unallocated_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  evidenceVersion: text("evidence_version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_allocations_unique").on(t.importId, t.localDate, t.blockKey),
+  index("tip_allocations_outlet_idx").on(t.outletId, t.localDate),
+  check("tip_allocations_policy_check", sql`(${t.policy} = 'DIRECT' and ${t.blockKey} = 'DAY' and ${t.blockId} is null) or (${t.policy} = 'SHIFT_POOL' and ${t.blockId} is not null and ${t.blockKey} = ${t.blockId}::text and ${t.blockName} is not null)`),
+  check("tip_allocations_totals_check", sql`${t.allocatedMinor} >= 0 and ${t.unallocatedMinor} >= 0 and ${t.totalTipMinor} = ${t.allocatedMinor} + ${t.unallocatedMinor}`),
+  check("tip_allocations_version_check", sql`${t.evidenceVersion} ~ '^[0-9a-f]{64}$'`),
+]);
+
+// One staff member's share of an allocation. Release state is held by its payout and holds.
+export const tipAllocationLines = pgTable("tip_allocation_lines", {
+  id: uuid("id").primaryKey(),
+  allocationId: uuid("allocation_id").notNull().references(() => tipAllocations.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  workerType: text("worker_type").notNull(),
+  // ROSTER (permanent staff on the block roster), CONFIRMED_SHIFT (casual with a confirmed shift
+  // overlapping the block) or POS_ROW (DIRECT).
+  membership: text("membership").notNull(),
+  shareMinor: bigint("share_minor", { mode: "number" }).notNull(),
+  currencyCode: text("currency_code").notNull(),
+  localDate: date("local_date", { mode: "string" }).notNull(),
+  // The last settlement-gate outcome (DRY_RUN_ELIGIBLE or a block code); not a financial fact.
+  gateOutcome: text("gate_outcome"),
+  gateCheckedAt: timestamp("gate_checked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_allocation_lines_unique").on(t.allocationId, t.workerId),
+  index("tip_allocation_lines_worker_idx").on(t.workerId, t.localDate),
+  check("tip_allocation_lines_share_check", sql`${t.shareMinor} between 0 and 9007199254740991 and ${t.currencyCode} ~ '^[A-Z]{3}$'`),
+  check("tip_allocation_lines_type_check", sql`${t.workerType} in ('REGULAR', 'CASUAL') and ${t.membership} in ('ROSTER', 'CONFIRMED_SHIFT', 'POS_ROW')`),
+]);
+
+// The Pay Agent's tip journal (FS-TIP-AGENT-DEC-001): one event per allocation and evidence
+// version, claimed and fenced like pay_agent_events. It holds no amount or recipient.
+export const tipAgentEvents = pgTable("tip_agent_events", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  allocationId: uuid("allocation_id").notNull().references(() => tipAllocations.id, { onDelete: "restrict" }),
+  evidenceVersion: text("evidence_version").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  status: text("status").notNull(),
+  outcomeCode: text("outcome_code"),
+  errorClass: text("error_class"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  modelCallCount: integer("model_call_count").notNull().default(0),
+  claimToken: uuid("claim_token"),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  configuredModel: text("configured_model"),
+  responseModel: text("response_model"),
+  responseId: text("response_id"),
+  decision: text("decision"),
+  reasonCode: text("reason_code"),
+  summary: text("summary"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  dryRun: boolean("dry_run"),
+  // The Owner who released a model hold; the settlement then runs on that authority.
+  releasedBy: uuid("released_by").references(() => users.id),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tip_agent_events_version_unique").on(t.allocationId, t.evidenceVersion),
+  index("tip_agent_events_recovery_idx").on(t.status, t.nextAttemptAt),
+  check("tip_agent_events_status_check", sql`${t.status} in ('PENDING', 'CLAIMED', 'SKIPPED', 'BLOCKED', 'REJECTED_OUTPUT', 'FAILED_RETRYABLE', 'FAILED_TERMINAL', 'DECIDED_RELEASE', 'DECIDED_HOLD', 'HOLD_RELEASED', 'SETTLING', 'SETTLED')`),
+  check("tip_agent_events_claim_check", sql`(${t.status} in ('CLAIMED', 'SETTLING')) = (${t.claimToken} is not null and ${t.leaseExpiresAt} is not null and ${t.claimedAt} is not null)`),
+  check("tip_agent_events_decision_check", sql`(${t.decision} is null and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is null)
+    or (${t.decision} = 'RELEASE' and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is not null)
+    or (${t.decision} = 'HOLD' and ${t.reasonCode} in ('UNATTRIBUTED_TIPS', 'INACTIVE_STAFF_ATTRIBUTION', 'TIP_OUTLIER', 'RECONCILIATION_GAP', 'DUPLICATE_ROWS', 'ROSTER_MISMATCH') and char_length(${t.summary}) between 1 and 200 and ${t.decidedAt} is not null)`),
+  check("tip_agent_events_counts_check", sql`${t.attemptCount} >= 0 and ${t.modelCallCount} >= 0 and ${t.modelCallCount} <= ${t.attemptCount} and ${t.evidenceVersion} ~ '^[0-9a-f]{64}$'`),
+  check("tip_agent_events_codes_check", sql`coalesce(char_length(${t.outcomeCode}), 0) <= 64 and coalesce(char_length(${t.errorClass}), 0) <= 64 and coalesce(char_length(${t.responseId}), 0) <= 200`),
+]);
+
+// Every tip hold, permanently (Owner requirement, 7 November 2026): the Pay Agent's reason code
+// and summary, or the server's deterministic reason. Append-only: never edited or deleted.
+export const tipHolds = pgTable("tip_holds", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  allocationId: uuid("allocation_id").notNull().references(() => tipAllocations.id, { onDelete: "restrict" }),
+  // Null: the whole allocation (a model hold). Set: one staff member's line (a server hold).
+  lineId: uuid("line_id").references(() => tipAllocationLines.id, { onDelete: "restrict" }),
+  tipAgentEventId: uuid("tip_agent_event_id").references(() => tipAgentEvents.id, { onDelete: "restrict" }),
+  source: text("source").notNull(),
+  reasonCode: text("reason_code").notNull(),
+  summary: text("summary").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("tip_holds_allocation_idx").on(t.allocationId),
+  check("tip_holds_source_check", sql`(${t.source} = 'MODEL' and ${t.lineId} is null and ${t.tipAgentEventId} is not null and ${t.reasonCode} in ('UNATTRIBUTED_TIPS', 'INACTIVE_STAFF_ATTRIBUTION', 'TIP_OUTLIER', 'RECONCILIATION_GAP', 'DUPLICATE_ROWS', 'ROSTER_MISMATCH'))
+    or (${t.source} = 'DETERMINISTIC' and ${t.lineId} is not null and ${t.reasonCode} in ('AUTO_RELEASE_CAP_EXCEEDED', 'DESTINATION_RECENTLY_CHANGED'))`),
+  check("tip_holds_summary_check", sql`char_length(${t.summary}) between 1 and 200`),
+]);
+
+// Every Owner decision on a hold, permanently: released as calculated, or kept held, by whom, when
+// and why (a written reason is required). Append-only. A hold is released at most once.
+export const tipHoldDecisions = pgTable("tip_hold_decisions", {
+  id: uuid("id").primaryKey(),
+  holdId: uuid("hold_id").notNull().references(() => tipHolds.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  decision: text("decision").notNull(),
+  decidedBy: uuid("decided_by").notNull().references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").notNull(),
+}, (t) => [
+  index("tip_hold_decisions_hold_idx").on(t.holdId, t.decidedAt),
+  uniqueIndex("tip_hold_decisions_release_unique").on(t.holdId).where(sql`${t.decision} = 'RELEASED'`),
+  check("tip_hold_decisions_decision_check", sql`${t.decision} in ('RELEASED', 'KEPT_HELD')`),
+  check("tip_hold_decisions_reason_check", sql`char_length(btrim(${t.reason})) between 1 and 500`),
+]);
+
+// A permanent staff member's statement link: a random token stored only as its SHA-256, bound to
+// one organisation, location and staff record, with an explicit expiry. It opens a read-only
+// statement; its destination confirmation or change can be used once.
+export const staffStatementLinks = pgTable("staff_statement_links", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  destinationUsedAt: timestamp("destination_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("staff_statement_links_token_unique").on(t.tokenHash),
+  check("staff_statement_links_token_check", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$' and ${t.expiresAt} > ${t.createdAt}`),
+]);
+
+// The payout-destination journal of a permanent staff member, without the address itself:
+// RECORDED by the Owner, CONFIRMED or CHANGED by the staff member through a link. Append-only.
+export const staffDestinationEvents = pgTable("staff_destination_events", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  linkId: uuid("link_id").references(() => staffStatementLinks.id, { onDelete: "restrict" }),
+  kind: text("kind").notNull(),
+  recordedBy: uuid("recorded_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("staff_destination_events_worker_idx").on(t.workerId, t.createdAt),
+  check("staff_destination_events_kind_check", sql`(${t.kind} = 'RECORDED' and ${t.recordedBy} is not null and ${t.linkId} is null) or (${t.kind} in ('CONFIRMED', 'CHANGED') and ${t.linkId} is not null)`),
+]);
+
 export const schema = {
   fxReferenceRates,
   users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
@@ -1200,6 +1487,7 @@ export const schema = {
   commerceRefundEvidence,
   commerceWorkerIdentities,
   providerEvents,
+  tipLocationSettings, tipShiftBlocks, tipBlockRoster, tipImports, tipEvidenceRows, tipAllocations, tipAllocationLines, tipAgentEvents, tipHolds, tipHoldDecisions, staffStatementLinks, staffDestinationEvents,
   workers, workerAvailability, regularStaffCoverage, labourPolicies, workloadPolicies, outletTradingHours, regularCoverageWindows,
   departments, workPolicies, teamInvitations, workAcceptances, workAllocations, workPayables, workPayouts, aiStaffingAssessments, demandContextSignals, demandContextFeeds, demandContextProposals, demandContextDecisions, attributedSales, workPerformanceResults,
   shifts,

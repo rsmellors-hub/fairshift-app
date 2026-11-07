@@ -814,3 +814,12 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .demo-floor strong { font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; }
 .demo-floor small { color: #075e4d; font-size: 13px; }
 .demo-floor-policy { margin: 0 0 10px; }
+
+/* Owner tips (FS-TIP-DEC-002): block roster grid and allocation records. */
+.roster-grid { display: grid; gap: 0.35rem; }
+.roster-grid > div { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; }
+.roster-grid > div > span { min-width: 5.5rem; font-weight: 600; }
+.roster-grid label { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 400; }
+.tip-allocation { border-top: 1px solid var(--line, #d8dee4); padding-top: 1rem; margin-top: 1rem; }
+.hold-record { border-left: 3px solid var(--warning, #b7791f); padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+.statement-credits { list-style: none; padding: 0; display: grid; gap: 0.5rem; }

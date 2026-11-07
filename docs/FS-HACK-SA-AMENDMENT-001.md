@@ -205,4 +205,16 @@ DEMO VALUES
     casual confirmed shift inside a pooled block.
 ```
 
+**Additional Owner requirement (Ryan, 7 November 2026), for Checkpoint C6.** Supplied by the Owner during the same work package. Recorded verbatim:
+
+```text
+Every tip hold and every owner decision on it must be recorded
+permanently: the AI reason code and summary, whether the owner
+released it or kept it held, who decided, when, and a written
+reason (required). These records are append-only — never
+edited or deleted. Show the hold history on the staff member's
+statement. Add a test proving the records are append-only and
+that a reason is required.
+```
+
 **Supersession record (as instructed above).** For permanent-staff tips, FS-TIP-DEC-002 and FS-TIP-AGENT-DEC-001 replace, in the specification's section 1: FS-TIP-POOL-DEC-001's hours-proportional service-period pools; FS-TIP-ELIGIBILITY-DEC-001's open recording of permanent-staff hours; the Manager approval of tip allocations in FS-TIP-POOL-DEC-001 and FS-TIP-DEC-001 (C); the staff request and election mechanism and the 50% ceiling of FS-PAYOUT-TIMING-DEC-002 (replaced by the Owner's per-staff daily auto-release cap); and the employee-requested permanent-tip release in DEC-SA-011 and FS-HACK-SA-ROADMAP-001 section 2's supporting path, which becomes AI-checked automatic release. FS-TIP-POOL-DEC-002's exclusion of hours-based pooling is retained. Every other dated rule stands.

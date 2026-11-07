@@ -64,7 +64,7 @@ function Earn({ shift, detailed = false, wage }: { shift: Row["shift"]; detailed
     <section className="pay-block pay-block-guaranteed" aria-label="Guaranteed base pay"><h4>Guaranteed base pay</h4>{guaranteed}</section>
     <section className="pay-block pay-block-variable" aria-label="Potential variable earnings"><h4>Potential variable earnings <span>Not guaranteed</span></h4>
       {bonus ? <>{bonus}<p className="worker-shift-bonus">You earn the {amount(shift.incentiveAmountMinor)} bonus if your own sales for this shift reach {amount(shift.incentiveTargetMinor)}.</p></> : (shift.incentiveAmountMinor > 0 ? <p>A {amount(shift.incentiveAmountMinor)} incentive if the team meets its target.</p> : <p>No sales bonus on this shift.</p>)}
-      <p className="pay-line"><strong>Tips</strong> Not included. FairShift doesn’t allocate tips, so none are shown or promised here.</p>
+      <p className="pay-line"><strong>Tips</strong> Not part of this shift’s terms. Any tips follow the location’s tip policy and are shown under Earnings; none are promised here.</p>
     </section>
     <section className="pay-block pay-block-final" aria-label="Final approved earnings"><h4>Final approved earnings</h4>
       <p>Set after the shift: your manager confirms the work{shift.incentiveBasis ? " and checks your sales" : ""}, then approves the total. Only an approved total is paid, through PayPal.</p>
