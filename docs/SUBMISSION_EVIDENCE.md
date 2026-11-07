@@ -75,3 +75,30 @@ policy, offer, acceptance and allocation operations). Its subscription row is a 
   `ai-staffing`, `pay-agent-events`, `reference-refresh`, `owner-onboarding` — **4 files, 49/49
   passed** (98.16 s). Committed on the Owner's instruction ("If the slow ones pass alone, commit A").
 - `owner-onboarding` migration count updated 28 → 29 for `0028`.
+
+## Day 4, Checkpoint B — first Sandbox payout for confirmed casual work (7 November 2026)
+
+**Preconditions, all checked at runtime before any PayPal request:** payout config resolves to
+`https://api-m.sandbox.paypal.com` and equals the code constant (`src/server/config/env.ts`; the
+`src/server/integrations/paypal/payout-client.ts` constructor refuses any other host, tested in
+`tests/unit/paypal-payout-client.test.ts`); Sandbox credentials present (presence only); a Sandbox
+personal-account recipient supplied by the Owner in a local file, saved through the worker's own
+payment settings and never printed; fresh DEC-SA-012 rate (ECB 2026-11-06); the Sandbox
+organisation is the Jacaranda Table Demo only. The startup sweep had nothing it could settle
+(0 payouts before).
+
+| Step | Observed (local server, scratch database) |
+|---|---|
+| Dry run off, local only | `FAIRSHIFT_PAY_AGENT_DRY_RUN=false` from a local override file for one server run |
+| Normal flow | Manager confirmed "Runtime sandbox payout" (3 h × R45.00 = R135.00) in the browser; `after()` → genuine OpenAI decision **SETTLE** (`resp_03ef5a76731e4d05016aef0059cdac87d286fef2acfa501c5b`) → settlement gates → `SETTLEMENT_SUBMITTED / PAYOUT_RESERVED` |
+| Frozen provider leg | R135.00 → **US$8.16** at **16.538200 ZAR/USD**, `fx_rate_source = ECB_EUROFXREF_DAILY:2026-11-06`, rounded down |
+| Approver of record | The confirming manager; audit basis "Manager confirmation at preauthorised fixed terms (DEC-SA-011)", `FS-APPROVER-DEC-001` |
+| PayPal create | Sender batch `FSWP-B-248DB329D0F143029284E5FA2769DC68`; PayPal batch **`CDYVQTZNSZKYU`**, batch `PENDING`, no item yet → FairShift `PROCESSING` (not paid) |
+| Status refresh (manager "Check payment status") | PayPal item **`FWA2DGAD9QH42`** `SUCCESS`, batch `SUCCESS`, transaction `65982028V6398071A`; amount and currency matched the frozen leg → FairShift **`PAID`** at 12:42:11 SAST |
+| Worker view (390 px) | "Paid"; "$8.16 for ZAR 135.00, at 16.5382 ZAR per USD, the European Central Bank reference rate of 2026-11-06"; no recipient or PayPal ID shown; no console errors |
+| Dry run restored | Server restarted without the override; manager retried the earlier blocked "Runtime clean floor" payable → `DRY_RUN_ELIGIBLE`, `dry_run = true`; still **exactly one** payout in the database |
+
+Exactly one PayPal payout was created; no retry or resend. The recipient is a PayPal Sandbox
+personal test account, not a South African recipient: SA recipient eligibility remains NOT VERIFIED.
+Checkpoint B changed no application or test code (local seed script and this file only); the
+Checkpoint A suite result applies to the unchanged application code.

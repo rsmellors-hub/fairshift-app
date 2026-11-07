@@ -96,13 +96,16 @@ try {
   // Work for the stop/restart recovery proof.
   const recovery = await allocated(rosebankManager, casual, "Runtime recovery floor", quarter(new Date(now - 30 * 3_600_000)), quarter(new Date(now - 26 * 3_600_000)));
 
+  // Clean work for the one Checkpoint B Sandbox payout: ended an hour ago, three hours on R45.00.
+  const sandbox = await allocated(rosebankManager, casual, "Runtime sandbox payout", quarter(new Date(now - 4 * 3_600_000)), quarter(new Date(now - 1 * 3_600_000)));
+
   const offers = await db.select({ shiftId: shiftOffers.shiftId, offerId: shiftOffers.id }).from(shiftOffers).where(eq(shiftOffers.status, "ACCEPTED"));
   const offerOf = (shiftId: string) => offers.find(row => row.shiftId === shiftId)?.offerId;
   const people = await db.select({ id: workers.id, type: workers.workerType, locationId: workers.locationId, payout: workers.paypalPayoutEmail }).from(workers).where(eq(workers.organisationId, ORG));
   console.log(JSON.stringify({
     organisationId: ORG, rosebank: ROSEBANK.id, sandton: SANDTON.id,
     accounts: ["owner", "manager.rosebank", "manager.sandton", "casual.rosebank", "casual.sandton"].map(name => `${name}@jacaranda-runtime.example.test`),
-    shifts: { clean: { shiftId: clean, offerId: offerOf(clean) }, late: { shiftId: late, offerId: offerOf(late) }, recovery: { shiftId: recovery, offerId: offerOf(recovery) } },
+    shifts: { clean: { shiftId: clean, offerId: offerOf(clean) }, late: { shiftId: late, offerId: offerOf(late) }, recovery: { shiftId: recovery, offerId: offerOf(recovery) }, sandbox: { shiftId: sandbox, offerId: offerOf(sandbox) } },
     casualWorkerId: casual.workerId, poolCasualWorkerId: poolCasual.workerId,
     payoutDestinationSaved: people.some(row => row.id === casual.workerId && !!row.payout),
   }, null, 2));
