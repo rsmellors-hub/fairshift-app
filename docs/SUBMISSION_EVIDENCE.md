@@ -157,3 +157,29 @@ the new copy (`square-live`, `wage-intelligence`), with every money assertion un
 `tests/integration/tips-postgres.test.ts` (2, real PostgreSQL: concurrent releases fit under the cap
 once; six concurrent releases of one line reserve one payout and call PayPal once),
 `tests/unit/server-function-logging.test.ts` (1).
+
+## Day 4, Checkpoint D — browser golden path (7 November 2026)
+
+Headless Chrome over the DevTools protocol against the local server (scratch database, dry run on
+except where stated); real sign-in forms and server actions, no API shortcuts.
+
+**Casual journey (real accounts), VERIFIED:** the Rosebank manager created a 15-minute shift
+(14:15–14:30 SAST) on the preauthorised R45.00/hour terms and offered it from the worker pool; the
+casual (390 px, no overflow) acknowledged the disclosed terms and accepted; the manager finalised
+the allocation and, after the shift ended, confirmed it. `after()` ran the Pay Agent: genuine OpenAI
+**SETTLE** (`resp_0055faee0ead7fe1016aef1c34de8487d2a58a37143c09da46`) → `DRY_RUN_ELIGIBLE`; the
+worker sees "Pay pending" for R11.25. The database still holds exactly one payout (Checkpoint B's,
+PAID). The Sandbox payout path itself is the Checkpoint B run.
+
+**Forecast:** synthetic reference history is shown only to public demo personas
+(`syntheticHistoryAllowed`, `src/server/intelligence/sales-history.ts:36`), and demo personas can
+never trigger the Pay Agent (Day 3 rule). So no single session covers forecast → Pay Agent: a real
+account sees "No location has eligible sales history yet". With local demo personas enabled, the
+demo Owner saw next week's forecast (5,731 expected transactions, ZAR 598,429, "Reference sales
+history · synthetic") and the demo Manager at Rosebank saw "Tuesday needs the most cover · 24 h
+regular staff + 4.5 h gap to fill". **OPEN:** an authenticated rehearsal context that can see the
+labelled reference forecast and still run the Pay Agent needs an Owner decision (roadmap §6).
+
+**Tips journey:** exercised in the browser during Checkpoint C (above).
+
+No false PAID was shown anywhere; the only PayPal request was Checkpoint B's.
