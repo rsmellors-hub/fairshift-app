@@ -121,3 +121,88 @@ Use one shared settlement engine with two authorised entry paths under DEC-SA-01
 - One fixed Sandbox demo rate of **<RATE> ZAR = 1 USD** applies, and it is shown to the worker. The value of `<RATE>` is **not yet recorded**: the Owner must supply it before any code or payout depends on this decision.
 - The USD amount is rounded **down** to the cent.
 - The rate, the USD amount and the rate source are **frozen on the payout reservation**, so recovery never re-converts.
+
+> **Superseded in part, 7 November 2026, by the DEC-SA-012 exchange-rate decision below.** The fixed `<RATE>` bullet is replaced by the ECB reference-rate rule. The operating currency (ZAR), the Sandbox provider payout currency (USD), rounding the USD amount down to the cent, and freezing the rate, USD amount and rate source on the reservation are unchanged.
+
+### Owner decisions, 7 November 2026
+
+**Decision date:** 7 November 2026. **Status:** OWNER APPROVED (confirmed by Ryan). **Authorising source:** Owner-supplied work package **FS-HACK-SA-SUBMISSION-001, Day 4** ("Runtime proof, FX, first sandbox payout, AI-verified shift-pool tip release"), section OWNER DECISIONS. Recorded verbatim. Requirements only: this record implements nothing.
+
+```text
+DEC-SA-012 — Exchange rate
+  Payouts convert ZAR to USD at the most recent ECB reference
+  rate (USD/ZAR derived from EUR/ZAR ÷ EUR/USD). The rate is
+  locked in when a payout is reserved and never re-converted.
+  If no rate from the last 3 business days is available,
+  payouts are blocked.
+
+FS-TIP-DEC-002 — Tip policy (amends FS-TIP-DEC-001)
+  The owner sets one policy per location before a period's
+  tips are imported:
+  - DIRECT: each tip row goes 100% to the staff member on that
+    POS row; unattributed rows stay unallocated and visible.
+  - SHIFT_POOL: the owner defines shift blocks per location
+    (e.g. Morning / Afternoon / Evening). Each tip row is
+    assigned to a block by its transaction time. Each block is
+    its own pool, split as one equal share per person in that
+    block. Members are casuals with a confirmed FairShift shift
+    in the block (automatic) plus permanent staff on the
+    owner's standing weekly block roster. Someone working two
+    blocks takes a share in each.
+  Split in cents; remainder distributed in fixed staff-ID
+  order so totals reconcile exactly. Hours-based pooling stays
+  excluded. Known limitation: a person leaving mid-block still
+  receives a full share.
+  Casuals: at DIRECT locations their tips stay on shift pay
+  (FS-TIP-DEC-001 "allocated tips" line). In a SHIFT_POOL
+  block their share comes through the pool and their
+  shift-pay tip line is zero for that block. Every tip row is
+  paid exactly once.
+
+SUPERSESSION
+  For permanent-staff tips, FS-TIP-DEC-002 and
+  FS-TIP-AGENT-DEC-001 replace these parts of
+  FS-TIP-POOL-DEC-001 and related rules: hours-proportional
+  service-period pools and any recording of permanent-staff
+  hours; manager approval of tip allocations; staff release
+  requests and early-access elections; the 50% early-access
+  cap (replaced by the owner's per-staff daily auto-release
+  cap). Record this supersession next to the decisions.
+  Update UI copy that says FairShift does not allocate tips.
+  If any other approved tip rule conflicts, list it in the
+  report instead of silently overriding it.
+
+FS-TIP-AGENT-DEC-001 — AI tip release
+  The AI checks tip evidence per allocation (per block for
+  SHIFT_POOL) and returns release_tip_allocation or
+  hold_tip_allocation with a reason code: UNATTRIBUTED_TIPS,
+  INACTIVE_STAFF_ATTRIBUTION, TIP_OUTLIER, RECONCILIATION_GAP,
+  DUPLICATE_ROWS, ROSTER_MISMATCH. Amounts are always computed
+  deterministically; the AI never sets amounts or recipients.
+  Released allocations pass existing settlement gates
+  automatically within an owner-set auto-release cap per staff
+  member per day. Holds go to the owner, who may release as
+  calculated or keep held; nobody edits amounts or recipients.
+  Managers have no role in the normal tip flow. Approver of
+  record for tip payouts: the owner, basis = standing tip
+  policy + AI decision ID.
+
+FS-APPROVER-DEC-001 — Casual approver
+  Automatic casual settlements keep the confirming (or
+  hold-releasing) manager as approver of record; audit basis:
+  manager confirmation at preauthorised fixed terms
+  (DEC-SA-011).
+
+DEMO VALUES
+  - Auto-release cap: R1,500 per staff member per day.
+  - Pick two Jacaranda locations: one DIRECT, one SHIFT_POOL;
+    the rest DIRECT. Report which.
+  - Shift blocks for the SHIFT_POOL location:
+    Morning 07:00–12:00, Afternoon 12:00–17:00,
+    Evening 17:00–23:00 (Africa/Johannesburg).
+  - Seed a small permanent-staff block roster for that
+    location (front and back of house), and at least one
+    casual confirmed shift inside a pooled block.
+```
+
+**Supersession record (as instructed above).** For permanent-staff tips, FS-TIP-DEC-002 and FS-TIP-AGENT-DEC-001 replace, in the specification's section 1: FS-TIP-POOL-DEC-001's hours-proportional service-period pools; FS-TIP-ELIGIBILITY-DEC-001's open recording of permanent-staff hours; the Manager approval of tip allocations in FS-TIP-POOL-DEC-001 and FS-TIP-DEC-001 (C); the staff request and election mechanism and the 50% ceiling of FS-PAYOUT-TIMING-DEC-002 (replaced by the Owner's per-staff daily auto-release cap); and the employee-requested permanent-tip release in DEC-SA-011 and FS-HACK-SA-ROADMAP-001 section 2's supporting path, which becomes AI-checked automatic release. FS-TIP-POOL-DEC-002's exclusion of hours-based pooling is retained. Every other dated rule stands.

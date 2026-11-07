@@ -1164,7 +1164,31 @@ export const payAgentEvents = pgTable("pay_agent_events", {
   check("pay_agent_events_payout_check", sql`(${t.status} = 'SETTLEMENT_SUBMITTED') = (${t.payoutId} is not null)`),
 ]);
 
+// ECB euro foreign exchange reference rates for the ZAR->USD payout leg (DEC-SA-012, 7 Nov 2026).
+// One row per ECB reference date, holding the two published quotes exactly as published and the
+// derived ZAR-per-USD rate in micro-units (EUR/ZAR ÷ EUR/USD, rounded up to six decimals so the
+// converted USD never exceeds the exact cross rate). A payout reservation copies the newest row's
+// derived rate and freezes it; rows are never edited or deleted (drizzle/0028_fx_reference_rates.sql).
+export const fxReferenceRates = pgTable("fx_reference_rates", {
+  id: uuid("id").primaryKey(),
+  rateDate: date("rate_date", { mode: "string" }).notNull(),
+  eurZar: text("eur_zar").notNull(),
+  eurUsd: text("eur_usd").notNull(),
+  usdZarMicros: bigint("usd_zar_micros", { mode: "number" }).notNull(),
+  // ECB_EUROFXREF_DAILY: fetched from the ECB daily reference-rate file.
+  // OWNER_MANUAL: typed by the Sandbox demo organisation's Owner from the ECB publication.
+  source: text("source").notNull(),
+  recordedBy: uuid("recorded_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("fx_reference_rates_date_unique").on(t.rateDate),
+  check("fx_reference_rates_quote_check", sql`${t.eurZar} ~ '^[0-9]{1,6}(\\.[0-9]{1,6})?$' and ${t.eurUsd} ~ '^[0-9]{1,6}(\\.[0-9]{1,6})?$' and ${t.eurZar}::numeric > 0 and ${t.eurUsd}::numeric > 0`),
+  check("fx_reference_rates_micros_check", sql`${t.usdZarMicros} > 0 and ${t.usdZarMicros} = ceil(${t.eurZar}::numeric * 1000000 / ${t.eurUsd}::numeric)`),
+  check("fx_reference_rates_source_check", sql`(${t.source} = 'ECB_EUROFXREF_DAILY') or (${t.source} = 'OWNER_MANUAL' and ${t.recordedBy} is not null)`),
+]);
+
 export const schema = {
+  fxReferenceRates,
   users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
   organisations,
   outlets,

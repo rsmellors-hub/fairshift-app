@@ -2,6 +2,7 @@ import { assertSandboxFinancialScope, assertSandboxOrganisation } from "@/server
 import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
 import { resolveProviderAmount } from "@/server/domain/provider-currency";
+import { currentZarConversion } from "@/server/fx/reference-rates";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
@@ -17,7 +18,7 @@ import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "
 // The approved amount persisted on the payable is the worker's entitlement; nothing here
 // recalculates pay from shifts, policies, rates or request input. When PayPal cannot pay that
 // operating currency (ZAR), the payout is sent in a supported provider currency (USD) instead,
-// converted exactly once from the approved demo rate and frozen on the reservation, so a retry
+// converted exactly once at the newest ECB reference rate and frozen on the reservation, so a retry
 // or recovery re-sends the identical provider amount and never re-converts (DEC-SA-012); with
 // no conversion the provider leg equals the entitlement. Each payable has at most one payout
 // (unique payable reference), reserved in the database before PayPal is called. Its sender
@@ -247,14 +248,14 @@ export type SubmitResult = { payout: WorkPayout; submitted: boolean };
 
 // Every pre-reservation check of this engine, without any write: the provider leg actually sent
 // to PayPal (for a new reservation it is resolved now — a ZAR entitlement converts to USD at the
-// approved demo rate, or fails closed when no rate is configured; re-sending an unsent payout
+// newest ECB reference rate, or fails closed when none from the last 3 business days exists; re-sending an unsent payout
 // reuses its frozen values, so a later rate change cannot alter the reservation and the amount is
 // never re-converted), the verified provider currency and route, a two-decimal amount, and the
 // worker's own saved payment destination. The Pay Agent's dry run evaluates exactly these checks.
 export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, input: { workerId: string; amountMinor: number; currencyCode: string; existing?: WorkPayout }) {
   const providerLeg = input.existing
     ? { providerCurrency: input.existing.providerCurrency, providerAmountMinor: input.existing.providerAmountMinor, fxRateMicros: input.existing.fxRateMicros, fxRateSource: input.existing.fxRateSource }
-    : resolveProviderAmount({ amountMinor: input.amountMinor, currencyCode: input.currencyCode });
+    : await resolveProviderAmount({ amountMinor: input.amountMinor, currencyCode: input.currencyCode }, () => currentZarConversion(db));
   await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
   payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
   const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
@@ -310,6 +311,13 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
   return submitApprovedPayout(db, paypal, scope, payable);
 }
 
+// FS-APPROVER-DEC-001 (7 Nov 2026): an automatic casual settlement keeps the confirming, or
+// hold-releasing, manager as approver of record, on this audit basis.
+export const CASUAL_APPROVER_BASIS = {
+  MANAGER_CONFIRMED_COMPLETION: "Manager confirmation at preauthorised fixed terms (DEC-SA-011)",
+  MANAGER_RELEASED_HOLD: "Manager released a Pay Agent hold on work confirmed at preauthorised fixed terms (DEC-SA-011)",
+} as const;
+
 export type ConfirmedWorkAuthority = {
   organisationId: string; locationId: string;
   // The manager whose confirmation completed the work, or who released a Pay Agent hold.
@@ -340,6 +348,7 @@ export async function submitConfirmedWorkPayout(db: Database, paypal: PayoutClie
     if (!approved) throw new Error("Payable approval changed concurrently.");
     await audit(tx, actor, "PAYABLE_APPROVED", "work_payable", approved.id, approved.id, {
       basis: authority.basis, authorisedBy: authority.authorisedBy, payAgentEventId: authority.payAgentEventId,
+      approverOfRecord: authority.authorisedBy, approverDecision: "FS-APPROVER-DEC-001", approverBasis: CASUAL_APPROVER_BASIS[authority.basis],
       approvedAmountMinor: approved.approvedAmountMinor, approvedCurrencyCode: approved.approvedCurrencyCode, baseAmountMinor: approved.baseAmountMinor, incentiveAmountMinor: approved.incentiveAmountMinor,
       allocationId: approved.allocationId, acceptanceId: approved.acceptanceId, termsVersion: approved.termsVersion,
     });

@@ -6,37 +6,27 @@ import { UserFacingError } from "@/server/domain/errors";
 // payout is sent in a supported provider currency (USD, DEC-SA-012). This module turns an
 // approved entitlement amount into the exact provider amount that is actually sent, and
 // records the rate and its source so a payout is never re-converted. It makes no network or
-// model call, applies no fee, and never chooses a rate itself: the one fixed Sandbox demo
-// rate is supplied by server configuration from an Owner-approved value. While that value is
-// absent the ZAR path fails closed, so no ZAR entitlement can be submitted for payout and the
-// approved earnings stay recorded and unpaid.
+// model call, applies no fee, and never chooses a rate itself: the rate is the newest fresh
+// ECB reference rate (DEC-SA-012, 7 November 2026), supplied by server/fx/reference-rates.ts.
+// Without one the ZAR path fails closed, so no ZAR entitlement can be submitted for payout and
+// the approved earnings stay recorded and unpaid.
 
 // The provider currency a ZAR operating entitlement is paid in. PayPal has no ZAR payout.
 export const ZAR_PROVIDER_PAYOUT_CURRENCY = "USD";
 
 // Rates are integer micro-units of operating currency per one provider unit, so a rate of
 // 1.000000 is 1_000_000 and exact integer arithmetic can be used throughout. No rate value is
-// held in code: the one fixed Sandbox demo rate comes only from configuration (see below).
+// held in code: rates come only from recorded ECB reference rates.
 export const FX_RATE_SCALE = 1_000_000;
 const FX_RATE_SCALE_BIG = 1_000_000n;
 
-// Where a frozen rate came from. The only source the server accepts is the Owner-fixed
-// Sandbox demo rate read from configuration; it is recorded on the reservation for audit and
-// shown to the worker. No market or provider rate is ever used.
-export const SANDBOX_DEMO_FX_SOURCE = "SANDBOX_DEMO_FIXED";
-
-// Configuration key for the one fixed Sandbox demo rate, in ZAR-micros per one USD. DEC-SA-012
-// leaves the numeric rate unrecorded until the Owner supplies it, so this is unset and the
-// ZAR->USD path fails closed by default. Request input is never consulted.
-export const SANDBOX_DEMO_RATE_ENV = "FAIRSHIFT_SANDBOX_FX_ZAR_PER_USD_MICROS";
-
-// The approved demo FX rate is not configured, so a ZAR entitlement cannot be prepared for a
-// provider payout. The entitlement remains recorded and unpaid until the Owner supplies it.
+// No ECB reference rate from the last 3 business days is recorded, so a ZAR entitlement cannot
+// be prepared for a provider payout (DEC-SA-012). The entitlement remains recorded and unpaid.
 export class ProviderCurrencyRateUnavailableError extends UserFacingError {
   constructor(operatingCurrency: string, providerCurrency: string) {
     super(
       "provider-fx-rate-unavailable",
-      `No approved ${operatingCurrency}-to-${providerCurrency} payout rate is configured, so this payout cannot be prepared.`,
+      `No ${operatingCurrency}-to-${providerCurrency} reference rate from the last 3 business days is available, so this payout cannot be prepared.`,
     );
     this.name = "ProviderCurrencyRateUnavailableError";
   }
@@ -123,29 +113,14 @@ export function applyProviderConversion(
   };
 }
 
-// The one fixed Sandbox demo rate from server configuration only. Returns null when nothing
-// valid is configured, which is the default (DEC-SA-012 leaves the numeric rate unrecorded),
-// so callers fail closed. Never a market, provider or request-supplied value.
-export function configuredSandboxDemoZarConversion(): ProviderCurrencyConversion | null {
-  const raw = process.env[SANDBOX_DEMO_RATE_ENV]?.trim();
-  if (!raw || !/^[0-9]+$/.test(raw)) return null;
-  const micros = Number(raw);
-  if (!Number.isSafeInteger(micros) || micros <= 0) return null;
-  return { providerCurrency: ZAR_PROVIDER_PAYOUT_CURRENCY, fxRateMicros: micros, fxRateSource: SANDBOX_DEMO_FX_SOURCE };
-}
-
-// Resolves the provider leg for an approved entitlement using server configuration. A ZAR
-// entitlement is converted to USD with the configured Owner-approved Sandbox demo rate, or
-// fails closed when no rate is configured. Any other operating currency is sent in its own
-// currency unchanged (identity); whether that currency may actually be paid out is decided by
+// Resolves the provider leg for an approved entitlement. A ZAR entitlement is converted to USD
+// with the conversion `zarConversion` returns (the newest fresh ECB reference rate), which throws
+// provider-fx-rate-unavailable when there is none. Any other operating currency is sent in its
+// own currency unchanged (identity); whether that currency may actually be paid out is decided by
 // the payout route gate, not here.
-export function resolveProviderAmount(entitlement: { amountMinor: number; currencyCode: string }): ProviderAmount {
+export async function resolveProviderAmount(entitlement: { amountMinor: number; currencyCode: string }, zarConversion: () => Promise<ProviderCurrencyConversion>): Promise<ProviderAmount> {
   assertEntitlementAmount(entitlement.amountMinor);
-  if (entitlement.currencyCode === "ZAR") {
-    const conversion = configuredSandboxDemoZarConversion();
-    if (!conversion) throw new ProviderCurrencyRateUnavailableError("ZAR", ZAR_PROVIDER_PAYOUT_CURRENCY);
-    return applyProviderConversion(entitlement, conversion);
-  }
+  if (entitlement.currencyCode === "ZAR") return applyProviderConversion(entitlement, await zarConversion());
   return {
     providerCurrency: entitlement.currencyCode,
     providerAmountMinor: entitlement.amountMinor,

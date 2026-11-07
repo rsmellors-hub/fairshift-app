@@ -30,7 +30,7 @@ const OUTCOME_EXPLANATIONS: Record<string, string> = {
   SETTLEMENT_UNAVAILABLE: "Settlement could not be completed and no payment was reserved. Nothing was sent.",
   PAYOUT_RESERVED: "The payment was reserved and sent through FairShift's payment service. Its PayPal status is shown with the payment.",
   "sandbox-isolation-required": "Sandbox payments are unavailable in this environment or account.",
-  "provider-fx-rate-unavailable": "No approved fixed demo exchange rate is configured, so this payout cannot be prepared. The earnings stay recorded as unpaid.",
+  "provider-fx-rate-unavailable": "No ECB reference rate from the last three business days is recorded, so this payout cannot be prepared. The earnings stay recorded as unpaid.",
   "provider-amount-zero": "The converted payout amount rounds down to zero, so it cannot be paid.",
   "provider-currency-unsupported": "There is no supported payout currency for these earnings.",
   "payout-route-unverified": "A PayPal payout route for this business or location isn't verified yet, so nothing was sent.",

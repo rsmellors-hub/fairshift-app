@@ -6,7 +6,7 @@ import { createTestDatabase } from "../helpers/database";
 import { confirmedWork, payAgentCompany, testUser } from "../helpers/pay-agent";
 import { sandboxFixture } from "../helpers/sandbox";
 import { auditEvents, organisations, outlets, payAgentEvents, workPayables, workPayouts, workers } from "@/server/db/schema";
-import { SANDBOX_DEMO_RATE_ENV } from "@/server/domain/provider-currency";
+import { seedTestFxRate, TEST_QUOTE_1850 } from "../helpers/fx";
 import { AiProviderError, OpenAiStaffingAssessmentProvider, type AssessmentRequest, type AssessmentResponse, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import type { PayPalPayoutAdapter, PayoutResult } from "@/server/integrations/paypal/payout-client";
 import { mintPayAgentCredentialForManager, payAgentServiceVerifier } from "@/server/pay-agent/identity";
@@ -231,7 +231,7 @@ describe("Pay Agent decisions from persisted evidence", () => {
 });
 
 describe("Pay Agent settlement gates", () => {
-  it("fails closed on the unrecorded demo FX rate for South African ZAR earnings", async () => {
+  it("fails closed without a fresh ECB reference rate for South African ZAR earnings", async () => {
     const s = await scenario({ country: "South Africa" });
     try {
       expect(await s.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "provider-fx-rate-unavailable" });
@@ -257,11 +257,10 @@ describe("Pay Agent settlement gates", () => {
     try { expect(await unregistered.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "payment-details-required" }); } finally { await unregistered.t.close(); }
   });
 
-  it("stays a dry run even with a configured demo rate, a payment destination and a payout client", async () => {
-    // Synthetic test rate only, not an approved DEC-SA-012 value.
-    vi.stubEnv(SANDBOX_DEMO_RATE_ENV, "18500000");
+  it("stays a dry run even with a fresh reference rate, a payment destination and a payout client", async () => {
     const s = await scenario({ country: "South Africa" });
     try {
+      await seedTestFxRate(s.t.db, TEST_QUOTE_1850);
       expect(await s.run()).toMatchObject({ status: "DRY_RUN_ELIGIBLE" });
       expect(s.paypal.createPayout).not.toHaveBeenCalled();
       expect(await s.payouts()).toHaveLength(0);
@@ -279,7 +278,9 @@ describe("Pay Agent settlement gates", () => {
       expect(await s.event()).toMatchObject({ payoutId: payout.id, dryRun: false });
       expect(await s.payable()).toMatchObject({ status: "APPROVED", approvedBy: s.manager.userId, approvedAmountMinor: 7_800, approvedCurrencyCode: "GBP" });
       const [approval] = await s.t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYABLE_APPROVED"));
-      expect(approval.metadata).toMatchObject({ actorUserId: null, actorService: "fairshift-pay-agent", basis: "MANAGER_CONFIRMED_COMPLETION", authorisedBy: s.manager.userId, payAgentEventId: s.eventId });
+      expect(approval.metadata).toMatchObject({ actorUserId: null, actorService: "fairshift-pay-agent", basis: "MANAGER_CONFIRMED_COMPLETION", authorisedBy: s.manager.userId, payAgentEventId: s.eventId,
+        // FS-APPROVER-DEC-001: the confirming manager is approver of record, on the stated basis.
+        approverOfRecord: s.manager.userId, approverDecision: "FS-APPROVER-DEC-001", approverBasis: "Manager confirmation at preauthorised fixed terms (DEC-SA-011)" });
       expect(await s.run({ manual: true })).toMatchObject({ status: "SETTLEMENT_SUBMITTED" });
       expect(s.paypal.createPayout).toHaveBeenCalledTimes(1);
       expect(await s.payouts()).toHaveLength(1);
@@ -288,13 +289,13 @@ describe("Pay Agent settlement gates", () => {
     } finally { await s.t.close(); }
   });
 
-  it("freezes a ZAR payout's USD leg at reservation when a rate is configured and dry-run is off", async () => {
+  it("freezes a ZAR payout's USD leg at the newest ECB rate when dry-run is off", async () => {
     vi.stubEnv(PAY_AGENT_DRY_RUN_ENV, "false");
-    vi.stubEnv(SANDBOX_DEMO_RATE_ENV, "18500000");
     const s = await scenario({ country: "South Africa" });
     try {
+      const rate = await seedTestFxRate(s.t.db, TEST_QUOTE_1850);
       expect(await s.run()).toMatchObject({ status: "SETTLEMENT_SUBMITTED" });
-      expect((await s.payouts())[0]).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 421, fxRateMicros: 18_500_000, fxRateSource: "SANDBOX_DEMO_FIXED" });
+      expect((await s.payouts())[0]).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 421, fxRateMicros: 18_500_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
       expect(s.paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "4.21", currency: "USD" }));
     } finally { await s.t.close(); }
   });

@@ -84,6 +84,10 @@ describe("Pay Agent decision contract", () => {
     expect(JSON.stringify(schema)).not.toMatch(/amount|currency|recipient|merchant|funding|rate/i);
     expect(PAY_AGENT_INSTRUCTIONS).toMatch(/never supply an amount, currency, recipient, exchange rate, organisation, merchant, funding source/i);
   });
+
+  it("tells the model that confirmation within 24 hours of the shift end is normal practice, as context only", () => {
+    expect(PAY_AGENT_INSTRUCTIONS).toMatch(/within 24 hours of the shift ending.*normal practice.*not by itself a reason to hold/i);
+  });
 });
 
 describe("Pay Agent service identity", () => {

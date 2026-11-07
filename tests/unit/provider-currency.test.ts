@@ -1,24 +1,22 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   applyProviderConversion,
-  configuredSandboxDemoZarConversion,
   ProviderAmountTooSmallError,
   ProviderCurrencyRateUnavailableError,
   ProviderCurrencyUnsupportedError,
   resolveProviderAmount,
-  SANDBOX_DEMO_FX_SOURCE,
-  SANDBOX_DEMO_RATE_ENV,
   ZAR_PROVIDER_PAYOUT_CURRENCY,
 } from "@/server/domain/provider-currency";
 
-// A clearly identified test-only rate (R18.54 = 1 USD, in ZAR-micros per USD). Never the
-// Owner-approved demo rate (DEC-SA-012 leaves that unrecorded); used only to exercise the maths.
+// A clearly identified test-only rate (R18.54 = 1 USD, in ZAR-micros per USD). Never a published
+// ECB reference rate; used only to exercise the maths.
 const TEST_RATE_MICROS = 18_540_000;
 const zarToUsd = (amountMinor: number, fxRateMicros = TEST_RATE_MICROS) =>
   applyProviderConversion({ amountMinor, currencyCode: "ZAR" }, { providerCurrency: "USD", fxRateMicros, fxRateSource: "TEST_ONLY" });
 
-afterEach(() => { vi.unstubAllEnvs(); });
+const conversion = { providerCurrency: ZAR_PROVIDER_PAYOUT_CURRENCY, fxRateMicros: TEST_RATE_MICROS, fxRateSource: "ECB_EUROFXREF_DAILY:2026-11-06" };
+const unavailable = async (): Promise<never> => { throw new ProviderCurrencyRateUnavailableError("ZAR", "USD"); };
 
 describe("provider currency conversion (DEC-SA-012)", () => {
   it("converts ZAR to USD with exact, rounded-down integer arithmetic", () => {
@@ -36,20 +34,14 @@ describe("provider currency conversion (DEC-SA-012)", () => {
     expect(zarToUsd(18_540, TEST_RATE_MICROS).providerAmountMinor).toBe(1_000);
   });
 
-  it("fails closed when no approved demo rate is configured", () => {
-    // No rate in configuration: a ZAR entitlement cannot be prepared for payout.
-    expect(() => resolveProviderAmount({ amountMinor: 30_400, currencyCode: "ZAR" })).toThrow(ProviderCurrencyRateUnavailableError);
-    expect(configuredSandboxDemoZarConversion()).toBeNull();
+  it("fails closed when no fresh reference rate is available", async () => {
+    await expect(resolveProviderAmount({ amountMinor: 30_400, currencyCode: "ZAR" }, unavailable)).rejects.toThrow(ProviderCurrencyRateUnavailableError);
   });
 
   it("rejects a zero or negative rate", () => {
     expect(() => zarToUsd(30_400, 0)).toThrow();
     expect(() => zarToUsd(30_400, -1)).toThrow();
-    // A non-positive or non-numeric configured rate is treated as absent (fail closed).
-    for (const value of ["0", "-5", "18.54", "abc", "", "   ", "1e6"]) {
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, value);
-      expect(configuredSandboxDemoZarConversion()).toBeNull();
-    }
+    expect(() => zarToUsd(30_400, 18.54)).toThrow();
   });
 
   it("rejects an unsupported or same-currency pair", () => {
@@ -76,14 +68,12 @@ describe("provider currency conversion (DEC-SA-012)", () => {
     expect(() => zarToUsd(1.5)).toThrow();
   });
 
-  it("passes GBP and USD through unchanged as an identity leg", () => {
-    expect(resolveProviderAmount({ amountMinor: 7_800, currencyCode: "GBP" })).toEqual({ providerCurrency: "GBP", providerAmountMinor: 7_800, fxRateMicros: null, fxRateSource: null });
-    expect(resolveProviderAmount({ amountMinor: 12_100, currencyCode: "USD" })).toEqual({ providerCurrency: "USD", providerAmountMinor: 12_100, fxRateMicros: null, fxRateSource: null });
+  it("passes GBP and USD through unchanged as an identity leg, without asking for a rate", async () => {
+    expect(await resolveProviderAmount({ amountMinor: 7_800, currencyCode: "GBP" }, unavailable)).toEqual({ providerCurrency: "GBP", providerAmountMinor: 7_800, fxRateMicros: null, fxRateSource: null });
+    expect(await resolveProviderAmount({ amountMinor: 12_100, currencyCode: "USD" }, unavailable)).toEqual({ providerCurrency: "USD", providerAmountMinor: 12_100, fxRateMicros: null, fxRateSource: null });
   });
 
-  it("reads a valid configured demo rate and converts ZAR with it", () => {
-    vi.stubEnv(SANDBOX_DEMO_RATE_ENV, String(TEST_RATE_MICROS));
-    expect(configuredSandboxDemoZarConversion()).toEqual({ providerCurrency: ZAR_PROVIDER_PAYOUT_CURRENCY, fxRateMicros: TEST_RATE_MICROS, fxRateSource: SANDBOX_DEMO_FX_SOURCE });
-    expect(resolveProviderAmount({ amountMinor: 30_400, currencyCode: "ZAR" })).toMatchObject({ providerCurrency: "USD", providerAmountMinor: 1_639, fxRateMicros: TEST_RATE_MICROS, fxRateSource: SANDBOX_DEMO_FX_SOURCE });
+  it("converts ZAR with the supplied reference-rate conversion and records its source", async () => {
+    expect(await resolveProviderAmount({ amountMinor: 30_400, currencyCode: "ZAR" }, async () => conversion)).toMatchObject({ providerCurrency: "USD", providerAmountMinor: 1_639, fxRateMicros: TEST_RATE_MICROS, fxRateSource: "ECB_EUROFXREF_DAILY:2026-11-06" });
   });
 });

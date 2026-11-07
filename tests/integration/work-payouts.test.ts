@@ -17,7 +17,8 @@ import { PayPalPayoutError, type PayPalPayoutAdapter, type PayoutResult } from "
 import { allocateAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { getWorkerWorkspace } from "@/server/product/workspace";
 import { approveWorkPayable, isVerifiedPayoutCurrency, PaymentDetailsRequiredError, payoutAmount, PayoutCurrencyUnsupportedError, payoutSenderIds, payoutStatusFromProvider, refreshWorkPayout, STALE_SUBMISSION_MS, submitWorkPayout } from "@/server/payments/work-payouts";
-import { ProviderCurrencyRateUnavailableError, SANDBOX_DEMO_FX_SOURCE, SANDBOX_DEMO_RATE_ENV } from "@/server/domain/provider-currency";
+import { ProviderCurrencyRateUnavailableError } from "@/server/domain/provider-currency";
+import { seedTestFxRate, TEST_QUOTE_1850 } from "../helpers/fx";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
@@ -941,9 +942,8 @@ it.each(["LIVE_CUSTOMER", "wrong tenant", "public demo"])("preserves an existing
 });
 
 describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () => {
-  // A clearly test-only rate (R18.54 = 1 USD, in ZAR-micros per USD). Never the Owner-approved
-  // demo rate, which DEC-SA-012 leaves unrecorded; it only exercises the conversion.
-  const RATE = "18540000";
+  // Rates come from recorded ECB-shaped test quotes (tests/helpers/fx.ts): R18.54 = 1 USD unless
+  // stated. Never a published ECB rate; they only exercise the conversion.
   async function saApproved(db: Db) {
     const c = await company(db, 1, "South Africa");
     const manager = c.scopes[0];
@@ -952,12 +952,12 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
     return { manager, payable, workerScope };
   }
 
-  it("fails closed and sends nothing when no approved demo rate is configured", async () => {
+  it("fails closed and sends nothing when no fresh ECB reference rate is recorded", async () => {
     const t = await createTestDatabase();
     try {
       const { manager, payable } = await saApproved(t.db);
       const paypal = fakePayPal();
-      // The ZAR entitlement cannot be prepared for a provider payout without the Owner rate.
+      // The ZAR entitlement cannot be prepared for a provider payout without a fresh reference rate.
       await expect(submitWorkPayout(t.db, paypal, manager, payable.id)).rejects.toBeInstanceOf(ProviderCurrencyRateUnavailableError);
       expect(paypal.createPayout).not.toHaveBeenCalled();
       expect(await payoutsOf(t.db)).toHaveLength(0);
@@ -970,18 +970,18 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
     const t = await createTestDatabase();
     try {
       const { manager, payable, workerScope } = await saApproved(t.db);
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, RATE);
+      const rate = await seedTestFxRate(t.db);
       const paypal = fakePayPal();
       const { payout, submitted } = await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(submitted).toBe(true);
       // Entitlement stays ZAR; the provider leg is R78.00 floored to $4.20, frozen with its rate.
-      expect(payout).toMatchObject({ currencyCode: "ZAR", amountMinor: 7_800, providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: SANDBOX_DEMO_FX_SOURCE, status: "PROCESSING", paidAt: null });
+      expect(payout).toMatchObject({ currencyCode: "ZAR", amountMinor: 7_800, providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}`, status: "PROCESSING", paidAt: null });
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
       expect(paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "4.20", currency: "USD" }));
       // The worker sees the deterministic breakdown: ZAR earned, USD sent, the rate and its source.
       const workspace = await getWorkerWorkspace(t.db, workerScope);
       const seen = workspace.assignments.find(row => row.payout?.id === payout.id)?.payout;
-      expect(seen).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: SANDBOX_DEMO_FX_SOURCE });
+      expect(seen).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
       expect(seen?.status).not.toBe("PAID"); // no fabricated success before a genuine provider SUCCESS
     } finally { await t.close(); }
   });
@@ -990,14 +990,14 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
     const t = await createTestDatabase();
     try {
       const { manager, payable } = await saApproved(t.db);
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, RATE);
+      await seedTestFxRate(t.db, undefined, 1);
       const notSent = new PayPalPayoutError("No request reached PayPal.", "NETWORK_ERROR", undefined, undefined, undefined, "NOT_SENT");
       const createPayout = vi.fn().mockRejectedValueOnce(notSent).mockImplementation(async (input: { senderBatchId: string }) => pending(input));
       const paypal = fakePayPal({ createPayout });
       const first = await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(first.payout.status).toBe("NOT_SENT");
-      // The configured rate changes before the resend; the frozen reservation must ignore it.
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, "10000000"); // a re-conversion would give a different amount
+      // A newer reference rate is recorded before the resend; the frozen reservation must ignore it.
+      await seedTestFxRate(t.db, TEST_QUOTE_1850); // a re-conversion would give a different amount
       const second = await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(second.submitted).toBe(true);
       expect(second.payout).toMatchObject({ providerAmountMinor: 420, providerCurrency: "USD", fxRateMicros: 18_540_000 });
@@ -1012,7 +1012,7 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
     const t = await createTestDatabase();
     try {
       const { manager, payable } = await saApproved(t.db);
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, RATE);
+      await seedTestFxRate(t.db);
       const paypal = fakePayPal();
       await submitWorkPayout(t.db, paypal, manager, payable.id);
       // A repeat does not create a second payout or call PayPal again.
@@ -1029,7 +1029,7 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
   it("leaves GBP payouts unconverted (identity provider leg) even with a rate configured", async () => {
     const t = await createTestDatabase();
     try {
-      vi.stubEnv(SANDBOX_DEMO_RATE_ENV, RATE); // configured, but a GBP entitlement is not converted
+      await seedTestFxRate(t.db); // recorded, but a GBP entitlement is not converted
       const c = await company(t.db); // United Kingdom / GBP
       const manager = c.scopes[0];
       const { payable } = await confirmedPayable(t.db, manager);
