@@ -12,3 +12,7 @@ coverage/
 .vercel/
 .claude/
 *.bak
+
+# Postman environments hold local Sandbox credentials; only templates are committed.
+*.postman_environment.json
+!*.postman_environment.template.json
