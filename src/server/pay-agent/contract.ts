@@ -105,7 +105,8 @@ export type SettlementAuthority = { kind: "MANAGER_CONFIRMED_COMPLETION" } | { k
 export type SettlementResult =
   | { status: "DRY_RUN_ELIGIBLE"; dryRun: true }
   | { status: "SETTLEMENT_BLOCKED"; code: string; dryRun: boolean }
-  | { status: "SETTLEMENT_SUBMITTED"; payoutId: string; payoutStatus: string; submitted: boolean; dryRun: false };
+  // submitted: this call reserved the payout; false when the shared engine already held one.
+  | { status: "SETTLEMENT_SUBMITTED"; payoutId: string; payoutStatus: string; submitted: boolean; dryRun: boolean };
 export interface ConfirmedWorkSettlement {
   // Re-resolves every financial fact from persisted records; the command carries references only.
   settleConfirmedWork(identity: PayAgentIdentity, command: { eventId: string; payableId: string; expectedEvidenceVersion: string; authority: SettlementAuthority }): Promise<SettlementResult>;

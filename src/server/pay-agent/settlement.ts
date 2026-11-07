@@ -19,7 +19,9 @@ export function payAgentDryRun(): boolean {
 }
 
 export type SettlementCommand = { eventId: string; payableId: string; expectedEvidenceVersion: string; authority: SettlementAuthority };
-type Gate = { ok: true; evidence: ConfirmedWorkEvidence; amountMinor: number; currencyCode: string } | { ok: false; code: string };
+type Gate =
+  | { ok: true; evidence: ConfirmedWorkEvidence; amountMinor: number; currencyCode: string }
+  | { ok: false; code: string; payout?: { id: string; status: string } };
 const blocked = (code: string): Gate => ({ ok: false, code });
 
 // The engine's refusals keep their own codes (e.g. provider-fx-rate-unavailable,
@@ -31,16 +33,18 @@ export function settlementCodeOf(error: unknown): string {
   return "SETTLEMENT_CHECK_FAILED";
 }
 
-// Every gate before any provider step, in order: organisation/location scope, authoritative
-// manager confirmation of allocated work under accepted terms, the current evidence version,
-// no manager rejection, approved compensation (the deterministic payable from preauthorised
-// accepted terms, with any required incentive known), an independent releasing manager,
-// payout uniqueness, deployment mode, then the engine's own provider checks: the authorised
+// Every gate before any provider step, in order: organisation/location scope, payout uniqueness
+// (a payout the shared engine already holds is the truth, whoever reserved it, and is never
+// sent again), authoritative manager confirmation of allocated work under accepted terms, the
+// current evidence version, no manager rejection, approved compensation (the deterministic
+// payable from preauthorised accepted terms, with any required incentive known), an independent
+// releasing manager, deployment mode, then the engine's own provider checks: the authorised
 // frozen FX conversion (DEC-SA-012), a verified provider currency and route, a payable amount
 // and the worker's own saved payment destination. No write.
 export async function evaluateSettlementGates(db: DatabaseSession, identity: PayAgentIdentity, command: SettlementCommand): Promise<Gate> {
   const evidence = await loadConfirmedWork(db, identity, command.payableId);
   if (!evidence) return blocked("EVIDENCE_UNAVAILABLE");
+  if (evidence.payout) return { ok: false, code: "PAYOUT_EXISTS", payout: evidence.payout };
   const gap = workEvidenceGap(evidence);
   if (gap) return blocked(gap);
   if (evidence.evidenceVersion !== command.expectedEvidenceVersion) return blocked("EVIDENCE_STALE");
@@ -51,7 +55,6 @@ export async function evaluateSettlementGates(db: DatabaseSession, identity: Pay
   if (payable.finalAmountMinor <= 0) return blocked("NOTHING_PAYABLE");
   if (payable.status === "APPROVED" && (payable.approvedAmountMinor !== payable.finalAmountMinor || payable.approvedCurrencyCode !== payable.currencyCode)) return blocked("COMPENSATION_MISMATCH");
   if (command.authority.kind === "MANAGER_RELEASED_HOLD" && evidence.worker?.userId && command.authority.userId === evidence.worker.userId) return blocked("INDEPENDENT_CONFIRMATION_REQUIRED");
-  if (evidence.payout) return blocked("PAYOUT_EXISTS");
   try {
     assertSandboxOrganisation(identity.organisationId);
     await prepareWorkPayout(db, identity, { workerId: payable.workerId, amountMinor: payable.finalAmountMinor, currencyCode: payable.currencyCode });
@@ -66,6 +69,7 @@ export function confirmedWorkSettlement(db: Database, paypal: PayoutClientSource
     async settleConfirmedWork(identity, command): Promise<SettlementResult> {
       const dryRun = payAgentDryRun();
       const gate = await evaluateSettlementGates(db, identity, command);
+      if (!gate.ok && gate.payout) return { status: "SETTLEMENT_SUBMITTED", payoutId: gate.payout.id, payoutStatus: gate.payout.status, submitted: false, dryRun };
       if (!gate.ok) return { status: "SETTLEMENT_BLOCKED", code: gate.code, dryRun };
       if (dryRun) return { status: "DRY_RUN_ELIGIBLE", dryRun: true };
       // Live settlement, only after an explicit configuration change. The payable is approved under

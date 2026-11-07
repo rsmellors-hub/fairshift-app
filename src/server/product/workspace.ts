@@ -5,6 +5,7 @@ import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/s
 import type { DatabaseSession } from "@/server/db/client";
 import { organisations, outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
+import { latestPayAgentEvents } from "@/server/pay-agent/journal";
 import { wageJurisdiction } from "@/server/domain/statutory-wage";
 
 // These workspaces retain the existing server-pinned environment scope.
@@ -28,7 +29,7 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
   const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode })
     .from(workers).where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId))).limit(1);
   // Deliberately exclude team revenue, transaction data, provider IDs and other workers.
-  const assignments = await db.select({
+  const rows = await db.select({
     shift: shifts, offer: shiftOffers, allocation: workAllocations, departmentName: departments.name,
     incentive: {
       id: shiftIncentives.id, status: shiftIncentives.status, earnedAmountMinor: shiftIncentives.earnedAmountMinor,
@@ -68,6 +69,10 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .leftJoin(workPerformanceResults, and(eq(workPerformanceResults.allocationId, workAllocations.id), eq(workPerformanceResults.workerId, workers.id)))
     .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(shifts.outletId, scope.locationId)))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
+  // Only the status of each of the worker's own payables' latest Pay Agent event, mapped to plain
+  // statuses on screen; never the decision text, reason, model detail or another worker's state.
+  const agentEvents = await latestPayAgentEvents(db, scope, rows.flatMap(row => row.payable?.id ? [row.payable.id] : []));
+  const assignments = rows.map(row => ({ ...row, payAgentStatus: row.payable?.id ? agentEvents.get(row.payable.id)?.status ?? null : null }));
   const current = assignments.find(row => row.shift.status === "PUBLISHED" && row.offer.status === "ACCEPTED");
   const availability = profile && scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
   const [location] = await db.select({ timezone: outlets.timezone, country: outlets.country, organisationCountry: organisations.country }).from(outlets)

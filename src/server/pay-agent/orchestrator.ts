@@ -46,7 +46,7 @@ function settlementFinish(result: SettlementResult): ClaimFinish {
   switch (result.status) {
     case "DRY_RUN_ELIGIBLE": return { status: "DRY_RUN_ELIGIBLE", outcomeCode: "DRY_RUN_ELIGIBLE", dryRun: true };
     case "SETTLEMENT_BLOCKED": return { status: "SETTLEMENT_BLOCKED", outcomeCode: result.code.slice(0, 64), dryRun: result.dryRun };
-    case "SETTLEMENT_SUBMITTED": return { status: "SETTLEMENT_SUBMITTED", outcomeCode: result.submitted ? "PAYOUT_RESERVED" : "PAYOUT_EXISTS", payoutId: result.payoutId, dryRun: false };
+    case "SETTLEMENT_SUBMITTED": return { status: "SETTLEMENT_SUBMITTED", outcomeCode: result.submitted ? "PAYOUT_RESERVED" : "PAYOUT_EXISTS", payoutId: result.payoutId, dryRun: result.dryRun };
   }
 }
 

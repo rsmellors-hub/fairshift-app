@@ -235,9 +235,11 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       expect(payable).toMatchObject({ rateMinor: 1_271, baseAmountMinor: 7_626, earningsModel: "HOURLY" });
       expect(finalPayableMinor(payable!)).toBe(7_626);
 
-      // Before approval the total is not presented as final.
+      // Before approval the total is not presented as final: the Pay Agent's plain status says the
+      // earnings are recorded, not paid or approved (DEC-SA-011 needs no second approval to say so).
       let earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
-      expect(earnings).toContain("Not final until your manager approves it");
+      expect(earnings).toContain("Earnings recorded");
+      expect(earnings).toContain("Your earnings are recorded from the terms you accepted.");
       expect(earnings).not.toContain("Final approved earnings");
       expect(earnings).toContain("FairShift doesn’t allocate tips or calculate holiday pay");
       await approveWorkPayable(t.db, manager, payable!.id);

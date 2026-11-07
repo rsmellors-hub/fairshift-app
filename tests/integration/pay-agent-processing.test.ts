@@ -337,3 +337,35 @@ describe("manager resolution of a Pay Agent hold", () => {
     } finally { await s.t.close(); }
   });
 });
+
+describe("Pay Agent processing edge cases", () => {
+  it("does not disclose an identity-check failure and refuses triggers that carry anything but an event ID", async () => {
+    const s = await scenario();
+    try {
+      const failing = createPayAgent({ db: s.t.db, identityVerifier: { authenticate: async () => { throw new Error("credential-secret"); } }, model: () => s.fake, settlement: confirmedWorkSettlement(s.t.db, s.paypal) });
+      const refused = await failing.process({ eventId: s.eventId }, s.credential);
+      expect(refused).toMatchObject({ status: "UNAUTHORISED", event: null });
+      expect(JSON.stringify(refused)).not.toContain("credential-secret");
+      for (const raw of [{ eventId: s.eventId, amount: 1 }, { eventId: s.eventId, payableId: s.payableId }, { eventId: s.eventId, identity: {} }, { payableId: s.payableId }, { eventId: "not-an-id" }, null, "event"]) {
+        expect(await s.agent.process(raw, s.credential)).toMatchObject({ status: "INVALID_TRIGGER" });
+      }
+      expect(s.fake.assess).not.toHaveBeenCalled();
+      expect(await s.event()).toMatchObject({ status: "PENDING", attemptCount: 0 });
+    } finally { await s.t.close(); }
+  });
+
+  it("reports a payout made while the model was deciding, and never settles again", async () => {
+    const s = await scenario();
+    try {
+      s.fake.assess.mockImplementationOnce(async request => {
+        await approveWorkPayable(s.t.db, s.manager, s.payableId);
+        await submitWorkPayout(s.t.db, s.paypal, s.manager, s.payableId);
+        return { responseId: "resp_late", responseModel: "test-model", text: wire(settleReply(JSON.parse(request.input).payableId)) };
+      });
+      expect(await s.run()).toMatchObject({ status: "SKIPPED", outcomeCode: "PAYOUT_EXISTS" });
+      expect(await s.event()).toMatchObject({ responseId: "resp_late", decision: null });
+      expect(s.paypal.createPayout).toHaveBeenCalledTimes(1);
+      expect(await s.payouts()).toHaveLength(1);
+    } finally { await s.t.close(); }
+  });
+});

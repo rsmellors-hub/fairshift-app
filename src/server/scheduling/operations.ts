@@ -15,7 +15,8 @@ import { shiftInteraction } from "@/server/domain/shift-change";
 import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, INDIVIDUAL_INCENTIVE_BASIS } from "@/server/domain/incentive";
 import { availabilityForShift, isOfferable, shiftWeekdays, workerOpportunityState } from "@/server/scheduling/worker-pool";
-import { recordPayAgentEvent } from "@/server/pay-agent/journal";
+import { latestPayAgentEvents, recordPayAgentEvent } from "@/server/pay-agent/journal";
+import { toPayAgentEventView } from "@/server/pay-agent/presentation";
 
 type OperatingScope = Pick<Scope,"organisationId" | "locationId">;
 async function location(db: DatabaseSession, scope:OperatingScope) {
@@ -104,7 +105,10 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
     .orderBy(desc(workPayables.confirmedAt));
   const workerIds = team.map(row => row.worker.id);
   const availability = workerIds.length ? await db.select({ workerId: workerAvailability.workerId, isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(inArray(workerAvailability.workerId, workerIds)) : [];
-  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone, wageJurisdiction: await locationWageJurisdiction(db, outlet) };
+  // Each payable's latest Pay Agent event, as the manager's view of it (DEC-SA-011).
+  const agentEvents = await latestPayAgentEvents(db, scope, payables.map(row => row.payable.id));
+  const payablesWithAgent = payables.map(row => { const event = agentEvents.get(row.payable.id); return { ...row, payAgent: event ? toPayAgentEventView(event) : null }; });
+  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables: payablesWithAgent, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone, wageJurisdiction: await locationWageJurisdiction(db, outlet) };
 }
 // The planning location's time zone: the only basis for reading a Manager's local times.
 export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {

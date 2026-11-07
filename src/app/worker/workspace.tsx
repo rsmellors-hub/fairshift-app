@@ -4,7 +4,8 @@ import Link from "next/link";
 import { WorkerPerformance, WorkerShiftCard, WorkerTarget, shiftWhen, workerShiftKind } from "@/app/worker/shift-cards";
 import { PayoutProgress } from "@/app/components/payment-progress";
 import { finalPayableMinor } from "@/server/domain/work-payable";
-import { PageHeader, StatePanel } from "@/app/components/product-ui";
+import { PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
+import { WORKER_PAY_STATUS_NOTE, workerPayStatus } from "@/server/pay-agent/presentation";
 import { maskedEmail } from "@/app/components/format";
 import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
 import { ActionFeedback, currencyTotals, dateTime, money, payableBasis, PaymentBadge, WorkerPaymentBadge, WorkspaceUnavailable } from "@/app/components/workspace-ui";
@@ -63,13 +64,18 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
     const payable = row.payable!, amount = (value: number) => money(value, payable.currencyCode);
     const bonusUnknown = payable.incentiveRequired && payable.incentiveAmountMinor === null;
     const when = shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone);
+    // Before any payout exists, the Pay Agent's state as one of the plain statuses. Once a payout
+    // exists its own provider state is shown instead (including "Action required" when PayPal is
+    // waiting for the worker), and "Paid" only after PayPal confirms the item.
+    const agentStatus = row.payAgentStatus && !row.payout ? workerPayStatus({ workConfirmed: !!row.allocation?.confirmedAt, hasPayable: true, approved: payable.status === "APPROVED", agentStatus: row.payAgentStatus }) : null;
     return <article className="earning-item" key={row.offer.id} data-earlier={scope.demo ? "" : undefined} aria-label={`${row.departmentName ?? row.shift.roleName}, ${when.date}`}>
-      <div className="worker-shift-head"><h4>{when.date}</h4><WorkerPaymentBadge status={payable.status} payout={row.payout} /></div>
+      <div className="worker-shift-head"><h4>{when.date}</h4>{agentStatus ? <StatusBadge tone={agentStatus === "Paid" ? "success" : agentStatus === "Under review" ? "warning" : "neutral"}>{agentStatus}</StatusBadge> : <WorkerPaymentBadge status={payable.status} payout={row.payout} />}</div>
+      {agentStatus ? <p className="note" role="status">{WORKER_PAY_STATUS_NOTE[agentStatus]}</p> : null}
       <p className="note">{scope.locationName} · {when.time}</p>
       <dl className="earning-sum">
         <div><dt>Base pay<small>{payableBasis(payable)}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
         {payable.incentiveRequired ? <div><dt>Bonus{bonusUnknown ? null : <small>{payable.incentiveAmountMinor! > 0 ? "Target reached" : "Target not reached"}</small>}</dt><dd>{bonusUnknown ? "Not known yet" : `+ ${amount(payable.incentiveAmountMinor!)}`}</dd></div> : null}
-        <div className="earning-total"><dt>{row.payout?.status === "PAID" ? "Paid" : payable.status === "APPROVED" ? "Final approved earnings" : "Total"}{row.payout?.status !== "PAID" && payable.status !== "APPROVED" ? <small>Not final until your manager approves it</small> : null}</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
+        <div className="earning-total"><dt>{row.payout?.status === "PAID" ? "Paid" : payable.status === "APPROVED" ? "Final approved earnings" : "Total"}{row.payout?.status !== "PAID" && payable.status !== "APPROVED" && !agentStatus ? <small>Not final until your manager approves it</small> : null}</dt><dd>{bonusUnknown ? `${amount(finalPayableMinor(payable))} so far` : amount(finalPayableMinor(payable))}</dd></div>
       </dl>
       {row.payout?.fxRateMicros ? <p className="note payout-conversion">Your {payable.currencyCode} earnings are paid in {row.payout.providerCurrency}: {money(row.payout.providerAmountMinor, row.payout.providerCurrency)} for {amount(row.payout.amountMinor)}, at the fixed demo rate of {money(Math.round(row.payout.fxRateMicros / 10_000), payable.currencyCode)} per {row.payout.providerCurrency}.</p> : null}
       <PayoutProgress status={payable.status} payout={row.payout} />

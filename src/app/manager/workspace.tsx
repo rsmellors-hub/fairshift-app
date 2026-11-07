@@ -8,6 +8,7 @@ import { getLocationPerformance, type ImportRejection } from "@/server/performan
 import { basePayableFromAcceptedTerms, finalPayableMinor } from "@/server/domain/work-payable";
 import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { createTeamAction, createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
+import { PayAgentPanel } from "@/app/manager/pay-agent-panel";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { getDatabase } from "@/server/db/client";
@@ -219,7 +220,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             <div><span>Approved · not yet paid</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "APPROVED" && p.payout?.status !== "PAID").map(p => ({ amountMinor: p.payable.approvedAmountMinor ?? 0, currencyCode: p.payable.approvedCurrencyCode ?? p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Paid · confirmed by PayPal</span><strong>{currencyTotals(payables.filter(p => p.payout?.status === "PAID").map(p => ({ amountMinor: p.payout!.amountMinor, currencyCode: p.payout!.currencyCode }))) || "None"}</strong></div>
           </div>
-          <div className="pay-cards">{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved }) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
+          <div className="pay-cards">{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved, payAgent }) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
             {scope.demo ? <EarlierEvidenceLabel /> : null}
             <header><div><h3>{workerName}</h3><p>{longDate(shiftDate)} · {roleName}</p></div><PayableBadge status={payable.status} payout={payout} /></header>
             <dl className="pay-sum">
@@ -234,7 +235,8 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             {unknown ? <p className="note">{amount(finalPayableMinor(payable))} base only · bonus not known yet</p> : null}
             {payable.approvedAt ? <p className="note">Approved {dateTime(payable.approvedAt, timezone)} ({timezone})</p> : null}
             <PayoutProgress status={payable.status} payout={payout} />
-            <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} /></div>
+            {payAgent ? <PayAgentPanel event={payAgent} payableId={payable.id} demo={!!scope.demo} timezone={timezone} /> : null}
+            <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} agentStatus={payAgent?.status ?? null} /></div>
           </article>; })}</div>
           <p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
         </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
@@ -315,9 +317,12 @@ function payoutReason(lastError: unknown) {
 type ManagerPayables = Awaited<ReturnType<typeof getOperations>>["payables"];
 // One next action per payable: approve, then send, then check status. Each form posts
 // only the payable ID; the server reads amount, currency and recipient itself.
-function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, payoutsConfigured, timezone }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { demo?: boolean; payoutsConfigured: boolean; timezone: string }) {
+function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, payoutsConfigured, timezone, agentStatus = null }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { demo?: boolean; payoutsConfigured: boolean; timezone: string; agentStatus?: string | null }) {
   // The public demo never reaches PayPal. It says so, and shows no action that would try.
   if (demo && !payout) return <p className="note">Approving and paying are turned off in the public demo, so nothing here can reach PayPal.</p>;
+  // A Pay Agent hold is resolved with Release or Reject; a rejected payment stays unpaid.
+  if (!payout && agentStatus === "DECIDED_HOLD") return <p className="note">Resolve the Pay Agent&apos;s hold to continue.</p>;
+  if (!payout && agentStatus === "HOLD_REJECTED") return <p className="note">A manager rejected this payment, so it stays unpaid.</p>;
   const id = <input name="payableId" type="hidden" value={payable.id} />;
   if (payable.status === "PENDING_REVIEW" && payable.incentiveRequired && payable.incentiveAmountMinor === null) return <a href="#performance">Confirm sales results first</a>;
   if (payable.status === "PENDING_REVIEW") return <form action={approvePayableAction}>{id}<button className="primary-button">Approve {money(finalPayableMinor(payable), payable.currencyCode)}</button></form>;

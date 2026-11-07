@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { vi } from "vitest";
 
 import type { Scope } from "@/server/auth/access";
+import type { AssessmentRequest, AssessmentResponse } from "@/server/integrations/openai/staffing-assessment";
+import type { PayPalPayoutAdapter, PayoutResult } from "@/server/integrations/paypal/payout-client";
 import { savePayoutDestination } from "@/server/auth/operations";
 import type { Database } from "@/server/db/client";
 import { organisations, outlets, subscriptions, users, workers } from "@/server/db/schema";
@@ -56,6 +59,22 @@ export async function allocatedWork(db: Database, manager: Scope, options: WorkO
   await respondToAssignment(db, worker.id, offer.id, 1, "ACCEPTED", true, manager);
   await allocateAssignment(db, offer.id, manager);
   return { offer, worker, workerScope, policy, shift };
+}
+
+// An in-process model double that answers with a decision for the payable it was shown.
+export function fakePayAgentModel(reply: (payableId: string) => unknown = payableId => ({ action: "settle_confirmed_work", payableId })) {
+  const assess = vi.fn(async (request: AssessmentRequest): Promise<AssessmentResponse> => {
+    const { payableId } = JSON.parse(request.input) as { payableId: string };
+    return { responseId: "resp_test_1", responseModel: "test-model-2026-01-01", text: JSON.stringify({ decision: reply(payableId) }) };
+  });
+  return { provider: "OPENAI" as const, model: "test-model", assess };
+}
+// A payout client double: PayPal accepts the batch and reports nothing paid.
+export function fakePayoutClient() {
+  return {
+    createPayout: vi.fn(async (input: { senderBatchId: string }): Promise<PayoutResult> => ({ batchId: `PPB${input.senderBatchId.slice(-8)}`, itemId: null, status: "PENDING", batchStatus: "PENDING", itemStatus: null, transactionId: null })),
+    getPayout: vi.fn(),
+  } as unknown as PayPalPayoutAdapter & { createPayout: ReturnType<typeof vi.fn> };
 }
 
 // …then the manager's explicit confirmation, which records the payable and its Pay Agent event.

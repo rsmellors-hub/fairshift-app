@@ -22,6 +22,7 @@ import { createShiftFromOpportunity } from "@/server/intelligence/opportunity-sh
 import { parseCoverageText, parseTradingText } from "@/server/intelligence/workload";
 import { guardDemoWrite } from "@/server/demo/fixtures";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
+import { payAgentFor, preparePayAgentRetry, rejectPayAgentHold, releasePayAgentHold, runPayAgentRetry, runReleasedHold, scheduleLatestPayAgentEvent, schedulePayAgentEvent } from "@/server/pay-agent/service";
 
 async function perform(path: string, fn: () => Promise<unknown>) {
   if (!getConfigurationStatus().databaseConfigured) redirect(`${path}${path.includes("?") ? "&" : "?"}status=error`);
@@ -123,10 +124,34 @@ export async function saveAvailabilityAction(form: FormData) {
 }
 export async function confirmWorkAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
-  return perform("/settlements", () => {
+  return perform("/settlements", async () => {
     if (field(form, "confirmed") !== "yes") throw new Error("Confirm completed work.");
-    return confirmWork(getDatabase(), field(form, "offerId"),scope);
+    const db = getDatabase();
+    const { payAgentEvent } = await confirmWork(db, field(form, "offerId"),scope);
+    // Committed: the Pay Agent runs after the response (DEC-SA-011), never inside it.
+    schedulePayAgentEvent(payAgentFor(db), scope, payAgentEvent);
   });
+}
+// A manager's retry of the Pay Agent for one payable; only the payable ID is read.
+export async function retryPayAgentAction(form: FormData) {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", async () => {
+    const db = getDatabase();
+    runPayAgentRetry(payAgentFor(db), await preparePayAgentRetry(db, scope, field(form, "payableId")));
+  });
+}
+// A manager's release of a Pay Agent hold: deterministic payment checks follow, without the model.
+export async function releasePayAgentHoldAction(form: FormData) {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", async () => {
+    const db = getDatabase();
+    runReleasedHold(payAgentFor(db), await releasePayAgentHold(db, scope, field(form, "eventId")));
+  });
+}
+// A manager's rejection of a Pay Agent hold, with a reason: the payable stays unpaid.
+export async function rejectPayAgentHoldAction(form: FormData) {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", () => rejectPayAgentHold(getDatabase(), scope, field(form, "eventId"), field(form, "reason")));
 }
 // Sales evidence for this location. Workers, location and amounts come from the rows and
 // the session; nothing else in the form is read.
@@ -143,9 +168,12 @@ export async function importAttributedSalesAction(form: FormData) {
 // on the server. The seen values only detect sales that arrived after the page opened.
 export async function confirmPerformanceAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/review", () => {
+  return perform("/manager/review", async () => {
     if (field(form, "complete") !== "yes") throw new Error("Confirm the sales are complete.");
-    return confirmWorkPerformance(getDatabase(), scope, field(form, "allocationId"), { count: Number(field(form, "seenCount")), minor: Number(field(form, "seenMinor")) });
+    const db = getDatabase(), allocationId = field(form, "allocationId");
+    await confirmWorkPerformance(db, scope, allocationId, { count: Number(field(form, "seenCount")), minor: Number(field(form, "seenMinor")) });
+    // The confirmed result completed the payable's evidence: its new event runs after the response.
+    await scheduleLatestPayAgentEvent(db, payAgentFor(db), scope, allocationId);
   });
 }
 // Payment actions take only the payable ID: amount, currency and recipient are read

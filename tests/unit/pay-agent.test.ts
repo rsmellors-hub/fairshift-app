@@ -6,6 +6,7 @@ import { HOLD_REASON_CODES, PAY_AGENT_INSTRUCTIONS, PAY_AGENT_SCHEMA_NAME, parse
 import { mintPayAgentCredentialForManager, mintPayAgentCredentialForRecovery, payAgentServiceVerifier } from "@/server/pay-agent/identity";
 import { isTransientModelFailure, PAY_AGENT_MODEL_TIMEOUT_MS, payAgentModelFor, requestPayDecision } from "@/server/pay-agent/model";
 import { payAgentOutcomeExplanation } from "@/server/pay-agent/policy";
+import { managerPayAgentView, toPayAgentEventView, WORKER_PAY_STATUS_NOTE, WORKER_PAY_STATUSES, workerPayStatus } from "@/server/pay-agent/presentation";
 import { PAY_AGENT_DRY_RUN_ENV, payAgentDryRun, settlementCodeOf } from "@/server/pay-agent/settlement";
 import { PaymentDetailsRequiredError } from "@/server/payments/work-payouts";
 import { sandboxFixture } from "../helpers/sandbox";
@@ -180,5 +181,37 @@ describe("dry-run configuration and settlement codes", () => {
     expect(payAgentOutcomeExplanation("provider-fx-rate-unavailable")).toMatch(/unpaid/);
     expect(payAgentOutcomeExplanation("SOMETHING_NEW")).toMatch(/Nothing is paid until PayPal confirms it/);
     expect(payAgentOutcomeExplanation(null)).toBeNull();
+  });
+});
+
+describe("Pay Agent presentation", () => {
+  const event = {
+    id: "00000000-0000-4000-8000-000000000009", status: "DECIDED_HOLD", outcomeCode: null, errorClass: null, decision: "HOLD", reasonCode: "HOURS_MISMATCH",
+    summary: "Accepted schedule shows 6 hours; the shift record shows 8.", dryRun: null, configuredModel: "configured-model", responseModel: "response-model",
+    responseId: "resp_1", resolution: null, resolutionNote: null, resolvedAt: null, attemptCount: 1, updatedAt: new Date(0),
+  };
+
+  it("maps every journal state to one of five plain worker statuses, with Paid only for a provider-confirmed payout", () => {
+    const base = { workConfirmed: true, hasPayable: true };
+    expect(workerPayStatus({ workConfirmed: true, hasPayable: false })).toBe("Shift confirmed");
+    expect(workerPayStatus({ workConfirmed: false, hasPayable: false })).toBeNull();
+    for (const agentStatus of ["PENDING", "CLAIMED", "BLOCKED", "SKIPPED", "REJECTED_OUTPUT", "FAILED_RETRYABLE", "FAILED_TERMINAL", null]) expect(workerPayStatus({ ...base, agentStatus })).toBe("Earnings recorded");
+    for (const agentStatus of ["DECIDED_SETTLE", "HOLD_RELEASED", "SETTLING", "DRY_RUN_ELIGIBLE", "SETTLEMENT_BLOCKED", "SETTLEMENT_SUBMITTED"]) expect(workerPayStatus({ ...base, agentStatus })).toBe("Pay pending");
+    for (const agentStatus of ["DECIDED_HOLD", "HOLD_REJECTED"]) expect(workerPayStatus({ ...base, agentStatus })).toBe("Under review");
+    expect(workerPayStatus({ ...base, approved: true, agentStatus: "PENDING" })).toBe("Pay pending");
+    for (const payoutStatus of ["SUBMITTING", "PROCESSING", "RECONCILIATION_REQUIRED", "FAILED", "NOT_SENT"]) expect(workerPayStatus({ ...base, payoutStatus, agentStatus: "SETTLEMENT_SUBMITTED" })).toBe("Pay pending");
+    expect(workerPayStatus({ ...base, payoutStatus: "PAID", agentStatus: "DRY_RUN_ELIGIBLE" })).toBe("Paid");
+    expect(workerPayStatus({ ...base, payoutStatus: "PAID", agentStatus: "HOLD_REJECTED" })).toBe("Paid");
+    for (const status of WORKER_PAY_STATUSES) expect(WORKER_PAY_STATUS_NOTE[status]).not.toMatch(/[A-Z]{2,}_[A-Z]{2,}/);
+  });
+
+  it("gives managers labels and actions, and no claim internals", () => {
+    expect(managerPayAgentView(event)).toMatchObject({ status: "Held for your review", decision: "Hold for review", reason: "Hours mismatch", summary: event.summary, model: "response-model", responseId: "resp_1", canResolve: true, canRetry: false });
+    expect(managerPayAgentView({ ...event, status: "DRY_RUN_ELIGIBLE", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "DRY_RUN_ELIGIBLE", dryRun: true }))
+      .toMatchObject({ status: "Dry run: all checks passed", decision: "Settle", dryRun: true, canRetry: true, canResolve: false, explanation: expect.stringMatching(/nothing was sent to PayPal/) });
+    expect(managerPayAgentView({ ...event, status: "SETTLEMENT_SUBMITTED", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "PAYOUT_RESERVED" })).toMatchObject({ canRetry: false, canResolve: false });
+    const view = toPayAgentEventView({ ...event, claimToken: "secret-token", leaseExpiresAt: new Date(), evidenceVersion: "f".repeat(64) } as typeof event);
+    expect(view).not.toHaveProperty("claimToken");
+    expect(view).not.toHaveProperty("evidenceVersion");
   });
 });
