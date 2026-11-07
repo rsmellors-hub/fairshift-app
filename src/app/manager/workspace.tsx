@@ -20,6 +20,7 @@ import { labourHours, longDate, OpportunityList, ServiceDays, StaffingDayTable, 
 import { dayOpportunities, selectOpportunity, windowParam } from "@/server/intelligence/opportunity";
 import { getShiftOpportunityEvidence } from "@/server/intelligence/opportunity-shifts";
 import { RequirementForm } from "./requirement-form";
+import { payoutPlainReason } from "@/server/payments/payout-reasons";
 import { availabilityForShift, isOfferable, OPPORTUNITY_LABEL, shiftWeekdays, workerOpportunityState, type WorkerOpportunityState } from "@/server/scheduling/worker-pool";
 import { ManagerToday } from "./today";
 import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
@@ -310,6 +311,10 @@ async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<type
   </section>;
 }
 // The structured PayPal error code recorded with a payout, if any (never a provider message).
+function plainPayoutReason(lastError: unknown) {
+  const reason = payoutPlainReason(payoutReason(lastError));
+  return reason ? <p><small><strong>Reason:</strong> {reason}</small></p> : null;
+}
 function payoutReason(lastError: unknown) {
   const code = typeof lastError === "object" && lastError !== null && "code" in lastError ? (lastError as { code: unknown }).code : null;
   return typeof code === "string" ? code : null;
@@ -330,6 +335,7 @@ function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, pay
   if (!payout || payout.status === "NOT_SENT") {
     return <>
       {payout?.status === "NOT_SENT" ? <p><small>PayPal did not receive the previous request, so nothing was paid. It can be sent again.</small></p> : null}
+      {payout?.status === "NOT_SENT" ? plainPayoutReason(payout.lastError) : null}
       {!paymentDetailsSaved ? <p><strong>Payment details required.</strong> <small>The worker must add a PayPal email in Profile → Payment settings.</small></p>
         : !payoutsConfigured ? <p><small>The payment service is unavailable. Contact your platform operator.</small></p>
         : <form action={sendPayoutAction}>{id}<button className="primary-button">Send {money(payable.approvedAmountMinor ?? 0, payable.approvedCurrencyCode ?? payable.currencyCode)} payout with PayPal</button></form>}
@@ -337,6 +343,7 @@ function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, pay
   }
   return <>
     {payout.status === "FAILED" ? <p><small>PayPal did not complete this payment. It cannot be sent again from FairShift; contact your platform operator.</small></p> : null}
+    {payout.status === "FAILED" || payout.status === "RECONCILIATION_REQUIRED" ? plainPayoutReason(payout.lastError) : null}
     {payout.status === "PROCESSING" && ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "") ? <p><small>PayPal is waiting for the worker to {payout.paypalStatus === "UNCLAIMED" ? "claim the payment with a PayPal account" : "accept the payment in their PayPal account"}. Nothing is paid until PayPal reports success.</small></p> : null}
     {["PROVIDER_AMOUNT_MISMATCH", "PROVIDER_AMOUNT_UNAVAILABLE"].includes(payoutReason(payout.lastError) ?? "") ? <p><small>PayPal reports this item as complete, but FairShift could not match PayPal&apos;s amount to the approved amount. It is not shown as paid. Contact your platform operator.</small></p> : null}
     {payout.status === "RECONCILIATION_REQUIRED" ? <p><small>PayPal&apos;s response was not received, so this payment is unconfirmed. Checking may repeat the identical request only within the safe recovery window. Otherwise, investigate the original payout with PayPal.</small></p> : null}

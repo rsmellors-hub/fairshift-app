@@ -97,7 +97,7 @@ describe("payout status mapping and amounts", () => {
   it("is paid only on an item-level SUCCESS and never guesses other currencies' minor units", () => {
     expect(payoutStatusFromProvider({ itemStatus: "SUCCESS", batchStatus: "SUCCESS" })).toBe("PAID");
     for (const item of ["PENDING", "UNCLAIMED", "ONHOLD", "SOMETHING_NEW"]) expect(payoutStatusFromProvider({ itemStatus: item, batchStatus: "SUCCESS" })).toBe("PROCESSING");
-    for (const item of ["FAILED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED"]) expect(payoutStatusFromProvider({ itemStatus: item, batchStatus: "SUCCESS" })).toBe("FAILED");
+    for (const item of ["FAILED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED", "DENIED"]) expect(payoutStatusFromProvider({ itemStatus: item, batchStatus: "SUCCESS" })).toBe("FAILED");
     // A successful batch says nothing certain about the worker's item.
     for (const batch of ["SUCCESS", "PENDING", "PROCESSING", undefined]) expect(payoutStatusFromProvider({ itemStatus: null, batchStatus: batch })).toBe("PROCESSING");
     for (const batch of ["DENIED", "CANCELED"]) expect(payoutStatusFromProvider({ itemStatus: null, batchStatus: batch })).toBe("FAILED");

@@ -118,6 +118,33 @@ function isDuplicate(name: string | undefined, details: Array<{ field?: string; 
   return /DUPLICATE/i.test(name ?? "") || (details ?? []).some((detail) => /sender_batch_id/i.test(detail.field ?? "") || /DUPLICATE/i.test(detail.issue ?? ""));
 }
 
+// Named PayPal outcomes that the HTTP status alone would misclassify (PayPal Payouts test values
+// ERRPYO036 and ERRPYO039; rate limits ERRPYO035 / RATE_LIMIT_REACHED). A timeout, or an earlier
+// request with the same sender_batch_id still in progress, may still pay: it is UNKNOWN, so the
+// payout is reconciled with the same IDs and never sent as a new payment. A rate limit is refused
+// before processing: NOT_SENT, resendable with the same IDs after a backoff.
+const UNKNOWN_OUTCOME_NAMES: ReadonlySet<string> = new Set(["INTERNAL_ERROR", "INTERNAL_SERVER_ERROR", "REQUEST_TIMEOUT_EXCEEDED", "PREVIOUS_REQUEST_IN_PROGRESS"]);
+const RATE_LIMIT_NAMES: ReadonlySet<string> = new Set(["RATE_LIMIT_REACHED", "RATE_LIMIT_VALIDATION"]);
+export function isRateLimitCode(code: string | null | undefined) {
+  return !!code && RATE_LIMIT_NAMES.has(code);
+}
+export function outcomeForPayPalError(status: number, name: string | undefined): PayoutRequestOutcome {
+  if (name && UNKNOWN_OUTCOME_NAMES.has(name)) return "UNKNOWN";
+  if (name && RATE_LIMIT_NAMES.has(name)) return "NOT_SENT";
+  return outcomeForStatus(status);
+}
+
+// Sandbox negative testing (Owner requirement, 7 Nov 2026): sets items[0].note to one PayPal
+// Payouts test value. Only outside production builds and only with the explicit flag; the client
+// itself refuses any host but the Sandbox. Never set in an ordinary environment.
+export const PAYOUT_NEGATIVE_TESTS_ENV = "FAIRSHIFT_PAYPAL_NEGATIVE_TESTS";
+export const PAYOUT_NEGATIVE_TEST_CODE_ENV = "FAIRSHIFT_PAYPAL_NEGATIVE_TEST_CODE";
+export function payoutNegativeTestNote(env: Record<string, string | undefined> = process.env): string | null {
+  if (env.NODE_ENV === "production" || env[PAYOUT_NEGATIVE_TESTS_ENV] !== "enabled") return null;
+  const code = env[PAYOUT_NEGATIVE_TEST_CODE_ENV]?.trim();
+  return code && /^ERRPYO\d{3}$/.test(code) ? code : null;
+}
+
 function outcomeForStatus(status: number): PayoutRequestOutcome {
   if (status >= 500) return "UNKNOWN";
   // Authentication, authorisation and rate-limit refusals are made before a payout is processed.
@@ -166,7 +193,7 @@ export class PayPalPayoutClient implements PayPalPayoutAdapter {
           amount: { value: input.amount, currency },
           receiver: input.recipient,
           sender_item_id: input.senderItemId,
-          note: input.note ?? "Manager-approved FairShift shift incentive",
+          note: payoutNegativeTestNote() ?? input.note ?? "Manager-approved FairShift shift incentive",
           ...(input.purpose ? { purpose: input.purpose } : {}),
         }],
       }),
@@ -233,7 +260,7 @@ export class PayPalPayoutClient implements PayPalPayoutAdapter {
       const debugId = error.success ? error.data.debug_id : undefined;
       const details = error.success ? error.data.details : undefined;
       const duplicate = payoutRequest && error.success && isDuplicate(error.data.name, details);
-      const outcome = duplicate ? "DUPLICATE" : outcomeForStatus(response.status);
+      const outcome = duplicate ? "DUPLICATE" : payoutRequest ? outcomeForPayPalError(response.status, error.success ? error.data.name : undefined) : outcomeForStatus(response.status);
 
       // Structured identifiers only: provider messages and request bodies are not logged.
       console.error("PayPal API rejected request", {

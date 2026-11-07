@@ -11,7 +11,7 @@ import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, organisations, outlets, payAgentEvents, workers, workPayables, workPayouts } from "@/server/db/schema";
-import { PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
+import { isRateLimitCode, PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
 
 // Manager approval of confirmed work payables and their PayPal Sandbox payout.
 //
@@ -42,6 +42,16 @@ export class PayoutCurrencyUnsupportedError extends Error {
 
 // A payout that may still be in flight is not retried before this long has passed.
 export const STALE_SUBMISSION_MS = 2 * 60_000;
+// A payout PayPal refused for a rate limit (NOT_SENT, nothing paid) is resent, with the same IDs,
+// only after this backoff.
+export const RATE_LIMIT_BACKOFF_MS = 60_000;
+function assertRateLimitBackoff(payout: WorkPayout | undefined) {
+  if (!payout || payout.status !== "NOT_SENT") return;
+  const code = (payout.lastError as { code?: string } | null)?.code;
+  if (isRateLimitCode(code) && Date.now() - payout.updatedAt.getTime() < RATE_LIMIT_BACKOFF_MS) {
+    throw new UserFacingError("payout-retry-later", "PayPal asked FairShift to slow down. Nothing was paid; try again in a minute.");
+  }
+}
 // PayPal protects sender_batch_id for 30 days; leave a two-day safety margin.
 const NO_BATCH_RECOVERY_WINDOW_MS = 28 * 24 * 60 * 60_000;
 
@@ -110,7 +120,9 @@ const payoutClient = (source: PayoutClientSource) => typeof source === "function
 export function payoutStatusFromProvider(result: Pick<PayoutResult, "itemStatus" | "batchStatus">): "PROCESSING" | "PAID" | "FAILED" {
   const item = result.itemStatus?.toUpperCase() ?? null;
   if (item === "SUCCESS") return "PAID";
-  if (item && ["FAILED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED"].includes(item)) return "FAILED";
+  // DENIED is what PayPal's Sandbox returns on the item for receiver currency and receiving-limit
+  // refusals (test values ERRPYO043, ERRPYO049): a terminal refusal, so the reason can be shown.
+  if (item && ["FAILED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED", "DENIED"].includes(item)) return "FAILED";
   if (item) return "PROCESSING"; // PENDING, UNCLAIMED, ONHOLD and anything unrecognised.
   if (["DENIED", "CANCELED"].includes(result.batchStatus?.toUpperCase() ?? "")) return "FAILED";
   return "PROCESSING";
@@ -273,6 +285,7 @@ export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, inp
 async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, actor: PayoutActor, payable: WorkPayable): Promise<SubmitResult> {
   const [existing] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   if (existing && existing.status !== "NOT_SENT") return { payout: existing, submitted: false };
+  assertRateLimitBackoff(existing);
   if (payable.status !== "APPROVED" || payable.approvedAmountMinor === null || payable.approvedCurrencyCode === null) throw new Error("Approve the payable before payout.");
   const amountMinor = payable.approvedAmountMinor, currencyCode = payable.approvedCurrencyCode;
   const { providerLeg, recipient } = await prepareWorkPayout(db, actor, { workerId: payable.workerId, amountMinor, currencyCode, existing });

@@ -73,7 +73,7 @@ export async function processSubscriptionWebhook(db:Database,adapter:Subscriptio
  const transmission=readPayPalTransmissionHeaders(headers);
  let payload:unknown;
  try {payload=JSON.parse(rawBody);} catch {throw new WebhookError("INVALID_JSON",400);}
- const parsed=z.object({id:z.string().min(1).max(255),event_type:z.string().regex(/^BILLING\.SUBSCRIPTION\.[A-Z_]+$/),resource:z.object({id:z.string().regex(/^I-[A-Z0-9]+$/)})}).safeParse(payload);
+ const parsed=z.object({id:z.string().min(1).max(255),event_type:z.string().regex(/^BILLING\.SUBSCRIPTION\.[A-Z_]+(\.[A-Z_]+)?$/),resource:z.object({id:z.string().regex(/^I-[A-Z0-9]+$/)})}).safeParse(payload);
  if (!parsed.success) throw new WebhookError("INVALID_EVENT",400);
  if (!await adapter.verifyWebhookSignature(transmission,payload)) throw new WebhookError("SIGNATURE_VERIFICATION_FAILED",401);
  const event=parsed.data, hash=tokenHash(rawBody);

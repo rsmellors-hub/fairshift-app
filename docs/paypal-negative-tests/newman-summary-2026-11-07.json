@@ -1,0 +1,194 @@
+[
+ {
+  "code": "ERRPYO005",
+  "expected": "INSUFFICIENT_FUNDS",
+  "http": 422,
+  "name": "INSUFFICIENT_FUNDS",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO006",
+  "expected": "INTERNAL_ERROR",
+  "http": 500,
+  "name": "INTERNAL_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO035",
+  "expected": "RATE_LIMIT_VALIDATION",
+  "http": 429,
+  "name": "RATE_LIMIT_VALIDATION",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO036",
+  "expected": "REQUEST_TIMEOUT_EXCEEDED",
+  "http": 504,
+  "name": null,
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO038",
+  "expected": "NON_HOLDING_CURRENCY",
+  "http": 400,
+  "name": "NON_HOLDING_CURRENCY",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO039",
+  "expected": "PREVIOUS_REQUEST_IN_PROGRESS",
+  "http": 400,
+  "name": "PREVIOUS_REQUEST_IN_PROGRESS",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO001",
+  "expected": "SENDER_RESTRICTED",
+  "http": 403,
+  "name": "SENDER_RESTRICTED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO003",
+  "expected": "AUTHORIZATION_ERROR",
+  "http": 403,
+  "name": "AUTHORIZATION_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO018",
+  "expected": "DUPLICATE_ITEM",
+  "http": 200,
+  "name": "SUCCESS",
+  "issue": "SUCCESS",
+  "batchId": "XR8Y6L84FSFRW"
+ },
+ {
+  "code": "ERRPYO043",
+  "expected": "CURRENCY_NOT_SUPPORTED_FOR_RECEIVER",
+  "http": 200,
+  "name": "DENIED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO045",
+  "expected": "RECEIVER_COUNTRY_NOT_ALLOWED",
+  "http": 200,
+  "name": "FAILED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO047",
+  "expected": "RECEIVER_UNREGISTERED",
+  "http": 200,
+  "name": "UNCLAIMED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO049",
+  "expected": "RECEIVING_LIMIT_EXCEEDED",
+  "http": 200,
+  "name": "DENIED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRPYO052",
+  "expected": "RISK_DECLINE",
+  "http": 200,
+  "name": "FAILED",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB032",
+  "expected": "INTERNAL_SERVER_ERROR",
+  "http": 500,
+  "name": "INTERNAL_SERVER_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB033",
+  "expected": "NOT_AUTHORIZED",
+  "http": 401,
+  "name": "NOT_AUTHORIZED",
+  "issue": "PERMISSION_DENIED",
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB034",
+  "expected": "INVALID_REQUEST",
+  "http": 400,
+  "name": "INVALID_REQUEST",
+  "issue": "INVALID_PARAMETER_SYNTAX",
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB039",
+  "expected": "UNPROCESSABLE_ENTITY",
+  "http": 422,
+  "name": "UNPROCESSABLE_ENTITY",
+  "issue": "PLAN_STATUS_INVALID",
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB044",
+  "expected": "INTERNAL_SERVER_ERROR",
+  "http": 500,
+  "name": "INTERNAL_SERVER_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB046",
+  "expected": "RESOURCE_NOT_FOUND",
+  "http": 404,
+  "name": "RESOURCE_NOT_FOUND",
+  "issue": "INVALID_RESOURCE_ID",
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB066",
+  "expected": "INTERNAL_SERVER_ERROR",
+  "http": 500,
+  "name": "INTERNAL_SERVER_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB069",
+  "expected": "UNPROCESSABLE_ENTITY",
+  "http": 422,
+  "name": "UNPROCESSABLE_ENTITY",
+  "issue": "SUBSCRIPTION_CANNOT_BE_ACTIVATED",
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB063",
+  "expected": "INTERNAL_SERVER_ERROR",
+  "http": 500,
+  "name": "INTERNAL_SERVER_ERROR",
+  "issue": null,
+  "batchId": null
+ },
+ {
+  "code": "ERRSUB065",
+  "expected": "RESOURCE_NOT_FOUND",
+  "http": 404,
+  "name": "RESOURCE_NOT_FOUND",
+  "issue": "INVALID_RESOURCE_ID",
+  "batchId": null
+ }
+]

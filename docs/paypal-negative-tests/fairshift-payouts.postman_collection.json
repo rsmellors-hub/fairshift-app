@@ -1,0 +1,1073 @@
+{
+  "info": {
+    "name": "FairShift PayPal Sandbox negative tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "PayPal Sandbox only. Test values from https://developer.paypal.com/api/payouts/v5/standard/test-go-live/ and https://developer.paypal.com/subscriptions/test-go-live. Requires Negative Testing On for the Sandbox business account; otherwise PayPal returns real Sandbox responses."
+  },
+  "variable": [
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Sandbox OAuth token",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/v1/oauth2/token",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{client_id}}"
+            },
+            {
+              "key": "password",
+              "value": "{{client_secret}}"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+              "pm.test('token HTTP ' + pm.response.code, () => pm.expect(pm.response.code).to.eql(200));",
+              "const t = pm.response.json().access_token; pm.environment.set('access_token', t); pm.test('token returned', () => pm.expect(!!t).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payouts: create",
+      "item": [
+        {
+          "name": "Create payout ERRPYO005 (INSUFFICIENT_FUNDS)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO005-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO005-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO005\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO005\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO005', expected: 'INSUFFICIENT_FUNDS', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO005: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO006 (INTERNAL_ERROR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO006-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO006-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO006\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO006\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO006', expected: 'INTERNAL_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO006: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO035 (RATE_LIMIT_VALIDATION)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO035-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO035-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO035\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO035\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO035', expected: 'RATE_LIMIT_VALIDATION', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO035: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO036 (REQUEST_TIMEOUT_EXCEEDED)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO036-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO036-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO036\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO036\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO036', expected: 'REQUEST_TIMEOUT_EXCEEDED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO036: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO038 (NON_HOLDING_CURRENCY)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO038-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO038-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO038\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO038\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO038', expected: 'NON_HOLDING_CURRENCY', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO038: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO039 (PREVIOUS_REQUEST_IN_PROGRESS)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO039-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO039-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO039\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO039\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO039', expected: 'PREVIOUS_REQUEST_IN_PROGRESS', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO039: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO001 (SENDER_RESTRICTED)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO001-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO001-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO001\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO001\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO001', expected: 'SENDER_RESTRICTED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO001: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout ERRPYO003 (AUTHORIZATION_ERROR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments/payouts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "FS-NEG-ERRPYO003-{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"FS-NEG-ERRPYO003-{{$timestamp}}\",\n    \"email_subject\": \"FairShift Sandbox negative test\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{payout_receiver}}\",\n      \"note\": \"ERRPYO003\",\n      \"sender_item_id\": \"FS-NEG-I-ERRPYO003\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO003', expected: 'AUTHORIZATION_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO003: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payouts: show",
+      "item": [
+        {
+          "name": "GET payouts ERRPYO018 (DUPLICATE_ITEM)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts/ERRPYO018",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO018', expected: 'DUPLICATE_ITEM', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO018: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET payouts-item ERRPYO043 (CURRENCY_NOT_SUPPORTED_FOR_RECEIVER)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts-item/ERRPYO043",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO043', expected: 'CURRENCY_NOT_SUPPORTED_FOR_RECEIVER', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO043: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET payouts-item ERRPYO045 (RECEIVER_COUNTRY_NOT_ALLOWED)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts-item/ERRPYO045",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO045', expected: 'RECEIVER_COUNTRY_NOT_ALLOWED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO045: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET payouts-item ERRPYO047 (RECEIVER_UNREGISTERED)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts-item/ERRPYO047",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO047', expected: 'RECEIVER_UNREGISTERED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO047: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET payouts-item ERRPYO049 (RECEIVING_LIMIT_EXCEEDED)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts-item/ERRPYO049",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO049', expected: 'RECEIVING_LIMIT_EXCEEDED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO049: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET payouts-item ERRPYO052 (RISK_DECLINE)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/payments/payouts-item/ERRPYO052",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRPYO052', expected: 'RISK_DECLINE', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRPYO052: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Create subscription ERRSUB032 (INTERNAL_SERVER_ERROR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"ERRSUB032\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB032', expected: 'INTERNAL_SERVER_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB032: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create subscription ERRSUB033 (NOT_AUTHORIZED)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"ERRSUB033\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB033', expected: 'NOT_AUTHORIZED', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB033: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create subscription ERRSUB034 (INVALID_REQUEST)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"ERRSUB034\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB034', expected: 'INVALID_REQUEST', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB034: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create subscription ERRSUB039 (UNPROCESSABLE_ENTITY)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"ERRSUB039\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB039', expected: 'UNPROCESSABLE_ENTITY', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB039: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show subscription ERRSUB044 (INTERNAL_SERVER_ERROR)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB044",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB044', expected: 'INTERNAL_SERVER_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB044: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show subscription ERRSUB046 (RESOURCE_NOT_FOUND)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB046",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB046', expected: 'RESOURCE_NOT_FOUND', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB046: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Activate subscription ERRSUB066 (INTERNAL_SERVER_ERROR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB066/activate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"FairShift Sandbox negative test\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB066', expected: 'INTERNAL_SERVER_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB066: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Activate subscription ERRSUB069 (UNPROCESSABLE_ENTITY)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB069/activate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"FairShift Sandbox negative test\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB069', expected: 'UNPROCESSABLE_ENTITY', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB069: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel subscription ERRSUB063 (INTERNAL_SERVER_ERROR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB063/cancel",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"FairShift Sandbox negative test\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB063', expected: 'INTERNAL_SERVER_ERROR', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB063: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel subscription ERRSUB065 (RESOURCE_NOT_FOUND)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/billing/subscriptions/ERRSUB065/cancel",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"FairShift Sandbox negative test\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('host is the PayPal Sandbox', () => pm.expect(pm.request.url.getHost()).to.eql('api-m.sandbox.paypal.com'));",
+                  "let body = {}; try { body = pm.response.json(); } catch (e) {}",
+                  "const item = (body.items && body.items[0]) || {};",
+                  "const name = body.name || (item.errors && item.errors.name) || (body.batch_header && body.batch_header.batch_status) || body.transaction_status || body.status || null;",
+                  "const issue = (body.details && body.details[0] && body.details[0].issue) || item.transaction_status || null;",
+                  "console.log(JSON.stringify({ code: 'ERRSUB065', expected: 'RESOURCE_NOT_FOUND', http: pm.response.code, name, issue, batchId: (body.batch_header && body.batch_header.payout_batch_id) || null }));",
+                  "pm.test('ERRSUB065: PayPal answered (HTTP ' + pm.response.code + ', ' + name + ')', () => pm.expect(pm.response.code).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
