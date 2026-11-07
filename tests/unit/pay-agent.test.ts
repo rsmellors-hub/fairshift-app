@@ -3,6 +3,7 @@ import { AccessError } from "@/server/auth/access";
 import { ProviderCurrencyRateUnavailableError } from "@/server/domain/provider-currency";
 import { AiProviderError, OpenAiStaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { HOLD_REASON_CODES, PAY_AGENT_INSTRUCTIONS, PAY_AGENT_SCHEMA_NAME, parsePayDecision, payDecisionJsonSchema, payDecisionSchema } from "@/server/pay-agent/contract";
+import { confirmationTiming } from "@/server/pay-agent/evidence";
 import { mintPayAgentCredentialForManager, mintPayAgentCredentialForRecovery, payAgentServiceVerifier } from "@/server/pay-agent/identity";
 import { isTransientModelFailure, PAY_AGENT_MODEL_TIMEOUT_MS, payAgentModelFor, requestPayDecision } from "@/server/pay-agent/model";
 import { payAgentOutcomeExplanation } from "@/server/pay-agent/policy";
@@ -87,6 +88,18 @@ describe("Pay Agent decision contract", () => {
 
   it("tells the model that confirmation within 24 hours of the shift end is normal practice, as context only", () => {
     expect(PAY_AGENT_INSTRUCTIONS).toMatch(/within 24 hours of the shift ending.*normal practice.*not by itself a reason to hold/i);
+    expect(PAY_AGENT_INSTRUCTIONS).toMatch(/hoursAfterScheduledEnd and withinNormalConfirmationWindow/);
+  });
+
+  it("gives the model a server-computed confirmation window, in hours to one decimal, with 24 hours inclusive", () => {
+    const end = new Date("2026-11-07T07:00:00Z");
+    const after = (minutes: number) => confirmationTiming(end, new Date(end.getTime() + minutes * 60_000));
+    // The 850-minute confirmation the model once called "over 24 hours".
+    expect(after(850)).toEqual({ minutesAfterScheduledEnd: 850, hoursAfterScheduledEnd: 14.2, withinNormalConfirmationWindow: true });
+    expect(after(1_662)).toEqual({ minutesAfterScheduledEnd: 1_662, hoursAfterScheduledEnd: 27.7, withinNormalConfirmationWindow: false });
+    expect(after(120)).toMatchObject({ hoursAfterScheduledEnd: 2, withinNormalConfirmationWindow: true });
+    expect(after(1_440)).toMatchObject({ hoursAfterScheduledEnd: 24, withinNormalConfirmationWindow: true });
+    expect(after(1_441)).toMatchObject({ withinNormalConfirmationWindow: false });
   });
 });
 

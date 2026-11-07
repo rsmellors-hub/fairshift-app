@@ -190,6 +190,14 @@ export function preModelCheck(evidence: ConfirmedWorkEvidence): PreModelOutcome 
 }
 
 const minutesBetween = (from: Date, to: Date) => Math.round((to.getTime() - from.getTime()) / 60_000);
+// The normal manager confirmation window: within 24 hours of the scheduled end. Server-computed
+// context for the model's judgement (the model once misread 850 minutes as over 24 hours); it is
+// not a payment rule and decides nothing by itself.
+export const NORMAL_CONFIRMATION_WINDOW_MINUTES = 24 * 60;
+export function confirmationTiming(scheduledEndsAt: Date, confirmedAt: Date) {
+  const minutes = minutesBetween(scheduledEndsAt, confirmedAt);
+  return { minutesAfterScheduledEnd: minutes, hoursAfterScheduledEnd: Math.round(minutes / 6) / 10, withinNormalConfirmationWindow: minutes <= NORMAL_CONFIRMATION_WINDOW_MINUTES };
+}
 
 // What the model may see: the payable ID, the evidence version and work facts. No names,
 // contact details, payment destination, amounts, currency, rates or funding configuration.
@@ -202,7 +210,7 @@ export function modelView(evidence: ConfirmedWorkEvidence) {
     shiftRecord: shift ? { start: iso(shift.startsAt), end: iso(shift.endsAt), minutes: minutesBetween(shift.startsAt, shift.endsAt), status: shift.status, termsVersion: shift.termsVersion } : null,
     terms: { earningsModel: payable.earningsModel, payableTermsVersion: payable.termsVersion, acceptedTermsVersion: acceptance?.termsVersion ?? null, acceptanceAcknowledged: acceptance?.acknowledged ?? null },
     allocation: allocation ? { state: allocation.state, confirmedAt: iso(allocation.confirmedAt) } : null,
-    managerConfirmation: { confirmedAt: iso(payable.confirmedAt), minutesAfterScheduledEnd: minutesBetween(payable.scheduledEndsAt, payable.confirmedAt), confirmerRecorded: payable.confirmedBy !== null },
+    managerConfirmation: { confirmedAt: iso(payable.confirmedAt), ...confirmationTiming(payable.scheduledEndsAt, payable.confirmedAt), confirmerRecorded: payable.confirmedBy !== null },
     incentive: { required: payable.incentiveRequired, resolved: payable.finalAmountMinor !== null },
     performance: performance ? { salesCount: performance.salesCount, evidenceProvenance: performance.evidenceProvenance, confirmedAt: iso(performance.confirmedAt) } : null,
     missing: evidence.missing,

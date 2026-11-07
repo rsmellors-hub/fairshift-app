@@ -259,3 +259,27 @@ outlet £29.00/month or £290.00/year; Multi outlet £69.00/month or £690.00/ye
 
 **Checkpoint E verification (after the last edit).** Typecheck PASS; lint PASS, 0 warnings; full
 suite with the real-PostgreSQL URL: **90 files, 1,140 tests, all passed, 0 skipped** (1,350.98 s).
+
+## Fix — server-computed confirmation window for the Pay Agent (7 November 2026)
+
+In Checkpoint E the model held work confirmed 850 minutes after the shift end, calling it "exceeding
+the normal 24-hour confirmation window" (850 minutes is 14.2 hours). The model view now carries
+server-computed `managerConfirmation.hoursAfterScheduledEnd` (one decimal) and
+`withinNormalConfirmationWindow` (true at ≤ 24 hours) next to `minutesAfterScheduledEnd`
+(`src/server/pay-agent/evidence.ts`, `confirmationTiming`), and the instruction tells the model to
+rely on them. The model still decides SETTLE or HOLD; the server facts are context, not a rule.
+
+One genuine OpenAI call each (local scratch database, dry run on, no PayPal request):
+
+| Confirmation | Server facts | Decision | Response |
+|---|---|---|---|
+| 14 h after the end | 840 min · 14.0 h · within window | **SETTLE** | `resp_0e8a4d84404d3213016aef8d8e1ac087d286baac6c07e97e93` |
+| 27.7 h after the end | 1,662 min · 27.7 h · outside window | **HOLD / CONFIRMATION_DELAY** ("…27.7 hours after the scheduled shift end, outside the normal confirmation window.") | `resp_08ff44b210c006f5016aef8d91aa9487d2b9441e5d4db96e49` |
+| 2 h after the end (clean) | 120 min · 2.0 h · within window | **SETTLE** | `resp_064a26f0c1c9edd6016aef8d952f3c87d299185f52f8c6dc14` |
+
+Both SETTLEs then stopped at the settlement gate `payment-details-required` (the synthetic test
+worker has no PayPal email), as designed. Unit test covers 850 min → 14.2 h within, 1,662 min →
+27.7 h outside, and the 24-hour boundary (1,440 within, 1,441 outside).
+
+Verification: typecheck PASS; lint PASS, 0 warnings; full suite with the real-PostgreSQL URL **90 files,
+1,141 tests, all passed, 0 skipped** (1,676.04 s).
