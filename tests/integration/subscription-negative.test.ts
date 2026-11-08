@@ -12,17 +12,21 @@ import { createTestDatabase } from "../helpers/database";
 import { business, createOrganisation, personal } from "../helpers/onboarding";
 import { paypalHeaders } from "../helpers/paypal";
 import { sandboxFixture } from "../helpers/sandbox";
-import { planFixture } from "../helpers/subscription-plans";
+import { planFixture, USD_SANDBOX_PLAN_IDS } from "../helpers/subscription-plans";
+import { commercialPlan, type PlanSelection } from "@/server/billing/plans";
 
 // PayPal Subscriptions Sandbox negative-test values (developer.paypal.com/subscriptions/test-go-live)
 // and webhook edge cases, through FairShift's real subscription service with a fake provider.
 // PayPal documents error names, not HTTP statuses; statuses here follow PayPal's general error table.
 afterEach(() => vi.unstubAllEnvs());
-beforeEach(() => vi.stubEnv("PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID", "P-EXAMPLE"));
+// The four USD trial plans created in the PayPal Sandbox on 8 November 2026.
+beforeEach(() => { for (const [name, id] of Object.entries(USD_SANDBOX_PLAN_IDS)) vi.stubEnv(name, id); });
 const SELECTION = { tier: "SINGLE_OUTLET", billingPeriod: "MONTHLY" } as const;
+const PLANS: PlanSelection[] = [SELECTION, { tier: "SINGLE_OUTLET", billingPeriod: "ANNUAL" }, { tier: "MULTI_OUTLET", billingPeriod: "MONTHLY" }, { tier: "MULTI_OUTLET", billingPeriod: "ANNUAL" }];
+const planIdOf = (selection: PlanSelection) => USD_SANDBOX_PLAN_IDS[commercialPlan(selection).variable];
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 
-async function owner(db: Db) {
+async function owner(db: Db, selection: PlanSelection = SELECTION) {
   const userId = randomUUID();
   await db.insert(users).values({ id: userId, email: `owner-${userId.slice(0, 6)}@example.test`, name: "Owner", passwordHash: "not-used", ...personal, emailVerifiedAt: new Date() });
   const org = await createOrganisation(db, userId, { ...business, name: "Neg Co", locationName: "HQ" });
@@ -30,28 +34,33 @@ async function owner(db: Db) {
   const scope = await resolveScope(db, userId, org.membershipId);
   await db.update(subscriptions).set({ status: "UNCONFIGURED", verifiedAt: null, providerId: null, planId: null, tier: null, billingPeriod: null, locationLimit: null }).where(eq(subscriptions.organisationId, org.organisationId));
   let status: SubscriptionDetails["status"] = "APPROVAL_PENDING";
-  const details = (): SubscriptionDetails => ({ id: "I-NEGATIVE123", custom_id: scope.organisationId, plan_id: "P-EXAMPLE", status, links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=neg" }] });
-  const adapter = { getPlan: async (id: string) => planFixture(id), create: vi.fn(async () => details()), get: vi.fn(async () => details()), verifyWebhookSignature: vi.fn(async () => true) };
+  // PayPal answers for the plan FairShift actually sent, so a checkout on another plan is visible.
+  let planId: string = planIdOf(selection);
+  const details = (): SubscriptionDetails => ({ id: "I-NEGATIVE123", custom_id: scope.organisationId, plan_id: planId, status, links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=neg" }] });
+  const planFor = (id: string) => planFixture(id, PLANS.find(p => planIdOf(p) === id) ?? SELECTION);
+  const adapter = { getPlan: vi.fn(async (id: string) => planFor(id)), create: vi.fn(async (input: { planId: string }) => { planId = input.planId; return details(); }), get: vi.fn(async () => details()), verifyWebhookSignature: vi.fn(async () => true) };
   return { scope, adapter: adapter as SubscriptionAdapter & typeof adapter, setStatus: (next: SubscriptionDetails["status"]) => { status = next; } };
 }
 const rows = (db: Db, organisationId: string) => db.select().from(subscriptions).where(eq(subscriptions.organisationId, organisationId));
 const webhook = (id: string, type: string) => JSON.stringify({ id, event_type: type, resource: { id: "I-NEGATIVE123" } });
 
 describe("create subscription test values", () => {
-  it.each([["ERRSUB032", "INTERNAL_SERVER_ERROR", 500], ["ERRSUB033", "NOT_AUTHORIZED", 403], ["ERRSUB034", "INVALID_REQUEST", 400], ["ERRSUB039", "UNPROCESSABLE_ENTITY", 422]])(
-    "%s %s: no subscription or access, no orphan record, and a clean retry with the same request ID", async (_code, name, status) => {
+  // Each test value runs against a different one of the four new USD plans.
+  it.each([["ERRSUB032", "INTERNAL_SERVER_ERROR", 500, PLANS[0]], ["ERRSUB033", "NOT_AUTHORIZED", 403, PLANS[1]], ["ERRSUB034", "INVALID_REQUEST", 400, PLANS[2]], ["ERRSUB039", "UNPROCESSABLE_ENTITY", 422, PLANS[3]]] as const)(
+    "%s %s: no subscription or access, no orphan record, and a clean retry with the same request ID", async (_code, name, status, plan) => {
       const t = await createTestDatabase();
       try {
-        const { scope, adapter } = await owner(t.db);
+        const { scope, adapter } = await owner(t.db, plan);
         adapter.create.mockRejectedValueOnce(new PayPalApiError("PayPal rejected the request.", name, status));
-        await expect(startSubscription(t.db, scope, adapter, SELECTION)).rejects.toBeTruthy();
+        await expect(startSubscription(t.db, scope, adapter, plan)).rejects.toBeTruthy();
         const [pending] = await rows(t.db, scope.organisationId);
-        expect(pending).toMatchObject({ status: "PENDING", providerId: null, verifiedAt: null, approvalUrl: null });
+        expect(pending).toMatchObject({ status: "PENDING", providerId: null, verifiedAt: null, approvalUrl: null, planId: planIdOf(plan) });
         expect(await rows(t.db, scope.organisationId)).toHaveLength(1);
         expect(await organisationEntitled(t.db, scope.organisationId)).toBe(false);
-        await startSubscription(t.db, scope, adapter, SELECTION);
-        const calls = adapter.create.mock.calls as unknown as Array<[{ requestId: string }]>;
+        await startSubscription(t.db, scope, adapter, plan);
+        const calls = adapter.create.mock.calls as unknown as Array<[{ requestId: string; planId: string }]>;
         expect(calls[0][0].requestId).toBe(calls[1][0].requestId);
+        expect(calls.map(([call]) => call.planId)).toEqual([planIdOf(plan), planIdOf(plan)]);
         expect(await rows(t.db, scope.organisationId)).toHaveLength(1);
       } finally { await t.close(); }
     });
@@ -70,6 +79,45 @@ describe("approval, repeats and status reads", () => {
       const again = await startSubscription(t.db, scope, adapter, SELECTION);
       expect(again).toMatchObject({ providerId: "I-NEGATIVE123", approvalUrl: first.approvalUrl });
       expect(adapter.create).toHaveBeenCalledTimes(1);
+    } finally { await t.close(); }
+  });
+
+  it("abandoning approval and retrying with another plan creates no second subscription", async () => {
+    const t = await createTestDatabase();
+    try {
+      const { scope, adapter } = await owner(t.db);
+      const first = await startSubscription(t.db, scope, adapter, SELECTION);
+      expect(first).toMatchObject({ status: "APPROVAL_PENDING", planId: planIdOf(SELECTION) });
+      await expect(startSubscription(t.db, scope, adapter, PLANS[2])).rejects.toThrow(/different plan/);
+      expect(await startSubscription(t.db, scope, adapter, SELECTION)).toMatchObject({ providerId: first.providerId, approvalUrl: first.approvalUrl });
+      expect(adapter.create).toHaveBeenCalledTimes(1);
+      expect(await rows(t.db, scope.organisationId)).toHaveLength(1);
+    } finally { await t.close(); }
+  });
+
+  it("clicks on two different plans at once create one subscription only", async () => {
+    const t = await createTestDatabase();
+    try {
+      const { scope, adapter } = await owner(t.db);
+      const results = await Promise.allSettled([startSubscription(t.db, scope, adapter, SELECTION), startSubscription(t.db, scope, adapter, PLANS[3])]);
+      expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+      expect(adapter.create).toHaveBeenCalledTimes(1);
+      expect(await rows(t.db, scope.organisationId)).toHaveLength(1);
+    } finally { await t.close(); }
+  });
+
+  it("once the subscription is active, starting checkout again creates nothing", async () => {
+    const t = await createTestDatabase();
+    try {
+      const { scope, adapter, setStatus } = await owner(t.db);
+      await startSubscription(t.db, scope, adapter, SELECTION);
+      setStatus("ACTIVE");
+      expect(await refreshSubscription(t.db, scope, adapter)).toMatchObject({ status: "ACTIVE" });
+      for (const plan of PLANS) await startSubscription(t.db, scope, adapter, plan).catch(() => undefined);
+      expect(adapter.create).toHaveBeenCalledTimes(1);
+      const [only] = await rows(t.db, scope.organisationId);
+      expect(only).toMatchObject({ status: "ACTIVE", providerId: "I-NEGATIVE123", planId: planIdOf(SELECTION) });
+      expect(await rows(t.db, scope.organisationId)).toHaveLength(1);
     } finally { await t.close(); }
   });
 

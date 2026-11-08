@@ -230,6 +230,8 @@ that a reason is required.
   - AI discovery cadence: one discovery call per location at ~05:00 and ~17:00 SAST (10/day for 5 locations). Daily cap stays 20 AI calls; Owner manual refresh counts toward it. One retry with backoff ONLY after HTTP 429 or a call that returned no response. Never retry a successful call. Weather, holiday and ECB feeds keep their own schedules and don't count toward the AI cap.
 ```
 
+> **Amended, 8 November 2026 (Day 5b), by the staffing-gate decision in the next record.** Staffing now changes only when an Owner or a Manager accepts the adjusted forecast, and Owners have every Manager function. The new text addresses who may accept. It says nothing about the bullet's other two sentences (the server applies accepted signal bands; UNCONFIRMED signals are shown, never applied), which stand as recorded, as do the Roles, Bands and cadence bullets.
+
 **Not recorded here.** Code committed earlier on `submission` (`7f5417e`, `70abe3f`, `6c97ca1`, `71a2448`) cites "Owner decision(s), 8 November 2026" for local intelligence, capacity and access disruptions, the early shift notice, the signal track record and source links on Owner-entered events. Apart from the four decisions above, no verbatim text of those decisions is in this repository, and this record does not supply it.
 
 ### Owner decision, 8 November 2026 — demo casual pay term
@@ -239,3 +241,19 @@ that a reason is required.
 ```text
 Approve R45.00/hour — Record R45.00/hour (the demo's seeded casual terms, above the R30.23 SA national minimum) as an Owner-approved demo value, cite it, and keep 6 h × R45.00 = R270.00.
 ```
+
+### Owner decisions, 8 November 2026 — scope, currency, pricing, VAT, staffing gate (Day 5b)
+
+**Decision date:** 8 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** Owner-supplied work package **FairShift — Day 5b: hosted deploy, USD plans, demo open (SANDBOX ONLY)** (within FS-HACK-SA-SUBMISSION-001), STEP 1. Recorded verbatim. Requirements only: this record implements nothing.
+
+```text
+  - Staffing gate (amends the 8 Nov entry): "Staffing changes only when an Owner or a Manager accepts the adjusted forecast. Owners have every Manager function, because many venues are run by a single owner who is operationally involved."
+  - Scope: "Sandbox only for the hackathon. Production availability is roadmap."
+  - Currency: "FairShift is universal: each business has a home currency used for every displayed amount. Workers and SA owners always see rand first; any USD amount is a secondary, labelled line. Payouts and billing use the home currency where PayPal supports it, otherwise USD (ZAR → USD at the locked ECB rate, DEC-SA-012)."
+  - Pricing (demo): "Venue (1 location) R499/month, R4,990/year; Group (up to 5 locations) R1,149/month, R11,490/year; prices incl. 15% VAT. Flat per location, no per-worker fee. Workers are never charged. 30-day free trial unchanged. Billed by PayPal in USD: US$30.17 / US$301.73 and US$69.48 / US$694.76 (ECB 6 Nov 2026, 16.5382)."
+  - VAT: "VAT is never applied to worker earnings or tips."
+```
+
+**Effect on earlier records.** The pricing decision replaces, for the demo, the GBP catalogue in the product specification's "Commercial entry and FairShift viability" table (Single Outlet £29/£290, Multi Outlet £69/£690). It resolves the pricing-currency question left open by FS-SITE-COPY-SA-001. Location limits (1, and up to 5), the 30-day free trial (FS-SUBSCRIPTION-TRIAL-DEC-001) and Enterprise by contact are unchanged. The USD billing amounts are the Owner's figures. They are not computed by FairShift at checkout.
+
+**Open, not recorded here.** "AI LOCAL INTELLIGENCE (8 Nov)": the work package says the Owner will supply this text, and it was not in the package. No text is recorded, and this record does not supply any.

@@ -30,11 +30,11 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           <h2>Enterprise</h2>
           <p className="plan-limit">6+ locations</p>
           <p className="plan-price"><strong>Custom</strong></p>
-          <ul><li>Everything in Multi Outlet</li><li>A location limit set for your group</li><li>Commercial terms agreed with you</li></ul>
+          <ul><li>Everything in Group</li><li>A location limit set for your group</li><li>Commercial terms agreed with you</li></ul>
           {contact ? <a className="secondary-button button-link" href={`mailto:${contact}?subject=FairShift%20Enterprise%20enquiry`}>Contact FairShift</a> : <p className="note">Contact FairShift to discuss your locations. Enterprise isn’t available through online checkout.</p>}
         </article>
       </div>
-      <p className="note plan-footnote">Every plan starts with a 30-day free trial. Prices in GBP. No setup fee and no per-worker fee. Subscriptions are approved in PayPal (PayPal Sandbox in this environment). Your plan pays for FairShift; worker pay is separate.</p>
+      <p className="note plan-footnote">Every plan starts with a 30-day free trial. Prices are in rand and include 15% VAT. Each plan is a flat price set by locations: no setup fee and no per-worker fee, and workers are never charged. Subscriptions are approved in PayPal (PayPal Sandbox in this environment), which bills in US dollars at the amount shown on each plan; your bank or PayPal converts at its own rate. Your plan pays for FairShift; worker pay is separate, and VAT is never applied to worker earnings or tips.</p>
     </div></section>
   </PublicShell>;
 }

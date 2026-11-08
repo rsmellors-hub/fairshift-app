@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { rand } from "@/app/components/plan-cards";
 import { PublicShell, WorkedExample } from "@/app/components/public-shell";
+import { commercialPlan } from "@/server/billing/plans";
 
 // Public copy follows the decision record: DEC-SA-011 and FS-APPROVER-DEC-001 (casual pay on
 // preauthorised terms, confirmed by a manager), DEC-SA-012 (ZAR earnings paid in US dollars at the
@@ -72,7 +74,7 @@ export default function Home() {
     </div></section>
 
     <section className="site-section closing-cta"><div className="site-width closing-cta-row">
-      <div><h2>Plans from £29 a month, after a 30-day free trial</h2><p>Plans differ by how many locations you run. There is no setup fee or per-worker fee.</p></div>
+      <div><h2>Plans from {rand(commercialPlan({ tier: "SINGLE_OUTLET", billingPeriod: "MONTHLY" }).homeAmount)} a month incl. VAT, after a 30-day free trial</h2><p>Plans differ by how many locations you run. There is no setup fee or per-worker fee. PayPal bills in US dollars.</p></div>
       <div className="cta-row"><Link className="primary-button button-link" href="/register">Start your business</Link><Link className="secondary-button button-link" href="/pricing">See pricing</Link></div>
     </div></section>
   </PublicShell>;

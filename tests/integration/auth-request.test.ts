@@ -274,7 +274,8 @@ describe("subscription-first UI and verification continuation",()=>{
    await expect(verifyEmailAction(form({token}))).rejects.toThrow("REDIRECT:/subscribe");
    expect(jar.get("fairshift_session")).toBe(session);
    const plans=renderToStaticMarkup(await Subscribe({searchParams:Promise.resolve({period:"ANNUAL"})}));
-   for(const text of ["Single Outlet","Multi Outlet","Enterprise","Contact FairShift","1 location","2–5 locations","£24.17","£57.50","£290 billed annually","£690 billed annually","Save 17%","6+ locations","Checkout isn’t available"]) expect(plans).toContain(text);
+   for(const text of ["Venue","Group","Enterprise","Contact FairShift","1 location","Up to 5 locations","R4,990","R11,490","R4,990/year incl. 15% VAT — billed by PayPal as US$301.73; your bank or PayPal converts at its own rate.","R11,490/year incl. 15% VAT — billed by PayPal as US$694.76; your bank or PayPal converts at its own rate.","Save 17%","6+ locations","Checkout isn’t available"]) expect(plans).toContain(text);
+   expect(plans).not.toContain("£");expect(plans).not.toMatch(/no (currency )?conversion fees?/i);
    for(const name of ["firstName","businessAddress","locationName"]) expect(plans).not.toContain(`name="${name}"`);
    expect(plans).not.toContain('value="ENTERPRISE"');expect(plans).not.toContain("/owner/");
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);

@@ -756,6 +756,8 @@ Annual pricing provides 12 months for the equivalent of 10 monthly payments. The
 
 **Amended by FS-SUBSCRIPTION-TRIAL-DEC-001 (section 1):** self-service plans start with a 30-day free trial.
 
+**Amended, 8 November 2026 (Owner pricing decision, [FS-HACK-SA-AMENDMENT-001](FS-HACK-SA-AMENDMENT-001.md) section 5, Day 5b):** demo prices are in rand including 15% VAT: Venue (1 location) R499/month or R4,990/year, and Group (up to 5 locations) R1,149/month or R11,490/year. PayPal bills them in USD at the Owner's stated amounts. The GBP prices above are history.
+
 Acquisition is email/password → mandatory verification → plan selection → PayPal Sandbox approval → authoritative server verification of ACTIVE → personal/business/workplace setup → operational access. Organisation-owned subscription entitlement and workplace completion are separate. Browser return and subscription creation responses do not grant entitlement. Each self-service selection maps to its own server-configured PayPal Plan ID; provider price/cadence must match this catalogue. Worker payouts remain separate.
 
 The product and final presentation should make the relationship between **customer value created** and **FairShift cost** credible and understandable. This business case strengthens Potential Impact, Design, Presentation, and overall credibility, but it must remain evidence-based.

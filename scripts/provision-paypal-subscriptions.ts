@@ -15,12 +15,12 @@ async function main() {
  const {access_token}=await auth.json();
  if (typeof access_token !== "string") throw new Error("Invalid Sandbox OAuth response.");
  async function request(path:string,body?:object) {
-  const response=await fetch(`${base}${path}`,{method:body ? "POST":"GET",headers:{Authorization:`Bearer ${access_token}`,"Content-Type":"application/json",Prefer:"return=representation",...(body ? {"PayPal-Request-Id":createHash("sha256").update(`fairshift-gbp-v1:${path}:${JSON.stringify(body)}`).digest("hex").slice(0,38)} : {})},...(body ? {body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
+  const response=await fetch(`${base}${path}`,{method:body ? "POST":"GET",headers:{Authorization:`Bearer ${access_token}`,"Content-Type":"application/json",Prefer:"return=representation",...(body ? {"PayPal-Request-Id":createHash("sha256").update(`fairshift-plans-v2:${path}:${JSON.stringify(body)}`).digest("hex").slice(0,38)} : {})},...(body ? {body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
   // Never log credentials, raw provider responses or automatic retries on uncertain results.
   if (!response.ok) throw new Error(`Sandbox catalogue request HTTP ${response.status}. Stop and inspect before retrying.`);
   return response.json();
  }
- type Summary={id:string;name:string;product_id?:string};
+ type Summary={id:string;name:string;product_id?:string;status?:string};
  async function list(path:string,key:"products"|"plans") {
   const all:Summary[]=[];
   for(let page=1;page<=100;page++) {
@@ -42,22 +42,27 @@ async function main() {
  const matches=products.filter(p=>/fair\s?shift/i.test(p.name));
  if (matches.length>1 || matches.some(p=>p.name !== "FairShift")) throw new Error("Ambiguous existing FairShift products. No mutation allowed.");
  let product=matches[0];
- const selections=Object.entries(catalogue).flatMap(([tier,periods])=>Object.entries(periods).map(([billingPeriod,terms])=>({selection:{tier,billingPeriod} as PlanSelection,terms})));
- const related=plans.filter(p=>p.product_id === product?.id || /fair\s?shift|single outlet|multi outlet/i.test(p.name));
- // Validate every existing candidate before creating any missing object. Original no-trial plans
- // are recognised by their legacy name, validated against the legacy shape and left untouched.
+ const selections=(Object.keys(catalogue) as PlanSelection["tier"][]).flatMap(tier=>(["MONTHLY","ANNUAL"] as const).map(billingPeriod=>({selection:{tier,billingPeriod} as PlanSelection,terms:catalogue[tier][billingPeriod]})));
+ // Every plan name FairShift has used: the current USD trial plans, and the earlier GBP plans
+ // (trial and original no-trial), which stay read-only so subscriptions on them still reconcile.
+ const known=new Map<string,{selection:PlanSelection;current:boolean}>();
+ for(const {selection,terms} of selections) {
+  known.set(terms.name,{selection,current:true});
+  for(const previous of terms.previous) known.set(previous.name,{selection,current:false});
+ }
+ const related=plans.filter(p=>p.product_id === product?.id || known.has(p.name) || /fair\s?shift|single outlet|multi outlet/i.test(p.name));
+ // Validate every existing candidate before creating any missing object.
  for(const existing of related) {
-  const match=selections.find(p=>existing.name === p.terms.name), legacy=selections.find(p=>existing.name === p.terms.legacyName);
-  if (!product || existing.product_id !== product.id || !(match || legacy) || related.filter(p=>p.name === existing.name).length !== 1) throw new Error("Ambiguous or conflicting existing FairShift plans. No mutation allowed.");
-  if (match) assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),match.selection,existing.id);
-  else assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),legacy!.selection,existing.id,true,["LEGACY"]);
+  const entry=known.get(existing.name);
+  if (!product || existing.product_id !== product.id || !entry || related.filter(p=>p.name === existing.name).length !== 1) throw new Error("Ambiguous or conflicting existing FairShift plans. No mutation allowed.");
+  assertCommercialPlan(await request(`/v1/billing/plans/${existing.id}`),entry.selection,existing.id,!entry.current);
  }
  if (product) {
   const details=await request(`/v1/catalogs/products/${product.id}`);
   if (details.name !== "FairShift" || details.type !== "SERVICE") throw new Error("Existing FairShift product needs review.");
  }
  if (!apply) {
-  console.log(JSON.stringify({mode:"READ_ONLY",productId:product?.id??null,existingPlans:related.map(p=>({id:p.id,name:p.name,legacy:selections.some(s=>s.terms.legacyName === p.name)})),subscriptionWebhook:withWebhook ? candidates[0]?.id??"MISSING" : "NOT_INSPECTED",missingPlans:selections.filter(p=>!related.some(e=>e.name === p.terms.name)).map(p=>p.terms.name)},null,2));return;
+  console.log(JSON.stringify({mode:"READ_ONLY",productId:product?.id??null,existingPlans:related.map(p=>({id:p.id,name:p.name,status:p.status??null,current:!!known.get(p.name)?.current})),subscriptionWebhook:withWebhook ? candidates[0]?.id??"MISSING" : "NOT_INSPECTED",missingPlans:selections.filter(p=>!related.some(e=>e.name === p.terms.name)).map(p=>p.terms.name)},null,2));return;
  }
  if (!product) product=await request("/v1/catalogs/products",{name:"FairShift",description:"FairShift organisation workforce planning subscription",type:"SERVICE",category:"SOFTWARE",home_url:"https://getafairshift.com"});
  if (!/^PROD-[A-Z0-9]+$/.test(product.id)) throw new Error("Invalid product identifier. Stop before creating plans.");

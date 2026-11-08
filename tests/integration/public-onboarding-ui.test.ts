@@ -88,11 +88,22 @@ describe("account", () => {
 });
 
 describe("public pages", () => {
-  it("shows the catalogue's prices, annual and monthly", async () => {
+  // Owner decision, 8 November 2026: rand first, incl. 15% VAT; the US dollar amount PayPal bills is a labelled line.
+  const billed = (rand: string, per: string, usd: string) => `${rand}/${per} incl. 15% VAT — billed by PayPal as US$${usd}; your bank or PayPal converts at its own rate.`;
+  it("shows the catalogue's prices rand first, annual and monthly, with the US dollar amount PayPal bills", async () => {
     const annual = renderToStaticMarkup(await Pricing(params({})));
-    for (const text of ["£24.17", "£57.50", "£290 billed annually", "£690 billed annually", "Save 17%", "6+ locations", "Custom"]) expect(annual).toContain(text);
+    for (const text of ["Venue", "Group", "1 location", "Up to 5 locations", "R4,990", "R11,490", billed("R4,990", "year", "301.73"), billed("R11,490", "year", "694.76"), "Save 17%", "6+ locations", "Custom", "workers are never charged", "VAT is never applied to worker earnings or tips"]) expect(annual).toContain(text);
     const monthly = renderToStaticMarkup(await Pricing(params({ period: "MONTHLY" })));
-    for (const text of ["£29", "£69", "Billed monthly"]) expect(monthly).toContain(text);
+    for (const text of ["R499", "R1,149", billed("R499", "month", "30.17"), billed("R1,149", "month", "69.48")]) expect(monthly).toContain(text);
+    expect(annual.indexOf("R4,990")).toBeLessThan(annual.indexOf("US$301.73"));
+    expect(monthly.indexOf("R499")).toBeLessThan(monthly.indexOf("US$30.17"));
+    for (const html of [annual, monthly]) {
+      expect(html).not.toContain("£");
+      expect(html).not.toMatch(/\bGBP\b|Single Outlet|Multi Outlet/);
+      // No converted or derived figure is shown as the charge.
+      expect(html).not.toMatch(/≈|R415|R957|billed annually/);
+      expect(html).not.toMatch(/no (currency )?conversion fees?/i);
+    }
   });
 
   it("makes none of the prohibited claims and keeps no unresolved placeholders", async () => {
