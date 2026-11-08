@@ -28,10 +28,11 @@ function fixture(reservedAt: unknown, status: string, afterAudit?: () => void) {
     .mockReturnValueOnce({ from: () => ({ innerJoin: () => ({ where: async () => [{ locationCountry: "GB", organisationCountry: "GB" }] }) }) });
   const set = vi.fn((values: Partial<WorkPayout>) => ({ where: () => ({ returning: async () => [{ ...claimed, ...values }] }) }));
   const update = vi.fn(() => ({ set }));
-  const insert = vi.fn(() => ({ values: async () => { afterAudit?.(); } }));
+  const values = vi.fn(async (row: unknown) => { void row; afterAudit?.(); });
+  const insert = vi.fn(() => ({ values }));
   const db = { select, update, insert } as unknown as Database;
   const paypal = { createPayout: vi.fn(), getPayout: vi.fn() };
-  return { db, paypal, payableId, payout, update, insert, set };
+  return { db, paypal, payableId, payout, update, insert, values, set };
 }
 
 beforeEach(() => { sandboxFixture(scope.organisationId); vi.useFakeTimers({ now: NOW, toFake: ["Date"] }); });
@@ -52,7 +53,10 @@ describe("no-batch recovery rejects an unreliable original attempt time", () => 
       expect(f.paypal.createPayout).not.toHaveBeenCalled();
       expect(f.paypal.getPayout).not.toHaveBeenCalled();
       expect(f.update).not.toHaveBeenCalled();
-      expect(f.insert).not.toHaveBeenCalled();
+      // The only write is the Manager's refused request, recorded in the audit.
+      expect(f.insert).toHaveBeenCalledTimes(1);
+      expect(f.values).toHaveBeenCalledWith(expect.objectContaining({ action: "PAYOUT_STATUS_CHECK_REQUESTED", entityId: f.payableId,
+        metadata: expect.objectContaining({ actorUserId: scope.userId, actorRole: "MANAGER", sessionType: "SIGNED_IN", outcome: "REFUSED:payout-investigation-required" }) }));
     });
   }
 
