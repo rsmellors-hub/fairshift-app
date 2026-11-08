@@ -9,6 +9,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
+import { audited, auditActor, uuidOrNull, type AuditTarget } from "@/server/auth/audit-actor";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, organisations, outlets, payAgentEvents, workers, workPayables, workPayouts } from "@/server/db/schema";
 import { isRateLimitCode, PayPalPayoutError, type PayoutResult, type PayPalPayoutAdapter } from "@/server/integrations/paypal/payout-client";
@@ -156,10 +157,22 @@ function authoriseFinancialObligation(scope: PayoutScope) {
 
 // The correlation of a payout's audit trail: its work payable, or its tip allocation line.
 const obligationOf = (payout: Pick<WorkPayout, "payableId" | "tipLineId">) => payout.payableId ? `payable:${payout.payableId}` : `tip-line:${payout.tipLineId}`;
-async function audit(db: DatabaseSession, scope: PayoutActor, action: string, entityType: string, entityId: string, correlation: string, metadata: Record<string, unknown>) {
+// A person's write also records their role and session type; the Pay Agent service is named instead.
+async function audit(db: DatabaseSession, scope: PayoutActor & { role?: string; demo?: unknown }, action: string, entityType: string, entityId: string, correlation: string, metadata: Record<string, unknown>) {
+  const person = scope.userId && scope.role ? auditActor({ userId: scope.userId, role: scope.role, demo: scope.demo }) : { actorUserId: scope.userId };
   await db.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action, entityType, entityId, correlationId: correlation.includes(":") ? correlation : `payable:${correlation}`,
-    metadata: { actorUserId: scope.userId, ...(scope.service ? { actorService: scope.service } : {}), ...metadata } });
+    metadata: { ...person, ...(scope.service ? { actorService: scope.service } : {}), ...metadata } });
 }
+
+// A person's send or status check can call PayPal, so each request leaves one audit row (who, role,
+// session type, time, outcome) besides the engine's own reservation and provider rows.
+const payoutRequest = (scope: PayoutScope, action: string, obligation: "payable" | "tip-line", id: string): AuditTarget => {
+  const entityId = uuidOrNull(id);
+  return {
+    organisationId: scope.organisationId, outletId: scope.locationId, action, entityType: obligation === "payable" ? "work_payable" : "tip_line", entityId,
+    correlationId: entityId ? `${obligation}:${entityId}` : `payout-request:${scope.userId}`, actor: scope,
+  };
+};
 
 // A Pay Agent hold awaiting a manager, or a manager's rejection of one, also stops the manual
 // approve and send actions, so a rejected payment stays unpaid (DEC-SA-011 hold resolution).
@@ -319,11 +332,13 @@ async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, ac
 
 // Sends the manager-approved payable to PayPal once (see submitApprovedPayout).
 export async function submitWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<SubmitResult> {
-  assertSandboxFinancialScope(scope);
-  authoriseFinancialObligation(scope);
-  const payable = await scopedPayable(db, scope, payableId);
-  await assertNoPayAgentHold(db, payable.id);
-  return submitApprovedPayout(db, paypal, scope, payable);
+  return audited(db, payoutRequest(scope, "PAYOUT_SEND_REQUESTED", "payable", payableId), async () => {
+    assertSandboxFinancialScope(scope);
+    authoriseFinancialObligation(scope);
+    const payable = await scopedPayable(db, scope, payableId);
+    await assertNoPayAgentHold(db, payable.id);
+    return submitApprovedPayout(db, paypal, scope, payable);
+  }, result => `${result.submitted ? "SENT" : "ALREADY_SENT"}:${result.payout.status}`);
 }
 
 // FS-APPROVER-DEC-001 (7 Nov 2026): an automatic casual settlement keeps the confirming, or
@@ -376,12 +391,14 @@ export async function submitConfirmedWorkPayout(db: Database, paypal: PayoutClie
 // an unknown outcome it may re-send the identical request (same sender_batch_id,
 // amount, currency and recipient) only within the conservative recovery window.
 export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payableId: string): Promise<WorkPayout> {
-  assertSandboxFinancialScope(scope);
-  authoriseFinancialObligation(scope);
-  const payable = await scopedPayable(db, scope, payableId);
-  const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
-  if (!payout) throw new Error("No payout has been sent for this payable.");
-  return refreshPayout(db, paypal, scope, payout);
+  return audited(db, payoutRequest(scope, "PAYOUT_STATUS_CHECK_REQUESTED", "payable", payableId), async () => {
+    assertSandboxFinancialScope(scope);
+    authoriseFinancialObligation(scope);
+    const payable = await scopedPayable(db, scope, payableId);
+    const [payout] = await db.select().from(workPayouts).where(eq(workPayouts.payableId, payable.id));
+    if (!payout) throw new Error("No payout has been sent for this payable.");
+    return refreshPayout(db, paypal, scope, payout);
+  }, payout => `STATUS:${payout.status}`);
 }
 
 // The shared reconciliation of one payout row (a work payable's or a tip line's).
@@ -490,10 +507,12 @@ export async function sendReservedPayout(db: Database, paypal: PayoutClientSourc
 
 // Latest provider state of a tip line's payout, through the same reconciliation as a work payout.
 export async function refreshTipLinePayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, lineId: string) {
-  assertSandboxFinancialScope(scope);
-  if (scope.role !== "OWNER") throw new UserFacingError("tip-owner-only", "Only the Owner manages tip payments.");
-  z.uuid().parse(lineId);
-  const [payout] = await db.select().from(workPayouts).where(and(eq(workPayouts.tipLineId, lineId), eq(workPayouts.organisationId, scope.organisationId), eq(workPayouts.outletId, scope.locationId)));
-  if (!payout) throw new Error("No payout has been sent for this tip line.");
-  return refreshPayout(db, paypal, scope, payout);
+  return audited(db, payoutRequest(scope, "PAYOUT_STATUS_CHECK_REQUESTED", "tip-line", lineId), async () => {
+    assertSandboxFinancialScope(scope);
+    if (scope.role !== "OWNER") throw new UserFacingError("tip-owner-only", "Only the Owner manages tip payments.");
+    z.uuid().parse(lineId);
+    const [payout] = await db.select().from(workPayouts).where(and(eq(workPayouts.tipLineId, lineId), eq(workPayouts.organisationId, scope.organisationId), eq(workPayouts.outletId, scope.locationId)));
+    if (!payout) throw new Error("No payout has been sent for this tip line.");
+    return refreshPayout(db, paypal, scope, payout);
+  }, payout => `STATUS:${payout.status}`);
 }

@@ -3,6 +3,7 @@ import { and, asc, eq, gt, inArray, isNotNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { AccessError, type Scope } from "@/server/auth/access";
+import { auditActor } from "@/server/auth/audit-actor";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import {
   auditEvents, organisations, outlets, shiftOffers, shifts, staffDestinationEvents, tipAgentEvents, tipAllocationLines, tipAllocations, tipBlockRoster,
@@ -275,7 +276,7 @@ export async function importTipEvidence(db: Database, scope: OwnerScope, text: s
         evidenceVersion: allocation.evidenceVersion, createdBy: scope.userId, status: nothing ? "SKIPPED" : "PENDING", outcomeCode: nothing ? "NOTHING_ALLOCATED" : null, completedAt: nothing ? now : null }).returning();
       if (!nothing) eventIds.push(event.id);
     }
-    await audit(tx, scope, "TIP_EVIDENCE_IMPORTED", "tip_import", importId, { actorUserId: scope.userId, label: IMPORTED_POS_EVIDENCE, policy, rows: drafts.length,
+    await audit(tx, scope, "TIP_EVIDENCE_IMPORTED", "tip_import", importId, { ...auditActor(scope), outcome: "IMPORTED", label: IMPORTED_POS_EVIDENCE, policy, rows: drafts.length,
       duplicates: parsed.duplicatesSkipped + (parsed.rows.length - fresh.length), allocations: allocationRows.length, totalTipMinor: drafts.reduce((sum, row) => sum + row.tipMinor, 0) });
     return { importId, created: true, rowsStored: drafts.length, rowsAlreadyRecorded: parsed.rows.length - fresh.length, duplicatesInFile: parsed.duplicatesSkipped,
       allocationIds: allocationRows.map(row => row.id!), eventIds };

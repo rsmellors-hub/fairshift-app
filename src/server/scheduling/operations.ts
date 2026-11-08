@@ -11,6 +11,7 @@ import { localDate } from "@/server/intelligence/forecast";
 import { checkWage, termsForWageCheck, wageAllowsOffer, wageJurisdiction } from "@/server/domain/statutory-wage";
 
 import { assertRole, type Scope } from "@/server/auth/access";
+import { auditActor } from "@/server/auth/audit-actor";
 import { shiftInteraction } from "@/server/domain/shift-change";
 import { UserFacingError } from "@/server/domain/errors";
 import { acceptedIncentiveTerms, INDIVIDUAL_INCENTIVE_BASIS } from "@/server/domain/incentive";
@@ -224,7 +225,7 @@ export async function allocateAssignment(db: Database, offerId: string, scope:Op
 // The payable's Pay Agent event (DEC-SA-011) is written in the same transaction, so
 // confirmation, payable and orchestration intent commit together or not at all. No model
 // or provider is called here; processing starts only after this transaction commits.
-export async function confirmWork(db: Database, offerId: string, scope:OperatingScope & { userId?: string }) {
+export async function confirmWork(db: Database, offerId: string, scope:OperatingScope & { userId?: string; role?: string; demo?: unknown }) {
   return db.transaction(async (tx) => {
     const [offer] = await tx.select().from(shiftOffers).where(eq(shiftOffers.id, offerId));
     if (!offer || offer.status !== "ACCEPTED") throw new Error("Accepted work required.");
@@ -242,7 +243,8 @@ export async function confirmWork(db: Database, offerId: string, scope:Operating
     const confirmedAt = allocation.confirmedAt ?? new Date();
     if (!allocation.confirmedAt) {
       await tx.update(workAllocations).set({ confirmedAt }).where(eq(workAllocations.id, allocation.id));
-      await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_CONFIRMED", entityType: "work_allocation", entityId: allocation.id, correlationId: `assignment:${shift.id}`, metadata: { offerId, termsVersion: shift.termsVersion } });
+      await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_CONFIRMED", entityType: "work_allocation", entityId: allocation.id, correlationId: `assignment:${shift.id}`,
+        metadata: { ...(scope.userId && scope.role ? auditActor({ userId: scope.userId, role: scope.role, demo: scope.demo }) : { actorUserId: scope.userId ?? null }), outcome: "CONFIRMED", offerId, termsVersion: shift.termsVersion } });
     }
     if (terms.state === "ATTRIBUTION_REQUIRED") return { allocationId: allocation.id, confirmedAt, payable: null, payableState: terms.state, payAgentEvent: null };
     const [created] = await tx.insert(workPayables).values({

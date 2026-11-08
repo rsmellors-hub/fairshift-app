@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Scope } from "@/server/auth/access";
+import { audited, auditActor, uuidOrNull, type AuditFound, type AuditTarget } from "@/server/auth/audit-actor";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase, type Database } from "@/server/db/client";
 import { workPayables } from "@/server/db/schema";
@@ -71,18 +72,38 @@ const RETRYABLE: ReadonlySet<string> = new Set(["PENDING", "CLAIMED", "FAILED_RE
 // latest event, a new event is recorded for the current evidence; otherwise the latest event is
 // retried in place: a pending, failed or rejected model decision (within the attempt limit), or
 // the settlement gates after a dry run or a block. Returns what to process after the response.
+// Each use of a Pay Agent control (retry, release, reject) leaves one audit row with who, their role, the
+// session type, the time and the outcome, whether it went ahead or was refused. A release or rejection that
+// goes ahead also leaves the journal's own PAY_AGENT_HOLD_* row.
+const control = (scope: ManagerScope, action: string, id: { eventId?: string; payableId?: string }): AuditTarget => {
+  const eventId = uuidOrNull(id.eventId), payableId = uuidOrNull(id.payableId);
+  return {
+    organisationId: scope.organisationId, outletId: scope.locationId, action, entityType: "pay_agent_event", entityId: eventId,
+    correlationId: payableId ? `payable:${payableId}` : `pay-agent-control:${scope.userId}`, actor: scope, detail: { payableId },
+  };
+};
+const onPayable = (found: AuditFound, payableId: string, eventId?: string) => {
+  found.correlationId = `payable:${payableId}`;
+  found.detail = { payableId };
+  if (eventId) found.entityId = eventId;
+};
+
 export async function preparePayAgentRetry(db: Database, scope: ManagerScope, payableId: string): Promise<{ eventId: string; status: string; credential: PayAgentServiceCredential; run: boolean }> {
-  const credential = mintPayAgentCredentialForManager(scope);
-  const evidence = z.uuid().safeParse(payableId).success ? await loadConfirmedWork(db, scope, payableId) : null;
-  if (!evidence) throw new UserFacingError("pay-agent-unavailable", "This payment isn't available here.");
-  const latest = (await latestPayAgentEvents(db, scope, [payableId])).get(payableId);
-  if (!latest || latest.evidenceVersion !== evidence.evidenceVersion) {
-    const event = await db.transaction(tx => recordPayAgentEvent(tx, scope, payableId, "EVIDENCE_REFRESHED", scope.userId));
-    return { eventId: event.id, status: event.status, credential, run: event.status === "PENDING" };
-  }
-  if (latest.status === "DECIDED_HOLD") throw new UserFacingError("pay-agent-hold-pending", "Release or reject the Pay Agent's hold first.");
-  if (!RETRYABLE.has(latest.status)) throw new UserFacingError("pay-agent-nothing-to-retry", "There is nothing for the Pay Agent to retry for this payment.");
-  return { eventId: latest.id, status: latest.status, credential, run: true };
+  return audited(db, control(scope, "PAY_AGENT_RETRY_REQUESTED", { payableId }), async found => {
+    const credential = mintPayAgentCredentialForManager(scope);
+    const evidence = z.uuid().safeParse(payableId).success ? await loadConfirmedWork(db, scope, payableId) : null;
+    if (!evidence) throw new UserFacingError("pay-agent-unavailable", "This payment isn't available here.");
+    const latest = (await latestPayAgentEvents(db, scope, [payableId])).get(payableId);
+    if (!latest || latest.evidenceVersion !== evidence.evidenceVersion) {
+      const event = await db.transaction(tx => recordPayAgentEvent(tx, scope, payableId, "EVIDENCE_REFRESHED", scope.userId));
+      onPayable(found, payableId, event.id);
+      return { eventId: event.id, status: event.status, credential, run: event.status === "PENDING", newEvidence: true };
+    }
+    onPayable(found, payableId, latest.id);
+    if (latest.status === "DECIDED_HOLD") throw new UserFacingError("pay-agent-hold-pending", "Release or reject the Pay Agent's hold first.");
+    if (!RETRYABLE.has(latest.status)) throw new UserFacingError("pay-agent-nothing-to-retry", "There is nothing for the Pay Agent to retry for this payment.");
+    return { eventId: latest.id, status: latest.status, credential, run: true, newEvidence: false };
+  }, prepared => prepared.newEvidence ? (prepared.run ? "RUN_SCHEDULED_NEW_EVIDENCE" : "NEW_EVIDENCE_RECORDED") : "RUN_SCHEDULED");
 }
 
 export function runPayAgentRetry(agent: PayAgent, prepared: { eventId: string; credential: PayAgentServiceCredential; run: boolean }, schedule: AfterResponse = afterResponse) {
@@ -99,16 +120,19 @@ async function heldEvent(db: Database, scope: ManagerScope, eventId: string) {
 // model again, and the journal records the manager's override. A hold on a manager's own work
 // must be released by someone else.
 export async function releasePayAgentHold(db: Database, scope: ManagerScope, eventId: string): Promise<{ eventId: string; credential: PayAgentServiceCredential }> {
-  const credential = mintPayAgentCredentialForManager(scope);
-  const event = await heldEvent(db, scope, eventId);
-  const evidence = await loadConfirmedWork(db, scope, event.payableId);
-  if (!evidence) throw new UserFacingError("pay-agent-unavailable", "This payment isn't available here.");
-  if ((scope.workerId && scope.workerId === evidence.payable.workerId) || (evidence.worker?.userId && evidence.worker.userId === scope.userId)) {
-    throw new UserFacingError("pay-agent-own-work", "A hold on your own work must be released by another manager.");
-  }
-  const released = await resolveHold(db, scope, eventId, { resolution: "RELEASED", userId: scope.userId, note: null });
-  if (!released) throw new UserFacingError("pay-agent-hold-unavailable", "This hold has already been resolved or isn't available.");
-  return { eventId: released.id, credential };
+  return audited(db, control(scope, "PAY_AGENT_HOLD_RELEASE_REQUESTED", { eventId }), async found => {
+    const credential = mintPayAgentCredentialForManager(scope);
+    const event = await heldEvent(db, scope, eventId);
+    onPayable(found, event.payableId);
+    const evidence = await loadConfirmedWork(db, scope, event.payableId);
+    if (!evidence) throw new UserFacingError("pay-agent-unavailable", "This payment isn't available here.");
+    if ((scope.workerId && scope.workerId === evidence.payable.workerId) || (evidence.worker?.userId && evidence.worker.userId === scope.userId)) {
+      throw new UserFacingError("pay-agent-own-work", "A hold on your own work must be released by another manager.");
+    }
+    const released = await resolveHold(db, scope, eventId, { resolution: "RELEASED", userId: scope.userId, note: null, actor: auditActor(scope) });
+    if (!released) throw new UserFacingError("pay-agent-hold-unavailable", "This hold has already been resolved or isn't available.");
+    return { eventId: released.id, credential };
+  }, () => "RELEASED");
 }
 
 export function runReleasedHold(agent: PayAgent, released: { eventId: string; credential: PayAgentServiceCredential }, schedule: AfterResponse = afterResponse) {
@@ -117,13 +141,15 @@ export function runReleasedHold(agent: PayAgent, released: { eventId: string; cr
 
 // A manager rejects a hold, with a reason: the payable stays unpaid on every path.
 export async function rejectPayAgentHold(db: Database, scope: ManagerScope, eventId: string, note: string): Promise<PayAgentEvent> {
-  mintPayAgentCredentialForManager(scope);
-  const reason = note.trim();
-  if (!reason || reason.length > 500) throw new UserFacingError("pay-agent-reject-reason", "Give a reason for rejecting this payment, in up to 500 characters.");
-  await heldEvent(db, scope, eventId);
-  const rejected = await resolveHold(db, scope, eventId, { resolution: "REJECTED", userId: scope.userId, note: reason });
-  if (!rejected) throw new UserFacingError("pay-agent-hold-unavailable", "This hold has already been resolved or isn't available.");
-  return rejected;
+  return audited(db, control(scope, "PAY_AGENT_HOLD_REJECT_REQUESTED", { eventId }), async found => {
+    mintPayAgentCredentialForManager(scope);
+    const reason = note.trim();
+    if (!reason || reason.length > 500) throw new UserFacingError("pay-agent-reject-reason", "Give a reason for rejecting this payment, in up to 500 characters.");
+    onPayable(found, (await heldEvent(db, scope, eventId)).payableId);
+    const rejected = await resolveHold(db, scope, eventId, { resolution: "REJECTED", userId: scope.userId, note: reason, actor: auditActor(scope) });
+    if (!rejected) throw new UserFacingError("pay-agent-hold-unavailable", "This hold has already been resolved or isn't available.");
+    return rejected;
+  }, () => "REJECTED");
 }
 
 // Recovery of interrupted work: events left PENDING, due for a retry, decided or released but not

@@ -3,6 +3,7 @@ import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
+import { auditActor } from "@/server/auth/audit-actor";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { attributedSales, auditEvents, commerceConnections, commerceSyncRuns, shiftOffers, shifts, workAcceptances, workAllocations, workPayables, workPerformanceResults, workers } from "@/server/db/schema";
@@ -28,7 +29,7 @@ const MAX_ROWS = 2000;
 
 export type ImportRejection = "INVALID_ROW" | "IN_THE_FUTURE" | "UNKNOWN_CODE" | "NO_MATCHING_SHIFT" | "WRONG_CURRENCY" | "RESULTS_FINAL" | "TRANSACTION_CHANGED";
 export type ImportSummary = { imported: number; duplicates: number; rejected: { line: number; reason: ImportRejection }[] };
-type PerformanceScope = Pick<Scope, "organisationId" | "locationId" | "role"> & { userId?: string; workerId?: string | null };
+type PerformanceScope = Pick<Scope, "organisationId" | "locationId" | "role"> & { userId?: string; workerId?: string | null; demo?: unknown };
 
 async function authorise(db: DatabaseSession, scope: PerformanceScope) {
   assertRole(scope as Scope, ["OWNER", "MANAGER"]);
@@ -196,7 +197,7 @@ export async function confirmWorkPerformance(db: Database, scope: PerformanceSco
       evidenceProvenance: provenance, confirmedAt: new Date(), confirmedBy: scope.userId ?? null }).returning();
     await tx.update(workPayables).set({ incentiveAmountMinor: earnedAmountMinor, performanceResultId: result.id, updatedAt: new Date() }).where(eq(workPayables.id, payable.id));
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "WORK_PERFORMANCE_CONFIRMED", entityType: "work_performance_result", entityId: result.id, correlationId: `payable:${payable.id}`,
-      metadata: { actorUserId: scope.userId ?? null, salesCount: totals.count, salesMinor: totals.minor, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor, provenance } });
+      metadata: { ...(scope.userId ? auditActor({ userId: scope.userId, role: scope.role, demo: scope.demo }) : { actorUserId: null }), outcome: "CONFIRMED", salesCount: totals.count, salesMinor: totals.minor, targetMinor: work.terms.targetMinor, bonusMinor: work.terms.bonusMinor, earnedMinor: earnedAmountMinor, provenance } });
     // The incentive is now known, so the payable has new evidence: its Pay Agent event (DEC-SA-011)
     // commits with this confirmation, and is processed only after the commit.
     await recordPayAgentEvent(tx, scope, payable.id, "PERFORMANCE_CONFIRMED", scope.userId ?? null);

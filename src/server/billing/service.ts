@@ -7,37 +7,49 @@ import { assertCommercialPlan, configuredPlan, planSelection, locationLimitFor, 
 import { requireCustomerOwner as owner, type CustomerScope } from "./ownership";
 import { organisations, outlets, subscriptions, subscriptionEvents } from "@/server/db/schema";
 import { tokenHash } from "@/server/auth/identity";
+import { UserFacingError } from "@/server/domain/errors";
 import { readPayPalTransmissionHeaders, WebhookError } from "@/server/integrations/paypal/webhook";
 import { approvalLink, subscriptionDetails, type SubscriptionAdapter } from "./paypal";
+import { audited, type AuditFound, type AuditTarget } from "@/server/auth/audit-actor";
 export async function subscriptionFor(db:DatabaseSession,scope:CustomerScope) {
  await owner(db,scope);
  const [row]=await db.select().from(subscriptions).where(eq(subscriptions.organisationId,scope.organisationId));
  return row ?? null;
 }
+// Checkout and status checks call PayPal, so each request leaves one audit row (who, role, session type,
+// time, outcome): the subscription's status, an existing subscription, a refusal or a PayPal error code.
+const subscriptionAudit=(scope:CustomerScope,action:string):AuditTarget=>({organisationId:scope.organisationId,action,entityType:"organisation_subscription",correlationId:`subscription:${scope.organisationId}`,actor:scope});
 export async function startSubscription(db:Database,scope:CustomerScope,adapter:SubscriptionAdapter|null,selection?:PlanSelection) {
+ let existing=false;
+ return audited(db,subscriptionAudit(scope,"SUBSCRIPTION_CHECKOUT_REQUESTED"),found=>checkout(db,scope,adapter,selection,found,()=>{existing=true;}),
+  row=>existing ? `EXISTING_SUBSCRIPTION:${row.status}` : `CREATED:${row.status}`);
+}
+async function checkout(db:Database,scope:CustomerScope,adapter:SubscriptionAdapter|null,selection:PlanSelection|undefined,found:AuditFound,onExisting:()=>void) {
  assertSandboxFinancialScope(scope);
  await owner(db,scope);
  const choice=selection ? planSelection.parse(selection) : null;
+ if (choice) found.detail={tier:choice.tier,billingPeriod:choice.billingPeriod};
  const planId=choice ? configuredPlan(choice) : null;
- if (!adapter || !planId || !choice) throw new Error("This subscription option is currently unavailable. No checkout was created.");
+ if (!adapter || !planId || !choice) throw new UserFacingError("subscription-unavailable","This subscription option is currently unavailable. No checkout was created.");
  // Persist the chosen mapping before calling PayPal; retries cannot change its tier or period.
  await db.transaction(async tx=>{
   await tx.select().from(organisations).where(eq(organisations.id,scope.organisationId)).for("update");
   const active=await tx.select({id:outlets.id}).from(outlets).where(and(eq(outlets.organisationId,scope.organisationId),eq(outlets.active,true)));
-  if (active.length > locationLimitFor(choice.tier)) throw new Error("This plan does not cover your existing active locations. Choose a suitable plan or contact FairShift.");
+  if (active.length > locationLimitFor(choice.tier)) throw new UserFacingError("subscription-location-limit","This plan does not cover your existing active locations. Choose a suitable plan or contact FairShift.");
   await tx.update(subscriptions).set({status:"PENDING",planId,tier:choice.tier,billingPeriod:choice.billingPeriod,locationLimit:locationLimitFor(choice.tier),requestId:randomUUID(),updatedAt:new Date()}).where(and(eq(subscriptions.organisationId,scope.organisationId),eq(subscriptions.status,"UNCONFIGURED")));
  });
  return db.transaction(async tx => {
   const [row]=await tx.select().from(subscriptions).where(eq(subscriptions.organisationId,scope.organisationId)).for("update");
   if (!row) throw new Error("Subscription record unavailable.");
-  if (row.planId !== planId || row.tier !== choice.tier || row.billingPeriod !== choice.billingPeriod) throw new Error("An existing subscription uses a different plan. Contact FairShift before changing plans.");
-  if (row.providerId) return row;
-  if (!row.planId || row.status !== "PENDING") throw new Error("Subscription needs review.");
+  if (row.planId !== planId || row.tier !== choice.tier || row.billingPeriod !== choice.billingPeriod) throw new UserFacingError("subscription-different-plan","An existing subscription uses a different plan. Contact FairShift before changing plans.");
+  if (row.providerId) {found.entityId=row.providerId;onExisting();return row;}
+  if (!row.planId || row.status !== "PENDING") throw new UserFacingError("subscription-needs-review","Subscription needs review.");
   // PayPal retains create request IDs for 72 hours. Do not recreate after that protection expires.
-  if (Date.now()-row.updatedAt.getTime()>48*3600_000) throw new Error("Pending subscription requires provider reconciliation before retry.");
+  if (Date.now()-row.updatedAt.getTime()>48*3600_000) throw new UserFacingError("subscription-needs-reconciliation","Pending subscription requires provider reconciliation before retry.");
   assertCommercialPlan(await adapter.getPlan(row.planId),choice,row.planId);
   const details=subscriptionDetails.parse(await adapter.create({organisationId:scope.organisationId,requestId:row.requestId,planId:row.planId}));
-  if (details.custom_id !== scope.organisationId || details.plan_id !== row.planId || details.plan_overridden || (details.quantity && details.quantity !== "1")) throw new Error("Subscription identity mismatch.");
+  found.entityId=details.id;
+  if (details.custom_id !== scope.organisationId || details.plan_id !== row.planId || details.plan_overridden || (details.quantity && details.quantity !== "1")) throw new UserFacingError("subscription-identity-mismatch","Subscription identity mismatch.");
   const [updated]=await tx.update(subscriptions).set({providerId:details.id,status:"APPROVAL_PENDING",approvalUrl:approvalLink(details),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
   return updated;
  });
@@ -61,12 +73,15 @@ async function reconcile(db:DatabaseSession,adapter:SubscriptionAdapter,id:strin
  const [updated]=await db.update(subscriptions).set({status:details.status,verifiedAt:new Date(),updatedAt:new Date()}).where(eq(subscriptions.id,row.id)).returning();
  return updated;
 }
+// A status check asks PayPal for the subscription only when there is one to ask about; only then is it
+// an action that can call PayPal, and only then is it recorded.
 export async function refreshSubscription(db:Database,scope:CustomerScope,adapter:SubscriptionAdapter|null) {
  assertSandboxFinancialScope(scope);
  await owner(db,scope);
  const row=await subscriptionFor(db,scope);
  if (!adapter || !row?.providerId) return row;
- return db.transaction(tx => reconcile(tx,adapter,row.providerId!));
+ const providerId=row.providerId;
+ return audited(db,{...subscriptionAudit(scope,"SUBSCRIPTION_STATUS_CHECKED"),entityId:providerId},()=>db.transaction(tx => reconcile(tx,adapter,providerId)),updated=>`STATUS:${updated.status}`);
 }
 export async function processSubscriptionWebhook(db:Database,adapter:SubscriptionAdapter,rawBody:string,headers:Headers) {
  assertSandboxDeployment();

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, lte, ne, or, sql, type SQL } f
 import { z } from "zod";
 
 import type { Scope } from "@/server/auth/access";
+import { audited, auditActor, uuidOrNull } from "@/server/auth/audit-actor";
 import { assertSandboxOrganisation } from "@/server/config/deployment";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import {
@@ -395,7 +396,15 @@ export type TipAgent = ReturnType<typeof createTipAgent>;
 // ---------------------------------------------------------------------------------------------
 // Owner hold decisions (append-only; a written reason is required).
 export const HOLD_DECISIONS = ["RELEASED", "KEPT_HELD"] as const;
+// Each decision request leaves one audit row (who, role, session type, time, outcome), refused or not: a
+// release can lead to a PayPal payout.
 export async function decideTipHold(db: Database, paypal: PayoutClientSource, scope: Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "demo">, input: { holdId: string; decision: string; reason: string }) {
+  const holdId = uuidOrNull(input.holdId);
+  return audited(db, { organisationId: scope.organisationId, outletId: scope.locationId, action: "TIP_HOLD_DECISION_REQUESTED", entityType: "tip_hold", entityId: holdId,
+    correlationId: holdId ? `tip-hold:${holdId}` : `tip-control:${scope.userId}`, actor: scope, detail: { decision: (HOLD_DECISIONS as readonly string[]).includes(input.decision) ? input.decision : null } },
+  () => recordTipHoldDecision(db, scope, input), result => result.record.decision);
+}
+async function recordTipHoldDecision(db: Database, scope: Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "demo">, input: { holdId: string; decision: string; reason: string }) {
   assertTipOwner(scope);
   const decision = z.enum(HOLD_DECISIONS).safeParse(input.decision);
   const reason = input.reason?.trim() ?? "";
@@ -408,7 +417,7 @@ export async function decideTipHold(db: Database, paypal: PayoutClientSource, sc
     if (released) throw new UserFacingError("tip-hold-resolved", "This hold has already been released.");
     const [record] = await tx.insert(tipHoldDecisions).values({ id: randomUUID(), holdId: hold.id, organisationId: hold.organisationId, outletId: hold.outletId, decision: decision.data, decidedBy: scope.userId, reason }).returning();
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: hold.organisationId, outletId: hold.outletId, action: decision.data === "RELEASED" ? "TIP_HOLD_RELEASED" : "TIP_HOLD_KEPT",
-      entityType: "tip_hold", entityId: hold.id, correlationId: `tip-allocation:${hold.allocationId}`, metadata: { actorUserId: scope.userId, decisionId: record.id, reasonCode: hold.reasonCode } });
+      entityType: "tip_hold", entityId: hold.id, correlationId: `tip-allocation:${hold.allocationId}`, metadata: { ...auditActor(scope), outcome: decision.data, decisionId: record.id, reasonCode: hold.reasonCode } });
     if (decision.data === "RELEASED" && hold.source === "MODEL" && hold.tipAgentEventId) {
       await tx.update(tipAgentEvents).set({ status: "HOLD_RELEASED", releasedBy: scope.userId, updatedAt: sql`now()` }).where(and(eq(tipAgentEvents.id, hold.tipAgentEventId), eq(tipAgentEvents.status, "DECIDED_HOLD")));
     }

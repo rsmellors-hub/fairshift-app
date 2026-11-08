@@ -12,7 +12,7 @@ import { refreshTipLinePayout } from "@/server/payments/work-payouts";
 import { decideTipHold } from "@/server/tips/agent";
 import { addPermanentStaff, importTipEvidence, saveBlockRoster, saveShiftBlocks, saveTipSettings, setPermanentStaffStatus } from "@/server/tips/service";
 import { createStatementLink } from "@/server/tips/statement";
-import { scheduleReleasedLineHold, scheduleTipEvents, tipAgentFor } from "@/server/tips/wiring";
+import { retryTipCheck, scheduleReleasedLineHold, scheduleTipEvents, tipAgentFor } from "@/server/tips/wiring";
 
 // Owner-only tip actions (FS-TIP-DEC-002, FS-TIP-AGENT-DEC-001). Managers have no tip actions.
 const PATH = "/owner/tips";
@@ -73,7 +73,7 @@ export async function decideTipHoldAction(form: FormData) {
 }
 export async function retryTipCheckAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);
-  return perform(async () => { scheduleTipEvents(tipAgentFor(getDatabase()), scope, [field(form, "eventId")], { manual: true }); });
+  return perform(async () => { const db = getDatabase(); await retryTipCheck(db, tipAgentFor(db), scope, field(form, "eventId")); });
 }
 export async function refreshTipPayoutAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);

@@ -1,7 +1,7 @@
 import { sandboxFixture } from "../helpers/sandbox";
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
@@ -674,7 +674,11 @@ describe("uncertain no-batch recovery safety window", () => {
         } else {
           for (let check = 0; check < 2; check++) await expect(refreshWorkPayout(t.db, paypal, manager, payable.id)).rejects.toMatchObject({ feedback: "payout-investigation-required" });
           expect((await payoutsOf(t.db))[0]).toEqual(before);
-          expect(await t.db.select().from(auditEvents)).toEqual(auditBefore);
+          // Each refused check is recorded as the Manager's request, and nothing else is written.
+          const added = (await t.db.select().from(auditEvents).orderBy(asc(auditEvents.createdAt))).filter(row => !auditBefore.some(old => old.id === row.id));
+          expect(added.map(row => [row.action, (row.metadata as { outcome?: string }).outcome])).toEqual([
+            ["PAYOUT_STATUS_CHECK_REQUESTED", "REFUSED:payout-investigation-required"], ["PAYOUT_STATUS_CHECK_REQUESTED", "REFUSED:payout-investigation-required"],
+          ]);
         }
         expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
         expect(paypal.createPayout).toHaveBeenCalledTimes(retry ? 2 : 1);
@@ -928,8 +932,8 @@ it.each(["LIVE_CUSTOMER", "wrong tenant", "public demo"])("preserves an existing
     const paypal = fakePayPal();
     await submitWorkPayout(t.db, paypal, manager, payable.id);
     paypal.createPayout.mockClear(); paypal.getPayout.mockClear();
-    const snapshot = async () => Promise.all([t.db.select().from(workPayables), t.db.select().from(workPayouts), t.db.select().from(auditEvents)]);
-    const before = await snapshot();
+    const snapshot = async () => Promise.all([t.db.select().from(workPayables), t.db.select().from(workPayouts)]);
+    const before = await snapshot(), auditBefore = await t.db.select().from(auditEvents);
     let refused = manager;
     if (boundary === "LIVE_CUSTOMER") vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE", "LIVE_CUSTOMER");
     if (boundary === "wrong tenant") refused = { ...manager, organisationId: randomUUID() };
@@ -938,6 +942,13 @@ it.each(["LIVE_CUSTOMER", "wrong tenant", "public demo"])("preserves an existing
     await expect(refreshWorkPayout(t.db, paypal, refused, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
     expect(paypal.createPayout).not.toHaveBeenCalled(); expect(paypal.getPayout).not.toHaveBeenCalled();
     expect(await snapshot()).toEqual(before);
+    // Each refused request is recorded, and nothing else is written. A scope naming an organisation that
+    // isn't stored can't be recorded against it; the refusal stands all the same.
+    const added = (await t.db.select().from(auditEvents).orderBy(asc(auditEvents.createdAt))).filter(row => !auditBefore.some(old => old.id === row.id));
+    const session = boundary === "public demo" ? "PUBLIC_DEMO" : "SIGNED_IN";
+    expect(added.map(row => [row.action, (row.metadata as { outcome?: string }).outcome, (row.metadata as { sessionType?: string }).sessionType])).toEqual(boundary === "wrong tenant" ? [] : [
+      ["PAYOUT_SEND_REQUESTED", "REFUSED:sandbox-isolation-required", session], ["PAYOUT_STATUS_CHECK_REQUESTED", "REFUSED:sandbox-isolation-required", session],
+    ]);
   } finally { await t.close(); }
 });
 

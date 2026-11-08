@@ -111,8 +111,8 @@ describe("PayPal HTTP and action isolation", () => {
   it("leaves all persisted financial state unchanged when direct Sandbox services reject live deployment", async () => {
     const t = await createTestDatabase();
     try {
-      const snapshot = async () => Promise.all([saleTransactions, workPayouts, workPayables, subscriptions, providerEvents, subscriptionEvents, auditEvents].map(table => t.db.select().from(table)));
-      const before = await snapshot(), config = getPayPalConfig();
+      const snapshot = async () => Promise.all([saleTransactions, workPayouts, workPayables, subscriptions, providerEvents, subscriptionEvents].map(table => t.db.select().from(table)));
+      const before = await snapshot(), auditBefore = await t.db.select().from(auditEvents), config = getPayPalConfig();
       const paypal = createFakePayPalAdapter({ createOrder: vi.fn(), captureOrder: vi.fn() });
       const payout = { createPayout: vi.fn(), getPayout: vi.fn() };
       const adapter = { create: vi.fn(), get: vi.fn(), getPlan: vi.fn(), verifyWebhookSignature: vi.fn() };
@@ -123,6 +123,11 @@ describe("PayPal HTTP and action isolation", () => {
         () => startSubscription(t.db, { ...scope, role: "OWNER" }, adapter), () => refreshSubscription(t.db, { ...scope, role: "OWNER" }, adapter),
       ]) await expect(run()).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
       expect(await snapshot()).toEqual(before);
+      // A person's refused payout and checkout requests are recorded as refusals; nothing else is written.
+      const added = (await t.db.select().from(auditEvents)).filter(row => !auditBefore.some(old => old.id === row.id));
+      expect(added.map(row => [row.action, (row.metadata as { outcome?: string }).outcome]).sort()).toEqual([
+        ["PAYOUT_SEND_REQUESTED", "REFUSED:sandbox-isolation-required"], ["PAYOUT_STATUS_CHECK_REQUESTED", "REFUSED:sandbox-isolation-required"], ["SUBSCRIPTION_CHECKOUT_REQUESTED", "REFUSED:sandbox-isolation-required"],
+      ]);
       for (const fn of [paypal.createOrder, paypal.captureOrder, payout.createPayout, payout.getPayout, adapter.create, adapter.get]) expect(fn).not.toHaveBeenCalled();
     } finally { await t.close(); }
   });

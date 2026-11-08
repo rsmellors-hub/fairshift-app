@@ -148,7 +148,7 @@ export async function finishClaim(db: Database, claimed: PayAgentEvent, finish: 
 }
 
 // A manager's release or rejection of a HOLD (existing Owner/Manager permission). Final.
-export async function resolveHold(db: Database, scope: PayAgentScope, eventId: string, input: { resolution: "RELEASED" | "REJECTED"; userId: string; note: string | null }): Promise<PayAgentEvent | null> {
+export async function resolveHold(db: Database, scope: PayAgentScope, eventId: string, input: { resolution: "RELEASED" | "REJECTED"; userId: string; note: string | null; actor?: { actorUserId: string; actorRole: string; sessionType: string } }): Promise<PayAgentEvent | null> {
   if (!z.uuid().safeParse(eventId).success) return null;
   return db.transaction(async tx => {
     const rejected = input.resolution === "REJECTED";
@@ -157,7 +157,7 @@ export async function resolveHold(db: Database, scope: PayAgentScope, eventId: s
       outcomeCode: rejected ? "MANAGER_REJECTED" : null, completedAt: rejected ? sql`now()` : null, updatedAt: sql`now()`,
     }).where(and(eq(payAgentEvents.id, eventId), eq(payAgentEvents.organisationId, scope.organisationId), eq(payAgentEvents.outletId, scope.locationId), eq(payAgentEvents.status, "DECIDED_HOLD"))).returning();
     if (!row) return null;
-    await audit(tx, row, rejected ? "PAY_AGENT_HOLD_REJECTED" : "PAY_AGENT_HOLD_RELEASED", { actorUserId: input.userId, managerOverride: !rejected, reasonCode: row.reasonCode, note: input.note });
+    await audit(tx, row, rejected ? "PAY_AGENT_HOLD_REJECTED" : "PAY_AGENT_HOLD_RELEASED", { actorUserId: input.userId, ...input.actor, outcome: input.resolution, managerOverride: !rejected, reasonCode: row.reasonCode, note: input.note });
     return row;
   });
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Scope } from "@/server/auth/access";
@@ -274,6 +274,18 @@ describe("AI-checked release through the settlement gates", () => {
       await decideTipHold(s.t.db, paypal, s.owner, { holdId: hold.id, decision: "KEPT_HELD", reason: "Checking the large tip with the shift lead first." });
       const { record } = await decideTipHold(s.t.db, paypal, s.owner, { holdId: hold.id, decision: "RELEASED", reason: "Confirmed with the till receipt." });
       await expect(decideTipHold(s.t.db, paypal, s.owner, { holdId: hold.id, decision: "KEPT_HELD", reason: "again" })).rejects.toMatchObject({ feedback: "tip-hold-resolved" });
+      // Each decision request is recorded with who, role, session type, time and outcome, refusals included.
+      const requested = await s.t.db.select().from(auditEvents).where(eq(auditEvents.action, "TIP_HOLD_DECISION_REQUESTED")).orderBy(asc(auditEvents.createdAt));
+      const owner = { actorUserId: s.owner.userId, actorRole: "OWNER", sessionType: "SIGNED_IN" };
+      expect(requested.map(row => row.metadata)).toEqual([
+        expect.objectContaining({ actorUserId: s.manager.userId, actorRole: "MANAGER", sessionType: "SIGNED_IN", outcome: "REFUSED:access-denied" }),
+        expect.objectContaining({ ...owner, outcome: "REFUSED:tip-hold-reason" }),
+        expect.objectContaining({ ...owner, outcome: "KEPT_HELD" }),
+        expect.objectContaining({ ...owner, outcome: "RELEASED" }),
+        expect.objectContaining({ ...owner, outcome: "REFUSED:tip-hold-resolved" }),
+      ]);
+      expect(requested.every(row => row.entityId === hold.id && row.createdAt instanceof Date)).toBe(true);
+      expect((await s.t.db.select().from(auditEvents).where(eq(auditEvents.action, "TIP_HOLD_RELEASED")))[0].metadata).toMatchObject({ ...owner, outcome: "RELEASED" });
       // Append-only: holds and decisions can't be edited or deleted.
       await expect(s.t.db.update(tipHolds).set({ summary: "edited" })).rejects.toBeTruthy();
       await expect(s.t.db.update(tipHoldDecisions).set({ reason: "edited" }).where(eq(tipHoldDecisions.id, record.id))).rejects.toBeTruthy();
