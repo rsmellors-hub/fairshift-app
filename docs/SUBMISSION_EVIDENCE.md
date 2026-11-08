@@ -571,3 +571,178 @@ a worker with a real address. Synthetic-address recognition is covered too. Copy
 local env files, real-PostgreSQL URL set): full suite **100 files, 1,210 tests, all passed, 0 skipped**
 (1,352.58 s), first run. Typecheck PASS; lint PASS, 0 warnings; isolated production build PASS, 15/15
 static pages. The documents commit that follows changes only `docs/`, which no test reads.
+
+## Day 5b, Step 5 — hosted Sandbox: deploy, migrations, demo, subscription (8 November 2026)
+
+All hosted operations are PayPal and Square **Sandbox only**. Credentials came from the Owner's
+git-ignored local env file (checked ignored and untracked first) and were never printed.
+
+**Backup and migrations.** Render point-in-time recovery for `fairshift-db` (PostgreSQL 18) was
+`AVAILABLE` from 2026-11-04T01:57:05Z. A data-only export was also taken first: 2026-11-08 11:17:23 UTC,
+one repeatable-read, read-only transaction, 46 tables and 259,226 rows with a manifest of counts and
+SHA-256 hashes, on the local machine outside the repository with owner-only permissions (it holds
+account data). The migration table held 25 rows, the last matching `0024_context_signals`, so hosted was
+missing exactly `0025`–`0031`. They were applied with `pnpm db:migrate` (`sslmode=require` for that
+command): 32 rows after, the last `0031_signal_track_record`; 45 tables before and 65 after; every
+pre-existing table's row count unchanged. The migrations add tables, columns, constraints and triggers.
+`0026` backfills `work_payouts`, which had 0 rows on hosted, and `0030` re-creates a check constraint
+with a wider list. Nothing is dropped or deleted. No restore check of the export was run (Render
+point-in-time recovery covers the window).
+
+**Deploys.** Render deploys branch `submission` with auto-deploy on (VERIFIED through the Render API).
+`0fdeea7` was live at 11:25:22 UTC and `a373b0e` at 11:52:43 UTC, each equal to `origin/submission` HEAD
+at the time. `/api/health` then answered `ready`, `CONNECTED`, `SANDBOX_CONFIGURED`.
+
+**Configuration (names only).** Set one key at a time and read back: `FAIRSHIFT_DEPLOYMENT_MODE`
+(HOSTED_SANDBOX_DEMO), `FAIRSHIFT_SANDBOX_ORGANISATION_ID` (the fictional SA business),
+`PAYPAL_ENVIRONMENT` (sandbox), the four USD plan IDs, then `FAIRSHIFT_PUBLIC_DEMO` and
+`FAIRSHIFT_DEMO_ORGANISATION_ID` / `_OWNER_` / `_MANAGER_` / `_WORKER_MEMBERSHIP_ID`.
+
+**Feeds (VERIFIED from the hosted database).**
+
+| Feed | Source | Last success (UTC) |
+|---|---|---|
+| ECB reference rate | `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | 11:25:17; rate for 2026-11-06, 16.5382 ZAR per USD |
+| South African public holidays | `https://date.nager.at/api/v3/PublicHolidays/2026/ZA` | 11:25:17 |
+| Weather (Open-Meteo), five SA locations | per location | 11:52:42–12:06:18; 7 daily signals each |
+
+The weather pass started at 11:52:42 UTC and waited about 13 minutes on a row lock held by a demo-setup
+transaction running at the same time. It finished at 12:06:18 with `{"REFRESHED": 5}`. The ECB rate
+matches the Owner's pricing rate (16.5382, 6 November).
+
+**Reference data and demo setup.** `pnpm reference:sa` inserted 227,271 synthetic REFERENCE transactions
+for the five locations, data through 2026-11-07. Demo setup (`pnpm demo:sa`), first run: the Owner
+account and the business's UNCONFIGURED subscription record. Its first version left the record out, so
+checkout couldn't start (fixed in `319d39c`, below). After the subscription was active, the second run
+invited the Rosebank Manager and a Rosebank casual worker (`*.example.test`) and booked tomorrow's DEMO
+shift: 2026-11-09, 10:00–14:00 SAST at Rosebank. Membership IDs: Owner `e8bef30b-af97-4814-892b-768ed4d501be`,
+Manager `4683a56c-72ca-40f4-8681-30c38858026c`, Worker `cf33a7da-bd70-4fee-9c52-6694d6965650`.
+
+**Demo subscription (FS-SUBSCRIPTION-TRIAL-001).** The demo Owner signed in on hosted and chose Group
+monthly. The card read "R1,149/month incl. 15% VAT — billed by PayPal as US$69.48; your bank or PayPal
+converts at its own rate." "Approve in PayPal" created `I-W03RREWEH5VB` on `P-8D21565845075562BNLYFG5A`
+and opened PayPal's hosted approval page. Not logged in, that page offered "Debit or Credit Card" as well
+as "Log In" (VERIFIED, Sandbox). The Owner approved it with his Sandbox Personal account; no buyer
+credentials were created or used by the agent. PayPal Sandbox GET afterwards (VERIFIED): status
+**`ACTIVE`** during the trial (`status_update_time` 2026-11-08T12:17:20Z), plan not overridden, quantity
+1, `custom_id` the demo business, `start_time` 12:09:05Z, `next_billing_time` 2026-12-08T10:00:00Z,
+0 failed payments, outstanding balance USD 0.0, no last payment. Cycle executions: TRIAL sequence 1 with
+`cycles_completed` 1 and `cycles_remaining` 0; REGULAR sequence 2 with `cycles_completed` 0. Webhooks
+received and processed: `BILLING.SUBSCRIPTION.CREATED` (12:09:13Z) and `BILLING.SUBSCRIPTION.ACTIVATED`
+(12:17:37Z). FairShift's record: `ACTIVE`, verified 12:17:38Z. The first charge, US$69.48, falls on
+8 December 2026, inside judging.
+
+**Return page.** The Owner's browser timed out on the redirect back to FairShift. Render's log API
+returned no request or application lines for the window, so there is no server-side trace of that
+request. Reproduced without a session, `/billing/return` answered in 0.6–0.75 s (307 to `/sign-in`). In
+the code, for a signed-in Owner whose subscription was still pending, the page reconciled with PayPal
+while it rendered. That meant the subscription's `FOR UPDATE` row lock, up to three PayPal calls (token,
+subscription, plan; 10 s timeout each), and a wait behind PayPal's webhook whenever that held the same
+lock. Nothing reached the browser until all of it finished. Fixed in `5fc7844`: the page reads only
+FairShift's stored state. A confirmed Owner goes straight on; otherwise the confirmation page appears at
+once and its client polls the status check in the background. A regression test with a PayPal that never
+answers fails on the old page ("The return page waited on PayPal.") and passes on the new one. Whether
+this is exactly what the Owner's browser hit is NOT VERIFIED.
+
+**Public demo, hosted browser check** (headless Chrome against `https://getafairshift.com` as the public
+demo's Owner, Manager and Worker; 0 console errors on every page; no "£" anywhere):
+
+| As | Page | Observed |
+|---|---|---|
+| Visitor | `/pricing` (both periods), `/product`, `/faq`, `/` | Rand-first prices with "billed by PayPal as US$…; your bank or PayPal converts at its own rate"; no conversion-fee claim, no "bonus" |
+| Owner | `/owner` | "Rosebank: DEMO scenario: planned water interruption (synthetic)", Closure likely, Ayanda Casual · Mon 9 Nov 10:00–14:00 |
+| Owner | early notice | Submitted → `status=early-notice-sent`, then "early notice sent" and "Everyone this affects has had the early notice." |
+| Owner | `/owner/forecast`, `/owner/payments`, `/owner/proof`, `/owner/settings` | Amounts in rand; the Proof page lists the synthetic data and the DEMO scenario; settings "Group, billed monthly" |
+| Manager | `/manager/plan?date=2026-11-09`, `/manager/review` | The DEMO scenario on tomorrow's plan; the 05:00/17:00 cadence copy |
+| Worker | `/worker/shifts`, `/worker/earnings` | Tomorrow's booking (4 h × R45.00 = R180.00) and the confirmed R135.00 |
+| Worker | Reset demo | `status=demo-reset`; the Owner's alert then lists the new booking |
+
+Found by this check and fixed in `6a6abf2`: the demo hides every form not marked `data-demo-write`, so the
+DEMO early-notice form was in the page but hidden from visitors. The script could submit it; a person had
+no button. The check also showed amounts written "ZAR 135.00" and worker copy from the earlier model
+(manager "approves the total", bonus wording, the UK "National Insurance"). On the Owner's instruction
+those were changed (`1543776`): rand reads "R135.00" wherever workers and owners see amounts, and the
+worker pages describe the current model.
+
+**Scheduled job state survives a restart (VERIFIED).** The Render deploy at 12:34:08 UTC restarted the
+server. `scheduled_jobs` was identical before and after: no job re-ran early, and each waits for its
+interval (weather 3 h, ECB 6 h, holidays 24 h, track record 6 h, source recheck 2 h).
+
+**One fresh hosted Sandbox payout (VERIFIED, PAID).** Prepared with committed functions only. A finished
+3-hour casual shift at Rosebank was booked for the synthetic worker (10:45–13:45 SAST, R135.00 on the
+R45.00 terms) through the normal scheduling operations. The worker's payout destination was saved
+through the worker's own settings function, using the PayPal Sandbox personal test account
+(`personal.example.com`) that FairShift had already paid on hosted. `FAIRSHIFT_PAY_AGENT_DRY_RUN=false`
+was set on Render for this payout only.
+
+- First attempt: the Rosebank Manager confirmed the work on hosted (payable `046d48ef-…`). The Pay Agent's
+  model call answered HTTP 429: OpenAI `insufficient_quota` / `credit_balance_exhausted`, the same key
+  locally and on hosted. It failed closed: event `FAILED_RETRYABLE` (`MODEL_FAILED`, `HTTP_429`), the
+  payable unchanged at `PENDING_REVIEW`, no payout. DEC-SA-011 requires the model-backed agent, so it was
+  not bypassed.
+- After the Owner topped up the credit (a probe answered HTTP 200 at 13:07:48 UTC), the agent's browser
+  script retried it from the hosted UI at 13:08:34 UTC. It was signed in as the Rosebank Manager
+  (`manager.rosebank@jacaranda-demo.example.test`, user `dec086b5-aa83-4652-8b1b-e453cb1bbcd2`, role MANAGER;
+  a normal signed-in session created 13:08:24 UTC, not a public demo session). The Owner interrupted that
+  tool call, but it had already run. The retry itself wrote no audit row then (from `62c91ee` it does; see
+  below); the evidence is the session, the script's screenshot at 13:08:34 and the same account's status
+  check at 13:08:54. The agent at first reported the call as never run, which was wrong. The second model call decided **SETTLE**
+  (`resp_0e0b4eaf4b8530c0016af07450947887d0af93ca21dfd83e34`, `gpt-6-luna`). The settlement gates passed,
+  the payable was approved (approver of record per FS-APPROVER-DEC-001), and the payout was reserved and
+  sent.
+- Provider leg frozen on the reservation: R135.00 → **US$8.16** at 16.5382 rand per US dollar,
+  `ECB_EUROFXREF_DAILY:2026-11-06`, rounded down. Sender batch `FSWP-B-046D48EF0F4849BABED2EC7A3BA6D598`;
+  PayPal batch `5ZBF3L7XQ4AWA`, item `LNCVDBR5FJ2PY`, both `SUCCESS`. **PAID** at 13:08:54 UTC, after a
+  status check. One attempt; no resend.
+- The dry-run override was then removed from Render: dry run is the default again from the next deploy.
+
+**AI unavailable, as a judge sees it (`15922f4`).** When the AI service is unavailable (429, 5xx,
+timeout, network failure or not configured), the Pay Agent still fails closed. Managers now see "AI check
+unavailable — payment held, nothing lost; retry later." instead of a model-failure line; workers keep the
+plain "Earnings recorded". AI discovery shows the last successful search with its time and response ID,
+or says no search has completed yet. The Owner's feed row keeps its freshness from the last success.
+Public demo sessions make no model calls: the wage explanation answers UNAVAILABLE for demo sessions,
+and the AI assessment actions aren't demo-writable. Model calls are counted where they happen: per Pay
+Agent event (`model_call_count`) and per local-intelligence run (`local_intelligence_runs`, recorded
+before the call, against the daily cap of 20).
+
+**Judges.** In HOSTED_SANDBOX_DEMO, Sandbox financial operations are limited to the one configured Sandbox
+organisation, so a new business that registers is refused at checkout. `/demo` and the README now say so
+(`3e6f6b1`): judges use the public demo.
+
+**Audit of every action that can lead to a PayPal call (`62c91ee`).** On the Owner's instruction, each request
+a person makes that can lead to a PayPal call now leaves one audit row with who did it (user ID), their
+role, the session type (`SIGNED_IN`, or `PUBLIC_DEMO` with the visitor's demo session group, because demo
+visitors share their persona's user), the time (`created_at`) and the outcome. Refusals are recorded too,
+as the reason code or PayPal's error code, never a message or a provider body.
+
+| Action | Row | Outcomes |
+|---|---|---|
+| Pay Agent retry | `PAY_AGENT_RETRY_REQUESTED` | `RUN_SCHEDULED`, `RUN_SCHEDULED_NEW_EVIDENCE`, `NEW_EVIDENCE_RECORDED`, `REFUSED:<code>` |
+| Pay Agent hold release | `PAY_AGENT_HOLD_RELEASE_REQUESTED`, then the journal's `PAY_AGENT_HOLD_RELEASED` | `RELEASED`, `REFUSED:<code>` |
+| Pay Agent hold rejection | `PAY_AGENT_HOLD_REJECT_REQUESTED`, then `PAY_AGENT_HOLD_REJECTED` | `REJECTED`, `REFUSED:<code>` |
+| Manual payout send | `PAYOUT_SEND_REQUESTED`; `PAYOUT_RESERVED` is still written before PayPal is called | `SENT:<status>`, `ALREADY_SENT:<status>`, `REFUSED…`, `PROVIDER_ERROR:<code>` |
+| Payout status check (work payable or tip line) | `PAYOUT_STATUS_CHECK_REQUESTED` | `STATUS:<status>`, `REFUSED…`, `PROVIDER_ERROR:<code>` |
+| Tip hold decision | `TIP_HOLD_DECISION_REQUESTED`, then `TIP_HOLD_RELEASED` / `TIP_HOLD_KEPT` | `RELEASED`, `KEPT_HELD`, `REFUSED:<code>` |
+| Tip check retry | `TIP_CHECK_RETRY_REQUESTED` | `RUN_SCHEDULED`, `REFUSED:<code>` |
+| Subscription checkout | `SUBSCRIPTION_CHECKOUT_REQUESTED` | `CREATED:<status>`, `EXISTING_SUBSCRIPTION:<status>`, `REFUSED:<code>`, `PROVIDER_ERROR:<code>` |
+| Subscription status check, when there is a PayPal subscription to ask about | `SUBSCRIPTION_STATUS_CHECKED` | `STATUS:<status>`, `REFUSED…`, `PROVIDER_ERROR:<code>` |
+
+Confirming work, confirming sales results, approving a payable and importing tips start the processing
+that can pay; a refused attempt at one of them changes nothing and can't reach PayPal. Their rows
+(`WORK_CONFIRMED`, which named nobody before, `WORK_PERFORMANCE_CONFIRMED`, `PAYABLE_APPROVED`,
+`TIP_EVIDENCE_IMPORTED`) now carry the same actor, role, session type and outcome. Writing a refusal's row
+never replaces the refusal: if the row can't be stored (a scope naming no stored organisation, which a real
+session can't produce), the refusal stands and the failure is logged.
+
+Not a person's action, and recorded as before: Pay Agent and tip-check processing, the startup recovery
+sweeps (service actor; `PAYOUT_RESERVED` before every payout create, `PAYOUT_RECONCILIATION_REQUESTED`
+before any recovery re-send) and PayPal webhooks (`subscription_events`; `PAYPAL_WEBHOOK_PROCESSED` /
+`IGNORED`). No scheduled job calls PayPal. The operator Sandbox order routes are bound to the legacy demo
+organisation, so the hosted Sandbox configuration refuses them, and they write `PAYPAL_SANDBOX_ORDER_*`
+rows. The legacy incentive payout actions throw before any PayPal call.
+
+Tests: `tests/integration/paypal-action-audit.test.ts` (each action with the signed-in and public demo
+session types, refusals and PayPal errors) and new assertions in `tips.test.ts`. Three existing tests had
+asserted that a refused request writes no audit row at all; they now assert that it writes only its
+refusal row and leaves payables and payouts unchanged.
