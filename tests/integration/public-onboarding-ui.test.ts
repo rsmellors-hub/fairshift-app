@@ -114,9 +114,21 @@ describe("public pages", () => {
       expect(html).not.toMatch(/refunds are taken off/i);
       expect(html).not.toMatch(/\[[A-Za-z ]*to be confirmed\]/i);
       expect(html).not.toMatch(/hourly forecast/i);
+      expect(html).not.toMatch(/no (currency )?conversion fees?|free of (conversion )?fees/i);
     }
     expect(pages[0]).toContain("The right people. The right place. The right time. The right pay.");
     expect(pages[2]).toContain("expected transactions by time of day");
+  });
+
+  it("describes the current model on /product and /faq: rand first, the new pricing, and no bonus model", () => {
+    const product = renderToStaticMarkup(Product()), faq = renderToStaticMarkup(Faq());
+    for (const html of [product, faq]) {
+      for (const text of ["R499", "R1,149", "US$30.17", "US$69.48", "15% VAT", "DIRECT", "SHIFT_POOL", "European Central Bank", "an Owner or a manager accepts"]) expect(html).toContain(text);
+      expect(html.indexOf("R499")).toBeLessThan(html.indexOf("US$30.17"));
+      expect(html).not.toMatch(/£|\bGBP\b|Single Outlet|Multi Outlet|bonus|sales target/i);
+    }
+    expect(faq).toContain("VAT is never applied to worker earnings or tips");
+    expect(renderToStaticMarkup(Home())).toContain("Plans from R499 a month incl. VAT");
   });
 
   it("orders the home page's calls to action as start, demo, sign in", () => {

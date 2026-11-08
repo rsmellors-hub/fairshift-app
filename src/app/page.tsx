@@ -17,7 +17,7 @@ const LOOP = [
 ] as const;
 
 const JOBS = [
-  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Sales and transaction forecast with a planning range", "Weather, public holidays and local events, used for staffing only when a manager accepts them", "Staff capacity needed, minus regular cover, equals the gap"]],
+  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Sales and transaction forecast with a planning range", "Weather, public holidays and local events, used for staffing only when an Owner or a manager accepts them", "Staff capacity needed, minus regular cover, equals the gap"]],
   ["Staff", "Managers turn a gap into a shift and offer it to available workers at their location.", ["Every offer shows the date, times and the pay terms the Owner set in advance", "Terms are fixed once a worker accepts", "One timeline shows who is working when"]],
   ["Tips", "The Owner sets one tip policy per location: DIRECT, where each tip goes to the person on its POS row, or SHIFT_POOL, shared equally within each shift block.", ["Amounts and recipients follow the policy, never AI", "AI checks the tip evidence and releases or holds each allocation", "Holds go to the Owner, who releases them as calculated or keeps them held"]],
   ["Pay", "After the shift, the manager confirms the work. The FairShift Pay Agent checks it, and FairShift’s server pays it through PayPal.", ["Earnings come from the terms the worker accepted before the shift", "Rand converted to US dollars at the latest ECB reference rate, locked when the payout is reserved", "Marked Paid only when PayPal confirms it"]],

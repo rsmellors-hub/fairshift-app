@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { AccessError, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { outlets, shiftIncentives, shiftOffers, shifts, workAllocations, workPayables, workPerformanceResults } from "@/server/db/schema";
+import { memberships, outlets, shiftIncentives, shiftOffers, shifts, workAllocations, workPayables, workPerformanceResults } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
+import { ensureDemoBooking } from "./booking";
 import type { DemoConfig } from "./config";
 import { demoAudit, limited } from "./session";
 
@@ -42,8 +43,10 @@ export async function guardDemoWrite(db: DatabaseSession, scope: Scope, target: 
 // Restores the prepared state: every live shift in the designated organisation without
 // finished-work evidence is closed, with its offers. Nothing is deleted, because acceptance evidence
 // is immutable by design: closed records are kept and left out of demo views. People, accounts,
-// sales, payments and provider evidence aren't touched. Running it again changes nothing.
-export async function resetDemo(db: Database, config: DemoConfig | null, scope: Scope) {
+// sales, payments and provider evidence aren't touched. Then the booked casual shift for tomorrow
+// that the DEMO early notice needs is made again (ensureDemoBooking), for the demo Worker persona
+// where possible, so a fresh notice can always be sent. Running it again changes nothing further.
+export async function resetDemo(db: Database, config: DemoConfig | null, scope: Scope, now = new Date()) {
   if (!config || !scope.demo || scope.organisationId !== config.organisationId) throw new AccessError();
   await limited(db, `demo-reset:${scope.demo.group}`, RESET_LIMIT);
   const closed = await db.transaction(async tx => {
@@ -56,8 +59,10 @@ export async function resetDemo(db: Database, config: DemoConfig | null, scope: 
     await tx.update(shifts).set({ status: "CANCELLED", updatedAt: new Date() }).where(inArray(shifts.id, live));
     return live.length;
   });
-  await demoAudit(db, config.organisationId, "DEMO_RESET", scope.demo.group, { closedShifts: closed, persona: scope.demo.persona });
-  return { closedShifts: closed };
+  const [worker] = await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, config.organisationId)));
+  const booking = await ensureDemoBooking(db, { organisationId: config.organisationId, workerId: worker?.workerId, now });
+  await demoAudit(db, config.organisationId, "DEMO_RESET", scope.demo.group, { closedShifts: closed, persona: scope.demo.persona, bookedShiftId: booking?.shiftId ?? null });
+  return { closedShifts: closed, booking };
 }
 
 // Used by the demo copy, so it only mentions earlier evidence that actually exists.

@@ -14,7 +14,7 @@ import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 
 // A manager's choice whether staffing uses the AI-found adjustments for one day at their own location.
 // The form names only the day, the choice and what the manager saw; everything else is read again on
-// the server. Closed to the public demo, like every other write.
+// the server. Closed to the public demo, like other writes (the DEMO early notice below is the exception).
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 
 export async function decideLocalAdjustmentsAction(form: FormData) {
@@ -37,9 +37,11 @@ export async function decideLocalAdjustmentsAction(form: FormData) {
 }
 
 // The Owner's confirmation of an early shift notice for a likely closure. Nothing is sent without it,
-// and the server works out again whether the alert is current and who it affects.
+// and the server works out again whether the alert is current and who it affects. The public demo's
+// Owner persona may send only the DEMO scenario's notice, to synthetic workers, never by email
+// (sendEarlyNotice enforces this).
 export async function sendEarlyNoticeAction(form: FormData) {
-  const scope = await requireScope(["OWNER"]);
+  const scope = await requireScope(["OWNER"], { demoWrite: true });
   let status = "error";
   if (getConfigurationStatus().databaseConfigured && field(form, "confirmed") === "yes") {
     try {
@@ -49,8 +51,9 @@ export async function sendEarlyNoticeAction(form: FormData) {
         const signal = outlet?.localIntelligence?.alerts.find(row => row.key === signalKey);
         return outlet && signal ? { signal, outletId, outletName: outlet.outletName, timezone: outlet.timezone } : null;
       });
-      // Email follows the in-app notice where email is set up; the notice stands either way.
-      for (const workerId of result.workerIds) await dispatchWorkerEmails(db, getEmailAdapter(), workerId).catch(() => undefined);
+      // Email follows the in-app notice where email is set up; the notice stands either way. A public
+      // demo notice stays in the app.
+      if (!scope.demo) for (const workerId of result.workerIds) await dispatchWorkerEmails(db, getEmailAdapter(), workerId).catch(() => undefined);
       status = "early-notice-sent";
     } catch (error) { status = error instanceof UserFacingError ? error.feedback : "error"; }
   }

@@ -10,10 +10,13 @@ import { formatClock } from "@/server/intelligence/workload";
 // Owner alerts from high-severity capacity signals: something AI found, with its source, that could
 // stop a location trading. When closure is likely, FairShift recommends an early notice to the casual
 // workers whose allocated shifts it covers, so a short-notice cancellation is avoided. Only the Owner
-// sends it, after checking the source; it cancels nothing and changes no pay.
+// sends it, after checking the source; in the public demo, the Owner persona may send only the DEMO
+// scenario's notice. It cancels nothing and changes no pay.
 export type DisruptionAlert = { outletId: string; outletName: string; timezone: string; signal: LocalSignalView; affected?: AffectedShift[] };
 
-function EarlyNotice({ alert, canSend }: { alert: DisruptionAlert; canSend: boolean }) {
+// A public demo visitor may send only the DEMO scenario's notice; the server checks this again.
+function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; canSend: boolean; demoVisitor: boolean }) {
+  const allowed = canSend || (demoVisitor && !!alert.signal.demo);
   if (!alert.affected) return <p className="note">Closure is likely: the Overview shows which casual workers it affects, so you can tell them early.</p>;
   const affected = alert.affected;
   if (!affected.length) return <p className="note">No allocated casual shift falls in this time, so no early notice is needed.</p>;
@@ -23,14 +26,14 @@ function EarlyNotice({ alert, canSend }: { alert: DisruptionAlert; canSend: bool
     <p><strong>Recommended:</strong> tell the {affected.length === 1 ? "casual worker" : `${affected.length} casual workers`} whose shifts this covers now, so a short-notice cancellation is avoided. The notice cancels nothing and changes no pay or terms.</p>
     <ul>{affected.map(row => <li key={row.offerId}>{row.workerName} · {when(row)}{row.noticeAt ? ` · early notice sent ${stamp(row.noticeAt, alert.timezone)}` : ""}</li>)}</ul>
     {!pending.length ? <p className="note">Everyone this affects has had the early notice.</p>
-      : !canSend ? <p className="note">Sending notices is turned off in the public demo.</p>
-      : <form action={sendEarlyNoticeAction} className="workspace-form"><input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
+      : !allowed ? <p className="note">Sending notices is turned off in the public demo.</p>
+      : <form action={sendEarlyNoticeAction} className="workspace-form">{demoVisitor ? <p className="note">In the public demo this goes only to the synthetic casual worker, in FairShift. It is never emailed.</p> : null}<input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
         <label className="acceptance-check"><input type="checkbox" name="confirmed" value="yes" required /> {alert.signal.demo ? "I understand this is a DEMO scenario and want to give this early notice." : "I’ve checked the source and want to give this early notice."}</label>
         <button className="primary-button">Send early notice to {pending.length === 1 ? "1 casual worker" : `${pending.length} casual workers`}</button></form>}
   </div>;
 }
 
-export function DisruptionAlerts({ alerts, canSend = false }: { alerts: readonly DisruptionAlert[]; canSend?: boolean }) {
+export function DisruptionAlerts({ alerts, canSend = false, demoVisitor = false }: { alerts: readonly DisruptionAlert[]; canSend?: boolean; demoVisitor?: boolean }) {
   if (!alerts.length) return null;
   return <section className="panel disruption-alerts" id="disruption-alerts" aria-labelledby="disruption-alerts-title" role="status">
     <h2 id="disruption-alerts-title">Disruption alerts</h2>
@@ -40,7 +43,7 @@ export function DisruptionAlerts({ alerts, canSend = false }: { alerts: readonly
       <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
       <p>{signal.reasoning}</p>
       <p className="note">{dateSpan(signal.validFrom, signal.validTo)}{signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : ""} · {signal.categoryLabel} · {signal.demo ? "synthetic" : `${signal.confidence.toLowerCase()} confidence`} · <Link className="text-link" href={`/owner/locations/${outletId}`}>Open {outletName}</Link></p>
-      {signal.closureLikely ? <EarlyNotice alert={alerts.find(row => row.outletId === outletId && row.signal.key === signal.key)!} canSend={canSend} /> : null}
+      {signal.closureLikely ? <EarlyNotice alert={alerts.find(row => row.outletId === outletId && row.signal.key === signal.key)!} canSend={canSend} demoVisitor={demoVisitor} /> : null}
     </li>)}</ul>
   </section>;
 }

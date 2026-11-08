@@ -36,7 +36,7 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
   let setup = null;
   try { setup = await getOwnerSetup(getDatabase(), scope, !!staffing?.outlets.some(row => row.casualGapMinutes !== null)); } catch { setup = null; }
   const query = await searchParams, welcome = !!query?.welcome;
-  return <div className="product-page"><ActionFeedback status={query?.status} />{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<DisruptionAlerts alerts={alerts} canSend={!scope.demo} /><OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
+  return <div className="product-page"><ActionFeedback status={query?.status} />{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} /><OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
 }
 
 function OwnerOverviewUnavailable() {

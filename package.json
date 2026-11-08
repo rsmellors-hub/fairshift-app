@@ -22,6 +22,7 @@
     "db:seed-demo": "node --env-file-if-exists=.env.local --import tsx scripts/seed-demo.ts",
     "reference:load": "node --env-file-if-exists=.env.local --import tsx scripts/load-reference-history.ts",
     "reference:sa": "node --env-file-if-exists=.env.local --import tsx scripts/load-sa-reference.ts",
+    "demo:sa": "node --env-file-if-exists=.env.local --import tsx scripts/provision-sa-demo.ts",
     "fx:ecb": "node --env-file-if-exists=.env.local --import tsx scripts/fx-ecb.ts",
     "feeds:run": "node --env-file-if-exists=.env.local --import tsx scripts/scheduled-feeds.ts",
     "intel:discover": "node --env-file-if-exists=.env.local --import tsx scripts/local-intelligence.ts",
