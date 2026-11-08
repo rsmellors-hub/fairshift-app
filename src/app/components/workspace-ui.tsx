@@ -23,8 +23,11 @@ export function paymentLabel(status?: string | null) {
 }
 
 // The payment lifecycle of a confirmed work payable: approval on the payable, then the
-// state of its PayPal payout. "Paid" appears only once PayPal reports the item paid.
-export function payableLabel(status?: string | null, payout?: { status: string; paypalStatus?: string | null } | null) {
+// state of its PayPal payout. "Paid" appears only once PayPal reports the item paid; a payout
+// PayPal refused outright (no batch) is "Not paid" in every view.
+type PayoutLabelInput = { status: string; paypalStatus?: string | null; refusal?: { reason: string | null } | null };
+export function payableLabel(status?: string | null, payout?: PayoutLabelInput | null) {
+  if (payout?.status === "FAILED" && payout.refusal) return "Not paid";
   switch (payout?.status) {
     case "SUBMITTING": return "Processing";
     case "PROCESSING": return payout.paypalStatus === "UNCLAIMED" ? "Processing · awaiting PayPal claim" : payout.paypalStatus === "ONHOLD" ? "Processing · on hold at PayPal" : "Processing";
@@ -35,7 +38,7 @@ export function payableLabel(status?: string | null, payout?: { status: string; 
   return status === "PENDING_REVIEW" ? "Awaiting approval" : status === "APPROVED" ? "Approved" : "Status unavailable";
 }
 
-export function PayableBadge({ status, payout }: { status?: string | null; payout?: { status: string; paypalStatus?: string | null } | null }) {
+export function PayableBadge({ status, payout }: { status?: string | null; payout?: PayoutLabelInput | null }) {
   const tone = payout?.status === "PAID" ? "success" : payout?.status === "FAILED" ? "danger" : payout?.status === "RECONCILIATION_REQUIRED" || !["PENDING_REVIEW", "APPROVED"].includes(status ?? "") ? "warning" : "neutral";
   return <StatusBadge tone={tone}>{payableLabel(status, payout)}</StatusBadge>;
 }
@@ -56,14 +59,14 @@ export function currencyTotals(rows: readonly { amountMinor: number; currencyCod
 
 // What a worker sees: plain states, with no provider codes. A held or unclaimed payout
 // needs them to act; neither is paid.
-export function workerPaymentLabel(status?: string | null, payout?: { status: string; paypalStatus?: string | null } | null) {
+export function workerPaymentLabel(status?: string | null, payout?: PayoutLabelInput | null) {
   if (payout?.status === "PROCESSING" && ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "")) return "Action required";
   if (payout?.status === "RECONCILIATION_REQUIRED") return "Being confirmed";
   return payableLabel(status, payout);
 }
-export function WorkerPaymentBadge({ status, payout }: { status?: string | null; payout?: { status: string; paypalStatus?: string | null } | null }) {
+export function WorkerPaymentBadge({ status, payout }: { status?: string | null; payout?: PayoutLabelInput | null }) {
   const label = workerPaymentLabel(status, payout);
-  return <StatusBadge tone={label === "Paid" ? "success" : label === "Needs attention" ? "danger" : label === "Action required" || label === "Being confirmed" ? "warning" : "neutral"}>{label}</StatusBadge>;
+  return <StatusBadge tone={label === "Paid" ? "success" : label === "Needs attention" || label === "Not paid" ? "danger" : label === "Action required" || label === "Being confirmed" ? "warning" : "neutral"}>{label}</StatusBadge>;
 }
 
 export function PaymentBadge({ status }: { status?: string | null }) {

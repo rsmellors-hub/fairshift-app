@@ -1,7 +1,9 @@
 // How a payment is going, in words anyone can follow. Each step is reached only on the
 // provider state that proves it: a request sent to PayPal is not a payment made, so only
 // PayPal's own success marks Paid, and a held or failed payment stops where it is.
-type Payout = { status: string; paypalStatus?: string | null } | null | undefined;
+import { refusalText, type PayoutRefusal } from "@/server/domain/payout-refusal";
+
+type Payout = { status: string; paypalStatus?: string | null; refusal?: PayoutRefusal | null } | null | undefined;
 type StepState = "done" | "current" | "todo" | "problem";
 
 const row = (labels: readonly string[], reached: number, problem = false) => labels.map((label, index) => ({ label, state: (index < reached ? "done" : index === reached ? problem ? "problem" : "current" : "todo") as StepState }));
@@ -11,7 +13,10 @@ export function payoutProgress(status: string | null | undefined, payout: Payout
   const labels = ["Approved", "Sent to PayPal", "Processing", "PayPal confirms payment"] as const;
   switch (payout?.status) {
     case "PAID": return { steps: [...labels.slice(0, 3), "Paid"].map(label => ({ label, state: "done" as StepState })), note: null };
-    case "FAILED": return { steps: row(labels, 2, true), note: "PayPal did not complete this payment. Nothing has been paid." };
+    // Refused outright (no batch): nothing was sent, so "Sent to PayPal" is never ticked.
+    case "FAILED": return payout.refusal
+      ? { steps: row(["Approved", "Refused by PayPal", "Processing", "PayPal confirms payment"], 1, true), note: `${refusalText(payout.refusal)}. Nothing has been paid.` }
+      : { steps: row(labels, 2, true), note: "PayPal did not complete this payment. Nothing has been paid." };
     case "RECONCILIATION_REQUIRED": return { steps: row(labels, 1, true), note: "PayPal’s answer wasn’t received, so this payment is unconfirmed." };
     case "SUBMITTING": return { steps: row(labels, 1), note: null };
     case "PROCESSING": return { steps: row(labels, 2, ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "")), note: payout.paypalStatus === "ONHOLD" ? "Held at PayPal. Nothing is paid until PayPal reports success." : payout.paypalStatus === "UNCLAIMED" ? "Waiting to be claimed at PayPal. Nothing is paid until PayPal reports success." : null };

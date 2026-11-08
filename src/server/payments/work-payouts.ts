@@ -4,6 +4,7 @@ import { currencyForCountry } from "@/server/domain/currency";
 import { resolveProviderAmount } from "@/server/domain/provider-currency";
 import { currentZarConversion } from "@/server/fx/reference-rates";
 import { finalPayableMinor } from "@/server/domain/work-payable";
+import { refusalReason } from "@/server/domain/payout-refusal";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -237,7 +238,8 @@ async function recordCreateOutcome(db: DatabaseSession, scope: PayoutActor, payo
     } else if (kind === "NOT_SENT" && mode === "FIRST") {
       values = { status: "NOT_SENT", lastError };
     } else if (kind === "REJECTED" && mode === "FIRST") {
-      values = { status: "FAILED", lastError, statusCheckedAt: now };
+      // Refused outright: keep PayPal's short reason so managers and the worker can be told why.
+      values = { status: "FAILED", lastError: { ...lastError, reason: refusalReason(error?.details) }, statusCheckedAt: now };
     } else {
       values = { status: "RECONCILIATION_REQUIRED", lastError };
     }

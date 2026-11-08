@@ -7,6 +7,7 @@ import { organisations, outlets, saleTransactions, shiftIncentives, shiftOffers,
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 import { latestPayAgentEvents } from "@/server/pay-agent/journal";
 import { wageJurisdiction } from "@/server/domain/statutory-wage";
+import { payoutRefusal } from "@/server/domain/payout-refusal";
 
 // These workspaces retain the existing server-pinned environment scope.
 // Client route parameters select presentation only, never an organisation or worker.
@@ -58,6 +59,8 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
       currencyCode: workPayouts.currencyCode, providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency,
       fxRateMicros: workPayouts.fxRateMicros, fxRateSource: workPayouts.fxRateSource, submittedAt: workPayouts.submittedAt, paidAt: workPayouts.paidAt,
     },
+    // Read only to derive whether PayPal refused the payout, and its reason; not returned.
+    refusalSource: { status: workPayouts.status, paypalBatchId: workPayouts.paypalBatchId, lastError: workPayouts.lastError },
   }).from(shiftOffers)
     .innerJoin(shifts, eq(shiftOffers.shiftId, shifts.id))
     .leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id))
@@ -72,7 +75,9 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
   // Only the status of each of the worker's own payables' latest Pay Agent event, mapped to plain
   // statuses on screen; never the decision text, reason, model detail or another worker's state.
   const agentEvents = await latestPayAgentEvents(db, scope, rows.flatMap(row => row.payable?.id ? [row.payable.id] : []));
-  const assignments = rows.map(row => ({ ...row, payAgentStatus: row.payable?.id ? agentEvents.get(row.payable.id)?.status ?? null : null }));
+  const assignments = rows.map(({ refusalSource, ...row }) => ({ ...row,
+    payout: row.payout ? { ...row.payout, refusal: payoutRefusal(refusalSource) } : null,
+    payAgentStatus: row.payable?.id ? agentEvents.get(row.payable.id)?.status ?? null : null }));
   const current = assignments.find(row => row.shift.status === "PUBLISHED" && row.offer.status === "ACCEPTED");
   const availability = profile && scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
   const [location] = await db.select({ timezone: outlets.timezone, country: outlets.country, organisationCountry: organisations.country }).from(outlets)
@@ -99,12 +104,15 @@ export async function getOwnerWorkspace(db: DatabaseSession, organisationId: str
   const workforce = await db.select({ name: workers.displayName, type: workers.workerType, status: workers.status })
     .from(workers).where(eq(workers.organisationId, organisationId));
   // Work earnings across the organisation: approval and payout state only.
-  const workPayments = await db.select({
+  const paymentRows = await db.select({
     id: workPayables.id, outletId: workPayables.outletId, workerName: workers.displayName, shiftDate: shifts.shiftDate,
     amountMinor: sql<number>`${workPayables.baseAmountMinor} + coalesce(${workPayables.incentiveAmountMinor}, 0)`.mapWith(Number), currencyCode: workPayables.currencyCode, status: workPayables.status,
     payout: { id: workPayouts.id, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paidAt: workPayouts.paidAt },
+    // Read only to derive whether PayPal refused the payout, and its reason; not returned.
+    refusalSource: { status: workPayouts.status, paypalBatchId: workPayouts.paypalBatchId, lastError: workPayouts.lastError },
   }).from(workPayables).innerJoin(workers, eq(workers.id, workPayables.workerId)).innerJoin(shifts, eq(shifts.id, workPayables.shiftId))
     .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))
     .where(eq(workPayables.organisationId, organisationId)).orderBy(desc(workPayables.confirmedAt));
+  const workPayments = paymentRows.map(({ refusalSource, ...row }) => ({ ...row, payout: row.payout ? { ...row.payout, refusal: payoutRefusal(refusalSource) } : null }));
   return { locations, sales, payments, workforce, workPayments };
 }

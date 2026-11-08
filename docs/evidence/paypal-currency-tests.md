@@ -10,6 +10,8 @@
 | Redaction | Client ID, client secret, OAuth access tokens, PayPal's browser low-scope token and the test recipient address are redacted (`[REDACTED_…]`, `f•••@example.com`). PayPal `debug_id` values are kept, because they are diagnostic identifiers rather than secrets |
 | Status terms | Per [`AGENTS.md`](../../AGENTS.md), section 8 |
 
+> **Baseline note (added on rebase onto `submission`).** These probes ran against `822c5fd`. On `submission`, FairShift holds rand obligations and reaches PayPal through a USD amount converted once at a frozen ECB rate (DEC-SA-012), so the current product never sends `currency: "ZAR"` to PayPal. The result in section 3 describes PayPal's own behaviour, and the reason a conversion is needed. It does not describe a path the current product takes.
+
 ## Summary
 
 | # | Question | Result | Status |

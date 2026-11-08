@@ -34,6 +34,7 @@ import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context
 import { LocalIntelligencePanel } from "./local-intelligence";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
+import { payoutRefusal, refusalText } from "@/server/domain/payout-refusal";
 import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
 import { getSquareFreshness, liveSquareConnection } from "@/server/commerce/square-connection";
 import { getSquareMappings } from "@/server/commerce/square-mapping";
@@ -225,7 +226,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
           </div>
           <div className="pay-cards">{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved, payAgent }) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
             {scope.demo ? <EarlierEvidenceLabel /> : null}
-            <header><div><h3>{workerName}</h3><p>{longDate(shiftDate)} · {roleName}</p></div><PayableBadge status={payable.status} payout={payout} /></header>
+            <header><div><h3>{workerName}</h3><p>{longDate(shiftDate)} · {roleName}</p></div><PayableBadge status={payable.status} payout={payout ? { ...payout, refusal: payoutRefusal(payout) } : payout} /></header>
             <dl className="pay-sum">
               <div><dt>Accepted terms<small>{payableBasis(payable)} · version {payable.termsVersion}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
               {payable.incentiveRequired ? <>
@@ -237,7 +238,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             </dl>
             {unknown ? <p className="note">{amount(finalPayableMinor(payable))} base only · bonus not known yet</p> : null}
             {payable.approvedAt ? <p className="note">Approved {dateTime(payable.approvedAt, timezone)} ({timezone})</p> : null}
-            <PayoutProgress status={payable.status} payout={payout} />
+            <PayoutProgress status={payable.status} payout={payout ? { ...payout, refusal: payoutRefusal(payout) } : payout} />
             {payAgent ? <PayAgentPanel event={payAgent} payableId={payable.id} demo={!!scope.demo} timezone={timezone} /> : null}
             <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} agentStatus={payAgent?.status ?? null} /></div>
           </article>; })}</div>
@@ -343,8 +344,9 @@ function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, pay
         : <form action={sendPayoutAction}>{id}<button className="primary-button">Send {money(payable.approvedAmountMinor ?? 0, payable.approvedCurrencyCode ?? payable.currencyCode)} payout with PayPal</button></form>}
     </>;
   }
+  const refusal = payoutRefusal(payout);
   return <>
-    {payout.status === "FAILED" ? <p><small>PayPal did not complete this payment. It cannot be sent again from FairShift; contact your platform operator.</small></p> : null}
+    {payout.status === "FAILED" ? <p><small>{refusal ? "PayPal refused this payout request, so no payment was created." : "PayPal did not complete this payment."} It cannot be sent again from FairShift; contact your platform operator.</small></p> : null}
     {payout.status === "FAILED" || payout.status === "RECONCILIATION_REQUIRED" ? plainPayoutReason(payout.lastError) : null}
     {payout.status === "PROCESSING" && ["ONHOLD", "UNCLAIMED"].includes(payout.paypalStatus ?? "") ? <p><small>PayPal is waiting for the worker to {payout.paypalStatus === "UNCLAIMED" ? "claim the payment with a PayPal account" : "accept the payment in their PayPal account"}. Nothing is paid until PayPal reports success.</small></p> : null}
     {["PROVIDER_AMOUNT_MISMATCH", "PROVIDER_AMOUNT_UNAVAILABLE"].includes(payoutReason(payout.lastError) ?? "") ? <p><small>PayPal reports this item as complete, but FairShift could not match PayPal&apos;s amount to the approved amount. It is not shown as paid. Contact your platform operator.</small></p> : null}
@@ -352,10 +354,10 @@ function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, pay
     {payout.status !== "FAILED" || payout.paypalBatchId ? <form action={refreshPayoutAction}>{id}<button className="secondary-button">Check payment status</button></form> : null}
     <details><summary>PayPal Sandbox reference</summary><dl className="shift-terms payout-reference">
       <div><dt>Amount sent</dt><dd>{money(payout.amountMinor, payout.currencyCode)}</dd></div>
-      <div><dt>Payout batch</dt><dd>{payout.paypalBatchId ?? "Not yet received"}</dd></div>
-      <div><dt>Payout item</dt><dd>{payout.paypalItemId ?? "Not yet received"}</dd></div>
-      <div><dt>Transaction</dt><dd>{payout.paypalTransactionId ?? "Not yet received"}</dd></div>
-      <div><dt>PayPal status</dt><dd>{payout.paypalStatus ?? payout.paypalBatchStatus ?? "Unknown"}</dd></div>
+      <div><dt>Payout batch</dt><dd>{payout.paypalBatchId ?? (refusal ? "None created" : "Not yet received")}</dd></div>
+      <div><dt>Payout item</dt><dd>{payout.paypalItemId ?? (refusal ? "None created" : "Not yet received")}</dd></div>
+      <div><dt>Transaction</dt><dd>{payout.paypalTransactionId ?? (refusal ? "None created" : "Not yet received")}</dd></div>
+      <div><dt>PayPal status</dt><dd>{refusal ? refusalText(refusal) : payout.paypalStatus ?? payout.paypalBatchStatus ?? "Unknown"}</dd></div>
       {payoutReason(payout.lastError) ? <div><dt>PayPal reason</dt><dd>{payoutReason(payout.lastError)}</dd></div> : null}
       <div><dt>Last checked</dt><dd>{payout.statusCheckedAt ? dateTime(payout.statusCheckedAt, timezone) : "Not yet checked"}</dd></div>
       {payout.paidAt ? <div><dt>Paid</dt><dd>{dateTime(payout.paidAt, timezone)}</dd></div> : null}

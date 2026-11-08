@@ -609,6 +609,87 @@ describe("manager approval and PayPal payout of confirmed work", () => {
     } finally { await t.close(); }
   });
 
+  it("shows a payout PayPal refused outright as refused and not paid, with PayPal's reason, never as sent", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable, workerScope } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      // As observed in PayPal Sandbox for a ZAR payout (docs/evidence/paypal-currency-tests.md): HTTP 400, no batch.
+      const refusal = new PayPalPayoutError("PayPal rejected the payout request.", "VALIDATION_ERROR", 400, "dbg-refused",
+        [{ field: "items[0].amount.currency", issue: "Currency is not supported" }], "REJECTED");
+      const paypal = fakePayPal({ createPayout: vi.fn(async () => { throw refusal; }) });
+      const { payout } = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      expect(payout).toMatchObject({ status: "FAILED", paypalBatchId: null, paidAt: null,
+        lastError: { code: "VALIDATION_ERROR", httpStatus: 400, outcome: "REJECTED", reason: "Currency is not supported" } });
+      expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
+      expect(paypal.createPayout).toHaveBeenCalledTimes(1);
+
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireScope).mockResolvedValue(manager);
+      const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
+      for (const text of ["Refused by PayPal: Currency is not supported", "Refused by PayPal: Currency is not supported. Nothing has been paid.", "PayPal refused this payout request, so no payment was created.", "None created"]) expect(review).toContain(text);
+      expect(review).not.toContain("<dt>PayPal status</dt><dd>Unknown</dd>");
+      // "Sent to PayPal" is not ticked: the refusal is the problem step and nothing later is reached.
+      expect(review).not.toContain(">Sent to PayPal<");
+      expect(review).toContain('data-state="problem" aria-current="step">Refused by PayPal<');
+      expect(review).not.toMatch(/>\s*Paid\s*</);
+
+      vi.mocked(requireScope).mockResolvedValue(workerScope);
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      for (const text of [">Not paid<", "Refused by PayPal: Currency is not supported. Nothing has been paid.", "nothing has reached your PayPal account"]) expect(earnings).toContain(text);
+      for (const hidden of ["VALIDATION_ERROR", "dbg-refused", "items[0]", ">Sent to PayPal<"]) expect(earnings).not.toContain(hidden);
+      expect(earnings).not.toMatch(/>\s*Paid\s*</);
+      // The worker's data carries only the derived refusal reason, no error internals.
+      const view = JSON.stringify((await getWorkerWorkspace(t.db, workerScope)).assignments);
+      expect(view).toContain('"refusal":{"reason":"Currency is not supported"}');
+      expect(view).not.toMatch(/lastError|VALIDATION_ERROR|dbg-refused|httpStatus|refusalSource/);
+
+      // The manager's card badge and the Owner's payments view agree with the worker: not paid, PayPal's reason.
+      expect(review).toContain(">Not paid<");
+      const owner: Scope = { ...manager, userId: await user(t.db), role: "OWNER" };
+      await t.db.insert((await import("@/server/db/schema")).memberships).values({ id: randomUUID(), userId: owner.userId, organisationId: c.organisationId, role: "OWNER" });
+      vi.mocked(requireScope).mockResolvedValue(owner);
+      const payments = renderToStaticMarkup(await OwnerWorkspace({ area: "payments" }));
+      for (const text of [">Not paid<", "Refused by PayPal: Currency is not supported"]) expect(payments).toContain(text);
+      for (const hidden of ["Needs attention", "VALIDATION_ERROR", "dbg-refused"]) expect(payments).not.toContain(hidden);
+      expect(payments).not.toMatch(/>\s*Paid\s*</);
+    } finally { await t.close(); }
+  });
+
+  it("keeps a payout PayPal accepted and later failed as sent, without a refusal", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await company(t.db);
+      const manager = c.scopes[0];
+      const { payable, workerScope } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const paypal = fakePayPal({ getPayout: vi.fn(async (batchId: string) => ({ batchId, itemId: "PPI-F", status: "FAILED", batchStatus: "SUCCESS", itemStatus: "FAILED", transactionId: null })) });
+      await submitWorkPayout(t.db, paypal, manager, payable.id);
+      expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "FAILED", paidAt: null });
+      vi.mocked(getDatabase).mockReturnValue(t.db);
+      vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, paypalPayoutConfigured: true } as ReturnType<typeof getConfigurationStatus>);
+      vi.mocked(requireScope).mockResolvedValue(manager);
+      const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
+      expect(review).toContain('data-state="done">Sent to PayPal<');
+      expect(review).toContain("PayPal did not complete this payment. Nothing has been paid.");
+      expect(review).not.toContain("Refused by PayPal");
+      vi.mocked(requireScope).mockResolvedValue(workerScope);
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      expect(earnings).toContain("Your payment needs attention: ask your manager to review it.");
+      expect(earnings).not.toContain("Refused by PayPal");
+      expect(JSON.stringify((await getWorkerWorkspace(t.db, workerScope)).assignments)).toContain('"refusal":null');
+      const owner: Scope = { ...manager, userId: await user(t.db), role: "OWNER" };
+      await t.db.insert((await import("@/server/db/schema")).memberships).values({ id: randomUUID(), userId: owner.userId, organisationId: c.organisationId, role: "OWNER" });
+      vi.mocked(requireScope).mockResolvedValue(owner);
+      const payments = renderToStaticMarkup(await OwnerWorkspace({ area: "payments" }));
+      expect(payments).toContain("Needs attention");
+      expect(payments).not.toContain("Refused by PayPal");
+    } finally { await t.close(); }
+  });
+
   it("shows payment details required to the manager and worker without offering a payout", async () => {
     const t = await createTestDatabase();
     try {
