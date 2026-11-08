@@ -1,3 +1,4 @@
+import { rand } from "@/app/components/format";
 import Link from "next/link";
 import type { OpportunityDemand } from "@/server/intelligence/opportunity";
 import { outletOpportunities, windowParam } from "@/server/intelligence/opportunity";
@@ -5,7 +6,7 @@ import type { OutletStaffing, ServicePeriod, StaffingDay, StaffingUnavailableRea
 import { formatClock, transactionCount } from "@/server/intelligence/workload";
 
 const locale = (currency: string) => currency === "GBP" ? "en-GB" : "en-US";
-export const wholeMoney = (minor: number, currency: string) => new Intl.NumberFormat(locale(currency), { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
+export const wholeMoney = (minor: number, currency: string) => currency === "ZAR" ? rand(minor, { whole: true }) : new Intl.NumberFormat(locale(currency), { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
 // Staff time is held in integer minutes; hours are shown with up to two decimals.
 export const labourHours = (minutes: number) => `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(minutes / 60)} h`;
 export const transactions = (milli: number | null) => milli === null ? "Not available" : new Intl.NumberFormat("en-GB").format(transactionCount(milli));

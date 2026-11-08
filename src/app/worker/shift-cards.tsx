@@ -63,13 +63,13 @@ function Earn({ shift, detailed = false, wage }: { shift: Row["shift"]; detailed
   return <div className="pay-breakdown">
     <section className="pay-block pay-block-guaranteed" aria-label="Guaranteed base pay"><h4>Guaranteed base pay</h4>{guaranteed}</section>
     <section className="pay-block pay-block-variable" aria-label="Potential variable earnings"><h4>Potential variable earnings <span>Not guaranteed</span></h4>
-      {bonus ? <>{bonus}<p className="worker-shift-bonus">You earn the {amount(shift.incentiveAmountMinor)} bonus if your own sales for this shift reach {amount(shift.incentiveTargetMinor)}.</p></> : (shift.incentiveAmountMinor > 0 ? <p>A {amount(shift.incentiveAmountMinor)} incentive if the team meets its target.</p> : <p>No sales bonus on this shift.</p>)}
+      {bonus ? <>{bonus}<p className="worker-shift-bonus">You earn the {amount(shift.incentiveAmountMinor)} bonus if your own sales for this shift reach {amount(shift.incentiveTargetMinor)}.</p></> : (shift.incentiveAmountMinor > 0 ? <p>A {amount(shift.incentiveAmountMinor)} incentive if the team meets its target.</p> : null)}
       <p className="pay-line"><strong>Tips</strong> Not part of this shift’s terms. Any tips follow the location’s tip policy and are shown under Earnings; none are promised here.</p>
     </section>
-    <section className="pay-block pay-block-final" aria-label="Final approved earnings"><h4>Final approved earnings</h4>
-      <p>Set after the shift: your manager confirms the work{shift.incentiveBasis ? " and checks your sales" : ""}, then approves the total. Only an approved total is paid, through PayPal.</p>
+    <section className="pay-block pay-block-final" aria-label="Final earnings"><h4>Final earnings</h4>
+      <p>Set after the shift: a manager or the Owner confirms the work, and FairShift works out your pay from these terms and checks it. It’s paid to your PayPal account in US dollars, converted from rand at the European Central Bank rate locked when the payment is reserved.</p>
     </section>
-    <p className="note">Holiday pay isn’t calculated in FairShift and isn’t included in these amounts. Ask your manager how it’s handled. Amounts are before any tax or National Insurance.</p>
+    <p className="note">Holiday pay isn’t calculated in FairShift and isn’t included in these amounts; ask your manager how it’s handled. FairShift doesn’t handle tax.</p>
     {wage ? <WageNote shift={shift} wage={wage} /> : null}
   </div>;
 }

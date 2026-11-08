@@ -219,10 +219,13 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       for (const text of ["Leeds Briggate", "10:00 to 18:00", "8 hours", "Guaranteed base pay", "£104.00", "£13.00 an hour × 8 hours", "at or above the 21-and-over National Living Wage for this date", "Accept shift"]) expect(bonusCard).toContain(text);
       // 14. Variable earnings are labelled as not guaranteed, with no tip or holiday-pay amount invented.
       for (const text of ["Potential variable earnings", "Not guaranteed", "£25.00", "Up to", "£129.00", "your own sales for this shift reach £650.00", "Tips", "none are promised here",
-        "Final approved earnings", "then approves the total", "Holiday pay isn’t calculated in FairShift"]) expect(bonusCard).toContain(text);
+        "Final earnings", "a manager or the Owner confirms the work", "Holiday pay isn’t calculated in FairShift"]) expect(bonusCard).toContain(text);
       expect(bonusCard.indexOf("Guaranteed base pay")).toBeLessThan(bonusCard.indexOf("Potential variable earnings"));
-      expect(bonusCard.indexOf("Potential variable earnings")).toBeLessThan(bonusCard.indexOf("Final approved earnings"));
-      for (const text of ["£76.26", "£12.71 an hour × 6 hours", "No sales bonus on this shift"]) expect(plainCard).toContain(text);
+      expect(bonusCard.indexOf("Potential variable earnings")).toBeLessThan(bonusCard.indexOf("Final earnings"));
+      for (const text of ["£76.26", "£12.71 an hour × 6 hours"]) expect(plainCard).toContain(text);
+      // The current model: no "approves the total", no bonus where the terms have none, no UK National Insurance.
+      expect(plainCard).not.toMatch(/bonus/i);
+      expect(page).not.toMatch(/approves the total|National Insurance|Final approved earnings/);
       expect(plainCard).not.toContain("Up to");
       expect(page).not.toMatch(/Tips<\/strong>\s*£|holiday pay[^<]*£/i);
 
@@ -240,13 +243,14 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       let earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
       expect(earnings).toContain("Earnings recorded");
       expect(earnings).toContain("Your earnings are recorded from the terms you accepted.");
-      expect(earnings).not.toContain("Final approved earnings");
-      expect(earnings).toContain("Tips are shown separately below. FairShift doesn’t calculate holiday pay.");
+      expect(earnings).not.toContain("Final earnings");
+      expect(earnings).toContain("shown separately below. FairShift doesn’t calculate holiday pay or handle tax.");
+      expect(earnings).not.toMatch(/approves them and sends|any bonus you earned|National Insurance/);
       await approveWorkPayable(t.db, manager, payable!.id);
       earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
-      expect(earnings).toContain("Final approved earnings");
+      expect(earnings).toContain("Final earnings");
       expect(earnings).toContain("£76.26");
-      expect(earnings).not.toContain("Not final until your manager approves it");
+      expect(earnings).not.toContain("Checked by FairShift before it’s paid");
       expect((await t.db.select().from(workPayables).where(eq(workPayables.id, payable!.id)))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_626 });
     } finally { await t.close(); }
   });

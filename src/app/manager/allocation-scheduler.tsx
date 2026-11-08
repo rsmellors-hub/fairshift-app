@@ -1,5 +1,6 @@
 "use client";
 
+import { rand } from "@/app/components/format";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -223,7 +224,7 @@ export function AllocationScheduler({ schedule, timeZone, planning = null, dragT
 
 function ShiftDetail({ event, timeZone, send }: { event: ScheduleEvent; timeZone: string; send: (change: ScheduleChange) => Promise<boolean> }) {
   const [saving, setSaving] = useState(false);
-  const pay = event.earningsModel === "COMMISSION" ? `${(event.commissionBps ?? 0) / 100}% commission` : new Intl.NumberFormat("en-GB", { style: "currency", currency: event.currencyCode }).format(event.guaranteedBasePayMinor / 100);
+  const pay = event.earningsModel === "COMMISSION" ? `${(event.commissionBps ?? 0) / 100}% commission` : event.currencyCode === "ZAR" ? rand(event.guaranteedBasePayMinor) : new Intl.NumberFormat("en-GB", { style: "currency", currency: event.currencyCode }).format(event.guaranteedBasePayMinor / 100);
   const submit = async (form: FormData) => {
     setSaving(true);
     await send({ shiftId: event.shiftId, expectedTermsVersion: event.termsVersion, startsAt: String(form.get("startsAt")), endsAt: String(form.get("endsAt")), source: "CHANGE", acknowledgeReacceptance: form.get("acknowledged") === "yes" });

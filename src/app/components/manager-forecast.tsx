@@ -1,7 +1,9 @@
+import { rand } from "@/app/components/format";
 import { DataLabel, PageHeader, StatePanel } from "@/app/components/product-ui";
 import type { ForecastResult } from "@/server/intelligence/forecast";
 
 function money(value: number, currency: string) {
+  if (currency === "ZAR") return rand(value);
   return new Intl.NumberFormat(currency === "GBP" ? "en-GB" : "en-US", { style: "currency", currency }).format(value / 100);
 }
 const SOURCE = {

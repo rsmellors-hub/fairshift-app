@@ -1,15 +1,17 @@
 "use client";
 
+import { rand } from "@/app/components/format";
 import { useState } from "react";
 import Link from "next/link";
 import type { OwnerForecastSummary, OwnerOverviewData, OwnerStaffingSummary, SalesSeries } from "@/server/product/owner-overview";
 
-const money = (minor: number, currency: string) => new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(minor / 100);
+// Rand as "R…" (format.ts); other currencies as before.
+const money = (minor: number, currency: string) => currency === "ZAR" ? rand(minor) : new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(minor / 100);
 const dateLabel = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 const sourceLabel = (series: SalesSeries) => ({ REFERENCE: "Reference sales history", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Actual · PayPal Sandbox", IMPORTED: "Imported sales history", ZETTLE: "Earlier connected-account sales", SQUARE: "Square Sandbox sales" })[series.source];
 const shortDate = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 const hours = (minutes: number) => `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(minutes / 60)} h`;
-const wholeMoney = (minor: number, currency: string) => new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
+const wholeMoney = (minor: number, currency: string) => currency === "ZAR" ? rand(minor, { whole: true }) : new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
 const evidenceLabel = { REFERENCE: "reference history", DEMO_SEEDED: "demo history", PAYPAL_SANDBOX: "verified PayPal Sandbox sales", IMPORTED: "imported history", ZETTLE: "earlier connected-account sales", SQUARE: "Square Sandbox sales" } as const;
 const sourceNote = (series: SalesSeries) => ({
   REFERENCE: "Labelled synthetic reference history for a fictional hospitality group, not Square, PayPal or other provider sales.",

@@ -1,3 +1,4 @@
+import { rand } from "@/app/components/format";
 import Link from "next/link";
 import type { SalesSource } from "@/server/intelligence/forecast";
 import type { OutletWeeklyForecast, SourceRejection, WeeklyForecast } from "@/server/intelligence/weekly";
@@ -20,7 +21,7 @@ const REJECTION: Record<SourceRejection["reason"], string> = {
   INCOMPLETE_WEEKDAYS: "some weekdays too sparse", AMBIGUOUS: "more than one currency",
 };
 const locale = (currency: string) => currency === "GBP" ? "en-GB" : "en-US";
-const whole = (minor: number, currency: string) => new Intl.NumberFormat(locale(currency), { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
+const whole = (minor: number, currency: string) => currency === "ZAR" ? rand(minor, { whole: true }) : new Intl.NumberFormat(locale(currency), { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100);
 const day = (date: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 export const longDate = (date: string) => day(date, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 const shortDate = (date: string) => day(date, { weekday: "short", day: "numeric", month: "short" });
