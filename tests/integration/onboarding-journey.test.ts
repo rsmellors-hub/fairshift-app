@@ -48,6 +48,25 @@ describe("confirmation to workplace journey",()=>{
    expect(adapter.create).not.toHaveBeenCalled();
   }finally{await t.close();}
  });
+ it("answers PayPal's return at once: rendering never calls PayPal or waits for it, even when PayPal would not answer",async()=>{
+  const t=await createTestDatabase();try {
+   const {m,adapter}=await customer(t.db);
+   // A PayPal that never answers. The page used to reconcile with PayPal, under the subscription's row
+   // lock, before sending anything, so a slow PayPal or a webhook holding the lock kept the browser waiting.
+   const never=new Promise<never>(()=>{});
+   vi.mocked(adapter.get).mockReturnValue(never);vi.mocked(adapter.getPlan).mockReturnValue(never);
+   vi.mocked(getSubscriptionAdapter).mockReturnValue(adapter);
+   const waited=new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error("The return page waited on PayPal.")),2_000));
+   const html=renderToStaticMarkup(await Promise.race([BillingReturn(),waited]));
+   expect(html).toContain("Setting up your FairShift account");
+   expect(adapter.get).not.toHaveBeenCalled();expect(adapter.getPlan).not.toHaveBeenCalled();
+   expect((await t.db.select().from(subscriptions).where(eq(subscriptions.organisationId,m.organisationId)))[0]).toMatchObject({status:"APPROVAL_PENDING",verifiedAt:null});
+   // Once FairShift has confirmed the subscription (PayPal's webhook, or the page's own check), the return goes straight on.
+   await t.db.update(subscriptions).set({status:"ACTIVE",verifiedAt:new Date()}).where(eq(subscriptions.organisationId,m.organisationId));
+   await expect(BillingReturn()).rejects.toThrow("REDIRECT:/onboarding");
+   expect(adapter.get).not.toHaveBeenCalled();
+  }finally{await t.close();}
+ });
  it("reuses authoritative reconciliation for recovery and advances incomplete then completed setup without checkout creation",async()=>{
   const t=await createTestDatabase();try {
    const {m,adapter}=await customer(t.db);vi.mocked(getSubscriptionAdapter).mockReturnValue(adapter);
