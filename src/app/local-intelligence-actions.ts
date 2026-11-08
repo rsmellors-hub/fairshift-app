@@ -7,6 +7,9 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { UserFacingError } from "@/server/domain/errors";
 import { decideLocalAdjustments, type LocalDecisionAction } from "@/server/intelligence/local-intelligence-service";
+import { sendEarlyNotice } from "@/server/intelligence/early-notice";
+import { getEmailAdapter } from "@/server/notifications/email";
+import { dispatchWorkerEmails } from "@/server/notifications/service";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 
 // A manager's choice whether staffing uses the AI-found adjustments for one day at their own location.
@@ -31,4 +34,26 @@ export async function decideLocalAdjustmentsAction(form: FormData) {
   }
   for (const role of ["manager", "owner"]) revalidatePath(`/${role}`, "layout");
   redirect(`/manager/plan?${date ? `date=${date}&` : ""}local=${outcome}#local-intelligence`);
+}
+
+// The Owner's confirmation of an early shift notice for a likely closure. Nothing is sent without it,
+// and the server works out again whether the alert is current and who it affects.
+export async function sendEarlyNoticeAction(form: FormData) {
+  const scope = await requireScope(["OWNER"]);
+  let status = "error";
+  if (getConfigurationStatus().databaseConfigured && field(form, "confirmed") === "yes") {
+    try {
+      const db = getDatabase();
+      const result = await sendEarlyNotice(db, scope, { outletId: field(form, "outletId"), signalKey: field(form, "signalKey") }, async (outletId, signalKey) => {
+        const outlet = (await getWeeklyStaffing(db, scope, new Date())).outlets.find(row => row.outletId === outletId);
+        const signal = outlet?.localIntelligence?.alerts.find(row => row.key === signalKey);
+        return outlet && signal ? { signal, outletId, outletName: outlet.outletName, timezone: outlet.timezone } : null;
+      });
+      // Email follows the in-app notice where email is set up; the notice stands either way.
+      for (const workerId of result.workerIds) await dispatchWorkerEmails(db, getEmailAdapter(), workerId).catch(() => undefined);
+      status = "early-notice-sent";
+    } catch (error) { status = error instanceof UserFacingError ? error.feedback : "error"; }
+  }
+  for (const role of ["owner", "worker"]) revalidatePath(`/${role}`, "layout");
+  redirect(`/owner?status=${status}#disruption-alerts`);
 }

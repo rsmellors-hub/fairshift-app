@@ -17,6 +17,10 @@ import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { holidayFeedKey } from "@/server/reference/public-holiday-feed";
 import { LocalIntelligencePanel } from "@/app/manager/local-intelligence";
 import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
+import { affectedShifts, sendEarlyNotice } from "@/server/intelligence/early-notice";
+import { activateWorker } from "../helpers/workers";
+import { allocateAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { notifications, shiftOffers, shifts, workAllocations } from "@/server/db/schema";
 
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -249,6 +253,55 @@ describe("local intelligence", () => {
     expect(panel).toContain("likely to stop this location trading");
     expect(panel).toContain("Staff attendance risk");
     expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [] }))).toBe("");
+    await close();
+  });
+
+  it("recommends an early notice for a likely closure, and sends it only when the Owner confirms, cancelling nothing", async () => {
+    const { db, close } = await createTestDatabase();
+    const { organisationId, outletId, scope } = await saBusiness(db);
+    const site = { organisationId, locationId: outletId };
+    const [department] = await createDepartment(db, "Floor", site);
+    const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 4_500 }, "Fixture casual terms", site);
+    const allocated = async (email: string, startsAt: string, endsAt: string, allocate = true) => {
+      const worker = await activateWorker(db, (await createTeamMember(db, { firstName: "Fixture", surname: email.split("@")[0], telephone: "+27110000000", email }, site)).worker.id);
+      const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: new Date(startsAt), endsAt: new Date(endsAt), requiredHeadcount: 1 }, site);
+      const offer = await offerAssignment(db, shift.id, worker.id, site);
+      if (allocate) { await respondToAssignment(db, worker.id, offer.id, 1, "ACCEPTED", true, site); await allocateAssignment(db, offer.id, site); }
+      return { worker, shift, offer };
+    };
+    const friday = await allocated("friday@example.test", "2026-12-18T08:00:00Z", "2026-12-18T12:00:00Z");
+    await allocated("saturday@example.test", "2026-12-19T08:00:00Z", "2026-12-19T12:00:00Z");
+    await allocated("offered@example.test", "2026-12-18T10:00:00Z", "2026-12-18T14:00:00Z", false);
+    const outage = found({ name: "Fixture water outage", category: "SERVICE_DISRUPTION", effectType: "CAPACITY", direction: null, sizeBand: null, severity: "HIGH", closureLikely: true, sourceTier: "OFFICIAL", shiftBlocks: [], sourceUrl: "https://utility.example.gov/outage" });
+    await runLocalDiscovery(db, { organisationId, outletId }, { kind: "DAILY", trigger: "MANUAL", provider: provider(() => [outage]), checkSource: pages(), now: NOW });
+    const outlet = await outletOf(db, scope);
+    const signal = outlet.localIntelligence!.alerts[0];
+    const target = { organisationId, outletId, timezone: "Africa/Johannesburg" };
+    // Only the allocated Friday shift is covered: not Saturday's, and not an offer still unanswered.
+    expect((await affectedShifts(db, target, signal, NOW)).map(row => row.offerId)).toEqual([friday.offer.id]);
+    const before = renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: true }));
+    expect(before).toContain("Send early notice to 1 casual worker");
+    expect(before).toContain("cancels nothing and changes no pay");
+    expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: false }))).toContain("turned off in the public demo");
+
+    const readAlert = async () => ({ signal, outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg" });
+    await expect(sendEarlyNotice(db, { ...scope, role: "MANAGER" }, { outletId, signalKey: signal.key }, readAlert, NOW)).rejects.toThrow();
+    expect(await sendEarlyNotice(db, { ...scope, role: "OWNER" }, { outletId, signalKey: signal.key }, readAlert, NOW)).toEqual({ sent: 1, workerIds: [friday.worker.id] });
+    const [notice] = await db.select().from(notifications).where(eq(notifications.kind, "EARLY_SHIFT_NOTICE"));
+    expect(notice).toMatchObject({ workerId: friday.worker.id, userId: friday.worker.userId, recipientEmail: "friday@example.test", entityId: friday.offer.id });
+    expect(notice.body).toContain("doesn’t cancel your shift");
+    expect(notice.body).toContain("https://utility.example.gov/outage");
+    // Nothing was cancelled or changed.
+    expect((await db.select().from(shifts).where(eq(shifts.id, friday.shift.id)))[0].status).toBe("PUBLISHED");
+    expect((await db.select().from(shiftOffers).where(eq(shiftOffers.id, friday.offer.id)))[0].status).toBe("ACCEPTED");
+    expect((await db.select().from(workAllocations).where(eq(workAllocations.offerId, friday.offer.id)))[0].state).toBe("ALLOCATED");
+    // Each worker hears once per shift and finding.
+    await expect(sendEarlyNotice(db, { ...scope, role: "OWNER" }, { outletId, signalKey: signal.key }, readAlert, NOW)).rejects.toMatchObject({ feedback: "early-notice-none" });
+    expect(await db.select().from(notifications).where(eq(notifications.kind, "EARLY_SHIFT_NOTICE"))).toHaveLength(1);
+    expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: true }))).toContain("Everyone this affects has had the early notice");
+    // A finding that no longer stands sends nothing.
+    await expect(sendEarlyNotice(db, { ...scope, role: "OWNER" }, { outletId, signalKey: signal.key }, async () => null, NOW)).rejects.toMatchObject({ feedback: "early-notice-unavailable" });
+    expect((await db.select().from(auditEvents).where(eq(auditEvents.action, "EARLY_SHIFT_NOTICE_SENT")))).toHaveLength(1);
     await close();
   });
 

@@ -92,7 +92,7 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered" };
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent" };
 const FEEDBACK: Record<string, string> = {
   "commerce-not-configured": "Commerce connections are not configured in this environment.",
   "commerce-location": "That location is not available.",
@@ -161,6 +161,8 @@ const FEEDBACK: Record<string, string> = {
   "opportunity-outside-window": "This shift doesn’t overlap the time it’s meant to cover. No shift was created. Adjust the times, or create it without this requirement.",
   "service-capacity-invalid": "Service capacity must be a whole number of transactions from 1 to 1000. Nothing was saved.",
   "minimum-cover-invalid": "Minimum cover must be a whole number of staff from 0 to 100. Nothing was saved.",
+  "early-notice-unavailable": "That alert is no longer current, so no notice was sent.",
+  "early-notice-none": "Everyone this affects has already had the early notice. Nothing more was sent.",
   "location-profile-invalid": "The location profile couldn’t be saved. Describe the area, the venue and its customers in a few words each, with no names, contact details or links. Nothing was saved.",
   "trading-hours-invalid": "Trading hours couldn’t be saved. Use 09:00-17:00 on quarter hours, separate times with commas, don’t overlap them, and write “closed” for a closed day. Nothing was saved.",
   "regular-coverage-invalid": "Regular coverage couldn’t be saved. Use 07:00-12:00 x3, separate times with commas, don’t overlap them, and write “none” for no regular staff. Nothing was saved.",
