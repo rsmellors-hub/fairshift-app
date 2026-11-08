@@ -6,6 +6,7 @@ import { commercialPlan, configuredPlan, planSelection, TRIAL_DAYS } from "@/ser
 import { getLiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
+import { payoutRefusal } from "@/server/domain/payout-refusal";
 
 // The Proof panel: what a judge can check is real, for the demonstration organisation only. Read-only,
 // and it holds no secret, token, recipient or contact detail: provider identifiers, statuses, AI
@@ -31,7 +32,9 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
   const [payouts, subscription, payAgent, tipAgent, runs, proposals, assessments, weather, outcomes, feeds] = await Promise.all([
     db.select({ id: workPayouts.id, kind: workPayouts.tipLineId, outletId: workPayouts.outletId, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paypalBatchStatus: workPayouts.paypalBatchStatus,
       paypalBatchId: workPayouts.paypalBatchId, paypalItemId: workPayouts.paypalItemId, paypalTransactionId: workPayouts.paypalTransactionId, amountMinor: workPayouts.amountMinor, currencyCode: workPayouts.currencyCode,
-      providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt })
+      providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt,
+      // Read only to derive whether PayPal refused the payout, and its reason; not returned.
+      lastError: workPayouts.lastError })
       .from(workPayouts).where(eq(workPayouts.organisationId, organisationId)).orderBy(desc(workPayouts.createdAt)).limit(50),
     db.select({ providerId: subscriptions.providerId, planId: subscriptions.planId, status: subscriptions.status, tier: subscriptions.tier, billingPeriod: subscriptions.billingPeriod, verifiedAt: subscriptions.verifiedAt }).from(subscriptions).where(eq(subscriptions.organisationId, organisationId)),
     db.select({ id: payAgentEvents.id, outletId: payAgentEvents.outletId, status: payAgentEvents.status, decision: payAgentEvents.decision, reasonCode: payAgentEvents.reasonCode, summary: payAgentEvents.summary, responseId: payAgentEvents.responseId, responseModel: payAgentEvents.responseModel, dryRun: payAgentEvents.dryRun, createdAt: payAgentEvents.createdAt })
@@ -55,7 +58,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
   const nameOf = (id: string | null) => locations.find(row => row.id === id)?.name ?? "—";
   return {
     timezone: locations[0]?.timezone ?? "UTC", nameOf,
-    payouts: payouts.map(row => ({ ...row, kind: row.kind ? "TIP" as const : "WORK" as const })),
+    payouts: payouts.map(({ lastError, ...row }) => ({ ...row, kind: row.kind ? "TIP" as const : "WORK" as const, refusal: payoutRefusal({ status: row.status, paypalBatchId: row.paypalBatchId, lastError }) })),
     subscription: subscription[0] ? { ...subscription[0], fixture: subscription[0].providerId === LOCAL_SUBSCRIPTION_FIXTURE, plan: currentPlanTerms(subscription[0]) } : null,
     payAgent, tipAgent, proposals, assessments,
     runs: runs.map(run => ({ ...run, signals: signals.filter(signal => signal.runId === run.id) })),

@@ -1,7 +1,8 @@
 import { DataLabel, StatePanel } from "@/app/components/product-ui";
 import { FeedLabel, OpenMeteoAttribution, SourceLink, stamp } from "@/app/components/source-labels";
 import { labelledMoney } from "@/app/components/format";
-import { money } from "@/app/components/workspace-ui";
+import { money, payableLabel } from "@/app/components/workspace-ui";
+import { refusalText } from "@/server/domain/payout-refusal";
 import type { ProofPanel as ProofData } from "@/server/product/proof";
 
 // What a judge can check is real, for the demonstration organisation: provider identifiers and their
@@ -32,8 +33,8 @@ export function ProofPanelView({ data }: { data: ProofData | null }) {
       {data.payouts.length ? <div className="table-scroll" role="region" aria-label="PayPal Sandbox payouts" tabIndex={0}><table className="data-table"><caption className="visually-hidden">PayPal Sandbox payouts</caption>
         <thead><tr><th scope="col">Created</th><th scope="col">For</th><th scope="col">Batch / item</th><th scope="col">Transaction</th><th scope="col">PayPal status</th><th scope="col">FairShift status</th><th scope="col">Amount</th></tr></thead>
         <tbody>{data.payouts.map(row => <tr key={row.id}><th scope="row">{when(row.createdAt, tz)}</th><td data-label="For">{row.kind === "TIP" ? "Tip line" : "Confirmed work"} · {data.nameOf(row.outletId)}</td>
-          <td data-label="Batch / item"><code>{row.paypalBatchId ?? "not yet returned"}</code> / <code>{row.paypalItemId ?? "not yet returned"}</code></td><td data-label="Transaction"><code>{row.paypalTransactionId ?? "—"}</code></td>
-          <td data-label="PayPal status">{row.paypalStatus ?? row.paypalBatchStatus ?? "unknown"}{row.statusCheckedAt ? <small> · checked {when(row.statusCheckedAt, tz)}</small> : null}</td><td data-label="FairShift status">{row.status}{row.paidAt ? <small> · paid {when(row.paidAt, tz)}</small> : null}</td>
+          <td data-label="Batch / item"><code>{row.paypalBatchId ?? (row.refusal ? "none created" : "not yet returned")}</code> / <code>{row.paypalItemId ?? (row.refusal ? "none created" : "not yet returned")}</code></td><td data-label="Transaction"><code>{row.paypalTransactionId ?? "—"}</code></td>
+          <td data-label="PayPal status">{row.refusal ? refusalText(row.refusal) : row.paypalStatus ?? row.paypalBatchStatus ?? "unknown"}{row.statusCheckedAt ? <small> · checked {when(row.statusCheckedAt, tz)}</small> : null}</td><td data-label="FairShift status">{row.status}{row.refusal ? <small> · {payableLabel(null, row)}</small> : null}{row.paidAt ? <small> · paid {when(row.paidAt, tz)}</small> : null}</td>
           <td data-label="Amount">{money(Number(row.amountMinor), row.currencyCode)}{row.providerCurrency && row.providerAmountMinor !== null && (row.providerCurrency !== row.currencyCode || row.fxRateSource) ? <small> → {labelledMoney(Number(row.providerAmountMinor), row.providerCurrency)}{row.fxRateSource ? ` (${row.fxRateSource})` : ""}</small> : null}</td></tr>)}</tbody></table></div>
         : <Empty>No PayPal Sandbox payout has been created for this organisation.</Empty>}
     </section>

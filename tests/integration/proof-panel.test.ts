@@ -44,6 +44,35 @@ describe("Proof panel", () => {
     await close();
   });
 
+  it("shows a payout PayPal refused outright as refused, with PayPal's reason, and keeps one PayPal accepted and later failed as reported", async () => {
+    const { db, close } = await createTestDatabase();
+    const demo = await payAgentCompany(db);
+    sandboxFixture(demo.organisationId);
+    const record = async (batch: string, outcome: Partial<typeof workPayouts.$inferInsert>) => {
+      const work = await confirmedWork(db, demo.scopes[0]);
+      const payable = await approveWorkPayable(db, demo.scopes[0], work.payable!.id);
+      const payoutId = randomUUID();
+      await db.insert(workPayouts).values({ id: payoutId, payableId: payable.id, organisationId: demo.organisationId, outletId: demo.scopes[0].locationId, workerId: work.worker.id, amountMinor: payable.approvedAmountMinor!, currencyCode: payable.approvedCurrencyCode!,
+        providerCurrency: payable.approvedCurrencyCode!, providerAmountMinor: payable.approvedAmountMinor!, recipient: "proof.recipient@example.test", senderBatchId: `FSWP-B-${batch}`, senderItemId: `FSWP-I-${batch}`, status: "SUBMITTING", reservedAt: NOW });
+      await db.update(workPayouts).set(outcome).where(eq(workPayouts.id, payoutId));
+    };
+    // Refused outright, as the engine records a PayPal 400 (docs/evidence/paypal-currency-tests.md): no batch.
+    await record("REFUSED", { status: "FAILED", statusCheckedAt: NOW, lastError: { code: "VALIDATION_ERROR", httpStatus: 400, debugId: "dbg-proof-refused", outcome: "REJECTED", reason: "Currency is not supported" } });
+    // Accepted by PayPal, then failed on the item: not a refusal.
+    await record("ACCEPTED", { status: "FAILED", paypalBatchId: "PPBACCEPTEDFAIL", paypalBatchStatus: "SUCCESS", paypalStatus: "FAILED", statusCheckedAt: NOW });
+    const proof = await getProofPanel(db, { organisationId: demo.organisationId, role: "OWNER" }, NOW);
+    const html = renderToStaticMarkup(ProofPanelView({ data: proof }));
+    for (const shown of ["Refused by PayPal: Currency is not supported", "<code>none created</code> / <code>none created</code>", "FAILED<small> · Not paid</small>", "PPBACCEPTEDFAIL"]) expect(html).toContain(shown);
+    expect(html.match(/Refused by PayPal/g)).toHaveLength(1);
+    expect(html.match(/Not paid/g)).toHaveLength(1);
+    expect(html).not.toMatch(/data-label="PayPal status">unknown/);
+    // Only the derived reason leaves the server: no error code, debug ID or recipient.
+    for (const hidden of ["VALIDATION_ERROR", "dbg-proof-refused", "proof.recipient@example.test", "FSWP-B-"]) expect(html).not.toContain(hidden);
+    expect(JSON.stringify(proof!.payouts)).not.toMatch(/lastError|VALIDATION_ERROR|dbg-proof-refused|httpStatus/);
+    expect(proof!.payouts.map(row => row.refusal)).toEqual(expect.arrayContaining([{ reason: "Currency is not supported" }, null]));
+    await close();
+  });
+
   it("shows the demonstration organisation's own evidence only, and no recipient, token or secret", async () => {
     const { db, close } = await createTestDatabase();
     const demo = await payAgentCompany(db), other = await payAgentCompany(db);
