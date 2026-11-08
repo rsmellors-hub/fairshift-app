@@ -55,19 +55,21 @@ export async function sendEarlyNotice(db: Database, scope: Pick<Scope, "userId" 
   const people = await db.select({ id: workers.id, email: workers.email, userId: workers.userId }).from(workers).where(and(eq(workers.organisationId, scope.organisationId), inArray(workers.id, pending.map(row => row.workerId))));
   const day = (instant: Date) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: alert.timezone }).format(instant);
   const time = (instant: Date) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: alert.timezone }).format(instant);
+  // A DEMO scenario's notice says so, and names no source: it has none.
+  const demo = !!alert.signal.demo;
   return db.transaction(async tx => {
     let sent = 0;
     for (const shift of pending) {
       const person = people.find(row => row.id === shift.workerId);
       if (!person?.email) continue;
       const notice = await notify(tx, { id: randomUUID(), organisationId: scope.organisationId, userId: person.userId, workerId: person.id, recipientEmail: person.email, eventKey: noticeKey(alert.signal.key, shift.offerId), kind: "EARLY_SHIFT_NOTICE", entityId: shift.offerId,
-        title: `Your shift on ${day(shift.startsAt)} may not go ahead`,
-        body: `${alert.signal.name} may stop ${alert.outletName} trading on ${day(shift.startsAt)}. This is an early heads-up from your employer so you can plan. Your manager will confirm whether your ${time(shift.startsAt)}–${time(shift.endsAt)} shift goes ahead. This notice doesn’t cancel your shift, and it doesn’t change your accepted terms or how a cancellation would be handled. Where this came from: ${alert.signal.sourceUrl}`,
+        title: `${demo ? "DEMO: " : ""}Your shift on ${day(shift.startsAt)} may not go ahead`,
+        body: `${alert.signal.name} may stop ${alert.outletName} trading on ${day(shift.startsAt)}. This is an early heads-up from your employer so you can plan. Your manager will confirm whether your ${time(shift.startsAt)}–${time(shift.endsAt)} shift goes ahead. This notice doesn’t cancel your shift, and it doesn’t change your accepted terms or how a cancellation would be handled. ${demo ? "This is a DEMO scenario made for the demonstration, not a real event." : `Where this came from: ${alert.signal.sourceUrl}`}`,
         href: "/worker/shifts" });
       if (notice) sent++;
     }
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: alert.outletId, action: "EARLY_SHIFT_NOTICE_SENT", entityType: "local_intelligence_signal", entityId: alert.signal.id,
-      correlationId: `local-intelligence:${alert.outletId}`, metadata: { actorUserId: scope.userId, signalKey: alert.signal.key, offerIds: pending.map(row => row.offerId), sent } });
+      correlationId: `local-intelligence:${alert.outletId}`, metadata: { actorUserId: scope.userId, signalKey: alert.signal.key, offerIds: pending.map(row => row.offerId), sent, demoScenario: demo } });
     return { sent, workerIds: [...new Set(pending.map(row => row.workerId))] };
   });
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataLabel, StatusBadge } from "@/app/components/product-ui";
-import { AiFoundLabel, stamp } from "@/app/components/source-labels";
+import { AiFoundLabel, DemoScenarioLabel, stamp } from "@/app/components/source-labels";
 import { labourHours, longDate, transactions } from "@/app/components/staffing";
 import { decideLocalAdjustmentsAction } from "@/app/local-intelligence-actions";
 import { TrackRecord } from "@/app/components/track-record";
@@ -40,9 +40,9 @@ export function SignalCard({ signal }: { signal: LocalSignalView }) {
   const time = signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : "";
   return <li className="context-signal local-signal">
     <p><strong>{signal.name}</strong> <StatusBadge tone={tone}>{use}</StatusBadge></p>
-    <p><AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} /></p>
+    <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
     <p>{signal.reasoning}</p>
-    <p className="note">{signal.categoryLabel} · {effectText(signal)} · {dateSpan(signal.validFrom, signal.validTo)}{time}{signal.shiftBlocks.length ? ` · ${signal.shiftBlocks.map(part => PART[part] ?? part).join(", ")}` : ""}{signal.roles.length ? ` · affects ${signal.roles.map(role => ROLE[role] ?? role).join(" and ")}` : ""} · {CERTAINTY[signal.dateCertainty] ?? signal.dateCertainty} · {signal.confidence.toLowerCase()} confidence · {TIER[signal.sourceTier] ?? signal.sourceTier}</p>
+    <p className="note">{signal.categoryLabel} · {effectText(signal)} · {dateSpan(signal.validFrom, signal.validTo)}{time}{signal.shiftBlocks.length ? ` · ${signal.shiftBlocks.map(part => PART[part] ?? part).join(", ")}` : ""}{signal.roles.length ? ` · affects ${signal.roles.map(role => ROLE[role] ?? role).join(" and ")}` : ""}{signal.demo ? " · synthetic" : ` · ${CERTAINTY[signal.dateCertainty] ?? signal.dateCertainty} · ${signal.confidence.toLowerCase()} confidence · ${TIER[signal.sourceTier] ?? signal.sourceTier}`}</p>
     {signal.serverNote ? <p className="note">{signal.serverNote}</p> : null}
   </li>;
 }
@@ -104,7 +104,7 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo, sho
     {head}
     <p className="panel-lede">Every day at about 05:00, and again at about 17:00 for short-notice news (South African time), AI searches the web for anything that could change demand here, or affect trading or getting here. Each finding needs a source page FairShift could reach. FairShift applies at most two findings to any hour, in fixed bands, and you decide whether staffing uses them.</p>
     {banner}
-    {local.alerts.length ? <div className="setup-notice" role="status"><strong>{local.alerts.some(alert => alert.closureLikely) ? "AI found something likely to stop this location trading" : "AI found something that could stop this location trading"}</strong>
+    {local.alerts.length ? <div className="setup-notice" role="status"><strong>{local.alerts.every(alert => alert.demo) ? "A DEMO scenario shows something that would stop this location trading" : local.alerts.some(alert => !alert.demo && alert.closureLikely) ? "AI found something likely to stop this location trading" : "AI found something that could stop this location trading"}</strong>
       <ul className="context-signals">{local.alerts.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul></div> : null}
     <p className="note">{runLine(daily ?? local.lastAttempt, outlet.timezone)}{disruptions ? ` Short-notice check: ${runLine(disruptions, outlet.timezone)}` : ""}{local.lastAttempt && local.lastAttempt.status !== "COMPLETED" && local.lastAttempt.id !== daily?.id ? ` Latest attempt: ${runLine(local.lastAttempt, outlet.timezone)}` : ""}</p>
     <div className="table-scroll" role="region" aria-label="AI-found adjustments by planning day" tabIndex={0}><table className="data-table">

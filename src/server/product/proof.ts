@@ -4,6 +4,7 @@ import type { DatabaseSession } from "@/server/db/client";
 import { aiStaffingAssessments, demandContextFeeds, demandContextProposals, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outlets, payAgentEvents, subscriptions, tipAgentEvents, workPayouts } from "@/server/db/schema";
 import { getLiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { isDemoOrganisation } from "@/server/demo/organisation";
+import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
 
 // The Proof panel: what a judge can check is real, for the demonstration organisation only. Read-only,
 // and it holds no secret, token, recipient or contact detail: provider identifiers, statuses, AI
@@ -52,6 +53,8 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
     weather: weather.filter(row => row.feed === "WEATHER").map(row => ({ ...row, stale: !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= 6 * 3_600_000 || !!row.lastFailureCode })),
     events: weather.filter(row => row.feed === "EVENTS"),
     outcomes, feeds,
+    // The fictional demo business shows the DEMO capacity scenario (src/server/demo/capacity-scenario.ts).
+    demoScenario: organisationId === SA_REFERENCE_ORGANISATION.id,
   };
 }
 export type ProofPanel = NonNullable<Awaited<ReturnType<typeof getProofPanel>>>;

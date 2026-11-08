@@ -320,5 +320,80 @@ slot makes no call, a missed slot caught up only while recent, a stopped pass re
 got an answer. All providers are fixtures.
 
 **Checkpoint 1 verification.** Full suite with the real-PostgreSQL URL set: **96 files, 1,185 tests, all
-passed, 0 skipped** (1,130.05 s), first run, no rerun. Typecheck, lint (0 warnings) and the isolated
-production build: see the commit's checkpoint record below.
+passed, 0 skipped** (1,130.05 s), first run, no rerun. On the committed tree (`46abf7f`, extracted to a
+clean directory with no local env files): typecheck PASS, lint PASS with 0 warnings, production build
+(`next build --webpack` under `env -i` with a dummy database URL) PASS, 15/15 static pages. Pushed.
+
+## Day 5, Checkpoint 2 — South African copy and the DEMO capacity scenario (8 November 2026)
+
+**Copy (step 3).**
+
+- `/demo` (`src/app/demo/page.tsx`): the UK acts (a £200 target; £96 + £25 = £121 and a manager's
+  approval) are replaced by the current South African flow: demand and AI-found local signals in rand,
+  an offer on preauthorised rand terms, the DEMO disruption, and pay settled after a manager confirms
+  the work, through the Pay Agent and PayPal Sandbox in US dollars at the ECB reference rate. The page
+  names Jacaranda Table Demo and shows the DEMO act only when the configured demo organisation is that
+  business, and mentions earlier completed work only when it exists (`hasEarlierEvidence`).
+- Home page worked example (`src/app/components/public-shell.tsx`): £96 + £25 = £121 becomes R45.00 an
+  hour × 6 confirmed hours = R270.00, then confirmed → checked → sent to PayPal → paid.
+- Kept on purpose: "Plans from £29", "Prices in GBP" and the plan cards state the GBP subscription
+  catalogue truthfully; its currency is an open Owner decision. No public page mentions Zettle.
+- Not changed, because it is not UK, £ or Zettle copy: `/product`, `/faq` and the home page's loop and
+  rules still describe the earlier sales-target bonus and a manager approving each total.
+- Documents: no document says the demo has five Johannesburg-area sites (searched the Markdown on every
+  branch and the app copy). The README called the demo business "a fictional five-location UK
+  fast-casual cafe and dining group"; it now names the five locations (Rosebank and Sandton in
+  Johannesburg, Pretoria Central, Durban North, Cape Town Gardens) and says Open-Meteo's free API is for
+  non-commercial use only, with a paid plan before commercial use. Open-Meteo's terms, read on 8 November
+  2026: "You may only use the free API services for non-commercial purposes." The locked roadmap was not
+  edited.
+
+**DEMO capacity scenario (step 4).** `src/server/demo/capacity-scenario.ts`: one synthetic capacity
+disruption, "DEMO scenario: planned water interruption (synthetic)", at Rosebank for all of tomorrow
+(Johannesburg date), high severity, closure likely. It exists only for the fictional South African
+business while that business is a configured demo organisation (sandbox or public demo setting);
+any other business, or the same business outside a demo deployment, never has it. It is defined in
+code and never stored: the database allows an ACCEPTED local-intelligence signal only with a source
+page FairShift checked and the search opened, and a synthetic scenario has neither, so storing it
+would fabricate provenance. `resolveLocalIntelligence` takes it as `demo`: it becomes an Owner alert,
+an early-notice candidate list and a trading risk on the Manager's plan, never a demand change, and
+it uses none of the AI cap. Labels use the existing system (`DataLabel kind="demo"`, new
+`DemoScenarioLabel`): "DEMO scenario · Synthetic, made for the demonstration: not a real event, and not
+found by AI." The notice it produces is titled "DEMO: …", says it is not a real event, and names no
+source; the audit records `demoScenario: true`. The Proof page lists it with the synthetic data.
+
+Surviving re-provisioning: being code, it is untouched by `provisionSaReferenceBusiness`, Reset demo
+and discovery runs, and it moves with the date. Limits, stated: the early notice lists casual shifts
+already booked at Rosebank for tomorrow, so it needs booked work, and Reset demo cancels such a shift
+(it is unconfirmed work); sending is off for public demo personas (existing rule), so confirming needs
+a signed-in Owner of the demo business. The scenario books no shift and accepts nothing for anyone.
+
+Tests: `tests/unit/demo-capacity-scenario.test.ts` (2), `tests/integration/demo-capacity-scenario.test.ts`
+(2): the alert, the early-notice candidates and confirmation with DEMO wording, nothing stored, no demand
+change, survival across re-provisioning and a discovery run, the next day's date, and no scenario for an
+ordinary business or outside a demo deployment.
+
+**Browser check, local (headless Chrome over CDP; scratch database; AI schedule off, so no model call;
+Pay Agent dry run).** Local fixture: one casual shift at Rosebank on Monday 9 November, 10:00–14:00,
+booked for the local casual fixture account through the normal scheduling operations, as
+`scripts/seed-sa-runtime.ts` does (a script in the job's scratch directory, not committed).
+
+| As | Page | Observed |
+|---|---|---|
+| Visitor | `/demo` | "Explore FairShift with Jacaranda Table Demo…", Act 3 · Disruption, rand terms, ECB rate; no "£" |
+| Visitor | `/` | Worked example R45.00 an hour, R270.00; no £96, £121 or £200 |
+| Demo Owner | `/owner`, `/owner/forecast` | Alert "Rosebank: DEMO scenario: planned water interruption (synthetic)", Closure likely, the DEMO label, the booked casual worker and shift, "Sending notices is turned off in the public demo." |
+| Demo Owner | `/owner/proof` | DEMO scenario listed with the synthetic data; no account email, key or token |
+| Demo Manager | `/manager/plan?date=2026-11-09` | "A DEMO scenario shows something that would stop this location trading", the DEMO label, the 05:00/17:00 cadence copy |
+| Owner account (signed in) | `/owner` | "Send early notice to 1 casual worker" with the DEMO confirmation box; confirmed → `status=early-notice-sent`, "early notice sent", "Everyone this affects has had the early notice." |
+| Casual's own account | `/account`, `/worker/shifts` | "DEMO: Your shift on Monday 9 November may not go ahead", "…not a real event", "doesn’t cancel your shift"; the shift still booked |
+| Demo Owner | Reset demo, then `/owner` | Alert still shown; "No allocated casual shift falls in this time" (the reset cancelled the booked shift) |
+| — | `pnpm reference:sa` (re-provisioning), then `/owner`, `/manager/plan` | Alert and plan risk still shown; 0 of 227,271 reference rows inserted, existing rows kept |
+
+Every page: 0 console errors. The notice's email was never attempted (delivery `PENDING`, no provider
+ID): FairShift never emails the public demo organisation's activity. Not done: `/account` is closed to
+demo personas, so the worker's notice was read through the casual fixture's own account.
+
+**Checkpoint 2 verification.** Full suite with the real-PostgreSQL URL set: **98 files, 1,189 tests, all
+passed, 0 skipped** (2,017.98 s, slower than checkpoint 1 under other load on the machine), first run, no
+rerun. Typecheck, lint and the isolated production build ran on the committed tree before the push.

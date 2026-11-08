@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
+import { demoCapacityScenario } from "@/server/demo/capacity-scenario";
 import { outletTradingHours, outlets, regularCoverageWindows, shiftOffers, shifts, workAllocations, workers, workloadPolicies, workPolicies } from "@/server/db/schema";
 import { loadStoredContext, resolveOutletContext, UNAVAILABLE_CONTEXT, type AppliedContext, type ContextDay, type OutletDemandContext, type StoredContext } from "@/server/intelligence/demand-context";
 import { SCENARIO_ADJUSTMENT_BPS } from "@/server/intelligence/demand-context-policy";
@@ -195,8 +196,10 @@ function withDemandContext(organisationId: string, forecast: OutletWeeklyForecas
   // AI-found adjustments, from the baseline's own blocks. They reach staffing only through a
   // Manager's current decision, and never on a day with an accepted scenario.
   let local: OutletLocalIntelligence = UNAVAILABLE_LOCAL;
-  if (storedLocal) {
-    try { local = resolveLocalIntelligence({ outletId: forecast.outletId, stored: storedLocal, days: baseline.days, scenarioDates: new Set(context?.accepted.keys() ?? []), timeZone: forecast.timezone, now }); }
+  // The fictional demo business's DEMO capacity scenario, at its one location; null everywhere else.
+  const demo = demoCapacityScenario({ organisationId, outletId: forecast.outletId, timeZone: forecast.timezone, now });
+  if (storedLocal || demo) {
+    try { local = resolveLocalIntelligence({ outletId: forecast.outletId, stored: storedLocal ?? { runs: [], signals: [], decisions: [], outcomes: [] }, days: baseline.days, scenarioDates: new Set(context?.accepted.keys() ?? []), timeZone: forecast.timezone, now, demo: demo ? [demo] : [] }); }
     catch { console.error("Local intelligence could not be resolved; planning continues from the baseline."); }
   }
   const localPreview = (day: LocalDay): LocalDay["preview"] => {

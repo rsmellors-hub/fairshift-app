@@ -239,6 +239,9 @@ export type LocalSignalView = AppliableSignal & {
   // planning week). Capacity: an Owner alert when severe, else noted. Access: a staff-attendance risk.
   // Unconfirmed: shown, never applied.
   use: "APPLIED" | "LISTED" | "UNCONFIRMED" | "ALERT" | "ATTENDANCE_RISK" | "NOTED";
+  // A DEMO scenario made by FairShift for the demonstration (src/server/demo/capacity-scenario.ts):
+  // never stored, never found by AI, and labelled DEMO wherever it is shown.
+  demo?: boolean;
 };
 export type RunView = { id: string; kind: string; status: "COMPLETED" | "FAILED" | "RUNNING" | "INTERRUPTED"; failureCode: string | null; responseId: string | null; model: string; responseModel: string | null; createdAt: Date; completedAt: Date | null;
   coverage: { category: string; label: string; queries: string[]; outcome: string }[]; searches: { action: string; queries: string[]; url: string | null }[]; counts: Record<string, number>; rejected: { name: string; code: string | null; note: string | null; sourceUrl: string }[] };
@@ -265,9 +268,11 @@ function runView(row: RunRow, signals: readonly SignalRow[], now: Date): RunView
 
 // One location's local intelligence for its planning week, from its baseline blocks. Adjustments are
 // worked out here from the current signals; they reach staffing only through a manager's decision that
-// still matches them, and never on a day with an accepted contextual scenario.
-export function resolveLocalIntelligence(input: { outletId: string; stored: StoredLocalIntelligence; days: readonly { planningDate: string; closed: boolean | null; blocks: readonly TradingWindow[] }[]; scenarioDates: ReadonlySet<string>; timeZone?: string; now?: Date }): OutletLocalIntelligence {
+// still matches them, and never on a day with an accepted contextual scenario. A DEMO scenario, when
+// the caller supplies one, is shown and alerts like a capacity finding but never moves demand.
+export function resolveLocalIntelligence(input: { outletId: string; stored: StoredLocalIntelligence; days: readonly { planningDate: string; closed: boolean | null; blocks: readonly TradingWindow[] }[]; scenarioDates: ReadonlySet<string>; timeZone?: string; now?: Date; demo?: readonly LocalSignalView[] }): OutletLocalIntelligence {
   const now = input.now ?? new Date();
+  const demo = input.demo ?? [];
   const runs = input.stored.runs.filter(row => row.outletId === input.outletId);
   const current = currentRuns(runs);
   const daily = current.find(row => row.kind === "DAILY"), disruptions = current.find(row => row.kind === "DISRUPTIONS");
@@ -293,12 +298,12 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
     const matches = accepted && latest.adjustmentFingerprint === result.fingerprint && latest.policyVersion === LOCAL_INTEL_POLICY_VERSION && result.adjusted.length > 0;
     const state: LocalDecisionState = !accepted ? "NOT_USED" : !matches ? "STALE" : input.scenarioDates.has(day.planningDate) ? "SCENARIO_ACCEPTED" : "ACCEPTED";
     return { date: day.planningDate, blocks: result.blocks, adjusted: result.adjusted, fingerprint: result.fingerprint, state, decisionId: accepted ? latest.id : null, decidedAt: accepted ? latest.decidedAt : null, decidedByRole: accepted ? latest.decidedByRole : null,
-      risks: blockRisks(day.planningDate, blocks, base), preview: null };
+      risks: blockRisks(day.planningDate, blocks, [...base, ...demo]), preview: null };
   });
   const applied = new Set(days.flatMap(day => day.blocks.flatMap(block => block.applied)));
   const useOf = (signal: (typeof base)[number]): LocalSignalView["use"] => signal.status === "UNCONFIRMED" ? "UNCONFIRMED"
     : signal.effectType === "CAPACITY" ? (signal.severity === "HIGH" ? "ALERT" : "NOTED") : signal.effectType === "ACCESS" ? "ATTENDANCE_RISK" : applied.has(signal.key) ? "APPLIED" : "LISTED";
-  const signals: LocalSignalView[] = base.map((signal): LocalSignalView => ({ ...signal, use: useOf(signal) }))
+  const signals: LocalSignalView[] = [...base.map((signal): LocalSignalView => ({ ...signal, use: useOf(signal) })), ...demo]
     .sort((a, b) => b.impact - a.impact || a.validFrom.localeCompare(b.validFrom) || a.key.localeCompare(b.key));
   const accepted = new Map(days.filter(day => day.state === "ACCEPTED").map(day => [day.date, { decisionId: day.decisionId!, blocks: new Map(day.adjusted.map(block => [block.start, block.bps])) }]));
   const runViews = current.map(row => runView(row, input.stored.signals, now));

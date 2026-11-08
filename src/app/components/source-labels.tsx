@@ -1,8 +1,8 @@
 import { DataLabel } from "@/app/components/product-ui";
 
 // One way of saying where a signal came from, everywhere it is shown: "Feed: <source>", "AI-found,
-// source: <link>", "Owner-entered, source: <link>", with when it was last updated and, for a feed that
-// has fallen behind, that it is stale.
+// source: <link>", "Owner-entered, source: <link>", "DEMO scenario", with when it was last updated and,
+// for a feed that has fallen behind, that it is stale.
 
 export const OPEN_METEO_SITE = "https://open-meteo.com/";
 export const stamp = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone }).format(date);
@@ -28,4 +28,9 @@ export function AiFoundLabel({ url, title }: { url: string; title?: string | nul
 
 export function OwnerEnteredLabel({ url }: { url: string }) {
   return <span className="source-line"><DataLabel kind="demo">Owner-entered</DataLabel>, source: <SourceLink url={url} /></span>;
+}
+
+// A scenario FairShift made for the demonstration: synthetic, with no source page, and never found by AI.
+export function DemoScenarioLabel() {
+  return <span className="source-line"><DataLabel kind="demo">DEMO scenario</DataLabel> Synthetic, made for the demonstration: not a real event, and not found by AI.</span>;
 }

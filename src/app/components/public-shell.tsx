@@ -24,16 +24,16 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   </div>;
 }
 
-// A worked example, labelled as one wherever it appears: the agreed terms of one shift.
+// A worked example, labelled as one wherever it appears: one casual shift on preauthorised terms.
 export function WorkedExample() {
   return <aside className="worked-example" aria-label="Worked example of one shift">
-    <p className="eyebrow">Worked example · one shift, 14:00–20:00</p>
+    <p className="eyebrow">Worked example · one casual shift, 10:00–16:00</p>
     <dl className="pay-sum">
-      <div><dt>Accepted base pay</dt><dd>£96</dd></div>
-      <div><dt>Bonus · £200 attributed sales target reached</dt><dd>£25</dd></div>
-      <div className="pay-sum-total"><dt>Manager-approved earnings</dt><dd>£121</dd></div>
+      <div><dt>Preauthorised terms the worker accepted</dt><dd>R45.00 an hour</dd></div>
+      <div><dt>Hours the manager confirmed</dt><dd>6</dd></div>
+      <div className="pay-sum-total"><dt>Earnings, in rand</dt><dd>R270.00</dd></div>
     </dl>
-    <ol className="pay-steps" aria-label="What happens to that amount"><li>Approved</li><li>Sent to PayPal</li><li>Processing</li><li>Paid</li></ol>
-    <p className="note">Paid shows only once PayPal confirms it. The worker saw these terms before accepting.</p>
+    <ol className="pay-steps" aria-label="What happens to that amount"><li>Confirmed</li><li>Checked</li><li>Sent to PayPal</li><li>Paid</li></ol>
+    <p className="note">The FairShift Pay Agent checks the work and FairShift’s server sends the amount through PayPal Sandbox, in US dollars at the European Central Bank reference rate. Paid shows only once PayPal confirms it. The worker saw these terms before accepting.</p>
   </aside>;
 }
