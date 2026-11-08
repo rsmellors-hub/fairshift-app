@@ -219,6 +219,87 @@ that a reason is required.
 
 **Supersession record (as instructed above).** For permanent-staff tips, FS-TIP-DEC-002 and FS-TIP-AGENT-DEC-001 replace, in the specification's section 1: FS-TIP-POOL-DEC-001's hours-proportional service-period pools; FS-TIP-ELIGIBILITY-DEC-001's open recording of permanent-staff hours; the Manager approval of tip allocations in FS-TIP-POOL-DEC-001 and FS-TIP-DEC-001 (C); the staff request and election mechanism and the 50% ceiling of FS-PAYOUT-TIMING-DEC-002 (replaced by the Owner's per-staff daily auto-release cap); and the employee-requested permanent-tip release in DEC-SA-011 and FS-HACK-SA-ROADMAP-001 section 2's supporting path, which becomes AI-checked automatic release. FS-TIP-POOL-DEC-002's exclusion of hours-based pooling is retained. Every other dated rule stands.
 
+### Owner decision, 8 November 2026 — AI local intelligence
+
+**Decision date:** 8 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** supplied by the Owner during the work package **FairShift — Day 5b: hosted deploy, USD plans, demo open (SANDBOX ONLY)** (within FS-HACK-SA-SUBMISSION-001), completing its STEP 1, which had left this text open. Recorded verbatim. Requirements only: this record implements nothing, and no code was changed for it.
+
+```text
+1. AI LOCAL INTELLIGENCE (Owner decision, Ryan, 8 Nov 2026)
+   Principle: sources supply facts; the AI finds, cites and
+   interprets them. The AI's job is to identify EVERY influence
+   that could affect each location's demand, ability to trade,
+   or customer/staff access — not to work through a fixed list.
+
+   a) Live holiday feed: fetch SA public holidays from a public
+      holidays API (e.g. Nager.Date; verify SA coverage) on a
+      schedule and on start. sa-public-holidays.ts is fallback
+      only, labelled as such. UK behaviour unchanged.
+
+   b) Open-ended discovery: per demo location, for the coming
+      7 days, the model (web search tool if available) looks for
+      any influence on that location. Examples only, NOT a limit:
+      official holidays; cultural and religious observances;
+      commemorative and commercial days; payday/month-end; school
+      calendar; sport; festivals, concerts and cultural events;
+      news and political events; local service disruptions
+      (water, power, municipal works); access disruptions (road
+      closures, race routes, taxi strikes); extreme weather;
+      anything else plausibly relevant to that neighbourhood.
+      Input: owner-written location profile (area, venue type,
+      typical customers) — add the field; seed labelled demo
+      profiles for the 5 locations.
+      Schema per signal: category (known category or OTHER with
+      a short label); effect type (DEMAND | CAPACITY | ACCESS);
+      name; date/time window; date certainty (fixed /
+      moon-dependent / estimated / short-notice); location;
+      shift blocks; roles (FOH/BOH); direction + size band
+      (DEMAND) or severity (CAPACITY/ACCESS); confidence; source
+      tier (OFFICIAL | EVENT_ORGANISER | NEWS | UNCONFIRMED);
+      one-sentence operational reasoning tied to the location
+      profile; source URL.
+      Coverage log per run: the categories and searches the model
+      considered, including those that found nothing — shown to
+      the owner, so breadth is visible.
+      Neutrality: for news/political signals, operational impact
+      only — no commentary on causes, groups or people.
+
+   c) Server validation: reject signals without a reachable
+      source URL, outside the window or for unknown locations.
+      UNCONFIRMED signals are shown, never applied. No fixed cap
+      on signals found; rank by impact and apply at most the top
+      signals per block (bounded), listing the rest.
+
+   d) Labels everywhere: "Feed: <source>", "AI-found, source:
+      <link>", "Owner-entered, source: <link>", plus the AI's
+      reasoning sentence.
+
+   e) Forecast effect: deterministic baseline; AI proposes
+      bounded adjustments per block and role (fixed bands, no
+      free numbers); server applies them and records the AI
+      response ID.
+
+   f) CAPACITY/ACCESS: high-severity CAPACITY creates an owner
+      alert; if closure is likely, recommend early shift notice
+      to affected casuals so short-notice cancellation is
+      avoided (owner confirms; cancellation-pay rules unchanged).
+      ACCESS adds a staff-attendance risk flag to affected blocks.
+
+   g) Cadence and cost: disruptions/news every few hours, other
+      influences daily, all within a daily call cap; bounded
+      calls; no loops.
+
+   h) Track record: after each day, record predicted direction vs
+      the day's actual (synthetic) sales per signal; show an "AI
+      signal track record", labelled as measured against
+      synthetic history.
+
+   i) If the web search tool is unavailable on the configured
+      model, report BLOCKED for (b) and complete the rest with
+      feed and Owner-entered signals.
+```
+
+**Precedence (Owner instruction, same day):** where this overlaps the later 8 November decisions recorded below, the later ones win: cadence 05:00/17:00 SAST with a 20-call daily cap for scheduled discovery (part g); staffing changes only when an Owner or a Manager accepts (part e); bands ±5/10%, at most two signals per hour (parts c and e).
+
 ### Owner decisions, 8 November 2026
 
 **Decision date:** 8 November 2026. **Status:** OWNER APPROVED (confirmed by Ryan). **Authorising source:** Owner-supplied work package **FairShift — Day 5: record decisions, harden, deploy `submission` to hosted** (within FS-HACK-SA-SUBMISSION-001), STEP 1. Recorded verbatim. Requirements only: this record implements nothing.
@@ -233,6 +314,8 @@ that a reason is required.
 > **Amended, 8 November 2026 (Day 5b), by the staffing-gate decision in the next record.** Staffing now changes only when an Owner or a Manager accepts the adjusted forecast, and Owners have every Manager function. The new text addresses who may accept. It says nothing about the bullet's other two sentences (the server applies accepted signal bands; UNCONFIRMED signals are shown, never applied), which stand as recorded, as do the Roles, Bands and cadence bullets.
 
 **Not recorded here.** Code committed earlier on `submission` (`7f5417e`, `70abe3f`, `6c97ca1`, `71a2448`) cites "Owner decision(s), 8 November 2026" for local intelligence, capacity and access disruptions, the early shift notice, the signal track record and source links on Owner-entered events. Apart from the four decisions above, no verbatim text of those decisions is in this repository, and this record does not supply it.
+
+> **Since supplied, 8 November 2026 (Day 5b):** the Owner's AI local intelligence decision is now recorded verbatim in "Owner decision, 8 November 2026 — AI local intelligence" above, with the Owner's note that the later decisions in this record prevail where they overlap.
 
 ### Owner decision, 8 November 2026 — demo casual pay term
 
@@ -256,4 +339,4 @@ Approve R45.00/hour — Record R45.00/hour (the demo's seeded casual terms, abov
 
 **Effect on earlier records.** The pricing decision replaces, for the demo, the GBP catalogue in the product specification's "Commercial entry and FairShift viability" table (Single Outlet £29/£290, Multi Outlet £69/£690). It resolves the pricing-currency question left open by FS-SITE-COPY-SA-001. Location limits (1, and up to 5), the 30-day free trial (FS-SUBSCRIPTION-TRIAL-DEC-001) and Enterprise by contact are unchanged. The USD billing amounts are the Owner's figures. They are not computed by FairShift at checkout.
 
-**Open, not recorded here.** "AI LOCAL INTELLIGENCE (8 Nov)": the work package says the Owner will supply this text, and it was not in the package. No text is recorded, and this record does not supply any.
+**AI local intelligence.** The "AI LOCAL INTELLIGENCE (8 Nov)" text was not in the work package. The Owner supplied it later the same day, and it is recorded verbatim, with the Owner's precedence note, in "Owner decision, 8 November 2026 — AI local intelligence" above.

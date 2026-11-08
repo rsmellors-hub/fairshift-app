@@ -438,3 +438,136 @@ timeout in `pay-agent-processing` while the Mac idle-slept from 09:14 to 09:22, 
 `caffeinate -i`. Headless Chrome against the local server: `/`, `/product`, `/faq`, `/pricing` and
 `/demo` show the new copy, none shows "bonus", "sales target" or "approves every total", and every page
 has 0 console errors.
+
+## Day 5b, Checkpoint 1 — Owner decisions, USD plans, rand-first pricing (8 November 2026)
+
+Owner-supplied work package "FairShift — Day 5b: hosted deploy, USD plans, demo open (SANDBOX ONLY)".
+The package named HEAD `672894b`; the branch was at `f432d9e` (FS-SITE-COPY-SA-001, already pushed),
+so the work was built on `f432d9e`.
+
+**Decisions (step 1).** The five Owner decisions of 8 November 2026 (staffing gate amended to "an Owner
+or a Manager", scope, currency, demo pricing, VAT) are recorded verbatim, dated, in
+`docs/FS-HACK-SA-AMENDMENT-001.md` section 5. A dated notice on the earlier staffing-gate bullet points
+to the amendment, and a dated pointer sits under the specification's GBP pricing table. The
+"AI LOCAL INTELLIGENCE (8 Nov)" text was not in the package; the Owner supplied it later the same day,
+and it is recorded verbatim ahead of the later 8 November records, with the Owner's one-line note that
+those later decisions win where they overlap (cadence, part g; staffing gate, part e; bands, parts c
+and e). No code was changed for it. Code already
+matches the amended gate: `decideLocalAdjustments`, `createRequirement`, allocation and
+`confirmWork` accept an Owner as well as a Manager.
+
+**USD plans (step 2).** PayPal Sandbox, existing product `PROD-8S5740580A111492L` ("FairShift"). Four
+new plans, each a free 30-day `TRIAL` cycle (sequence 1) then a `REGULAR` cycle (sequence 2), created by
+`scripts/provision-paypal-subscriptions.ts --apply`, then fetched back and checked with
+`assertCommercialPlan` (active, USD, the Owner's amount, no setup fee, no tax):
+
+| Plan | PayPal plan ID | PayPal bills | Price shown |
+|---|---|---|---|
+| Venue Monthly (USD), 30-day trial | `P-5U646656F53669406NLYFG4A` | US$30.17 a month | R499/month incl. 15% VAT |
+| Venue Annual (USD), 30-day trial | `P-03N78956GR621793BNLYFG4Q` | US$301.73 a year | R4,990/year incl. 15% VAT |
+| Group Monthly (USD), 30-day trial | `P-8D21565845075562BNLYFG5A` | US$69.48 a month | R1,149/month incl. 15% VAT |
+| Group Annual (USD), 30-day trial | `P-5B101351GN843403KNLYFG5I` | US$694.76 a year | R11,490/year incl. 15% VAT |
+
+A read-only run afterwards: 12 FairShift plans valid, none missing. The local `.env.local` now holds the
+four USD IDs (old values in a git-ignored backup); the Render variables were switched in step 5. A
+plan's currency can't change, so checkout accepts only these USD plans, while subscriptions on the eight
+earlier GBP plans (trial and no-trial) still reconcile. **GBP plans not deactivated:** a Sandbox
+subscription created on 3 November 2026 on "Single Outlet Monthly, 30-day trial"
+(`P-104896034C256045HNLU2AGQ`) was active in its trial (`SUBSCRIPTION_TRIAL_EVIDENCE.md`), and PayPal
+has no API that lists a plan's subscriptions, so no GBP plan can be shown to have no dependants. All
+eight stay `ACTIVE`. FairShift's local database has no subscription rows. The hosted one has three: one
+`ACTIVE` on the GBP "Multi Outlet Monthly" no-trial plan (`P-1M6317095M539293XNLIV3XI`), which confirms
+a dependant, and two `CANCELLED`. The Owner's dollar amounts are the rand prices divided by 16.5382, to the nearest cent
+(499 → 30.1726; 4,990 → 301.7257; 1,149 → 69.4755; 11,490 → 694.7552). They are fixed in the catalogue,
+never computed at checkout. Payout conversion (DEC-SA-012) rounds down and is unchanged.
+
+Plan selection by currency: `billingCurrencyFor(home)` returns the home currency where PayPal supports
+it (PayPal's REST currency codes) and USD otherwise. The price list's home currency is ZAR, which PayPal
+doesn't support, so every plan bills in USD.
+
+Copy: `/pricing` and `/subscribe` plan cards show "Venue" (1 location) and "Group" (up to 5 locations),
+the rand price incl. 15% VAT as the headline, and "30 days free, then R499/month incl. 15% VAT — billed
+by PayPal as US$30.17; your bank or PayPal converts at its own rate." No converted figure is shown as
+the charge (the annual monthly-equivalent figure is gone). The footnote says workers are never charged
+and VAT never applies to worker earnings or tips. The home page's price teaser and the Owner's
+subscription panel use the same names.
+
+**Card option.** PayPal JS SDK, Sandbox client, `intent=subscription&vault=true&currency=USD`, headless
+Chrome: the `card` funding source is eligible and the "Debit or Credit Card" button rendered for
+buyer countries ZA, US and GB (US also offered PayPal Credit). FairShift's checkout uses PayPal's hosted
+approval page (a redirect), not the SDK buttons. **Sandbox business account country: NOT VERIFIED.**
+This app's credentials can't read it: userinfo returns only an ID, balances answered 403 and seller
+status 404. The only country field in the SDK's responses (GB) comes from PayPal's logging endpoint and
+follows the browser locale, so it isn't evidence. The country is shown in the PayPal Developer
+Dashboard under Sandbox accounts.
+
+**Payout checks (report only, nothing changed).** VERIFIED by reading the code and its tests: the live
+engine (`src/server/payments/work-payouts.ts`, `payoutStatusFromProvider` and `reconciledStatus`) marks
+a payout `PAID` only on the item's `transaction_status` `SUCCESS` with the amount and currency FairShift
+sent. A batch `SUCCESS` without the item stays `PROCESSING`. `sender_batch_id` is deterministic:
+`FSWP-B-<payable ID>` for casual pay and `FSTP-B-<tip line ID>` for tips, one reservation per payable or
+line (unique indexes), reused on every retry. The legacy incentive demo path (`src/server/incentives/demo.ts`)
+still maps a status that falls back to the batch status when the item is missing, but its server
+actions are hard-disabled ("Legacy incentive payout is unavailable"), so it was left alone.
+
+**Tests.** `tests/unit/subscription-catalogue.test.ts` (catalogue, plan selection by currency, provider
+validation, reconciliation of the GBP plans), `tests/unit/no-vat-on-earnings.test.ts` (no VAT on a
+payable, tip shares or the USD payout leg; only the price list knows VAT),
+`tests/integration/subscription-negative.test.ts` (ERRSUB032/033/034/039 each on one of the four new
+USD plan IDs; ERRSUB044/046; no second subscription after a double click, after an abandoned approval
+retried on another plan, after simultaneous clicks on two plans, or after activation),
+`tests/integration/subscriptions.test.ts` (both GBP plan shapes refused at checkout, still reconciled),
+and the copy assertions in `public-onboarding-ui.test.ts` and `auth-request.test.ts`.
+
+**Checkpoint 1 verification.** On the committed tree (`0fdeea7`, extracted to a clean directory with no
+local env files, real-PostgreSQL URL set): full suite **99 files, 1,205 tests, all passed, 0 skipped**
+(1,123.08 s), first run. Typecheck PASS; lint PASS, 0 warnings; isolated production build
+(`next build --webpack` under `env -i`, dummy database URL) PASS. Pushed; Render deploy
+`dep-dbo5nc142hec73d1gpv0` of `0fdeea7` live at 11:25:22 UTC.
+
+## Day 5b, Checkpoint 2 — product copy and the demo booking (8 November 2026)
+
+**Copy (step 3).** FS-SITE-COPY-SA-001 (`f432d9e`) had already moved `/product` and `/faq` to the current
+model. This step added the plan prices in rand first with the US dollar amounts PayPal bills (FAQ "What
+does a plan cost?", product "What it costs", both read from the catalogue), the Venue and Group names,
+VAT on the plan only and never on worker earnings or tips, "workers are never charged", rand-first
+worker pay with the dollar amount and rate as a separate labelled line, and the amended staffing gate:
+"an Owner or a manager accepts" on `/product`, `/faq`, the home page and `/demo`. Work is confirmed "by a
+manager or the Owner", and the person who confirms is the approver of record. The server actions accept
+OWNER and MANAGER, and `approvedBy` is the confirming user. No page claims "no conversion fees", and a
+test now forbids it on the home page, `/product`, `/faq` and `/pricing`. The app's optional Owner-set
+sales-target bonus on work policies is a product feature and is untouched; no public page describes the
+old bonus-and-manager-approval model. Remaining "£" copy: the Square Sandbox demo panel for a
+Square-connected location (`src/app/manager/square-panel.tsx`), shown only outside the public demo; not
+touched.
+
+**Demo booking (step 4).** `ensureDemoBooking` (`src/server/demo/booking.ts`), for the fictional South
+African business only: a casual shift at Rosebank tomorrow (Johannesburg date), 10:00–14:00, on "Casual
+floor terms" at R45.00 an hour (the Owner-approved demo value), offered to, accepted by and allocated to
+a synthetic casual worker (reserved test address) through the normal scheduling operations, in one
+transaction under an advisory lock. An existing booking for that date is kept. Two callers:
+
+- Demo setup: new `provisionSaDemo` (`src/server/demo/provision.ts`, `pnpm demo:sa`) makes the reference
+  business, a synthetic Owner, the Rosebank Manager, a Rosebank casual worker and the booking. The
+  Manager and worker are invited only once the business is entitled by its PayPal Sandbox subscription,
+  and it creates no subscription.
+- Reset demo closes unconfirmed work as before, then books tomorrow again for the demo Worker persona.
+
+The public demo's Owner persona can now send the DEMO scenario's early notice: only in the configured
+demo business, only for the DEMO scenario (a genuine finding stays closed to demo visitors), only to
+workers with reserved test addresses, rate-limited per demo group (20), audited with the persona and
+group, and never emailed. The action skips dispatch, and dispatch already refuses the demo business's
+activity.
+
+Tests: `tests/integration/demo-booking.test.ts`. Demo setup waits for the subscription, then books
+2 December 10:00–14:00 SAST once, however often it runs. The demo Owner persona's notice reaches only
+the synthetic worker, with the delivery never attempted. Reset demo cancels the booking and books again,
+so a fresh notice can be sent. Re-provisioning keeps the new booking. A day later the booking moves to
+3 December with the scenario. The notice is refused for a genuine finding, for another business and for
+a worker with a real address. Synthetic-address recognition is covered too. Copy assertions are in
+`public-onboarding-ui.test.ts`.
+
+**Checkpoint 2 verification.** On the committed tree (`99938e2`, extracted to a clean directory with no
+local env files, real-PostgreSQL URL set): full suite **100 files, 1,210 tests, all passed, 0 skipped**
+(1,352.58 s), first run. Typecheck PASS; lint PASS, 0 warnings; isolated production build PASS, 15/15
+static pages. The documents commit that follows changes only `docs/`, which no test reads.
