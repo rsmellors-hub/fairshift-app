@@ -44,6 +44,7 @@ export default async function DemoPage({ searchParams }: { searchParams: Promise
     <section className="page-intro"><div className="site-width">
       <h1>Explore FairShift</h1>
       <p className="lede">{saBusiness ? "Explore FairShift with Jacaranda Table Demo, a fictional South African cafe group trading in rand at five locations: Rosebank and Sandton in Johannesburg, Pretoria Central, Durban North and Cape Town Gardens." : "Explore FairShift using a prepared demonstration business."} No sign-up needed, and no real money moves.</p>
+      <p className="note">Judges: use this public demo. On this PayPal Sandbox deployment, new business sign-up is limited to the Sandbox demo business, by design: a new business can create an account, but checkout isn’t offered.</p>
       {status === "expired" ? <p className="form-notice" role="status">Your demo session ended. Start again whenever you like.</p> : null}
       {status === "unavailable" && open ? <p className="form-alert" role="alert">The demo couldn’t start just now. Try again in a moment.</p> : null}
       {open ? <div className="demo-entry">{ENTRIES.map(([persona, title, text]) => <form action={enterDemoAction} key={persona}><input type="hidden" name="persona" value={persona} /><button><strong>{title}</strong><small>{text}</small></button></form>)}</div>

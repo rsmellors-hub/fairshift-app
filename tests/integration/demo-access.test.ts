@@ -421,12 +421,15 @@ describe("demo session lifetime and the feature flag", () => {
     const open = renderToStaticMarkup(await DemoPage({ searchParams: Promise.resolve({}) }));
     expect(open).toContain("Start as the Owner");
     expect(open).toContain("prepared demonstration business");
+    const judges = "Judges: use this public demo. On this PayPal Sandbox deployment, new business sign-up is limited to the Sandbox demo business, by design";
+    expect(open).toContain(judges);
     const session = await as(db, "WORKER", "GET");
     vi.stubEnv("FAIRSHIFT_PUBLIC_DEMO", "");
     expect(demoConfig()).toBeNull();
     const closed = renderToStaticMarkup(await DemoPage({ searchParams: Promise.resolve({}) }));
     expect(closed).toContain("The demo isn’t open right now.");
     expect(closed).not.toContain("Start as the Owner");
+    expect(closed).toContain(judges);
     expect(await outcome(() => enterDemoAction(form({ persona: "OWNER" })))).toBe("REDIRECT:/demo?status=unavailable");
     state.jar.set("fairshift_session", session.token);
     expect(await outcome(() => requireScope(["TEAM_MEMBER"]))).toBe("REDIRECT:/demo?status=unavailable");
