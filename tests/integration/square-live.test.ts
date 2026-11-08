@@ -668,7 +668,7 @@ describe("Square tip evidence", () => {
     for (const html of [home, earnings]) expect(html).not.toMatch(/£15\.00|£215\.00|£135\.00|£144\.00/);
     // Square tip evidence is not an allocation (FS-TIP-DEC-002 allocates only imported, policy-bound
     // tip rows): the worker sees no tip line from it, and the earnings say tips are shown separately.
-    expect(earnings).toContain("Tips are shown separately below");
+    expect(earnings).toContain("your tips, which follow your location’s tip policy and are shown separately below");
     expect(earnings).not.toContain("Your tips");
   }));
   it("a repeated sync keeps one sale, one evidence row and one tip, and a changed tip is refused", () => withDb(async db => {
