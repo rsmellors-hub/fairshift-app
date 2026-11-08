@@ -4,7 +4,7 @@ import { AiFoundLabel, DemoScenarioLabel, stamp } from "@/app/components/source-
 import { labourHours, longDate, transactions } from "@/app/components/staffing";
 import { decideLocalAdjustmentsAction } from "@/app/local-intelligence-actions";
 import { TrackRecord } from "@/app/components/track-record";
-import type { LocalDay, LocalSignalView, RunView } from "@/server/intelligence/local-intelligence-service";
+import type { LocalDay, LocalSignalView, OutletLocalIntelligence, RunView } from "@/server/intelligence/local-intelligence-service";
 import type { OutletStaffing } from "@/server/intelligence/staffing";
 import { formatClock } from "@/server/intelligence/workload";
 
@@ -45,6 +45,23 @@ export function SignalCard({ signal }: { signal: LocalSignalView }) {
     <p className="note">{signal.categoryLabel} · {effectText(signal)} · {dateSpan(signal.validFrom, signal.validTo)}{time}{signal.shiftBlocks.length ? ` · ${signal.shiftBlocks.map(part => PART[part] ?? part).join(", ")}` : ""}{signal.roles.length ? ` · affects ${signal.roles.map(role => ROLE[role] ?? role).join(" and ")}` : ""}{signal.demo ? " · synthetic" : ` · ${CERTAINTY[signal.dateCertainty] ?? signal.dateCertainty} · ${signal.confidence.toLowerCase()} confidence · ${TIER[signal.sourceTier] ?? signal.sourceTier}`}</p>
     {signal.serverNote ? <p className="note">{signal.serverNote}</p> : null}
   </li>;
+}
+
+// The AI service wasn't available (quota or rate limit, outage, timeout, no network), as opposed to an
+// answer FairShift couldn't use.
+const AI_UNAVAILABLE = (code: string | null) => !!code && (["HTTP_429", "TIMEOUT", "NETWORK_ERROR", "NOT_CONFIGURED"].includes(code) || /^HTTP_5\d\d$/.test(code));
+export function lastSuccessfulRun(local: Pick<OutletLocalIntelligence, "runs">) {
+  return [...local.runs].filter(run => run.status === "COMPLETED").sort((a, b) => (b.completedAt ?? b.createdAt).getTime() - (a.completedAt ?? a.createdAt).getTime())[0] ?? null;
+}
+// When the latest search failed because the AI service wasn't available, say so plainly and show the last
+// successful search with its time: nothing found earlier is lost. Null otherwise.
+export function discoveryUnavailableLine(local: Pick<OutletLocalIntelligence, "runs" | "lastAttempt">, timeZone: string) {
+  const attempt = local.lastAttempt;
+  if (!attempt || attempt.status !== "FAILED" || !AI_UNAVAILABLE(attempt.failureCode)) return null;
+  const success = lastSuccessfulRun(local);
+  return success
+    ? `AI search unavailable at ${stamp(attempt.createdAt, timeZone)}; nothing was lost. Showing the last successful search: ${runLine(success, timeZone)}`
+    : `AI search unavailable at ${stamp(attempt.createdAt, timeZone)}, and no search has completed yet. Nothing was lost: the forecast uses its calculated baseline and the feeds until a search succeeds.`;
 }
 
 export function runLine(run: RunView | null, timeZone: string) {
@@ -106,7 +123,7 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo, sho
     {banner}
     {local.alerts.length ? <div className="setup-notice" role="status"><strong>{local.alerts.every(alert => alert.demo) ? "A DEMO scenario shows something that would stop this location trading" : local.alerts.some(alert => !alert.demo && alert.closureLikely) ? "AI found something likely to stop this location trading" : "AI found something that could stop this location trading"}</strong>
       <ul className="context-signals">{local.alerts.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul></div> : null}
-    <p className="note">{runLine(daily ?? local.lastAttempt, outlet.timezone)}{disruptions ? ` Short-notice check: ${runLine(disruptions, outlet.timezone)}` : ""}{local.lastAttempt && local.lastAttempt.status !== "COMPLETED" && local.lastAttempt.id !== daily?.id ? ` Latest attempt: ${runLine(local.lastAttempt, outlet.timezone)}` : ""}</p>
+    <p className="note">{discoveryUnavailableLine(local, outlet.timezone) ?? `${runLine(daily ?? local.lastAttempt, outlet.timezone)}${disruptions ? ` Short-notice check: ${runLine(disruptions, outlet.timezone)}` : ""}${local.lastAttempt && local.lastAttempt.status !== "COMPLETED" && local.lastAttempt.id !== daily?.id ? ` Latest attempt: ${runLine(local.lastAttempt, outlet.timezone)}` : ""}`}</p>
     <div className="table-scroll" role="region" aria-label="AI-found adjustments by planning day" tabIndex={0}><table className="data-table">
       <caption className="visually-hidden">AI-found adjustments by planning day</caption>
       <thead><tr><th scope="col">Day</th><th scope="col">Signals applied</th><th scope="col">Expected transactions</th><th scope="col">Risks</th><th scope="col">Staffing</th></tr></thead>

@@ -13,6 +13,7 @@ import { mintPayAgentCredentialForManager, payAgentServiceVerifier } from "@/ser
 import { claimForModel, finishClaim, MAX_MODEL_ATTEMPTS, recordPayAgentEvent, resolveHold } from "@/server/pay-agent/journal";
 import { createPayAgent } from "@/server/pay-agent/orchestrator";
 import { confirmedWorkSettlement, PAY_AGENT_DRY_RUN_ENV } from "@/server/pay-agent/settlement";
+import { AI_UNAVAILABLE_MESSAGE, managerPayAgentView, toPayAgentEventView } from "@/server/pay-agent/presentation";
 import { approveWorkPayable, submitWorkPayout } from "@/server/payments/work-payouts";
 
 // The Pay Agent's processing path over persisted evidence, a fake model and a fake payout
@@ -127,6 +128,21 @@ describe("Pay Agent decisions from persisted evidence", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(await s.event()).toMatchObject({ modelCallCount: 2, attemptCount: 2 });
       expect(await s.payouts()).toHaveLength(0);
+    } finally { await s.t.close(); }
+  });
+
+  it("fails closed when the AI service is unavailable (HTTP 429, e.g. an exhausted quota): nothing approved, reserved or sent, and the manager sees a plain message", async () => {
+    const assess = vi.fn(async (request: AssessmentRequest): Promise<AssessmentResponse> => { void request; throw new AiProviderError("HTTP_429"); });
+    const s = await scenario({ model: { provider: "OPENAI", model: "test-model", assess } });
+    vi.stubEnv(PAY_AGENT_DRY_RUN_ENV, "false");
+    try {
+      expect(await s.run()).toMatchObject({ status: "FAILED_RETRYABLE", outcomeCode: "MODEL_FAILED" });
+      const event = await s.event();
+      expect(event).toMatchObject({ errorClass: "HTTP_429", modelCallCount: 1, decision: null, payoutId: null });
+      expect(s.paypal.createPayout).not.toHaveBeenCalled();
+      expect(await s.payouts()).toHaveLength(0);
+      expect(await s.payable()).toMatchObject({ status: "PENDING_REVIEW", approvedBy: null, approvedAmountMinor: null });
+      expect(managerPayAgentView(toPayAgentEventView(event))).toMatchObject({ status: "AI check unavailable", explanation: AI_UNAVAILABLE_MESSAGE, canRetry: true });
     } finally { await s.t.close(); }
   });
 

@@ -47,6 +47,17 @@ export type PayAgentEventView = {
   resolution: string | null; resolutionNote: string | null; resolvedAt: Date | null; attemptCount: number; updatedAt: Date;
 };
 
+// The AI service wasn't available (quota or rate limit, outage, timeout, no network, not set up), as
+// opposed to an answer the agent couldn't use. Nothing was approved, reserved or sent, so the payment is
+// held exactly as it was and checking again later is safe. Said plainly, never as a provider code.
+export const AI_UNAVAILABLE_MESSAGE = "AI check unavailable — payment held, nothing lost; retry later.";
+const AI_UNAVAILABLE_CLASSES: ReadonlySet<string> = new Set(["HTTP_429", "TIMEOUT", "NETWORK_ERROR", "NOT_CONFIGURED"]);
+export function aiCheckUnavailable(event: Pick<PayAgentEventView, "status" | "outcomeCode" | "errorClass">) {
+  return (event.status === "FAILED_RETRYABLE" || event.status === "FAILED_TERMINAL")
+    && ["MODEL_FAILED", "MODEL_NOT_CONFIGURED", "ATTEMPTS_EXHAUSTED"].includes(event.outcomeCode ?? "")
+    && !!event.errorClass && (AI_UNAVAILABLE_CLASSES.has(event.errorClass) || /^HTTP_5\d\d$/.test(event.errorClass));
+}
+
 // Only what a manager's screen needs: never the claim token, lease or evidence version.
 export function toPayAgentEventView(event: PayAgentEventView): PayAgentEventView {
   const { id, status, outcomeCode, errorClass, decision, reasonCode, summary, dryRun, configuredModel, responseModel, responseId, resolution, resolutionNote, resolvedAt, attemptCount, updatedAt } = event;
@@ -54,12 +65,13 @@ export function toPayAgentEventView(event: PayAgentEventView): PayAgentEventView
 }
 
 export function managerPayAgentView(event: PayAgentEventView) {
+  const unavailable = aiCheckUnavailable(event);
   return {
-    status: MANAGER_STATUS[event.status] ?? "Recorded",
+    status: unavailable ? "AI check unavailable" : MANAGER_STATUS[event.status] ?? "Recorded",
     decision: event.decision === "SETTLE" ? "Settle" : event.decision === "HOLD" ? "Hold for review" : null,
     reason: event.reasonCode ? HOLD_REASON[event.reasonCode] ?? event.reasonCode : null,
     summary: event.summary,
-    explanation: payAgentOutcomeExplanation(event.outcomeCode),
+    explanation: unavailable ? AI_UNAVAILABLE_MESSAGE : payAgentOutcomeExplanation(event.outcomeCode),
     dryRun: event.dryRun === true,
     model: event.responseModel ?? event.configuredModel,
     responseId: event.responseId,

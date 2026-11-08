@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { StatusBadge } from "@/app/components/product-ui";
 import { FeedLabel, OpenMeteoAttribution, stamp } from "@/app/components/source-labels";
-import { CoverageLog, runLine, SignalCard } from "@/app/manager/local-intelligence";
+import { CoverageLog, discoveryUnavailableLine, lastSuccessfulRun, runLine, SignalCard } from "@/app/manager/local-intelligence";
 import { TrackRecord } from "@/app/components/track-record";
 import type { LiveFeedStatus } from "@/server/intelligence/live-feeds";
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
@@ -34,9 +34,11 @@ export function OwnerLiveFeeds({ staffing, feeds, timeZone, eventsConfigured, no
           <td data-label="State">{weather.status === "NO_COORDINATES" ? "No coordinates" : state(weather.status)}</td></tr> : null; })}
         {eventsConfigured ? outlets.map(outlet => { const events = outlet.demandContext?.events; return events ? <tr key={`e-${outlet.outletId}`}><th scope="row"><FeedLabel source={`Ticketmaster listings · ${outlet.outletName}`} updatedAt={events.fetchedAt} stale={events.status === "STALE"} timeZone={outlet.timezone} /></th>
           <td data-label="Supplies">Listed events within 3 km. Listings aren’t complete.</td><td data-label="State">{events.status === "NO_COORDINATES" ? "No coordinates" : state(events.status)}</td></tr> : null; }) : null}
-        {outlets.map(outlet => { const run = outlet.localIntelligence?.lastAttempt ?? null; return <tr key={`a-${outlet.outletId}`}><th scope="row">AI local discovery · {outlet.outletName}</th>
-          <td data-label="Supplies">{runLine(run, outlet.timezone)}</td>
-          <td data-label="State">{!run ? state("NOT_FETCHED") : run.status === "COMPLETED" && now.getTime() - (run.completedAt ?? run.createdAt).getTime() < 36 * 3_600_000 ? state("FRESH") : run.status === "RUNNING" ? <StatusBadge tone="neutral">Running</StatusBadge> : state("STALE")}</td></tr>; })}
+        {outlets.map(outlet => { const local = outlet.localIntelligence, run = local?.lastAttempt ?? null, success = local ? lastSuccessfulRun(local) : null;
+          // Freshness follows the last successful search, so an AI outage shows what is still current.
+          return <tr key={`a-${outlet.outletId}`}><th scope="row">AI local discovery · {outlet.outletName}</th>
+          <td data-label="Supplies">{(local && discoveryUnavailableLine(local, outlet.timezone)) ?? runLine(run, outlet.timezone)}</td>
+          <td data-label="State">{run?.status === "RUNNING" ? <StatusBadge tone="neutral">Running</StatusBadge> : success && now.getTime() - (success.completedAt ?? success.createdAt).getTime() < 36 * 3_600_000 ? state("FRESH") : success || run ? state("STALE") : state("NOT_FETCHED")}</td></tr>; })}
       </tbody></table></div>
     {outlets.map(outlet => { const local = outlet.localIntelligence; if (!local || local.status === "UNAVAILABLE") return null; const applied = local.signals.filter(signal => signal.use === "APPLIED").length;
       return <details className="owner-forecast-detail" key={outlet.outletId}><summary><strong>{outlet.outletName}</strong> <small>{local.signals.length} AI-found {local.signals.length === 1 ? "signal" : "signals"} · {applied} applied to the forecast{local.lastAttempt ? ` · last searched ${stamp(local.lastAttempt.createdAt, outlet.timezone)}` : ""}</small></summary>
