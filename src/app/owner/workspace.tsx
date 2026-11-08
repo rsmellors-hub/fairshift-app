@@ -31,6 +31,7 @@ import { PolicyForm } from "@/app/owner/policy-form";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
 import { OwnerLiveFeeds } from "@/app/owner/live-feeds";
+import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
 import { getLiveFeedStatus, type LiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { isFreshRateDate, latestFxReferenceRate } from "@/server/fx/reference-rates";
@@ -68,7 +69,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     let feeds: LiveFeedStatus | null = null;
     try { feeds = await getLiveFeedStatus(getDatabase(), now); } catch { feeds = null; }
     const timeZone = staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone ?? staffing?.outlets[0]?.timezone ?? "UTC";
-    return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} /><div className="owner-overview owner-forecast"><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} /></div></>;
+    return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} /><div className="owner-overview owner-forecast"><DisruptionAlerts alerts={(staffing?.outlets ?? []).flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })))} /><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} /></div></>;
   }
   const subscription=await subscriptionFor(getDatabase(),scope);
   const invitations=await getDatabase().select().from(teamInvitations).where(eq(teamInvitations.organisationId,scope.organisationId));

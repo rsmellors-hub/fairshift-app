@@ -14,6 +14,7 @@ import {
   locationProfileSchema, signalKey, sourceDecision, validateDiscoveryOutput, type AppliableSignal, type BlockAdjustment, type InfluenceCategory, type LocationProfile, type ProfileSource, type RunKind, type SignalStatus,
 } from "@/server/intelligence/local-intelligence-contract";
 import { consultedBy, type SourceCheck, type SourceChecker } from "@/server/intelligence/local-intelligence-sources";
+import { blockRisks, capacityAlerts, type BlockRisk } from "@/server/intelligence/disruptions";
 import { parseClock, tradingWindowsSchema, type PlanningBlock, type TradingWindow } from "@/server/intelligence/workload";
 import { holidayFeedKey, holidayLookup, isSouthAfrica } from "@/server/reference/public-holiday-feed";
 
@@ -195,17 +196,23 @@ export type LocalSignalView = AppliableSignal & {
   id: string; runId: string; category: string; categoryLabel: string; otherLabel: string | null; name: string; dateCertainty: string; roles: string[]; severity: string | null; closureLikely: boolean;
   confidence: string; sourceTier: string; reasoning: string; sourceUrl: string; sourceTitle: string | null; sourceCheck: string; consultedInSearch: string; serverNote: string | null; rejectionCode: string | null;
   responseId: string | null; model: string; responseModel: string | null; foundAt: Date;
-  // Applied in at least one planning block, listed (ranked below the top signals or outside the planning week), or unconfirmed.
-  use: "APPLIED" | "LISTED" | "UNCONFIRMED" | "NOT_DEMAND";
+  // Demand: applied in at least one planning block, or listed (ranked below the top signals, or outside the
+  // planning week). Capacity: an Owner alert when severe, else noted. Access: a staff-attendance risk.
+  // Unconfirmed: shown, never applied.
+  use: "APPLIED" | "LISTED" | "UNCONFIRMED" | "ALERT" | "ATTENDANCE_RISK" | "NOTED";
 };
 export type RunView = { id: string; kind: string; status: "COMPLETED" | "FAILED" | "RUNNING" | "INTERRUPTED"; failureCode: string | null; responseId: string | null; model: string; responseModel: string | null; createdAt: Date; completedAt: Date | null;
   coverage: { category: string; label: string; queries: string[]; outcome: string }[]; searches: { action: string; queries: string[]; url: string | null }[]; counts: Record<string, number>; rejected: { name: string; code: string | null; note: string | null; sourceUrl: string }[] };
 export type LocalDecisionState = "NOT_USED" | "ACCEPTED" | "STALE" | "SCENARIO_ACCEPTED";
 export type LocalDay = { date: string; blocks: BlockAdjustment[]; adjusted: BlockAdjustment[]; fingerprint: string; state: LocalDecisionState; decisionId: string | null; decidedAt: Date | null; decidedByRole: string | null;
+  // Capacity and access signals on each planning block. They never move demand.
+  risks: BlockRisk[];
   preview: { expectedMilliTransactions: number | null; requiredMinutes: number | null; casualGapMinutes: number | null; blocks: PlanningBlock[] } | null };
 export type LocalApplied = { decisionId: string; blocks: ReadonlyMap<number, number> };
-export type OutletLocalIntelligence = { status: "AVAILABLE" | "UNAVAILABLE"; runs: RunView[]; lastAttempt: RunView | null; signals: LocalSignalView[]; days: LocalDay[]; accepted: ReadonlyMap<string, LocalApplied> };
-export const UNAVAILABLE_LOCAL: OutletLocalIntelligence = { status: "UNAVAILABLE", runs: [], lastAttempt: null, signals: [], days: [], accepted: new Map() };
+export type OutletLocalIntelligence = { status: "AVAILABLE" | "UNAVAILABLE"; runs: RunView[]; lastAttempt: RunView | null; signals: LocalSignalView[]; days: LocalDay[]; accepted: ReadonlyMap<string, LocalApplied>;
+  // High-severity capacity signals from today on: Owner alerts.
+  alerts: LocalSignalView[] };
+export const UNAVAILABLE_LOCAL: OutletLocalIntelligence = { status: "UNAVAILABLE", runs: [], lastAttempt: null, signals: [], days: [], accepted: new Map(), alerts: [] };
 
 function runView(row: RunRow, signals: readonly SignalRow[], now: Date): RunView {
   const status = row.status === "RUNNING" && now.getTime() - row.createdAt.getTime() > RUN_INTERRUPTED_MINUTES * 60_000 ? "INTERRUPTED" : row.status as RunView["status"];
@@ -218,7 +225,7 @@ function runView(row: RunRow, signals: readonly SignalRow[], now: Date): RunView
 // One location's local intelligence for its planning week, from its baseline blocks. Adjustments are
 // worked out here from the current signals; they reach staffing only through a manager's decision that
 // still matches them, and never on a day with an accepted contextual scenario.
-export function resolveLocalIntelligence(input: { outletId: string; stored: StoredLocalIntelligence; days: readonly { planningDate: string; closed: boolean | null; blocks: readonly TradingWindow[] }[]; scenarioDates: ReadonlySet<string>; now?: Date }): OutletLocalIntelligence {
+export function resolveLocalIntelligence(input: { outletId: string; stored: StoredLocalIntelligence; days: readonly { planningDate: string; closed: boolean | null; blocks: readonly TradingWindow[] }[]; scenarioDates: ReadonlySet<string>; timeZone?: string; now?: Date }): OutletLocalIntelligence {
   const now = input.now ?? new Date();
   const runs = input.stored.runs.filter(row => row.outletId === input.outletId);
   const current = currentRuns(runs);
@@ -244,15 +251,19 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
     const accepted = latest?.action === "ACCEPTED";
     const matches = accepted && latest.adjustmentFingerprint === result.fingerprint && latest.policyVersion === LOCAL_INTEL_POLICY_VERSION && result.adjusted.length > 0;
     const state: LocalDecisionState = !accepted ? "NOT_USED" : !matches ? "STALE" : input.scenarioDates.has(day.planningDate) ? "SCENARIO_ACCEPTED" : "ACCEPTED";
-    return { date: day.planningDate, blocks: result.blocks, adjusted: result.adjusted, fingerprint: result.fingerprint, state, decisionId: accepted ? latest.id : null, decidedAt: accepted ? latest.decidedAt : null, decidedByRole: accepted ? latest.decidedByRole : null, preview: null };
+    return { date: day.planningDate, blocks: result.blocks, adjusted: result.adjusted, fingerprint: result.fingerprint, state, decisionId: accepted ? latest.id : null, decidedAt: accepted ? latest.decidedAt : null, decidedByRole: accepted ? latest.decidedByRole : null,
+      risks: blockRisks(day.planningDate, blocks, base), preview: null };
   });
   const applied = new Set(days.flatMap(day => day.blocks.flatMap(block => block.applied)));
-  const signals: LocalSignalView[] = base.map((signal): LocalSignalView => ({ ...signal, use: signal.effectType !== "DEMAND" ? "NOT_DEMAND" : signal.status === "UNCONFIRMED" ? "UNCONFIRMED" : applied.has(signal.key) ? "APPLIED" : "LISTED" }))
+  const useOf = (signal: (typeof base)[number]): LocalSignalView["use"] => signal.status === "UNCONFIRMED" ? "UNCONFIRMED"
+    : signal.effectType === "CAPACITY" ? (signal.severity === "HIGH" ? "ALERT" : "NOTED") : signal.effectType === "ACCESS" ? "ATTENDANCE_RISK" : applied.has(signal.key) ? "APPLIED" : "LISTED";
+  const signals: LocalSignalView[] = base.map((signal): LocalSignalView => ({ ...signal, use: useOf(signal) }))
     .sort((a, b) => b.impact - a.impact || a.validFrom.localeCompare(b.validFrom) || a.key.localeCompare(b.key));
   const accepted = new Map(days.filter(day => day.state === "ACCEPTED").map(day => [day.date, { decisionId: day.decisionId!, blocks: new Map(day.adjusted.map(block => [block.start, block.bps])) }]));
   const runViews = current.map(row => runView(row, input.stored.signals, now));
   const latestAny = [...runs].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-  return { status: "AVAILABLE", runs: runViews, lastAttempt: latestAny ? runView(latestAny, input.stored.signals, now) : null, signals, days, accepted };
+  const alerts = capacityAlerts(signals, localDate(now, input.timeZone ?? "UTC"));
+  return { status: "AVAILABLE", runs: runViews, lastAttempt: latestAny ? runView(latestAny, input.stored.signals, now) : null, signals, days, accepted, alerts };
 }
 
 // --- A manager's decision ------------------------------------------------------------------------

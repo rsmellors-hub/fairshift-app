@@ -17,8 +17,9 @@ const TIER: Record<string, string> = { OFFICIAL: "Official source", EVENT_ORGANI
 const CERTAINTY: Record<string, string> = { FIXED: "fixed date", MOON_DEPENDENT: "date depends on the moon", ESTIMATED: "estimated date", SHORT_NOTICE: "short notice" };
 const ROLE: Record<string, string> = { FOH: "front of house", BOH: "kitchen" };
 const PART: Record<string, string> = { MORNING: "morning", AFTERNOON: "afternoon", EVENING: "evening" };
-const USE: Record<LocalSignalView["use"], [string, "success" | "neutral" | "warning" | "predictive"]> = {
-  APPLIED: ["Applied to the forecast", "success"], LISTED: ["Listed, not applied", "neutral"], UNCONFIRMED: ["Unconfirmed: shown, never applied", "warning"], NOT_DEMAND: ["Not a demand effect", "predictive"],
+const USE: Record<LocalSignalView["use"], [string, "success" | "neutral" | "warning" | "predictive" | "danger"]> = {
+  APPLIED: ["Applied to the forecast", "success"], LISTED: ["Listed, not applied", "neutral"], UNCONFIRMED: ["Unconfirmed: shown, never applied", "warning"],
+  ALERT: ["Owner alert: could stop trading", "danger"], ATTENDANCE_RISK: ["Staff attendance risk", "warning"], NOTED: ["Noted: no change to demand", "predictive"],
 };
 const NOTICE: Record<string, string> = {
   "local-accepted": "Staffing for this day now uses the AI-found adjustments shown.", "local-withdrawn": "Staffing for this day is back on its baseline.",
@@ -72,17 +73,19 @@ function DayBlocks({ day, outlet }: { day: LocalDay; outlet: OutletStaffing }) {
   const baseline = staffing?.context?.baseline ?? staffing?.local?.baseline ?? staffing;
   const adjustedBlocks = day.preview?.blocks ?? [];
   const nameOf = (key: string) => outlet.localIntelligence?.signals.find(signal => signal.key === key)?.name ?? key;
-  const rows = day.blocks.filter(block => block.applied.length || block.listed.length);
-  if (!rows.length) return <p className="note">No AI-found demand signal bears on this day’s trading hours.</p>;
+  const riskOf = (start: number) => day.risks.find(risk => risk.start === start) ?? { access: [], capacity: [] };
+  const rows = day.blocks.filter(block => block.applied.length || block.listed.length || riskOf(block.start).access.length || riskOf(block.start).capacity.length);
+  if (!rows.length) return <p className="note">No AI-found signal bears on this day’s trading hours.</p>;
   return <div className="table-scroll" role="region" aria-label={`AI-found adjustments, ${longDate(day.date)}`} tabIndex={0}><table className="data-table context-compare">
     <caption className="visually-hidden">Baseline and AI-adjusted expected transactions by hour</caption>
-    <thead><tr><th scope="col">Hour</th><th scope="col">Baseline</th><th scope="col">Adjustment</th><th scope="col">AI-adjusted</th><th scope="col">Applied (top two)</th><th scope="col">Listed</th></tr></thead>
+    <thead><tr><th scope="col">Hour</th><th scope="col">Baseline</th><th scope="col">Adjustment</th><th scope="col">AI-adjusted</th><th scope="col">Applied (top two)</th><th scope="col">Listed</th><th scope="col">Staff attendance and trading</th></tr></thead>
     <tbody>{rows.map(block => <tr key={block.start}><th scope="row">{formatClock(block.start)}–{formatClock(block.end)}</th>
       <td data-label="Baseline">{transactions(baseline?.blocks.find(row => row.start === block.start)?.expectedMilliTransactions ?? null)}</td>
       <td data-label="Adjustment">{percent(block.bps)}</td>
       <td data-label="AI-adjusted">{transactions(adjustedBlocks.find(row => row.start === block.start)?.expectedMilliTransactions ?? null)}</td>
       <td data-label="Applied">{block.applied.map(nameOf).join("; ") || "None"}</td>
-      <td data-label="Listed">{block.listed.map(nameOf).join("; ") || "None"}</td></tr>)}</tbody></table></div>;
+      <td data-label="Listed">{block.listed.map(nameOf).join("; ") || "None"}</td>
+      <td data-label="Staff attendance and trading">{[...riskOf(block.start).access.map(key => `Attendance risk: ${nameOf(key)}`), ...riskOf(block.start).capacity.map(key => `Trading: ${nameOf(key)}`)].join("; ") || "None"}</td></tr>)}</tbody></table></div>;
 }
 
 export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo }: { outlet: OutletStaffing; selectedDate?: string | null; notice?: string; demo: boolean }) {
@@ -100,14 +103,17 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo }: {
     {head}
     <p className="panel-lede">Every day, and every few hours for short-notice news, AI searches the web for anything that could change demand here, or affect trading or getting here. Each finding needs a source page FairShift could reach. FairShift applies at most two findings to any hour, in fixed bands, and you decide whether staffing uses them.</p>
     {banner}
+    {local.alerts.length ? <div className="setup-notice" role="status"><strong>{local.alerts.some(alert => alert.closureLikely) ? "AI found something likely to stop this location trading" : "AI found something that could stop this location trading"}</strong>
+      <ul className="context-signals">{local.alerts.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul></div> : null}
     <p className="note">{runLine(daily ?? local.lastAttempt, outlet.timezone)}{disruptions ? ` Short-notice check: ${runLine(disruptions, outlet.timezone)}` : ""}{local.lastAttempt && local.lastAttempt.status !== "COMPLETED" && local.lastAttempt.id !== daily?.id ? ` Latest attempt: ${runLine(local.lastAttempt, outlet.timezone)}` : ""}</p>
     <div className="table-scroll" role="region" aria-label="AI-found adjustments by planning day" tabIndex={0}><table className="data-table">
       <caption className="visually-hidden">AI-found adjustments by planning day</caption>
-      <thead><tr><th scope="col">Day</th><th scope="col">Signals applied</th><th scope="col">Expected transactions</th><th scope="col">Staffing</th></tr></thead>
+      <thead><tr><th scope="col">Day</th><th scope="col">Signals applied</th><th scope="col">Expected transactions</th><th scope="col">Risks</th><th scope="col">Staffing</th></tr></thead>
       <tbody>{local.days.map(row => { const base = outlet.days.find(item => item.planningDate === row.date); const baseline = base?.context?.baseline ?? base?.local?.baseline ?? base; const applied = new Set(row.blocks.flatMap(block => block.applied)); return <tr key={row.date}>
         <th scope="row"><Link href={`/manager/plan?date=${row.date}#local-intelligence`} aria-current={row.date === date ? "true" : undefined}>{longDate(row.date)}</Link></th>
         <td data-label="Signals applied">{applied.size || "None"}</td>
         <td data-label="Expected transactions">{row.adjusted.length ? `${transactions(baseline?.expectedMilliTransactions ?? null)} → ${transactions(row.preview?.expectedMilliTransactions ?? null)} AI-adjusted` : transactions(baseline?.expectedMilliTransactions ?? null)}</td>
+        <td data-label="Risks">{(() => { const access = row.risks.filter(risk => risk.access.length).length, capacity = new Set(row.risks.flatMap(risk => risk.capacity)).size; return [access ? `Attendance risk in ${access} ${access === 1 ? "hour" : "hours"}` : null, capacity ? `${capacity} trading ${capacity === 1 ? "issue" : "issues"}` : null].filter(Boolean).join(" · ") || "None"; })()}</td>
         <td data-label="Staffing">{row.state === "ACCEPTED" ? <StatusBadge tone="success">Uses AI-found adjustments</StatusBadge> : row.state === "STALE" ? <StatusBadge tone="warning">Needs review</StatusBadge> : row.state === "SCENARIO_ACCEPTED" ? "Uses an accepted scenario" : row.adjusted.length ? "Baseline (not used yet)" : "Baseline"}</td></tr>; })}</tbody></table></div>
 
     {day && staffing ? <>

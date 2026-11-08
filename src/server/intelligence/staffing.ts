@@ -196,7 +196,7 @@ function withDemandContext(organisationId: string, forecast: OutletWeeklyForecas
   // Manager's current decision, and never on a day with an accepted scenario.
   let local: OutletLocalIntelligence = UNAVAILABLE_LOCAL;
   if (storedLocal) {
-    try { local = resolveLocalIntelligence({ outletId: forecast.outletId, stored: storedLocal, days: baseline.days, scenarioDates: new Set(context?.accepted.keys() ?? []), now }); }
+    try { local = resolveLocalIntelligence({ outletId: forecast.outletId, stored: storedLocal, days: baseline.days, scenarioDates: new Set(context?.accepted.keys() ?? []), timeZone: forecast.timezone, now }); }
     catch { console.error("Local intelligence could not be resolved; planning continues from the baseline."); }
   }
   const localPreview = (day: LocalDay): LocalDay["preview"] => {

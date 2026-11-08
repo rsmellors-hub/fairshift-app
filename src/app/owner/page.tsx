@@ -6,6 +6,7 @@ import { getOwnerSetup } from "@/server/product/owner-setup";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { OwnerOverview, OwnerReload } from "@/app/owner/overview";
+import { DisruptionAlerts, type DisruptionAlert } from "@/app/owner/disruption-alerts";
 import { OwnerSetupChecklist } from "@/app/owner/setup-checklist";
 import { ActionFeedback } from "@/app/components/workspace-ui";
 export const dynamic = "force-dynamic";
@@ -18,14 +19,19 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
   catch { return <OwnerOverviewUnavailable />; }
   // A forecast failure leaves the factual sections intact and is shown as unavailable.
   const now = new Date();
-  let forecast = null, staffing = null;
+  let forecast = null, staffing = null, alerts: DisruptionAlert[] = [];
   try { forecast = ownerForecastSummary(await getWeeklyForecast(getDatabase(), scope, now)); } catch { forecast = null; }
-  try { staffing = ownerStaffingSummary(await getWeeklyStaffing(getDatabase(), scope, now)); } catch { staffing = null; }
+  try {
+    const weekly = await getWeeklyStaffing(getDatabase(), scope, now);
+    staffing = ownerStaffingSummary(weekly);
+    // High-severity capacity signals at any location: something that could stop it trading.
+    alerts = weekly.outlets.flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })));
+  } catch { staffing = null; }
   // A guide, not a record: if it can't be worked out, the Overview simply goes without it.
   let setup = null;
   try { setup = await getOwnerSetup(getDatabase(), scope, !!staffing?.outlets.some(row => row.casualGapMinutes !== null)); } catch { setup = null; }
   const query = await searchParams, welcome = !!query?.welcome;
-  return <div className="product-page"><ActionFeedback status={query?.status} />{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
+  return <div className="product-page"><ActionFeedback status={query?.status} />{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<DisruptionAlerts alerts={alerts} /><OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
 }
 
 function OwnerOverviewUnavailable() {

@@ -4,6 +4,7 @@ import {
   type AppliableSignal, type DiscoveredSignal,
 } from "@/server/intelligence/local-intelligence-contract";
 import { consultedBy, createSourceChecker, normaliseUrl, publicHttpsUrl, siteOf } from "@/server/intelligence/local-intelligence-sources";
+import { blockRisks, capacityAlerts, type DisruptionSignal } from "@/server/intelligence/disruptions";
 import { OpenAiWebDiscoveryProvider, searchesOf } from "@/server/integrations/openai/web-discovery";
 
 // Fixtures only: no model or web page is contacted here.
@@ -197,5 +198,28 @@ describe("OpenAI web discovery transport", () => {
     await expect(reply({ model: "m", status: "incomplete", output: [] }).discover(request)).rejects.toMatchObject({ code: "INCOMPLETE" });
     await expect(reply({ model: "m", output: [{ type: "message", content: [{ type: "refusal", refusal: "no" }] }] }).discover(request)).rejects.toMatchObject({ code: "REFUSAL" });
     await expect(reply({ error: { message: "web search unsupported" } }, 400).discover(request)).rejects.toMatchObject({ code: "HTTP_400" });
+  });
+});
+
+describe("capacity and access disruptions", () => {
+  const disruption = (overrides: Partial<DisruptionSignal & { impact: number }>): DisruptionSignal & { impact: number } => ({ key: "k", status: "ACCEPTED", effectType: "ACCESS", validFrom: "2026-11-14", validTo: "2026-11-14", startMinute: null, endMinute: null, shiftBlocks: ["AFTERNOON"], severity: "MEDIUM", closureLikely: false, impact: 200, ...overrides });
+  const blocks = [{ start: 600, end: 660 }, { start: 780, end: 840 }, { start: 1080, end: 1140 }];
+
+  it("flags a staff-attendance risk on the blocks an accepted access signal covers, and nothing for an unconfirmed one", () => {
+    const risks = blockRisks("2026-11-14", blocks, [disruption({ key: "closure" }), disruption({ key: "rumour", status: "UNCONFIRMED", shiftBlocks: [] }), disruption({ key: "outage", effectType: "CAPACITY", severity: "HIGH", shiftBlocks: ["EVENING"] })]);
+    expect(risks.map(row => [row.start, row.access, row.capacity])).toEqual([[600, [], []], [780, ["closure"], []], [1080, [], ["outage"]]]);
+    expect(blockRisks("2026-11-15", blocks, [disruption({ key: "closure" })]).every(row => !row.access.length)).toBe(true);
+  });
+
+  it("alerts the Owner to severe capacity signals still ahead, likely closures first", () => {
+    const alerts = capacityAlerts([
+      disruption({ key: "medium", effectType: "CAPACITY", severity: "MEDIUM" }),
+      disruption({ key: "past", effectType: "CAPACITY", severity: "HIGH", validFrom: "2026-11-10", validTo: "2026-11-10" }),
+      disruption({ key: "high", effectType: "CAPACITY", severity: "HIGH", validFrom: "2026-11-13", validTo: "2026-11-13" }),
+      disruption({ key: "closure", effectType: "CAPACITY", severity: "HIGH", closureLikely: true }),
+      disruption({ key: "unconfirmed", effectType: "CAPACITY", severity: "HIGH", status: "UNCONFIRMED" }),
+      disruption({ key: "access", effectType: "ACCESS", severity: "HIGH" }),
+    ], "2026-11-12");
+    expect(alerts.map(row => row.key)).toEqual(["closure", "high"]);
   });
 });

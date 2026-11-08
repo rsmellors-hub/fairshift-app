@@ -16,6 +16,7 @@ import type { SourceCheck } from "@/server/intelligence/local-intelligence-sourc
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { holidayFeedKey } from "@/server/reference/public-holiday-feed";
 import { LocalIntelligencePanel } from "@/app/manager/local-intelligence";
+import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
 
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -217,6 +218,37 @@ describe("local intelligence", () => {
     const after = await resolve();
     expect(after.days.map(row => [row.date, row.holidayStatus, row.fingerprint, row.signals.map(signal => signal.provenance)])).toEqual(before.days.map(row => [row.date, row.holidayStatus, row.fingerprint, row.signals.map(signal => signal.provenance)]));
     expect(after.days.find(row => row.date === "2026-12-25")!.signals.find(row => row.type === "BANK_HOLIDAY")).toMatchObject({ provenance: "OFFICIAL_SNAPSHOT", sourceLabel: expect.stringContaining("GOV.UK") });
+    await close();
+  });
+
+  it("turns a severe capacity signal into an Owner alert and an access signal into a staff-attendance risk, never a demand change", async () => {
+    const { db, close } = await createTestDatabase();
+    const { organisationId, outletId, scope } = await saBusiness(db);
+    const outage = found({ name: "Fixture water outage", category: "SERVICE_DISRUPTION", effectType: "CAPACITY", direction: null, sizeBand: null, severity: "HIGH", closureLikely: true, sourceTier: "OFFICIAL", shiftBlocks: [], sourceUrl: "https://utility.example.gov/outage" });
+    const closure = found({ name: "Fixture race route closure", category: "ACCESS_DISRUPTION", effectType: "ACCESS", direction: null, sizeBand: null, severity: "MEDIUM", shiftBlocks: ["AFTERNOON"], sourceTier: "OFFICIAL", sourceUrl: "https://city.example.gov/closures" });
+    const rumour = found({ name: "Fixture taxi strike rumour", category: "ACCESS_DISRUPTION", effectType: "ACCESS", direction: null, sizeBand: null, severity: "HIGH", shiftBlocks: [], sourceTier: "UNCONFIRMED", sourceUrl: "https://social.example.com/strike" });
+    const minor = found({ name: "Fixture short power maintenance", category: "SERVICE_DISRUPTION", effectType: "CAPACITY", direction: null, sizeBand: null, severity: "LOW", sourceTier: "OFFICIAL", sourceUrl: "https://power.example.gov/notice" });
+    await runLocalDiscovery(db, { organisationId, outletId }, { kind: "DAILY", trigger: "MANUAL", provider: provider(() => [outage, closure, rumour, minor]), checkSource: pages(), now: NOW });
+    const outlet = await outletOf(db, scope);
+    const local = outlet.localIntelligence!;
+    expect(local.alerts.map(row => row.name)).toEqual(["Fixture water outage"]);
+    expect(Object.fromEntries(local.signals.map(row => [row.name, row.use]))).toEqual({ "Fixture water outage": "ALERT", "Fixture race route closure": "ATTENDANCE_RISK", "Fixture taxi strike rumour": "UNCONFIRMED", "Fixture short power maintenance": "NOTED" });
+    const day = local.days.find(row => row.date === FRIDAY)!;
+    expect(day.risks.filter(row => row.access.length).map(row => row.start)).toEqual([720, 780, 840, 900, 960]);
+    // The outage covers the whole day; the minor maintenance only the morning and afternoon (it is noted, never an alert).
+    expect(day.risks.map(row => row.capacity.length)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    // None of them moves demand or staffing.
+    expect(day.adjusted).toEqual([]);
+    expect(outlet.days.find(row => row.planningDate === FRIDAY)!.local).toBeUndefined();
+    const alerts = renderToStaticMarkup(DisruptionAlerts({ alerts: local.alerts.map(signal => ({ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal })) }));
+    expect(alerts).toContain("Disruption alerts");
+    expect(alerts).toContain("Closure likely");
+    expect(alerts).toContain("href=\"https://utility.example.gov/outage\"");
+    const panel = renderToStaticMarkup(LocalIntelligencePanel({ outlet, selectedDate: FRIDAY, demo: false }));
+    expect(panel).toContain("Attendance risk: Fixture race route closure");
+    expect(panel).toContain("likely to stop this location trading");
+    expect(panel).toContain("Staff attendance risk");
+    expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [] }))).toBe("");
     await close();
   });
 
