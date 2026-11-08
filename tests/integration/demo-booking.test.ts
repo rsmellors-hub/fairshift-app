@@ -12,6 +12,8 @@ import { resetDemo } from "@/server/demo/fixtures";
 import { DEMO_ACCOUNTS, provisionSaDemo } from "@/server/demo/provision";
 import { affectedShifts, sendEarlyNotice } from "@/server/intelligence/early-notice";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
+import { renderToStaticMarkup } from "react-dom/server";
 import { SA_REFERENCE_LOCATIONS, SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
 import { allocateAssignment, createRequirement, createTeamMember, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 
@@ -143,6 +145,15 @@ describe("the public demo's DEMO early notice", () => {
     const owner = await demoOwner(db, setup.memberships.OWNER);
     const { signal, outlet } = await demoAlert(db, owner);
 
+    // The demo hides forms not marked data-demo-write: the DEMO notice form is marked for a visitor, and a
+    // genuine finding's isn't offered to a visitor at all.
+    const affected = await affectedShifts(db, { organisationId: ORG, outletId: ROSEBANK, timezone: TZ }, signal, NOW);
+    const card = (alertSignal: typeof signal) => renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId: ROSEBANK, outletName: "Rosebank", timezone: TZ, signal: alertSignal, affected }], canSend: false, demoVisitor: true }));
+    expect(card(signal)).toMatch(/<form[^>]*data-demo-write=""/);
+    expect(card(signal)).toContain("Send early notice to 1 casual worker");
+    expect(card(signal)).toContain("In the public demo this goes only to the synthetic casual worker");
+    expect(card({ ...signal, demo: false })).toContain("Sending notices is turned off in the public demo.");
+    expect(card({ ...signal, demo: false })).not.toContain("<form");
     // A genuine (non-DEMO) closure alert stays closed to public demo visitors.
     const genuine = async () => ({ signal: { ...signal, demo: false, key: "genuine_closure" }, outletId: ROSEBANK, outletName: outlet.outletName, timezone: TZ });
     await expect(sendEarlyNotice(db, owner, { outletId: ROSEBANK, signalKey: "genuine_closure" }, genuine, NOW)).rejects.toMatchObject({ feedback: "demo-read-only" });

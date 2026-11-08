@@ -14,7 +14,8 @@ import { formatClock } from "@/server/intelligence/workload";
 // scenario's notice. It cancels nothing and changes no pay.
 export type DisruptionAlert = { outletId: string; outletName: string; timezone: string; signal: LocalSignalView; affected?: AffectedShift[] };
 
-// A public demo visitor may send only the DEMO scenario's notice; the server checks this again.
+// A public demo visitor may send only the DEMO scenario's notice; the server checks this again. The demo
+// hides every form not marked data-demo-write (src/app/demo/demo.css), so this one is marked for them.
 function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; canSend: boolean; demoVisitor: boolean }) {
   const allowed = canSend || (demoVisitor && !!alert.signal.demo);
   if (!alert.affected) return <p className="note">Closure is likely: the Overview shows which casual workers it affects, so you can tell them early.</p>;
@@ -27,7 +28,7 @@ function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; 
     <ul>{affected.map(row => <li key={row.offerId}>{row.workerName} · {when(row)}{row.noticeAt ? ` · early notice sent ${stamp(row.noticeAt, alert.timezone)}` : ""}</li>)}</ul>
     {!pending.length ? <p className="note">Everyone this affects has had the early notice.</p>
       : !allowed ? <p className="note">Sending notices is turned off in the public demo.</p>
-      : <form action={sendEarlyNoticeAction} className="workspace-form">{demoVisitor ? <p className="note">In the public demo this goes only to the synthetic casual worker, in FairShift. It is never emailed.</p> : null}<input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
+      : <form action={sendEarlyNoticeAction} className="workspace-form" {...(demoVisitor ? { "data-demo-write": "" } : {})}>{demoVisitor ? <p className="note">In the public demo this goes only to the synthetic casual worker, in FairShift. It is never emailed.</p> : null}<input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
         <label className="acceptance-check"><input type="checkbox" name="confirmed" value="yes" required /> {alert.signal.demo ? "I understand this is a DEMO scenario and want to give this early notice." : "I’ve checked the source and want to give this early notice."}</label>
         <button className="primary-button">Send early notice to {pending.length === 1 ? "1 casual worker" : `${pending.length} casual workers`}</button></form>}
   </div>;
