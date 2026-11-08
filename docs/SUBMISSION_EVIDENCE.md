@@ -746,3 +746,57 @@ Tests: `tests/integration/paypal-action-audit.test.ts` (each action with the sig
 session types, refusals and PayPal errors) and new assertions in `tips.test.ts`. Three existing tests had
 asserted that a refused request writes no audit row at all; they now assert that it writes only its
 refusal row and leaves payables and payouts unchanged.
+
+**Exactly one payout for the R135.00 shift (VERIFIED, rechecked 15:14–15:22 UTC).** PayPal Sandbox GET of
+batch `5ZBF3L7XQ4AWA` at 15:14:40 UTC: `SUCCESS`; `sender_batch_id` `FSWP-B-046D48EF0F4849BABED2EC7A3BA6D598`,
+FairShift's deterministic ID for payable `046d48ef-…`; US$8.16 with a US$0.16 fee; `total_items` 1, item
+`LNCVDBR5FJ2PY` (`SUCCESS`, `sender_item_id` `FSWP-I-046D48EF0F4849BABED2EC7A3BA6D598`, transaction ID
+present); created 13:08:35, completed 13:08:59 UTC. Hosted database at 15:22:23 UTC: one `work_payouts` row
+in the demo business (PAID, that batch, one create attempt) and one created anywhere that day; one each of
+`PAYOUT_RESERVED`, `PAYOUT_PROVIDER_RESPONSE` and `PAYOUT_STATUS_UPDATED`; unique indexes on payable,
+sender batch, sender item, PayPal batch and tip line. Whether any other batch exists anywhere in the PayPal
+account would need PayPal's reporting API, which this app isn't set up for: NOT VERIFIED beyond FairShift's
+records and the batch GET.
+
+**Deploy of the audit (`5fa8a5a`).** Gate on `5fa8a5a`: 103 test files and 1,227 tests passed, typecheck,
+ESLint with no warnings, isolated production build. The first full run, on `fb637d3`, failed one unit
+test that still asserted a refused recovery writes nothing; fixed in `5fa8a5a`. Pushed at 15:14:05 UTC,
+after the discovery pass below; Render deploy `dep-dbo93fh42hec73d4uk10` was live at 15:16:05 UTC, equal to
+`origin/submission` HEAD. `/api/health`: ready, CONNECTED, SANDBOX_CONFIGURED. `FAIRSHIFT_PAY_AGENT_DRY_RUN`
+is not set on Render, so dry run is on.
+
+**Public demo visitors can't pay; the Pay Agent's dry run on hosted (VERIFIED, 15:18–15:22 UTC).** A finished
+one-hour casual shift at Rosebank (13:45–14:45 UTC, R45.00) was booked for the synthetic worker through the
+normal scheduling operations. As a public demo visitor (Manager persona), submitting its confirmation was
+refused by the server (`status=demo-read-only`). Signed in as the Rosebank Manager, the confirmation went
+through; `WORK_CONFIRMED` names the Manager (role MANAGER, SIGNED_IN, outcome CONFIRMED). The Pay Agent
+decided SETTLE (`resp_078fb983ef59c8be016af09319b3ac87d0a9983127df43eeb0`, one model call) and, with dry run
+on, the event ended `DRY_RUN_ELIGIBLE` (`dry_run` true, no payout). The payable stays `PENDING_REVIEW`, the
+demo business still has exactly one payout, and no approval, reservation or provider row was written for
+the new work. Both the signed-in Manager and a public demo visitor see "Demo dry run: all checks passed"
+and "nothing was sent to PayPal" on the payments page; the Proof page lists the decision as "demo dry run,
+no PayPal call". 0 console errors.
+
+**Proof page (VERIFIED, headless Chrome as the public demo Owner, 15:17 UTC).** It shows the payout
+(`5ZBF3L7XQ4AWA` / `LNCVDBR5FJ2PY`, SUCCESS, PAID, R135.00 → US$8.16, `ECB_EUROFXREF_DAILY:2026-11-06`) and
+the subscription (`I-W03RREWEH5VB`, Group Monthly (USD), 30-day trial, ACTIVE, "PayPal reports a
+subscription as ACTIVE during its free trial"). No "£", no "ZAR 1…", no receiver address; 0 console errors on
+every page checked. OPEN: the Pay Agent line shows when the event was recorded (14:35 SAST, the first
+confirmation), not when SETTLE was decided (15:08 SAST, after the retry).
+
+**First scheduled AI discovery on hosted, 17:00 SAST (VERIFIED from the hosted database).** `intel:disruptions`
+ran 15:07:34–15:12:49 UTC, at the scheduler's first tick after 15:00 (it ticks every 10 minutes from server
+start), with `{"complete": true, "COMPLETED": 5}`: one call per location, 30 s apart, each with a response
+ID (`gpt-6-luna`). Counts are as each run records them.
+
+| Location | Response ID | Found | Accepted | UNCONFIRMED | Rejected |
+|---|---|---|---|---|---|
+| Cape Town Gardens | `resp_03a68142fb1d09e8016af090370bf487d0a95d65585c356816` | 4 | 4 | 0 | 0 |
+| Durban North | `resp_03a90bb8b1e676c4016af09085061487d0ba4147576ca56794` | 1 | 1 | 0 | 0 |
+| Pretoria Central | `resp_0c2bd9365e84971e016af090b73e0887d083def0bed1642717` | 2 | 1 | 0 | 1 |
+| Rosebank | `resp_0a66dd601f437ad5016af090fed3e487d0b029d41eb7e9d6c1` | 2 | 2 | 0 | 0 |
+| Sandton | `resp_07ceb475457d4c21016af091492b7887d0825b03041dae4598` | 2 | 2 | 0 | 0 |
+
+Five scheduled AI calls that SAST day, against the daily cap of 20; each run is recorded before its call.
+There was no 05:00 SAST run that day: the AI schedule went live at 11:25 UTC, after that slot's three-hour
+grace, as the code sets it. The next 05:00 SAST run is NOT VERIFIED.
