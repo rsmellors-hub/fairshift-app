@@ -11,7 +11,7 @@ import { PROVIDER_RULE, type WeeklyForecast } from "@/server/intelligence/weekly
 export const SALES_SOURCE: Record<SalesSource, string> = { SQUARE: "Square Sandbox sales · connected seller", ZETTLE: "Earlier connected-account sales", IMPORTED: "Imported sales history · not provider-verified", REFERENCE: "Reference sales history · synthetic", DEMO_SEEDED: "Demo / seeded history", PAYPAL_SANDBOX: "Verified PayPal Sandbox sales" };
 const SOURCE_SHORT: Record<SalesSource, string> = { SQUARE: "Square Sandbox", ZETTLE: "Earlier connected account", IMPORTED: "Imported", REFERENCE: "Reference data", DEMO_SEEDED: "Demo", PAYPAL_SANDBOX: "PayPal Sandbox" };
 const SOURCE_MEANING: Record<SalesSource, string> = {
-  SQUARE: "Retrieved from this location’s connected Square Sandbox seller. Test money, not trading. Completed payments, gross of refunds: refunds are recorded and linked, not netted off. Not reconciled by FairShift.",
+  SQUARE: "Retrieved from this location’s connected Square Sandbox seller, a UK (GBP) test seller, not this business’s own till. Test money, not trading. Completed payments, gross of refunds: refunds are recorded and linked, not netted off. Not reconciled by FairShift.",
   ZETTLE: "Retrieved from a previously connected account. Completed sales only: refunds are not deducted. Not reconciled by FairShift.",
   IMPORTED: "Supplied for this business. Genuine history, but no provider has verified it.",
   REFERENCE: "Generated for a fictional hospitality group so the product can be explored. Never a real business’s trading.",

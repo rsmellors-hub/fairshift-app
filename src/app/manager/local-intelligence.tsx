@@ -3,6 +3,7 @@ import { DataLabel, StatusBadge } from "@/app/components/product-ui";
 import { AiFoundLabel, stamp } from "@/app/components/source-labels";
 import { labourHours, longDate, transactions } from "@/app/components/staffing";
 import { decideLocalAdjustmentsAction } from "@/app/local-intelligence-actions";
+import { TrackRecord } from "@/app/components/track-record";
 import type { LocalDay, LocalSignalView, RunView } from "@/server/intelligence/local-intelligence-service";
 import type { OutletStaffing } from "@/server/intelligence/staffing";
 import { formatClock } from "@/server/intelligence/workload";
@@ -88,7 +89,7 @@ function DayBlocks({ day, outlet }: { day: LocalDay; outlet: OutletStaffing }) {
       <td data-label="Staff attendance and trading">{[...riskOf(block.start).access.map(key => `Attendance risk: ${nameOf(key)}`), ...riskOf(block.start).capacity.map(key => `Trading: ${nameOf(key)}`)].join("; ") || "None"}</td></tr>)}</tbody></table></div>;
 }
 
-export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo }: { outlet: OutletStaffing; selectedDate?: string | null; notice?: string; demo: boolean }) {
+export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo, showTrackRecord = false }: { outlet: OutletStaffing; selectedDate?: string | null; notice?: string; demo: boolean; showTrackRecord?: boolean }) {
   const local = outlet.localIntelligence;
   const banner = notice && NOTICE[notice] ? <p role="status" className="note context-notice">{NOTICE[notice]}</p> : null;
   const head = <><DataLabel kind="predictive">AI-found local influences</DataLabel><h2 id="local-intelligence-title">What’s happening around {outlet.outletName}?</h2></>;
@@ -131,5 +132,6 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo }: {
     {shown.length ? <ul className="context-signals">{shown.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul> : <p>No AI-found influence for this day. That means none was found with a source, not that nothing is happening.</p>}
     {elsewhere.length ? <details className="disclosure-inline"><summary>Other findings this week · {elsewhere.length}</summary><ul className="context-signals">{elsewhere.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul></details> : null}
     {local.runs.map(run => <CoverageLog key={run.id} run={run} timeZone={outlet.timezone} />)}
+    {showTrackRecord || local.trackRecord.length ? <details className="disclosure-inline"><summary>AI signal track record</summary><TrackRecord rows={local.trackRecord} /></details> : null}
   </section>;
 }

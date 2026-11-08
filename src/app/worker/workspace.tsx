@@ -4,7 +4,8 @@ import Link from "next/link";
 import { WorkerPerformance, WorkerShiftCard, WorkerTarget, shiftWhen, workerShiftKind } from "@/app/worker/shift-cards";
 import { PayoutProgress } from "@/app/components/payment-progress";
 import { finalPayableMinor } from "@/server/domain/work-payable";
-import { PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
+import { DataLabel, PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
+import { isDemoOrganisation } from "@/server/demo/organisation";
 import { WORKER_PAY_STATUS_NOTE, workerPayStatus } from "@/server/pay-agent/presentation";
 import { maskedEmail } from "@/app/components/format";
 import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
@@ -93,6 +94,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
   const title = { home: `Hi${profile ? `, ${profile.displayName.split(" ")[0]}` : ""}`, shifts: "Your shifts", earnings: "Your earnings", availability: "Your availability", profile: "Your profile" }[area];
   return <>
     <PageHeader eyebrow={scope.locationName} title={title} />
+    {isDemoOrganisation(scope.organisationId) ? <p className="note"><DataLabel kind="demo">Fictional demo staff</DataLabel> A fictional staff account at a fictional venue, made for the demonstration.</p> : null}
     <ActionFeedback status={status} saved={area === "shifts" ? "Response saved" : "Changes saved"} />
     {area === "home" ? <>
       {onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null : null}

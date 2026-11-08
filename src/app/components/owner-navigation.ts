@@ -19,4 +19,5 @@ export const ownerNavigation: ProductNavItem[] = [
   { label: "Tips", href: "/owner/tips" },
   { label: "Payments", href: "/owner/payments" },
   { label: "Settings", href: "/owner/settings", group: "Business" },
+  { label: "Proof", href: "/owner/proof" },
 ];

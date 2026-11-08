@@ -1,0 +1,57 @@
+import { and, desc, eq, inArray } from "drizzle-orm";
+import type { Scope } from "@/server/auth/access";
+import type { DatabaseSession } from "@/server/db/client";
+import { aiStaffingAssessments, demandContextFeeds, demandContextProposals, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outlets, payAgentEvents, subscriptions, tipAgentEvents, workPayouts } from "@/server/db/schema";
+import { getLiveFeedStatus } from "@/server/intelligence/live-feeds";
+import { isDemoOrganisation } from "@/server/demo/organisation";
+
+// The Proof panel: what a judge can check is real, for the demonstration organisation only. Read-only,
+// and it holds no secret, token, recipient or contact detail: provider identifiers, statuses, AI
+// response identifiers with their decisions, AI-found sources with what was searched, feed times, and
+// which data is synthetic.
+
+export const LOCAL_SUBSCRIPTION_FIXTURE = "LOCAL-RUNTIME-FIXTURE";
+
+export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "role">, now = new Date()) {
+  if (scope.role !== "OWNER" || !isDemoOrganisation(scope.organisationId)) return null;
+  const organisationId = scope.organisationId;
+  const locations = await db.select({ id: outlets.id, name: outlets.name, timezone: outlets.timezone }).from(outlets).where(eq(outlets.organisationId, organisationId)).orderBy(outlets.name);
+  const ids = locations.map(row => row.id);
+  const [payouts, subscription, payAgent, tipAgent, runs, proposals, assessments, weather, outcomes, feeds] = await Promise.all([
+    db.select({ id: workPayouts.id, kind: workPayouts.tipLineId, outletId: workPayouts.outletId, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paypalBatchStatus: workPayouts.paypalBatchStatus,
+      paypalBatchId: workPayouts.paypalBatchId, paypalItemId: workPayouts.paypalItemId, paypalTransactionId: workPayouts.paypalTransactionId, amountMinor: workPayouts.amountMinor, currencyCode: workPayouts.currencyCode,
+      providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt })
+      .from(workPayouts).where(eq(workPayouts.organisationId, organisationId)).orderBy(desc(workPayouts.createdAt)).limit(50),
+    db.select({ providerId: subscriptions.providerId, planId: subscriptions.planId, status: subscriptions.status, tier: subscriptions.tier, verifiedAt: subscriptions.verifiedAt }).from(subscriptions).where(eq(subscriptions.organisationId, organisationId)),
+    db.select({ id: payAgentEvents.id, outletId: payAgentEvents.outletId, status: payAgentEvents.status, decision: payAgentEvents.decision, reasonCode: payAgentEvents.reasonCode, summary: payAgentEvents.summary, responseId: payAgentEvents.responseId, responseModel: payAgentEvents.responseModel, dryRun: payAgentEvents.dryRun, createdAt: payAgentEvents.createdAt })
+      .from(payAgentEvents).where(eq(payAgentEvents.organisationId, organisationId)).orderBy(desc(payAgentEvents.createdAt)).limit(50),
+    db.select({ id: tipAgentEvents.id, outletId: tipAgentEvents.outletId, status: tipAgentEvents.status, decision: tipAgentEvents.decision, reasonCode: tipAgentEvents.reasonCode, summary: tipAgentEvents.summary, responseId: tipAgentEvents.responseId, responseModel: tipAgentEvents.responseModel, dryRun: tipAgentEvents.dryRun, createdAt: tipAgentEvents.createdAt })
+      .from(tipAgentEvents).where(eq(tipAgentEvents.organisationId, organisationId)).orderBy(desc(tipAgentEvents.createdAt)).limit(50),
+    db.select().from(localIntelligenceRuns).where(eq(localIntelligenceRuns.organisationId, organisationId)).orderBy(desc(localIntelligenceRuns.createdAt)).limit(40),
+    db.select({ id: demandContextProposals.id, outletId: demandContextProposals.outletId, targetDate: demandContextProposals.targetDate, status: demandContextProposals.status, scenario: demandContextProposals.scenario, failureCode: demandContextProposals.failureCode, responseId: demandContextProposals.providerResponseId, responseModel: demandContextProposals.responseModel, createdAt: demandContextProposals.createdAt })
+      .from(demandContextProposals).where(eq(demandContextProposals.organisationId, organisationId)).orderBy(desc(demandContextProposals.createdAt)).limit(30),
+    db.select({ id: aiStaffingAssessments.id, outletId: aiStaffingAssessments.outletId, status: aiStaffingAssessments.status, failureCode: aiStaffingAssessments.failureCode, responseId: aiStaffingAssessments.providerResponseId, responseModel: aiStaffingAssessments.responseModel, createdAt: aiStaffingAssessments.createdAt })
+      .from(aiStaffingAssessments).where(eq(aiStaffingAssessments.organisationId, organisationId)).orderBy(desc(aiStaffingAssessments.createdAt)).limit(20),
+    ids.length ? db.select({ outletId: demandContextFeeds.outletId, feed: demandContextFeeds.feed, lastSuccessAt: demandContextFeeds.lastSuccessAt, lastFailureCode: demandContextFeeds.lastFailureCode }).from(demandContextFeeds).where(inArray(demandContextFeeds.outletId, ids)) : Promise.resolve([]),
+    db.select().from(localIntelligenceOutcomes).where(eq(localIntelligenceOutcomes.organisationId, organisationId)).orderBy(desc(localIntelligenceOutcomes.targetDate)).limit(100),
+    getLiveFeedStatus(db, now),
+  ]);
+  const runIds = runs.map(row => row.id);
+  const signals = runIds.length ? await db.select({ id: localIntelligenceSignals.id, runId: localIntelligenceSignals.runId, name: localIntelligenceSignals.name, category: localIntelligenceSignals.category, otherLabel: localIntelligenceSignals.otherLabel,
+    effectType: localIntelligenceSignals.effectType, status: localIntelligenceSignals.status, rejectionCode: localIntelligenceSignals.rejectionCode, sourceUrl: localIntelligenceSignals.sourceUrl, sourceTier: localIntelligenceSignals.sourceTier, sourceCheck: localIntelligenceSignals.sourceCheck,
+    consultedInSearch: localIntelligenceSignals.consultedInSearch, reasoning: localIntelligenceSignals.reasoning, validFrom: localIntelligenceSignals.validFrom, validTo: localIntelligenceSignals.validTo })
+    .from(localIntelligenceSignals).where(and(eq(localIntelligenceSignals.organisationId, organisationId), inArray(localIntelligenceSignals.runId, runIds))) : [];
+  const nameOf = (id: string | null) => locations.find(row => row.id === id)?.name ?? "—";
+  return {
+    timezone: locations[0]?.timezone ?? "UTC", nameOf,
+    payouts: payouts.map(row => ({ ...row, kind: row.kind ? "TIP" as const : "WORK" as const })),
+    subscription: subscription[0] ? { ...subscription[0], fixture: subscription[0].providerId === LOCAL_SUBSCRIPTION_FIXTURE } : null,
+    payAgent, tipAgent, proposals, assessments,
+    runs: runs.map(run => ({ ...run, signals: signals.filter(signal => signal.runId === run.id) })),
+    // A forecast older than six hours, or whose last fetch failed, is stale.
+    weather: weather.filter(row => row.feed === "WEATHER").map(row => ({ ...row, stale: !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= 6 * 3_600_000 || !!row.lastFailureCode })),
+    events: weather.filter(row => row.feed === "EVENTS"),
+    outcomes, feeds,
+  };
+}
+export type ProofPanel = NonNullable<Awaited<ReturnType<typeof getProofPanel>>>;

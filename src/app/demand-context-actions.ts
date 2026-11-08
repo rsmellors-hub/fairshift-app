@@ -38,7 +38,7 @@ export async function addManagerSignalAction(form: FormData) {
 }
 const STRUCTURED_FIELDS: Record<StructuredSignalKind, readonly string[]> = {
   BOOKINGS: ["date", "start", "end", "quantityKind", "quantity", "comparison"],
-  LOCAL_EVENT: ["date", "name", "start", "end", "distanceBand", "attendanceBand"],
+  LOCAL_EVENT: ["date", "name", "start", "end", "distanceBand", "attendanceBand", "sourceUrl"],
   PROMOTION: ["validFrom", "validTo", "name", "start", "end", "description"],
 };
 export async function addStructuredSignalAction(form: FormData) {

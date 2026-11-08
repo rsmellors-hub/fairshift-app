@@ -29,15 +29,18 @@ const bookingsSchema = z.object({
   quantityKind: z.enum(["BOOKINGS", "COVERS"]), quantity: z.coerce.number().int().min(0).max(100_000),
   comparison: z.enum(BOOKING_COMPARISONS),
 }).strict().refine(inOrder, "Enter both times, with the end after the start.");
+// Where an event is published. An Owner's event needs one (Owner decision, 8 November 2026); a
+// Manager may add one. Either way it is a person's entry, never a verified event.
+const sourceUrl = z.preprocess(blank, z.string().trim().max(2000).refine(value => { try { const url = new URL(value); return url.protocol === "https:" && !!url.hostname && !url.username; } catch { return false; } }, "Enter an https link.").optional());
 const eventSchema = z.object({
   date: z.iso.date(), name: plainText(3, 80), start: clock, end: clock,
-  distanceBand: z.enum(DISTANCE_BANDS), attendanceBand: z.preprocess(blank, z.enum(ATTENDANCE_BANDS).optional()),
+  distanceBand: z.enum(DISTANCE_BANDS), attendanceBand: z.preprocess(blank, z.enum(ATTENDANCE_BANDS).optional()), sourceUrl,
 }).strict().refine(inOrder, "The end must be after the start.");
 const promotionSchema = z.object({
   validFrom: z.iso.date(), validTo: z.iso.date(), name: plainText(3, 80), start: optionalClock, end: optionalClock, description: plainText(3, 200),
 }).strict().refine(inOrder, "Enter both times, with the end after the start.");
 
-export type StructuredSignal = { type: SignalType; validFrom: string; validTo: string; period: { start: number; end: number } | null; direction: SignalDirection; summary: string; metadata: Record<string, string | number | null> };
+export type StructuredSignal = { type: SignalType; validFrom: string; validTo: string; period: { start: number; end: number } | null; direction: SignalDirection; summary: string; metadata: Record<string, string | number | null>; sourceUrl?: string | null };
 const periodOf = (value: { start?: number; end?: number }) => value.start === undefined ? null : { start: value.start, end: value.end! };
 const timeText = (period: { start: number; end: number } | null) => period ? `${formatClock(period.start)}–${formatClock(period.end)}` : "all day";
 
@@ -57,7 +60,7 @@ export function buildStructuredSignal(kind: StructuredSignalKind, raw: unknown):
     const value = parsed.data, period = { start: value.start, end: value.end };
     return { type: "LOCAL_EVENT", validFrom: value.date, validTo: value.date, period, direction: "UNSPECIFIED",
       summary: `Local event: ${value.name}, ${timeText(period)}, ${[DISTANCE_LABEL[value.distanceBand], value.attendanceBand ? ATTENDANCE_LABEL[value.attendanceBand] : null].filter(Boolean).join(", ")}.`,
-      metadata: { name: value.name, distanceBand: value.distanceBand, attendanceBand: value.attendanceBand ?? null } };
+      metadata: { name: value.name, distanceBand: value.distanceBand, attendanceBand: value.attendanceBand ?? null }, sourceUrl: value.sourceUrl ?? null };
   }
   const parsed = promotionSchema.safeParse(raw);
   if (!parsed.success) return null;

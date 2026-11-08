@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataLabel, StatusBadge } from "@/app/components/product-ui";
-import { OpenMeteoAttribution } from "@/app/components/source-labels";
+import { OpenMeteoAttribution, OwnerEnteredLabel, SourceLink } from "@/app/components/source-labels";
 import { labourHours, longDate, transactions } from "@/app/components/staffing";
 import { addManagerSignalAction, addStructuredSignalAction, decideDemandContextAction, proposeDemandContextAction, refreshContextFeedsAction, withdrawManagerSignalAction } from "@/app/demand-context-actions";
 import { fillHref } from "@/app/manager/plan-week";
@@ -42,6 +42,7 @@ const NOTICE: Record<string, string> = {
   "context-signal-fields": "Check the details: fill in what’s required, with the end time after the start.",
   "feeds-refreshed": "Weather and listed events checked. If anything changed, an earlier proposal for that day needs a fresh look.", "feeds-failed": "A provider couldn’t be reached. The last good information stays, marked with its age, and planning isn’t affected.", "feeds-no-coordinates": "This location has no coordinates, so weather and listed events stay unknown. The business owner can set them under Compensation & incentives.",
   "context-signal-invalid": "Enter the dates, a short description and what you expect.", "context-signal-dates": "Choose dates from today onwards, up to two weeks long.",
+  "context-event-source-required": "Add the link where this event is published: an event you enter needs its source.",
   "context-local-accepted": "This day already uses AI-found adjustments. Stop using them first, so the same influence isn’t counted twice.",
 };
 const FAILURE = (code: string | null) => !code ? "it could not be completed"
@@ -67,10 +68,14 @@ function InfluenceNote({ signal }: { signal: ContextSignal }) {
   return <p className="note">{influence ? `Influence window ${periodLabel(influence)}: from 2 hours before it starts to ${signal.period || signal.metadata.endTime ? "1 hour after it ends" : "3 hours after it starts, as no end time is given"}. A scenario citing it must overlap this time.` : "No start time is given, so this can support only a whole-day scenario."}</p>;
 }
 
+// A person's entry with a published source says so, with the link: "Owner-entered, source: <link>".
+// It is still that person's word, never a verified event.
+const personSource = (signal: ContextSignal) => signal.provenance === "MANAGER_ENTERED" && signal.sourceRef?.startsWith("https://") ? signal.sourceRef : null;
 function Signal({ signal, date, timeZone, context }: { signal: ContextSignal; date: string; timeZone: string; context: OutletDemandContext }) {
   const source = PROVENANCE[signal.provenance];
+  const link = personSource(signal);
   return <li className="context-signal">
-    <p>{SIGNAL_KIND[signal.type] ? <strong>{SIGNAL_KIND[signal.type]} </strong> : null}<DataLabel kind={source.kind}>{source.label}</DataLabel></p>
+    <p>{SIGNAL_KIND[signal.type] ? <strong>{SIGNAL_KIND[signal.type]} </strong> : null}{link && signal.metadata.enteredByRole === "OWNER" ? <><OwnerEnteredLabel url={link} /> <small>Not independently verified.</small></> : link ? <><DataLabel kind="demo">Manager-entered</DataLabel>, source: <SourceLink url={link} /> <small>Not independently verified.</small></> : <DataLabel kind={source.kind}>{source.label}</DataLabel>}</p>
     <p>{signal.summary}</p>
     <p className="note">{DIRECTION[signal.direction]} · {signal.validFrom === signal.validTo ? longDate(signal.validFrom) : `${longDate(signal.validFrom)} to ${longDate(signal.validTo)}`}{signal.period && signal.provenance === "MANAGER_ENTERED" ? ` · ${periodLabel(signal.period)}` : ""} · {signalAge(signal, context, timeZone)}</p>
     <InfluenceNote signal={signal} />
@@ -128,7 +133,7 @@ export function defaultContextDate(outlet: OutletStaffing) {
 
 // History's prediction, what FairShift knows, what AI proposes, and what changes only if the
 // Manager accepts: in that order, so the baseline is never out of sight.
-export function DemandContextPanel({ outlet, selectedDate, notice, aiConfigured, eventsConfigured = false }: { outlet: OutletStaffing; selectedDate?: string | null; notice?: string; aiConfigured: boolean; eventsConfigured?: boolean }) {
+export function DemandContextPanel({ outlet, selectedDate, notice, aiConfigured, eventsConfigured = false, ownerView = false }: { outlet: OutletStaffing; selectedDate?: string | null; notice?: string; aiConfigured: boolean; eventsConfigured?: boolean; ownerView?: boolean }) {
   const context = outlet.demandContext;
   const banner = notice && NOTICE[notice] ? <p role="status" className="note context-notice">{NOTICE[notice]}</p> : null;
   const head = <><DataLabel kind="predictive">Contextual demand</DataLabel><h2 id="demand-context-title">Is there anything history doesn’t know?</h2></>;
@@ -181,6 +186,7 @@ export function DemandContextPanel({ outlet, selectedDate, notice, aiConfigured,
         <label>Ends<input type="time" name="end" required /></label>
         <label>How far away?<select name="distanceBand" defaultValue="UNDER_1KM">{DISTANCE_BANDS.map(band => <option key={band} value={band}>{DISTANCE_LABEL[band]}</option>)}</select></label>
         <label>Expected attendance (optional)<select name="attendanceBand" defaultValue=""><option value="">Not stated</option>{ATTENDANCE_BANDS.map(band => <option key={band} value={band}>{ATTENDANCE_LABEL[band]}</option>)}</select></label>
+        <label className="form-span">Where it’s published{ownerView ? "" : " (optional)"}<input type="url" name="sourceUrl" maxLength={2000} required={ownerView} placeholder="https://" /></label>
         <p className="form-span note">{SIGNAL_NOTE}</p>
         <button className="secondary-button">Save event</button>
       </form></details>

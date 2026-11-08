@@ -3,6 +3,7 @@ import { money } from "@/app/components/workspace-ui";
 import { StatementLinkButton } from "@/app/owner/statement-link-button";
 import type { OwnerTipView } from "@/server/tips/view";
 import { formatMinute } from "@/server/tips/policy";
+import { DataLabel } from "@/app/components/product-ui";
 
 // The Owner's tip workspace for one location (FS-TIP-DEC-002, FS-TIP-AGENT-DEC-001): standing
 // policy, blocks, roster and cap; permanent staff; imported POS evidence; allocations per block;
@@ -19,7 +20,7 @@ const LINE_STATUS = (line: OwnerTipView["allocations"][number]["lines"][number])
   return "Recorded";
 };
 
-export function OwnerTips({ view, locationName, devLinks }: { view: OwnerTipView; locationName: string; devLinks: boolean }) {
+export function OwnerTips({ view, locationName, devLinks, demoData = false }: { view: OwnerTipView; locationName: string; devLinks: boolean; demoData?: boolean }) {
   const { settings, blocks, staff } = view;
   return <>
     <section className="panel" id="tip-settings">
@@ -39,6 +40,7 @@ export function OwnerTips({ view, locationName, devLinks }: { view: OwnerTipView
 
     <section className="panel" id="permanent-staff">
       <h2>Permanent staff</h2>
+      {demoData ? <p><DataLabel kind="demo">Fictional demo staff</DataLabel> These people and their records are fictional, made for the demonstration.</p> : null}
       <p className="panel-lede">Lightweight records: no FairShift login and no shift offers. FairShift keeps only name, contact email, PayPal destination, status and block roster. POS reference is the code on their till rows.</p>
       {staff.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Permanent staff</caption>
         <thead><tr><th scope="col">Name</th><th scope="col">POS reference</th><th scope="col">PayPal</th><th scope="col">Status</th>{settings?.policy === "SHIFT_POOL" ? <th scope="col">Block roster</th> : null}<th scope="col">Statement</th></tr></thead>
@@ -61,6 +63,7 @@ export function OwnerTips({ view, locationName, devLinks }: { view: OwnerTipView
 
     <section className="panel" id="tip-import">
       <h2>Import tips</h2>
+      {demoData ? <p><DataLabel kind="demo">Synthetic demo POS export</DataLabel> The tips here come from a synthetic CSV made for the demonstration, not from any till.</p> : null}
       <p className="panel-lede">Imported POS evidence: a CSV export with the header <code>source,location,row_ref,transaction_at,staff_ref,bill_amount,tip_amount,currency</code>. The whole file is checked before anything is stored; a file or row already imported is not counted twice. Imported rows are not live Square or South African POS data.</p>
       <form action={importTipsAction} className="stack-form">
         <label>CSV file<input type="file" name="file" accept=".csv,text/csv" /></label>
@@ -68,7 +71,7 @@ export function OwnerTips({ view, locationName, devLinks }: { view: OwnerTipView
         <button className="secondary-button" disabled={!settings}>Import tips</button>
       </form>
       {view.imports.map(row => <div className="record-row" key={row.id}>
-        <span>Imported POS evidence · {row.importedAt.toISOString().slice(0, 16).replace("T", " ")} UTC · {row.rowCount} rows ({row.duplicateRowsSkipped} already recorded) · {money(row.totalTipMinor, row.currencyCode)} · policy {row.policy === "SHIFT_POOL" ? "shift pool" : "direct"}</span>
+        <span>Imported POS evidence{demoData ? " · Synthetic demo POS export" : ""} · {row.importedAt.toISOString().slice(0, 16).replace("T", " ")} UTC · {row.rowCount} rows ({row.duplicateRowsSkipped} already recorded) · {money(row.totalTipMinor, row.currencyCode)} · policy {row.policy === "SHIFT_POOL" ? "shift pool" : "direct"}</span>
         {row.unallocated.length ? <ul>{row.unallocated.map(evidence => <li key={evidence.id}>{evidence.rowRef} · {evidence.transactionAt.toISOString().slice(0, 16).replace("T", " ")} UTC · {money(evidence.tipMinor, evidence.currencyCode)} · {DISPOSITION[evidence.disposition]}{evidence.staffName ? ` · ${evidence.staffName}` : ""}</li>)}</ul> : null}
       </div>)}
     </section>

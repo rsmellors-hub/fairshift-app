@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getConfigurationStatus } from "@/server/config/env";
 import { deploymentMode, sandboxOrganisationId } from "@/server/config/deployment";
 import { getDatabase, type Database } from "@/server/db/client";
-import { externalFeeds, localIntelligenceRuns, outlets, scheduledJobs } from "@/server/db/schema";
+import { externalFeeds, localIntelligenceRuns, organisations, outlets, scheduledJobs } from "@/server/db/schema";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -12,6 +12,10 @@ import type { RunKind } from "@/server/intelligence/local-intelligence-contract"
 import { recheckUnreachableSources, runLocalDiscovery } from "@/server/intelligence/local-intelligence-service";
 import { createSourceChecker, type SourceChecker } from "@/server/intelligence/local-intelligence-sources";
 import { refreshHolidayFeed } from "@/server/reference/public-holiday-feed";
+import { recordTrackRecord } from "@/server/intelligence/track-record";
+import { provisionSaReferenceBusiness } from "@/server/reference/sa-provision";
+import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
+import { localDate, shiftDate } from "@/server/intelligence/forecast";
 
 // Keeps the demo's real feeds current without anyone opening a page: weather for every demo location,
 // the South African holiday feed, the ECB reference rate and the AI's local discovery. Each job's last
@@ -22,7 +26,7 @@ import { refreshHolidayFeed } from "@/server/reference/public-holiday-feed";
 const HOUR = 3_600_000, MINUTE = 60_000;
 const TICK_MS = 10 * MINUTE;
 
-export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions";
+export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily";
 export type JobResult = { ok: boolean; code?: string | null; detail?: Record<string, unknown> };
 export type SchedulerDeps = {
   now: () => Date;
@@ -103,6 +107,22 @@ export const JOBS: readonly Job[] = [
     } },
   { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => { const result = await recheckUnreachableSources(db, deps.demoOrganisationIds, deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
+  { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
+    run: async (db, deps) => {
+      const tally = { toppedUp: 0, recorded: 0, waiting: 0 };
+      // The fictional SA demo business's synthetic history runs on to yesterday, exactly as its generator
+      // defines each day, so every completed day has actual (synthetic) sales to measure against. Only an
+      // existing demo business is extended: this never creates one.
+      if (deps.demoOrganisationIds.includes(SA_REFERENCE_ORGANISATION.id)) {
+        const [business] = await db.select({ id: organisations.id }).from(organisations).where(eq(organisations.id, SA_REFERENCE_ORGANISATION.id));
+        if (business) tally.toppedUp = (await provisionSaReferenceBusiness(db, { from: shiftDate(localDate(deps.now(), "Africa/Johannesburg"), -7) }, deps.now())).inserted;
+      }
+      for (const location of await demoLocations(db, deps)) {
+        const result = await recordTrackRecord(db, { organisationId: location.organisationId, outletId: location.locationId }, deps.now());
+        tally.recorded += result.recorded; tally.waiting += result.waiting;
+      }
+      return { ok: true, detail: tally };
+    } },
   { key: "intel:daily", intervalMs: 24 * HOUR, retryMs: 2 * HOUR, leaseMs: 30 * MINUTE, enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps) => discover(db, deps, "DAILY") },
   { key: "intel:disruptions", intervalMs: 8 * HOUR, retryMs: 2 * HOUR, leaseMs: 30 * MINUTE, enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps) => discover(db, deps, "DISRUPTIONS") },
 ];

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, externalFeeds, localIntelligenceDecisions, localIntelligenceRuns, localIntelligenceSignals, outletTradingHours, outlets } from "@/server/db/schema";
+import { auditEvents, externalFeeds, localIntelligenceDecisions, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outletTradingHours, outlets } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
 import { AiProviderError } from "@/server/integrations/openai/staffing-assessment";
 import type { DiscoveryResponse, LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -167,20 +167,23 @@ type DiscoveredSignalTier = Parameters<typeof sourceDecision>[0]["sourceTier"];
 
 // --- Reading -------------------------------------------------------------------------------------
 
-export type StoredLocalIntelligence = { runs: readonly RunRow[]; signals: readonly SignalRow[]; decisions: readonly (typeof localIntelligenceDecisions.$inferSelect)[] };
+export type TrackRecordRow = typeof localIntelligenceOutcomes.$inferSelect & { name: string };
+export type StoredLocalIntelligence = { runs: readonly RunRow[]; signals: readonly SignalRow[]; decisions: readonly (typeof localIntelligenceDecisions.$inferSelect)[]; outcomes?: readonly TrackRecordRow[] };
 
 export async function loadLocalIntelligence(db: DatabaseSession, organisationId: string, outletIds: readonly string[], firstDate: string, lastDate: string, now = new Date()): Promise<StoredLocalIntelligence> {
-  if (!outletIds.length) return { runs: [], signals: [], decisions: [] };
+  if (!outletIds.length) return { runs: [], signals: [], decisions: [], outcomes: [] };
   const ids = [...outletIds];
   // The latest week of runs is enough to find each location's current daily and short-notice runs.
   const runs = await db.select().from(localIntelligenceRuns).where(and(eq(localIntelligenceRuns.organisationId, organisationId), inArray(localIntelligenceRuns.outletId, ids), gte(localIntelligenceRuns.createdAt, new Date(now.getTime() - 7 * 86_400_000))))
     .orderBy(desc(localIntelligenceRuns.createdAt)).limit(400);
   const current = ids.flatMap(id => currentRuns(runs.filter(row => row.outletId === id))).map(row => row.id);
-  const [signals, decisions] = await Promise.all([
+  const [signals, decisions, outcomes] = await Promise.all([
     current.length ? db.select().from(localIntelligenceSignals).where(inArray(localIntelligenceSignals.runId, current)) : Promise.resolve([] as SignalRow[]),
     db.select().from(localIntelligenceDecisions).where(and(eq(localIntelligenceDecisions.organisationId, organisationId), inArray(localIntelligenceDecisions.outletId, ids), gte(localIntelligenceDecisions.targetDate, firstDate), sql`${localIntelligenceDecisions.targetDate} <= ${lastDate}`)).orderBy(desc(localIntelligenceDecisions.sequence)),
+    db.select({ outcome: localIntelligenceOutcomes, name: localIntelligenceSignals.name }).from(localIntelligenceOutcomes).innerJoin(localIntelligenceSignals, eq(localIntelligenceSignals.id, localIntelligenceOutcomes.signalId))
+      .where(and(eq(localIntelligenceOutcomes.organisationId, organisationId), inArray(localIntelligenceOutcomes.outletId, ids))).orderBy(desc(localIntelligenceOutcomes.targetDate)).limit(200),
   ]);
-  return { runs, signals, decisions };
+  return { runs, signals, decisions, outcomes: outcomes.map(row => ({ ...row.outcome, name: row.name })) };
 }
 
 // A location's current runs: its latest completed daily run, and a later short-notice run if there is
@@ -211,8 +214,10 @@ export type LocalDay = { date: string; blocks: BlockAdjustment[]; adjusted: Bloc
 export type LocalApplied = { decisionId: string; blocks: ReadonlyMap<number, number> };
 export type OutletLocalIntelligence = { status: "AVAILABLE" | "UNAVAILABLE"; runs: RunView[]; lastAttempt: RunView | null; signals: LocalSignalView[]; days: LocalDay[]; accepted: ReadonlyMap<string, LocalApplied>;
   // High-severity capacity signals from today on: Owner alerts.
-  alerts: LocalSignalView[] };
-export const UNAVAILABLE_LOCAL: OutletLocalIntelligence = { status: "UNAVAILABLE", runs: [], lastAttempt: null, signals: [], days: [], accepted: new Map(), alerts: [] };
+  alerts: LocalSignalView[];
+  // Each applied direction against the day's actual (synthetic) sales, newest first.
+  trackRecord: TrackRecordRow[] };
+export const UNAVAILABLE_LOCAL: OutletLocalIntelligence = { status: "UNAVAILABLE", runs: [], lastAttempt: null, signals: [], days: [], accepted: new Map(), alerts: [], trackRecord: [] };
 
 function runView(row: RunRow, signals: readonly SignalRow[], now: Date): RunView {
   const status = row.status === "RUNNING" && now.getTime() - row.createdAt.getTime() > RUN_INTERRUPTED_MINUTES * 60_000 ? "INTERRUPTED" : row.status as RunView["status"];
@@ -263,7 +268,7 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
   const runViews = current.map(row => runView(row, input.stored.signals, now));
   const latestAny = [...runs].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
   const alerts = capacityAlerts(signals, localDate(now, input.timeZone ?? "UTC"));
-  return { status: "AVAILABLE", runs: runViews, lastAttempt: latestAny ? runView(latestAny, input.stored.signals, now) : null, signals, days, accepted, alerts };
+  return { status: "AVAILABLE", runs: runViews, lastAttempt: latestAny ? runView(latestAny, input.stored.signals, now) : null, signals, days, accepted, alerts, trackRecord: (input.stored.outcomes ?? []).filter(row => row.outletId === input.outletId) };
 }
 
 // --- A manager's decision ------------------------------------------------------------------------

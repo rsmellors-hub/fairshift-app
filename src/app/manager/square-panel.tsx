@@ -24,7 +24,7 @@ export async function SquarePanel({ scope, team }: { scope: Scope; team: readonl
   const demo = demoToolsAllowed(connection.providerEnvironment);
   return <>
     <section className="panel" id="square-identities" aria-labelledby="square-identities-title"><h2 id="square-identities-title">Square team members</h2>
-      <p>Map a FairShift worker to a Square team-member identity. Square Sandbox payments carrying that identity can then count toward the worker’s sales during their accepted shift at this location.</p>
+      <p>Map a FairShift worker to a Square team-member identity. Square Sandbox payments carrying that identity can then count toward the worker’s sales during their accepted shift at this location. The Square Sandbox seller is a UK (GBP) test seller, not this business’s own till.</p>
       <p className="note">This maps an identity only. It doesn’t show who was logged in to a till or who physically made a sale.</p>
       {mappings.length ? <div className="table-scroll"><table><thead><tr><th>FairShift worker</th><th>Square team member</th><th><span className="visually-hidden">Action</span></th></tr></thead><tbody>{mappings.map(row => <tr key={row.id}><td>{row.workerName}</td><td>{nameOf(row.teamMemberId)}</td><td><form action={removeSquareMappingAction}><input type="hidden" name="mappingId" value={row.id} /><button className="secondary-button">Remove</button></form></td></tr>)}</tbody></table></div> : <p>No workers are mapped yet.</p>}
       {members === null ? <p role="alert">Square’s team list could not be loaded, so no new mapping can be made right now.</p> : unmapped.length && available.length ? <form action={mapSquareTeamMemberAction} className="workspace-form">

@@ -1612,9 +1612,36 @@ export const localIntelligenceDecisions = pgTable("local_intelligence_decisions"
   check("local_intelligence_decisions_fingerprint_check", sql`${t.adjustmentFingerprint} ~ '^[0-9a-f]{64}$'`),
 ]);
 
+// The AI signal track record: one accepted demand signal on one completed day, its predicted direction
+// against what happened in the hours it covered. Here measured against synthetic reference history,
+// which has no real-world events in it. Rows are evidence: never edited or deleted.
+export const localIntelligenceOutcomes = pgTable("local_intelligence_outcomes", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  signalId: uuid("signal_id").notNull().references(() => localIntelligenceSignals.id, { onDelete: "restrict" }),
+  signalKey: text("signal_key").notNull(),
+  targetDate: date("target_date", { mode: "string" }).notNull(),
+  predictedDirection: text("predicted_direction").notNull(),
+  sizeBand: text("size_band").notNull(),
+  baselineMilliTransactions: integer("baseline_milli_transactions").notNull(),
+  actualMilliTransactions: integer("actual_milli_transactions").notNull(),
+  actualDirection: text("actual_direction").notNull(),
+  matched: boolean("matched").notNull(),
+  measuredAgainst: text("measured_against").notNull(),
+  method: text("method").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("local_intelligence_outcomes_unique").on(t.outletId, t.signalKey, t.targetDate),
+  index("local_intelligence_outcomes_scope_idx").on(t.organisationId, t.outletId, t.targetDate),
+  check("local_intelligence_outcomes_direction_check", sql`${t.predictedDirection} in ('UP', 'DOWN') and ${t.actualDirection} in ('UP', 'DOWN', 'FLAT') and ${t.matched} = (${t.predictedDirection} = ${t.actualDirection})`),
+  check("local_intelligence_outcomes_source_check", sql`${t.measuredAgainst} = 'SYNTHETIC_REFERENCE'`),
+  check("local_intelligence_outcomes_counts_check", sql`${t.baselineMilliTransactions} >= 0 and ${t.actualMilliTransactions} >= 0`),
+]);
+
 export const schema = {
   fxReferenceRates,
-  externalFeeds, scheduledJobs, localIntelligenceRuns, localIntelligenceSignals, localIntelligenceDecisions,
+  externalFeeds, scheduledJobs, localIntelligenceRuns, localIntelligenceSignals, localIntelligenceDecisions, localIntelligenceOutcomes,
   users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
   organisations,
   outlets,

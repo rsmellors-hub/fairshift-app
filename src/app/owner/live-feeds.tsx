@@ -2,6 +2,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/app/components/product-ui";
 import { FeedLabel, OpenMeteoAttribution, stamp } from "@/app/components/source-labels";
 import { CoverageLog, runLine, SignalCard } from "@/app/manager/local-intelligence";
+import { TrackRecord } from "@/app/components/track-record";
 import type { LiveFeedStatus } from "@/server/intelligence/live-feeds";
 import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 
@@ -11,7 +12,9 @@ import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 
 const state = (status: string) => status === "FRESH" ? <StatusBadge tone="success">Current</StatusBadge> : status === "STALE" ? <StatusBadge tone="warning">Stale</StatusBadge> : <StatusBadge tone="neutral">Not fetched yet</StatusBadge>;
 
-export function OwnerLiveFeeds({ staffing, feeds, timeZone, eventsConfigured, now }: { staffing: WeeklyStaffing | null; feeds: LiveFeedStatus | null; timeZone: string; eventsConfigured: boolean; now: Date }) {
+// The track record is measured only for the demonstration business, against its synthetic history, so
+// it is shown there (or wherever outcomes exist) and never implies synthetic data for a real business.
+export function OwnerLiveFeeds({ staffing, feeds, timeZone, eventsConfigured, now, showTrackRecord = false }: { staffing: WeeklyStaffing | null; feeds: LiveFeedStatus | null; timeZone: string; eventsConfigured: boolean; now: Date; showTrackRecord?: boolean }) {
   const outlets = staffing?.outlets ?? [];
   return <section className="panel live-feeds" id="live-feeds" aria-labelledby="live-feeds-title">
     <h2 id="live-feeds-title">Live feeds and AI-found signals</h2>
@@ -40,6 +43,7 @@ export function OwnerLiveFeeds({ staffing, feeds, timeZone, eventsConfigured, no
         {local.signals.length ? <ul className="context-signals">{local.signals.slice(0, 8).map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul> : <p className="note">No AI-found influence with a source for the coming days. That means none was found, not that nothing is happening.</p>}
         {local.signals.length > 8 ? <p className="note">{local.signals.length - 8} more on the location’s Forecast &amp; staffing page.</p> : null}
         {local.runs.map(run => <CoverageLog key={run.id} run={run} timeZone={outlet.timezone} />)}
+        {showTrackRecord || local.trackRecord.length ? <><h3>AI signal track record</h3><TrackRecord rows={local.trackRecord} /></> : null}
         <p className="note"><Link className="text-link" href={`/owner/locations/${outlet.outletId}`}>Open {outlet.outletName}</Link></p>
       </details>; })}
   </section>;

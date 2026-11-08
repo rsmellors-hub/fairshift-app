@@ -43,6 +43,7 @@ async function currentDay(db: Database, scope: ContextScope, date: string, now: 
 }
 
 const MANAGER_SOURCE_LABEL = "Manager entered, not independently verified";
+const OWNER_SOURCE_LABEL = "Owner entered, not independently verified";
 async function assertSignalDates(db: Database, scope: ContextScope, value: { validFrom: string; validTo: string }, now: Date) {
   const { outlet } = await currentDay(db, scope, value.validFrom, now);
   const today = outlet ? localDate(now, outlet.timezone) : value.validFrom;
@@ -76,10 +77,13 @@ export async function addStructuredSignal(db: Database, scope: ContextScope, kin
   await authorise(db, scope);
   const value = buildStructuredSignal(kind, raw);
   if (!value) throw new UserFacingError("context-signal-fields", "Check the details: fill in what’s required, with the end time after the start.");
+  // An Owner's event is curated from a published source, and says where.
+  if (kind === "LOCAL_EVENT" && scope.role === "OWNER" && !value.sourceUrl) throw new UserFacingError("context-event-source-required", "Add the link where this event is published: an event you enter needs its source.");
   await assertSignalDates(db, scope, value, now);
   const id = managerSignalId(randomUUID());
   const [row] = await db.insert(demandContextSignals).values({ id, organisationId: scope.organisationId, outletId: scope.locationId, signalType: value.type, validFrom: value.validFrom, validTo: value.validTo, periodStart: value.period?.start ?? null, periodEnd: value.period?.end ?? null, direction: value.direction,
-    provenance: "MANAGER_ENTERED", sourceLabel: MANAGER_SOURCE_LABEL, sourceRef: null, summary: value.summary, metadata: value.metadata, enteredBy: scope.userId, createdAt: now }).returning();
+    provenance: "MANAGER_ENTERED", sourceLabel: scope.role === "OWNER" ? OWNER_SOURCE_LABEL : MANAGER_SOURCE_LABEL, sourceRef: value.sourceUrl ?? null, summary: value.summary,
+    metadata: { ...value.metadata, enteredByRole: scope.role, ...(value.sourceUrl ? { sourceUrl: value.sourceUrl } : {}) }, enteredBy: scope.userId, createdAt: now }).returning();
   await audit(db, scope, "DEMAND_CONTEXT_SIGNAL_ADDED", "demand_context_signal", id, { signalType: value.type, validFrom: value.validFrom, validTo: value.validTo, direction: value.direction });
   return row;
 }
