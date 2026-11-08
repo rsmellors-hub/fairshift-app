@@ -21,6 +21,8 @@ import { FX_RATE_SCALE, ProviderCurrencyRateUnavailableError, ZAR_PROVIDER_PAYOU
 
 export const ECB_DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 export const ECB_SOURCE = "ECB_EUROFXREF_DAILY";
+// The external_feeds row recording the scheduled fetch of the ECB file.
+export const ECB_FEED = "ECB_EUROFXREF";
 export const MANUAL_SOURCE = "OWNER_MANUAL";
 export const FX_FRESH_BUSINESS_DAYS = 3;
 const FETCH_TIMEOUT_MS = 10_000;

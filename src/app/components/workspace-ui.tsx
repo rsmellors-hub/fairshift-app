@@ -161,6 +161,7 @@ const FEEDBACK: Record<string, string> = {
   "opportunity-outside-window": "This shift doesn’t overlap the time it’s meant to cover. No shift was created. Adjust the times, or create it without this requirement.",
   "service-capacity-invalid": "Service capacity must be a whole number of transactions from 1 to 1000. Nothing was saved.",
   "minimum-cover-invalid": "Minimum cover must be a whole number of staff from 0 to 100. Nothing was saved.",
+  "location-profile-invalid": "The location profile couldn’t be saved. Describe the area, the venue and its customers in a few words each, with no names, contact details or links. Nothing was saved.",
   "trading-hours-invalid": "Trading hours couldn’t be saved. Use 09:00-17:00 on quarter hours, separate times with commas, don’t overlap them, and write “closed” for a closed day. Nothing was saved.",
   "regular-coverage-invalid": "Regular coverage couldn’t be saved. Use 07:00-12:00 x3, separate times with commas, don’t overlap them, and write “none” for no regular staff. Nothing was saved.",
   "demo-read-only": "This part of the public demo can’t be changed. Provider actions and account settings are turned off here.",

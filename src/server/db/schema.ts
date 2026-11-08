@@ -66,6 +66,9 @@ export const outlets = pgTable(
     // source says whether an Owner stated these or they are reference-company configuration.
     venueProfile: text("venue_profile"), latitude: doublePrecision("latitude"), longitude: doublePrecision("longitude"),
     venueContextSource: text("venue_context_source"),
+    // The Owner's own words about the location (area, venue type, typical customers), the only
+    // description local intelligence gives the model. DEMO_SEED marks the fictional demo's profiles.
+    locationProfile: jsonb("location_profile"), locationProfileSource: text("location_profile_source"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -75,6 +78,7 @@ export const outlets = pgTable(
     check("outlets_venue_profile_check", sql`${table.venueProfile} is null or ${table.venueProfile} in ('STADIUM_DISTRICT', 'WATERFRONT_OUTDOOR', 'BUSINESS_DISTRICT', 'STATION_COMMUTER', 'SHOPPING_CENTRE')`),
     check("outlets_coordinates_check", sql`(${table.latitude} is null and ${table.longitude} is null) or (${table.latitude} between -90 and 90 and ${table.longitude} between -180 and 180)`),
     check("outlets_venue_context_source_check", sql`${table.venueContextSource} is null or ${table.venueContextSource} in ('REFERENCE', 'CONFIGURED')`),
+    check("outlets_location_profile_check", sql`(${table.locationProfile} is null and ${table.locationProfileSource} is null) or (${table.locationProfile} is not null and ${table.locationProfileSource} in ('OWNER', 'DEMO_SEED'))`),
   ],
 );
 
@@ -992,7 +996,7 @@ export const demandContextSignals = pgTable("demand_context_signals", {
   check("demand_context_signals_provenance_check", sql`(${t.signalType} = 'MOMENTUM' and ${t.provenance} = 'DETERMINISTIC_CALCULATION')
     or (${t.signalType} in ('MANAGER_ENTERED', 'BOOKINGS', 'LOCAL_EVENT', 'PROMOTION') and ${t.provenance} = 'MANAGER_ENTERED' and ${t.enteredBy} is not null)
     or (${t.signalType} = 'LOCAL_EVENT' and ${t.provenance} = 'PROVIDER_EVENT')
-    or (${t.signalType} = 'BANK_HOLIDAY' and ${t.provenance} = 'OFFICIAL_SNAPSHOT')
+    or (${t.signalType} = 'BANK_HOLIDAY' and ${t.provenance} in ('OFFICIAL_SNAPSHOT', 'HOLIDAY_FEED', 'HOLIDAY_FALLBACK'))
     or (${t.signalType} = 'WEATHER_FORECAST' and ${t.provenance} = 'PROVIDER_FORECAST')`),
   check("demand_context_signals_period_check", sql`${t.validTo} >= ${t.validFrom}`),
   check("demand_context_signals_time_check", sql`(${t.periodStart} is null and ${t.periodEnd} is null) or (${t.periodStart} >= 0 and ${t.periodEnd} <= 1440 and ${t.periodStart} < ${t.periodEnd})`),
@@ -1474,8 +1478,143 @@ export const staffDestinationEvents = pgTable("staff_destination_events", {
   check("staff_destination_events_kind_check", sql`(${t.kind} = 'RECORDED' and ${t.recordedBy} is not null and ${t.linkId} is null) or (${t.kind} in ('CONFIRMED', 'CHANGED') and ${t.linkId} is not null)`),
 ]);
 
+// An organisation-independent public feed (a country's public holidays, the ECB reference rate):
+// its latest good payload and the state of its last fetch. A failed fetch changes only the attempt
+// and failure fields, so the last good data stays and is shown with its age.
+export const externalFeeds = pgTable("external_feeds", {
+  feed: text("feed").primaryKey(),
+  sourceUrl: text("source_url").notNull(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastFailureCode: text("last_failure_code"),
+  payload: jsonb("payload").notNull().default({}),
+}, t => [check("external_feeds_feed_check", sql`${t.feed} ~ '^(HOLIDAYS:[A-Z]{2}|ECB_EUROFXREF)$'`), check("external_feeds_source_check", sql`${t.sourceUrl} like 'https://%'`)]);
+
+// Each scheduled job's last run, so a restart neither repeats a job that isn't due nor forgets one
+// that is, and a lease so two servers never run one job at the same time.
+export const scheduledJobs = pgTable("scheduled_jobs", {
+  job: text("job").primaryKey(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lastStartedAt: timestamp("last_started_at", { withTimezone: true }),
+  lastFinishedAt: timestamp("last_finished_at", { withTimezone: true }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastFailureCode: text("last_failure_code"),
+  lastResult: jsonb("last_result").notNull().default({}),
+});
+
+// One local-intelligence model call for one location: what it was given (the location's public
+// facts, never a person's details), the searches the provider recorded, every page it consulted, the
+// coverage log for every category asked, and the response identifier. Recorded as RUNNING before the
+// call, so an interrupted call still counts against the daily cap.
+export const localIntelligenceRuns = pgTable("local_intelligence_runs", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  kind: text("kind").notNull(),
+  trigger: text("trigger").notNull(),
+  requestedBy: uuid("requested_by").references(() => users.id),
+  windowFrom: date("window_from", { mode: "string" }).notNull(),
+  windowTo: date("window_to", { mode: "string" }).notNull(),
+  status: text("status").notNull(),
+  failureCode: text("failure_code"),
+  policyVersion: text("policy_version").notNull(),
+  outputVersion: text("output_version").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  responseModel: text("response_model"),
+  providerResponseId: text("provider_response_id"),
+  input: jsonb("input").notNull(),
+  coverage: jsonb("coverage").notNull().default([]),
+  searches: jsonb("searches").notNull().default([]),
+  consultedUrls: jsonb("consulted_urls").notNull().default([]),
+  counts: jsonb("counts").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, t => [
+  index("local_intelligence_runs_scope_idx").on(t.organisationId, t.outletId, t.createdAt),
+  check("local_intelligence_runs_kind_check", sql`${t.kind} in ('DAILY', 'DISRUPTIONS')`),
+  check("local_intelligence_runs_trigger_check", sql`${t.trigger} in ('SCHEDULE', 'MANUAL')`),
+  check("local_intelligence_runs_status_check", sql`(${t.status} = 'RUNNING' and ${t.failureCode} is null and ${t.completedAt} is null)
+    or (${t.status} = 'COMPLETED' and ${t.failureCode} is null and ${t.completedAt} is not null)
+    or (${t.status} = 'FAILED' and ${t.failureCode} is not null and ${t.completedAt} is not null)`),
+  check("local_intelligence_runs_window_check", sql`${t.windowTo} >= ${t.windowFrom}`),
+]);
+
+// A signal as the model reported it and as FairShift judged it. Only ACCEPTED signals, with a source
+// page FairShift reached (or that refused an automated check) and the search had opened, and a source
+// tier other than UNCONFIRMED, can shape demand. Rows are evidence: never edited or deleted.
+export const localIntelligenceSignals = pgTable("local_intelligence_signals", {
+  id: uuid("id").primaryKey(),
+  runId: uuid("run_id").notNull().references(() => localIntelligenceRuns.id, { onDelete: "restrict" }),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  signalKey: text("signal_key").notNull(),
+  status: text("status").notNull(),
+  rejectionCode: text("rejection_code"),
+  serverNote: text("server_note"),
+  category: text("category").notNull(),
+  otherLabel: text("other_label"),
+  effectType: text("effect_type").notNull(),
+  name: text("name").notNull(),
+  validFrom: date("valid_from", { mode: "string" }).notNull(),
+  validTo: date("valid_to", { mode: "string" }).notNull(),
+  startMinute: integer("start_minute"),
+  endMinute: integer("end_minute"),
+  dateCertainty: text("date_certainty").notNull(),
+  shiftBlocks: jsonb("shift_blocks").notNull().default([]),
+  roles: jsonb("roles").notNull().default([]),
+  direction: text("direction"),
+  sizeBand: text("size_band"),
+  severity: text("severity"),
+  closureLikely: boolean("closure_likely").notNull().default(false),
+  confidence: text("confidence").notNull(),
+  sourceTier: text("source_tier").notNull(),
+  reasoning: text("reasoning").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  sourceTitle: text("source_title"),
+  sourceCheck: text("source_check").notNull(),
+  sourceHttpStatus: integer("source_http_status"),
+  consultedInSearch: text("consulted_in_search").notNull(),
+  impact: integer("impact").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("local_intelligence_signals_run_idx").on(t.runId),
+  index("local_intelligence_signals_scope_idx").on(t.organisationId, t.outletId, t.validTo),
+  check("local_intelligence_signals_status_check", sql`(${t.status} in ('ACCEPTED', 'UNCONFIRMED') and ${t.rejectionCode} is null) or (${t.status} = 'REJECTED' and ${t.rejectionCode} is not null)`),
+  check("local_intelligence_signals_source_check", sql`${t.status} <> 'ACCEPTED' or (${t.sourceUrl} like 'https://%' and ${t.sourceCheck} in ('REACHABLE', 'RESTRICTED') and ${t.consultedInSearch} in ('EXACT', 'SAME_SITE') and ${t.sourceTier} in ('OFFICIAL', 'EVENT_ORGANISER', 'NEWS'))`),
+  check("local_intelligence_signals_effect_check", sql`${t.status} = 'REJECTED'
+    or (${t.effectType} = 'DEMAND' and ${t.direction} in ('UP', 'DOWN') and ${t.sizeBand} in ('MINOR', 'MODERATE') and ${t.severity} is null and not ${t.closureLikely})
+    or (${t.effectType} in ('CAPACITY', 'ACCESS') and ${t.direction} is null and ${t.sizeBand} is null and ${t.severity} in ('LOW', 'MEDIUM', 'HIGH') and (${t.effectType} = 'CAPACITY' or not ${t.closureLikely}))`),
+  check("local_intelligence_signals_dates_check", sql`${t.status} = 'REJECTED' or ${t.validTo} >= ${t.validFrom}`),
+  check("local_intelligence_signals_time_check", sql`(${t.startMinute} is null or (${t.startMinute} >= 0 and ${t.startMinute} <= 1440)) and (${t.endMinute} is null or (${t.endMinute} >= 0 and ${t.endMinute} <= 1440))`),
+]);
+
+// A person's choice whether staffing uses one day's AI-found adjustments, append-only. The latest
+// for a location and date stands, and only while the adjustments it was made on are still current.
+export const localIntelligenceDecisions = pgTable("local_intelligence_decisions", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  targetDate: date("target_date", { mode: "string" }).notNull(),
+  sequence: integer("sequence").notNull(),
+  action: text("action").notNull(),
+  adjustmentFingerprint: text("adjustment_fingerprint").notNull(),
+  adjustments: jsonb("adjustments").notNull(),
+  policyVersion: text("policy_version").notNull(),
+  decidedBy: uuid("decided_by").notNull().references(() => users.id),
+  decidedByRole: text("decided_by_role").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("local_intelligence_decisions_sequence_unique").on(t.outletId, t.targetDate, t.sequence),
+  index("local_intelligence_decisions_scope_idx").on(t.organisationId, t.outletId, t.targetDate),
+  check("local_intelligence_decisions_action_check", sql`${t.action} in ('ACCEPTED', 'WITHDRAWN')`),
+  check("local_intelligence_decisions_role_check", sql`${t.decidedByRole} in ('OWNER', 'MANAGER')`),
+  check("local_intelligence_decisions_fingerprint_check", sql`${t.adjustmentFingerprint} ~ '^[0-9a-f]{64}$'`),
+]);
+
 export const schema = {
   fxReferenceRates,
+  externalFeeds, scheduledJobs, localIntelligenceRuns, localIntelligenceSignals, localIntelligenceDecisions,
   users, sessions, identityTokens, authLimits, memberships, subscriptions, subscriptionEvents, notifications, notificationDeliveries,
   organisations,
   outlets,

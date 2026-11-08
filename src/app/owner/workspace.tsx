@@ -30,6 +30,9 @@ import { checkWage } from "@/server/domain/statutory-wage";
 import { PolicyForm } from "@/app/owner/policy-form";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
+import { OwnerLiveFeeds } from "@/app/owner/live-feeds";
+import { getLiveFeedStatus, type LiveFeedStatus } from "@/server/intelligence/live-feeds";
+import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { isFreshRateDate, latestFxReferenceRate } from "@/server/fx/reference-rates";
 import { sandboxOrganisationId } from "@/server/config/deployment";
 import { OwnerTips } from "@/app/owner/tips";
@@ -61,7 +64,11 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     const assessment = staffing === null && weekly === null ? null : <AiStaffingAssessment view={view} names={names} configured={configuration.aiConfigured} action={generateOwnerAssessmentAction} notice={ai}
       timeZone={staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone}
       planHref={(outletId, date) => outletId === scope.locationId ? `/manager/plan${date ? `?date=${date}` : ""}#add-requirement` : null} />;
-    return <OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} />;
+    // The feeds behind the week, each with its source and when it last updated.
+    let feeds: LiveFeedStatus | null = null;
+    try { feeds = await getLiveFeedStatus(getDatabase(), now); } catch { feeds = null; }
+    const timeZone = staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone ?? staffing?.outlets[0]?.timezone ?? "UTC";
+    return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} /><div className="owner-overview owner-forecast"><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} /></div></>;
   }
   const subscription=await subscriptionFor(getDatabase(),scope);
   const invitations=await getDatabase().select().from(teamInvitations).where(eq(teamInvitations.organisationId,scope.organisationId));
@@ -83,8 +90,8 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   const staffingConfiguration = area === "policies" ? await getStaffingConfiguration(getDatabase(),scope) : null;
   let tipView: Awaited<ReturnType<typeof getOwnerTipView>> | null = null;
   if (area === "tips") { try { tipView = await getOwnerTipView(getDatabase(), scope); } catch { tipView = null; } }
-  let fxRate: Awaited<ReturnType<typeof latestFxReferenceRate>> = null;
-  if (area === "payments") { try { fxRate = await latestFxReferenceRate(getDatabase()); } catch { fxRate = null; } }
+  let fxRate: Awaited<ReturnType<typeof latestFxReferenceRate>> = null, fxFeed: LiveFeedStatus["ecb"] | null = null;
+  if (area === "payments") { try { fxRate = await latestFxReferenceRate(getDatabase()); fxFeed = (await getLiveFeedStatus(getDatabase())).ecb; } catch { fxRate = null; } }
   const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", tips: "Tips", payments: "Payments", settings: "Settings" }[area];
   const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", tips: "Your standing tip policy, imported POS tip evidence, deterministic allocations, the Pay Agent’s checks and every hold. Managers have no role here.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your subscription and connected services." }[area];
   const active = locations.filter(location => location.active);
@@ -133,7 +140,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       <details className="panel disclosure"><summary>Departments · {scope.locationName}</summary>{operations.departments.map(d => <div className="record-row" key={d.id}>{d.name}</div>)}<form action={createDepartmentAction} className="inline-form"><label>Department name<input name="name" maxLength={100} required /></label><button className="primary-button">Add department</button></form></details>
     </> : null}
     {area === "payments" ? <section className="panel"><h2>Work earnings payments</h2><p className="panel-lede">Approve and send from Review &amp; pay at each location, yourself or through its manager. Paid shows only after PayPal confirms the payment.</p>{workPayments.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Approved work and payment status</caption><thead><tr><th scope="col">Location</th><th scope="col">Worker</th><th scope="col">Shift</th><th scope="col">Total</th><th scope="col">Status</th></tr></thead><tbody>{workPayments.map((payment) => <tr key={payment.id}><th scope="row">{locations.find((location) => location.id === payment.outletId)?.name}</th><td data-label="Worker">{payment.workerName}</td><td data-label="Shift">{longDate(payment.shiftDate)}</td><td data-label="Total"><strong>{money(payment.amountMinor, payment.currencyCode)}</strong></td><td data-label="Status"><PayableBadge status={payment.status} payout={payment.payout} /></td></tr>)}</tbody></table></div> : <p>No confirmed work payables yet.</p>}</section> : null}
-    {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} canRecord={!scope.demo && sandboxOrganisationId() === scope.organisationId} /> : null}
+    {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} canRecord={!scope.demo && sandboxOrganisationId() === scope.organisationId} feed={fxFeed} timeZone={locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} /> : null}
     {area === "payments" && payments.length ?<section className="panel"><h2>Organisation incentive payments</h2>{payments.map((payment, index) => <div className="record-row" key={`${payment.outletId}-${payment.shiftDate}-${index}`}><span>{locations.find((location) => location.id === payment.outletId)?.name} · {payment.shiftDate} · {money(payment.amount, payment.currency)}</span><PaymentBadge status={payment.status} /></div>)}</section> : null}
     {area === "settings" ? <>
       <section className="panel"><h2>Subscription</h2><p><strong>{SUBSCRIPTION_STATE[subscription?.status ?? ""] ?? "Needs attention"}</strong>{subscription?.tier ? ` · ${subscription.tier === "SINGLE_OUTLET" ? "Single Outlet" : subscription.tier === "MULTI_OUTLET" ? "Multi Outlet" : "Enterprise"}${subscription.billingPeriod ? `, billed ${subscription.billingPeriod === "ANNUAL" ? "annually" : "monthly"}` : ""}` : ""}</p><p className="note">{subscription?.verifiedAt ? `Last confirmed with PayPal ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(subscription.verifiedAt)}. ` : "Not yet confirmed with PayPal. "}Billed through PayPal Sandbox in this environment, separately from worker payments.</p><div className="button-row"><Link className="secondary-button button-link" href="/subscribe">Review subscription</Link><form action={refreshSubscriptionAction}><button className="secondary-button">Check subscription with PayPal</button></form></div></section>

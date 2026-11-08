@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { shiftDate, type DailySales, type SalesSource } from "@/server/intelligence/forecast";
+import type { HolidayFact } from "@/server/reference/public-holiday-feed";
 import { UK_BANK_HOLIDAYS, type BankHolidayDivision } from "@/server/reference/uk-bank-holidays";
 
 // Contextual signals: what FairShift knows about a location and date beyond its demand
@@ -10,7 +11,7 @@ export const SIGNAL_TYPES = ["MOMENTUM", "MANAGER_ENTERED", "BANK_HOLIDAY", "WEA
 export type SignalType = typeof SIGNAL_TYPES[number];
 export const SIGNAL_DIRECTIONS = ["UP", "DOWN", "FLAT", "UNSPECIFIED"] as const;
 export type SignalDirection = typeof SIGNAL_DIRECTIONS[number];
-export type SignalProvenance = "DETERMINISTIC_CALCULATION" | "MANAGER_ENTERED" | "OFFICIAL_SNAPSHOT" | "PROVIDER_FORECAST" | "PROVIDER_EVENT";
+export type SignalProvenance = "DETERMINISTIC_CALCULATION" | "MANAGER_ENTERED" | "OFFICIAL_SNAPSHOT" | "PROVIDER_FORECAST" | "PROVIDER_EVENT" | "HOLIDAY_FEED" | "HOLIDAY_FALLBACK";
 // Minutes after local midnight, when a signal concerns part of a day.
 export type SignalPeriod = { start: number; end: number };
 
@@ -89,6 +90,23 @@ export function bankHolidaySignal(input: { organisationId: string; outletId: str
     summary: `Bank holiday in ${NATION_LABEL[input.division]}: ${event.title}${event.notes ? ` (${event.notes})` : ""}.`,
     metadata: { division: input.division, title: event.title, snapshotRetrievedOn: UK_BANK_HOLIDAYS.retrievedOn },
     enteredBy: null, createdAt: null, withdrawnAt: null,
+  };
+}
+
+// A South African public holiday on one date: from the live holiday feed, or, for a year the feed
+// doesn't cover, from FairShift's built-in rules, labelled as the fallback. Like the UK's, it says only
+// that the date is a holiday and carries no direction. Its identifier follows what it says, so a feed
+// refresh with the same holiday keeps it and no decision goes stale.
+export function saPublicHolidaySignal(input: { organisationId: string; outletId: string; fact: HolidayFact; updatedAt: Date | null }): ContextSignal {
+  const { fact } = input;
+  return {
+    id: signalId("BANK_HOLIDAY", input.outletId, "ZA", fact.date, fact.origin, fact.name),
+    organisationId: input.organisationId, outletId: input.outletId, type: "BANK_HOLIDAY",
+    validFrom: fact.date, validTo: fact.date, period: null, direction: "UNSPECIFIED",
+    provenance: fact.origin === "FEED" ? "HOLIDAY_FEED" : "HOLIDAY_FALLBACK", sourceLabel: fact.sourceLabel, sourceRef: fact.sourceUrl,
+    summary: `Public holiday in South Africa: ${fact.name}.`,
+    metadata: { country: "ZA", name: fact.name, origin: fact.origin, ...(fact.verification ? { verification: fact.verification } : {}) },
+    enteredBy: null, createdAt: input.updatedAt, withdrawnAt: null,
   };
 }
 

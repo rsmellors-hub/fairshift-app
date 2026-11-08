@@ -76,6 +76,17 @@ const VOLATILITY = 0.06;
 // Bills from R45 to R164, in whole rand.
 const BILL_MIN_MINOR = 4_500, BILL_STEPS = 120;
 
+// DEMO PROFILES (fictional venues). Short Owner-style descriptions for local intelligence, written
+// for the demonstration and stored as DEMO_SEED so they are always labelled. They describe each public
+// area and an imagined customer mix; they set no effect on demand and were not tuned to any result.
+export const SA_DEMO_LOCATION_PROFILES: Readonly<Record<SaReferenceStoreCode, { area: string; venueType: string; typicalCustomers: string }>> = {
+  SA01: { area: "Rosebank, Johannesburg: offices, a shopping centre and the Gautrain station", venueType: "Fictional fast-casual cafe and dining room", typicalCustomers: "Office workers at breakfast and lunch, shoppers and commuters, local residents in the evening" },
+  SA02: { area: "Sandton central, Johannesburg: the business district and convention centre", venueType: "Fictional fast-casual cafe in an office precinct", typicalCustomers: "Corporate staff on weekdays, business visitors and conference delegates, fewer customers at weekends" },
+  SA03: { area: "Pretoria city centre, near government buildings and offices", venueType: "Fictional fast-casual cafe on a busy city street", typicalCustomers: "Civil servants and office workers on weekdays, students and visitors to government offices" },
+  SA04: { area: "Durban North, a residential suburb close to the beachfront", venueType: "Fictional neighbourhood cafe and dining room", typicalCustomers: "Local families and residents, weekend brunch crowds, holidaymakers in season" },
+  SA05: { area: "Gardens, Cape Town: a busy city-bowl street of restaurants and shops", venueType: "Fictional cafe and dining room", typicalCustomers: "Residents, students and tourists by day, evening diners" },
+};
+
 export function saReferenceLocation(code: SaReferenceStoreCode) {
   const location = SA_REFERENCE_LOCATIONS.find(row => row.code === code);
   if (!location) throw new Error(`Unknown reference store ${code}.`);

@@ -211,6 +211,13 @@
       "when": 1794048295225,
       "tag": "0029_tip_release",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794093031170,
+      "tag": "0030_local_intelligence",
+      "breakpoints": true
     }
   ]
 }

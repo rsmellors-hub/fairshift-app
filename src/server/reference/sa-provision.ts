@@ -1,8 +1,8 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Database } from "@/server/db/client";
 import { organisations, outlets } from "@/server/db/schema";
 import { provisionCompanyHistory } from "@/server/reference/provision";
-import { SA_REFERENCE_COMPANY, SA_REFERENCE_DATASET, SA_REFERENCE_LOCATIONS, SA_REFERENCE_ORGANISATION, type SaReferenceStoreCode } from "@/server/reference/sa-reference";
+import { SA_DEMO_LOCATION_PROFILES, SA_REFERENCE_COMPANY, SA_REFERENCE_DATASET, SA_REFERENCE_LOCATIONS, SA_REFERENCE_ORGANISATION, type SaReferenceStoreCode } from "@/server/reference/sa-reference";
 
 // Makes the one South African reference business available: its organisation and five locations,
 // under their fixed identifiers, then its labelled reference history and stated configuration.
@@ -24,6 +24,9 @@ export async function provisionSaReferenceBusiness(db: Database, range: { from?:
     if (foreign) throw new Error(`Location ${foreign.id} belongs to another organisation.`);
     await tx.insert(outlets).values(SA_REFERENCE_LOCATIONS.map(row => ({ id: row.id, organisationId: organisation.id, name: row.name, city: row.city, province: row.province,
       country: organisation.country, timezone: SA_REFERENCE_DATASET.timezone }))).onConflictDoNothing();
+    // The labelled demo profiles, unless an Owner has written their own.
+    for (const row of SA_REFERENCE_LOCATIONS) await tx.update(outlets).set({ locationProfile: SA_DEMO_LOCATION_PROFILES[row.code], locationProfileSource: "DEMO_SEED" })
+      .where(and(eq(outlets.id, row.id), eq(outlets.organisationId, organisation.id), or(isNull(outlets.locationProfileSource), eq(outlets.locationProfileSource, "DEMO_SEED"))));
   });
   const mapping = Object.fromEntries(SA_REFERENCE_LOCATIONS.map(row => [row.code, row.id])) as Record<SaReferenceStoreCode, string>;
   return provisionCompanyHistory(db, SA_REFERENCE_COMPANY, { organisationId: organisation.id, outlets: mapping, ...range }, now);

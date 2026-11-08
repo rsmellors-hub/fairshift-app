@@ -131,7 +131,7 @@ export async function proposeDemandContext(db: Database, scope: ContextScope, da
   }
   // Calculated and official signals are kept as they were put to the model, with their sources.
   // People's entries and feed signals are already stored.
-  const derived = day.signals.filter(signal => signal.provenance === "DETERMINISTIC_CALCULATION" || signal.provenance === "OFFICIAL_SNAPSHOT");
+  const derived = day.signals.filter(signal => signal.provenance === "DETERMINISTIC_CALCULATION" || signal.provenance === "OFFICIAL_SNAPSHOT" || signal.provenance === "HOLIDAY_FEED" || signal.provenance === "HOLIDAY_FALLBACK");
   if (derived.length) await db.insert(demandContextSignals).values(derived.map(signal => ({ id: signal.id, organisationId: signal.organisationId, outletId: signal.outletId, signalType: signal.type, validFrom: signal.validFrom, validTo: signal.validTo, direction: signal.direction, provenance: signal.provenance, sourceLabel: signal.sourceLabel, sourceRef: signal.sourceRef, summary: signal.summary, metadata: signal.metadata, createdAt: now }))).onConflictDoNothing();
   const base = { organisationId: scope.organisationId, outletId: scope.locationId, targetDate: date, policyVersion: DEMAND_CONTEXT_POLICY_VERSION, inputVersion: CONTEXT_INPUT_VERSION, outputSchemaVersion: CONTEXT_OUTPUT_SCHEMA_VERSION, inputFingerprint: day.fingerprint, input: request,
     provider: provider.provider, model: provider.model, responseModel: outcome.responseModel, providerResponseId: outcome.responseId, requestedBy: scope.userId, createdAt: now };
@@ -155,8 +155,10 @@ export async function decideDemandContext(db: Database, scope: ContextScope, inp
   if (!z.uuid().safeParse(input.proposalId).success || !["ACCEPTED", "DISMISSED", "WITHDRAWN"].includes(input.action)) throw missing();
   const [proposal] = await db.select().from(demandContextProposals).where(and(eq(demandContextProposals.id, input.proposalId), eq(demandContextProposals.organisationId, scope.organisationId), eq(demandContextProposals.outletId, scope.locationId), eq(demandContextProposals.status, "AVAILABLE")));
   if (!proposal) throw missing();
-  const { day } = await currentDay(db, scope, proposal.targetDate, now);
+  const { outlet, day } = await currentDay(db, scope, proposal.targetDate, now);
   if (input.action !== "WITHDRAWN" && (!day || day.fingerprint !== proposal.inputFingerprint)) throw new UserFacingError("context-changed", "The evidence has changed since this was proposed, so it can’t be decided on. Ask for a new proposal.");
+  // One influence is never counted twice: a day already using AI-found adjustments takes no scenario.
+  if (input.action === "ACCEPTED" && outlet?.localIntelligence?.days.some(row => row.date === proposal.targetDate && row.state === "ACCEPTED")) throw new UserFacingError("context-local-accepted", "This day already uses AI-found adjustments. Stop using them first, so the same influence isn’t counted twice.");
   const scenario = proposal.scenario as DemandScenario;
   return db.transaction(async tx => {
     const [locked] = await tx.select({ id: demandContextProposals.id }).from(demandContextProposals).where(eq(demandContextProposals.id, proposal.id)).for("update");

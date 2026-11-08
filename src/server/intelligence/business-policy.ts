@@ -6,6 +6,8 @@ import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, demandContextFeeds, outletTradingHours, outlets, regularCoverageWindows, workloadPolicies } from "@/server/db/schema";
 import { venueContextSchema } from "@/server/intelligence/venue-profile";
+import { locationProfileSchema } from "@/server/intelligence/local-intelligence-contract";
+import { UserFacingError } from "@/server/domain/errors";
 import { coverageWindowsSchema, tradingWindowsSchema, workloadPolicyInputSchema, type CoverageWindow, type TradingWindow } from "@/server/intelligence/workload";
 
 // A business's own workload inputs: its service-capacity policy, trading hours and regular
@@ -103,15 +105,32 @@ export async function setVenueContext(db: Database, scope: OwnerScope, input: un
   });
 }
 
+// The Owner's own description of the selected location: its area, what kind of venue it is and who
+// usually comes. It is the only description local intelligence gives the model, so it may hold no
+// contact details or links. All three blank clears it.
+export async function setLocationProfile(db: Database, scope: OwnerScope, input: { area: string; venueType: string; typicalCustomers: string }) {
+  await authoriseOwner(db, scope);
+  const blank = [input.area, input.venueType, input.typicalCustomers].every(value => !value.trim());
+  const parsed = blank ? null : locationProfileSchema.safeParse(input);
+  if (parsed && !parsed.success) throw new UserFacingError("location-profile-invalid", "Describe the area, venue and customers in a few words each, with no names, contact details or links.");
+  const profile = parsed?.success ? parsed.data : null;
+  await db.transaction(async tx => {
+    await tx.update(outlets).set({ locationProfile: profile, locationProfileSource: profile ? "OWNER" : null, updatedAt: new Date() }).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "LOCATION_PROFILE_SET", entityType: "outlet", entityId: scope.locationId, correlationId: `location-profile:${scope.locationId}`, metadata: { actorUserId: scope.userId, cleared: !profile } });
+  });
+}
+
 // What the Owner sees and edits for the selected location.
 export async function getStaffingConfiguration(db: DatabaseSession, scope: OwnerScope) {
   await authoriseOwner(db, scope);
   const policies = await db.select().from(workloadPolicies).where(and(eq(workloadPolicies.organisationId, scope.organisationId), eq(workloadPolicies.status, "ACTIVE")));
   const trading = await db.select().from(outletTradingHours).where(and(eq(outletTradingHours.organisationId, scope.organisationId), eq(outletTradingHours.outletId, scope.locationId)));
   const coverage = await db.select().from(regularCoverageWindows).where(and(eq(regularCoverageWindows.organisationId, scope.organisationId), eq(regularCoverageWindows.outletId, scope.locationId)));
-  const [venue] = await db.select({ venueProfile: outlets.venueProfile, latitude: outlets.latitude, longitude: outlets.longitude, source: outlets.venueContextSource }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+  const [venue] = await db.select({ venueProfile: outlets.venueProfile, latitude: outlets.latitude, longitude: outlets.longitude, source: outlets.venueContextSource, locationProfile: outlets.locationProfile, locationProfileSource: outlets.locationProfileSource }).from(outlets).where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId)));
+  const profile = locationProfileSchema.safeParse(venue?.locationProfile);
   return {
-    venue: venue ?? { venueProfile: null, latitude: null, longitude: null, source: null },
+    venue: venue ? { venueProfile: venue.venueProfile, latitude: venue.latitude, longitude: venue.longitude, source: venue.source } : { venueProfile: null, latitude: null, longitude: null, source: null },
+    profile: profile.success ? { ...profile.data, source: venue?.locationProfileSource ?? null } : null,
     organisationPolicy: policies.find(row => row.outletId === null) ?? null,
     locationPolicy: policies.find(row => row.outletId === scope.locationId) ?? null,
     trading: Array.from({ length: 7 }, (_, i) => { const row = trading.find(item => item.isoWeekday === i + 1); return row ? { windows: tradingWindowsSchema.parse(row.windows) as TradingWindow[], source: row.source } : null; }),

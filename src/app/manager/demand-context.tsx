@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DataLabel, StatusBadge } from "@/app/components/product-ui";
+import { OpenMeteoAttribution } from "@/app/components/source-labels";
 import { labourHours, longDate, transactions } from "@/app/components/staffing";
 import { addManagerSignalAction, addStructuredSignalAction, decideDemandContextAction, proposeDemandContextAction, refreshContextFeedsAction, withdrawManagerSignalAction } from "@/app/demand-context-actions";
 import { fillHref } from "@/app/manager/plan-week";
@@ -24,8 +25,10 @@ const PROVENANCE: Record<ContextSignal["provenance"], { label: string; kind: "fa
   DETERMINISTIC_CALCULATION: { label: "Calculated from sales history, not AI", kind: "fact" },
   MANAGER_ENTERED: { label: "Manager-entered context, not independently verified", kind: "demo" },
   OFFICIAL_SNAPSHOT: { label: "Official GOV.UK dates, stored snapshot", kind: "fact" },
-  PROVIDER_FORECAST: { label: "Weather forecast from Open-Meteo, not a measurement", kind: "predictive" },
-  PROVIDER_EVENT: { label: "Listed by Ticketmaster, listings aren’t complete", kind: "fact" },
+  PROVIDER_FORECAST: { label: "Feed: Weather forecast from Open-Meteo, not a measurement", kind: "predictive" },
+  PROVIDER_EVENT: { label: "Feed: Listed by Ticketmaster, listings aren’t complete", kind: "fact" },
+  HOLIDAY_FEED: { label: "Feed: Nager.Date public holidays API", kind: "fact" },
+  HOLIDAY_FALLBACK: { label: "Fallback: FairShift’s built-in South African holiday rules, used where the live feed doesn’t cover the date", kind: "demo" },
 };
 const SIGNAL_KIND: Partial<Record<ContextSignal["type"], string>> = { BOOKINGS: "Bookings", LOCAL_EVENT: "Local event", PROMOTION: "Promotion", WEATHER_FORECAST: "Weather" };
 const DIRECTION: Record<ContextSignal["direction"], string> = { UP: "Points to more demand", DOWN: "Points to less demand", FLAT: "About level", UNSPECIFIED: "No expected direction stated" };
@@ -39,16 +42,22 @@ const NOTICE: Record<string, string> = {
   "context-signal-fields": "Check the details: fill in what’s required, with the end time after the start.",
   "feeds-refreshed": "Weather and listed events checked. If anything changed, an earlier proposal for that day needs a fresh look.", "feeds-failed": "A provider couldn’t be reached. The last good information stays, marked with its age, and planning isn’t affected.", "feeds-no-coordinates": "This location has no coordinates, so weather and listed events stay unknown. The business owner can set them under Compensation & incentives.",
   "context-signal-invalid": "Enter the dates, a short description and what you expect.", "context-signal-dates": "Choose dates from today onwards, up to two weeks long.",
+  "context-local-accepted": "This day already uses AI-found adjustments. Stop using them first, so the same influence isn’t counted twice.",
 };
 const FAILURE = (code: string | null) => !code ? "it could not be completed"
   : code.startsWith("VALIDATION_") ? "its answer broke FairShift’s rules, so it was rejected" : code === "TIMEOUT" ? "the AI service did not respond in time" : code === "NETWORK_ERROR" ? "the AI service could not be reached" : code === "REFUSAL" ? "the AI service declined the request" : code.startsWith("HTTP_") ? "the AI service returned an error" : "the AI service returned an unusable response";
 const HOLIDAY = { NATION_NOT_STATED: "Bank holidays: unknown, because this location’s record doesn’t state its UK nation.", NO_HOLIDAY_ON_DATE: "No bank holiday on this date (GOV.UK snapshot).", HOLIDAY_ON_DATE: null } as const;
+const SA_HOLIDAY = { NATION_NOT_STATED: "Public holidays: unknown for this date, because neither the live feed nor FairShift’s rules cover it.", NO_HOLIDAY_ON_DATE: "No public holiday on this date.", HOLIDAY_ON_DATE: null } as const;
 
 const feedOf = (signal: ContextSignal, context: OutletDemandContext): FeedState | null => signal.provenance === "PROVIDER_FORECAST" ? context.weather : signal.provenance === "PROVIDER_EVENT" ? context.events : null;
-const feedAge = (state: FeedState) => `${state.status === "STALE" ? "Stale, " : "Fetched, "}${ageText(state.ageHours)}`;
+// Every feed signal says when its feed last updated, and a feed that has fallen behind says it is stale.
+const feedAge = (state: FeedState, timeZone: string) => `${state.status === "STALE" ? "Stale: " : ""}updated ${state.fetchedAt ? stamp(state.fetchedAt, timeZone) : "never"} (${ageText(state.ageHours)})`;
 const signalAge = (signal: ContextSignal, context: OutletDemandContext, timeZone: string) => {
   const feed = feedOf(signal, context);
-  return feed ? feedAge(feed) : signal.provenance === "MANAGER_ENTERED" && signal.createdAt ? `Entered ${stamp(signal.createdAt, timeZone)}` : signal.sourceLabel;
+  if (feed) return feedAge(feed, timeZone);
+  if (signal.provenance === "HOLIDAY_FEED") return `${context.holidays?.status === "STALE" ? "Stale: " : ""}updated ${context.holidays?.updatedAt ? stamp(context.holidays.updatedAt, timeZone) : "never"}`;
+  if (signal.provenance === "HOLIDAY_FALLBACK") return context.holidays?.updatedAt ? `The live feed (updated ${stamp(context.holidays.updatedAt, timeZone)}) doesn’t cover this year` : "The live feed hasn’t been fetched yet";
+  return signal.provenance === "MANAGER_ENTERED" && signal.createdAt ? `Entered ${stamp(signal.createdAt, timeZone)}` : signal.sourceLabel;
 };
 
 // Why a period does or doesn't qualify for a scenario citing this event.
@@ -151,7 +160,7 @@ export function DemandContextPanel({ outlet, selectedDate, notice, aiConfigured,
 
     <h3>2. What FairShift knows about this day</h3>
     {selected.signals.length ? <ul className="context-signals">{selected.signals.map(signal => <Signal key={signal.id} signal={signal} date={date!} timeZone={outlet.timezone} context={context} />)}</ul> : <p>No context is available for this day. That means unknown, not normal.</p>}
-    <p className="note">{HOLIDAY[selected.holidayStatus] ? `${HOLIDAY[selected.holidayStatus]} ` : ""}{venueLine(context)} {weatherLine(context.weather, selected.signals.some(signal => signal.provenance === "PROVIDER_FORECAST"))} {eventsLine(context.events, eventsConfigured)} Bookings and promotions are known only from what you add here, so anything not listed is unknown, not normal.</p>
+    <p className="note">{(context.holidays ? SA_HOLIDAY : HOLIDAY)[selected.holidayStatus] ? `${(context.holidays ? SA_HOLIDAY : HOLIDAY)[selected.holidayStatus]} ` : ""}{venueLine(context)} {weatherLine(context.weather, selected.signals.some(signal => signal.provenance === "PROVIDER_FORECAST"))} {eventsLine(context.events, eventsConfigured)} Bookings and promotions are known only from what you add here, so anything not listed is unknown, not normal.{context.weather.status === "FRESH" || context.weather.status === "STALE" ? <> <OpenMeteoAttribution /></> : null}</p>
     {context.weather.status !== "NO_COORDINATES" ? <form action={refreshContextFeedsAction}><input type="hidden" name="date" value={date!} /><button className="secondary-button">Check weather and events now</button></form> : null}
     <details className="disclosure-inline"><summary>Add bookings</summary>
       <form action={addStructuredSignalAction} className="workspace-form form-grid"><input type="hidden" name="kind" value="BOOKINGS" /><input type="hidden" name="planDate" value={date!} />

@@ -823,3 +823,13 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .tip-allocation { border-top: 1px solid var(--line, #d8dee4); padding-top: 1rem; margin-top: 1rem; }
 .hold-record { border-left: 3px solid var(--warning, #b7791f); padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
 .statement-credits { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+
+/* Where a signal came from: feed, AI-found or Owner-entered, with its last update. */
+.source-line { display: inline; }
+.source-line small { color: var(--muted); }
+.source-line small.source-stale, .source-stale { color: var(--gap-ink); font-weight: 600; }
+.source-link, .source-attribution { overflow-wrap: anywhere; }
+.local-signal .status-badge { margin-left: 4px; }
+.coverage-log ul { margin: 6px 0; padding-left: 18px; }
+.coverage-log li { margin: 2px 0; overflow-wrap: anywhere; }
+.live-feeds .data-table th[scope="row"] { font-weight: 400; }

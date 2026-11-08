@@ -1,12 +1,13 @@
 import { and, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import type { DatabaseSession } from "@/server/db/client";
-import { demandContextDecisions, demandContextFeeds, demandContextProposals, demandContextSignals, outlets } from "@/server/db/schema";
+import { demandContextDecisions, demandContextFeeds, demandContextProposals, demandContextSignals, externalFeeds, outlets } from "@/server/db/schema";
 import { prepareContextInput, type ContextInput, type HolidayStatus } from "@/server/intelligence/demand-context-contract";
 import { DEMAND_CONTEXT_POLICY_VERSION, SCENARIO_ADJUSTMENT_BPS, type DemandScenario } from "@/server/intelligence/demand-context-policy";
-import { bankHolidayDivision, bankHolidaySignal, momentumSignal, signalScopeFailure, type ContextSignal, type SignalDirection, type SignalType } from "@/server/intelligence/demand-signals";
+import { bankHolidayDivision, bankHolidaySignal, momentumSignal, saPublicHolidaySignal, signalScopeFailure, type ContextSignal, type SignalDirection, type SignalType } from "@/server/intelligence/demand-signals";
 import { isSyntheticSource, type DailySales, type SalesSource } from "@/server/intelligence/forecast";
 import { venueProfileOf, type VenueProfile } from "@/server/intelligence/venue-profile";
 import type { PlanningBlock, TradingWindow } from "@/server/intelligence/workload";
+import { feedFreshness, holidayFeedKey, holidayLookup, HOLIDAY_FEED_STALE_HOURS, isSouthAfrica, type FeedFreshness } from "@/server/reference/public-holiday-feed";
 
 // Reads the contextual layer for a location's planning week. Nothing here calls a model or
 // writes. If this layer can't be read, planning carries on from the baseline.
@@ -17,6 +18,8 @@ export type StoredContext = {
   signals: readonly ContextSignal[];
   proposals: readonly (typeof demandContextProposals.$inferSelect)[];
   decisions: readonly (typeof demandContextDecisions.$inferSelect)[];
+  // South Africa's public-holiday feed, when it has been fetched.
+  holidayFeed?: typeof externalFeeds.$inferSelect | null;
 };
 
 const toSignal = (row: typeof demandContextSignals.$inferSelect): ContextSignal => ({
@@ -29,7 +32,7 @@ export async function loadStoredContext(db: DatabaseSession, organisationId: str
   const ids = [...outletIds];
   const feeds = await db.select().from(demandContextFeeds).where(and(eq(demandContextFeeds.organisationId, organisationId), inArray(demandContextFeeds.outletId, ids)));
   const feedSignalIds = feeds.flatMap(feed => feed.currentSignalIds as string[]);
-  const [meta, signals, proposals, decisions] = await Promise.all([
+  const [meta, signals, proposals, decisions, holidayFeeds] = await Promise.all([
     db.select({ id: outlets.id, province: outlets.province, country: outlets.country, venueProfile: outlets.venueProfile, venueContextSource: outlets.venueContextSource, latitude: outlets.latitude, longitude: outlets.longitude }).from(outlets).where(and(eq(outlets.organisationId, organisationId), inArray(outlets.id, ids))),
     // People's own entries, and each feed's current signals, are read back. Calculated and
     // official signals are derived fresh each time, so a stored copy can never stand in for the
@@ -37,8 +40,9 @@ export async function loadStoredContext(db: DatabaseSession, organisationId: str
     db.select().from(demandContextSignals).where(and(eq(demandContextSignals.organisationId, organisationId), inArray(demandContextSignals.outletId, ids), feedSignalIds.length ? or(eq(demandContextSignals.provenance, "MANAGER_ENTERED"), inArray(demandContextSignals.id, feedSignalIds)) : eq(demandContextSignals.provenance, "MANAGER_ENTERED"))).orderBy(desc(demandContextSignals.createdAt)),
     db.select().from(demandContextProposals).where(and(eq(demandContextProposals.organisationId, organisationId), inArray(demandContextProposals.outletId, ids), gte(demandContextProposals.targetDate, firstDate), lte(demandContextProposals.targetDate, lastDate))).orderBy(desc(demandContextProposals.createdAt)),
     db.select().from(demandContextDecisions).where(and(eq(demandContextDecisions.organisationId, organisationId), inArray(demandContextDecisions.outletId, ids), gte(demandContextDecisions.targetDate, firstDate), lte(demandContextDecisions.targetDate, lastDate))).orderBy(desc(demandContextDecisions.sequence)),
+    db.select().from(externalFeeds).where(eq(externalFeeds.feed, holidayFeedKey("ZA"))),
   ]);
-  return { meta: new Map(meta.map(row => [row.id, row])), feeds, signals: signals.map(toSignal), proposals, decisions };
+  return { meta: new Map(meta.map(row => [row.id, row])), feeds, signals: signals.map(toSignal), proposals, decisions, holidayFeed: holidayFeeds[0] ?? null };
 }
 
 export type AppliedContext = { scenario: DemandScenario; adjustmentBps: number; period: TradingWindow | null; decisionId: string; proposalId: string; policyVersion: string; citedSignalIds: string[] };
@@ -60,7 +64,9 @@ export type ContextDay = {
 // What FairShift can say about an automatic feed here. Each state is shown as it is: no
 // coordinates or no fetch reads as unknown, never as fine weather or a quiet neighbourhood.
 export type FeedState = { status: "NO_COORDINATES" | "NOT_FETCHED" | "FRESH" | "STALE"; fetchedAt: Date | null; ageHours: number | null; lastFailureCode: string | null };
-export type OutletDemandContext = { status: "AVAILABLE" | "UNAVAILABLE"; days: ContextDay[]; accepted: ReadonlyMap<string, AppliedContext>; venueProfile: VenueProfile | null; venueContextSource: string | null; weather: FeedState; events: FeedState };
+export type OutletDemandContext = { status: "AVAILABLE" | "UNAVAILABLE"; days: ContextDay[]; accepted: ReadonlyMap<string, AppliedContext>; venueProfile: VenueProfile | null; venueContextSource: string | null; weather: FeedState; events: FeedState;
+  // South Africa's public-holiday feed as this location's days use it. Absent elsewhere.
+  holidays?: FeedFreshness };
 export const FEED_STALE_HOURS = 6;
 const NOT_FETCHED: FeedState = { status: "NOT_FETCHED", fetchedAt: null, ageHours: null, lastFailureCode: null };
 export const UNAVAILABLE_CONTEXT: OutletDemandContext = { status: "UNAVAILABLE", days: [], accepted: new Map(), venueProfile: null, venueContextSource: null, weather: NOT_FETCHED, events: NOT_FETCHED };
@@ -89,14 +95,19 @@ export function resolveOutletContext(input: {
   const venueProfile = venueProfileOf(location.venueProfile);
   const hasCoordinates = location.latitude !== null && location.longitude !== null;
   const division = bankHolidayDivision(location);
+  // South Africa: the live holiday feed, with FairShift's rules as the labelled fallback. A UK location
+  // keeps its GOV.UK snapshot exactly as before.
+  const southAfrican = !division && isSouthAfrica(location.country);
+  const saHoliday = southAfrican ? holidayLookup(stored.holidayFeed ?? null, "ZA") : null;
   const momentum = evidence ? momentumSignal({ organisationId, outletId, source: evidence.source, synthetic: isSyntheticSource(evidence.source), days: input.evidenceDays, dataThrough: evidence.dataThrough }) : null;
   // A feed's signals are only as good as the coordinates they were fetched for.
   const storedSignals = stored.signals.filter(signal => signal.outletId === outletId && signal.organisationId === organisationId && (hasCoordinates || signal.provenance === "MANAGER_ENTERED"));
   const accepted = new Map<string, AppliedContext>();
   const days = input.days.map((day): ContextDay => {
     const date = day.planningDate;
-    const holiday = division ? bankHolidaySignal({ organisationId, outletId, division, date }) : null;
-    const holidayStatus: HolidayStatus = !division ? "NATION_NOT_STATED" : holiday ? "HOLIDAY_ON_DATE" : "NO_HOLIDAY_ON_DATE";
+    const fact = saHoliday ? saHoliday(date) : undefined;
+    const holiday = division ? bankHolidaySignal({ organisationId, outletId, division, date }) : fact ? saPublicHolidaySignal({ organisationId, outletId, fact, updatedAt: stored.holidayFeed?.lastSuccessAt ?? null }) : null;
+    const holidayStatus: HolidayStatus = division ? (holiday ? "HOLIDAY_ON_DATE" : "NO_HOLIDAY_ON_DATE") : saHoliday && fact !== undefined ? (fact ? "HOLIDAY_ON_DATE" : "NO_HOLIDAY_ON_DATE") : "NATION_NOT_STATED";
     const scope = { organisationId, outletId, date };
     const signals = [...(momentum ? [momentum] : []), ...(holiday ? [holiday] : []), ...storedSignals].filter(signal => !signalScopeFailure(signal, scope));
     const hasBaseline = !day.closed && !!evidence && day.expectedMilliTransactions !== null && day.lowerMilliTransactions !== null && day.upperMilliTransactions !== null;
@@ -129,5 +140,6 @@ export function resolveOutletContext(input: {
     const failed = matching[0];
     return failed?.status === "FAILED" ? { ...base, state: "FAILED", failureCode: failed.failureCode } : { ...base, state: "READY" };
   });
-  return { status: "AVAILABLE", days, accepted, venueProfile, venueContextSource: location.venueContextSource, weather: feedState(stored, outletId, "WEATHER", hasCoordinates, input.now ?? new Date()), events: feedState(stored, outletId, "EVENTS", hasCoordinates, input.now ?? new Date()) };
+  return { status: "AVAILABLE", days, accepted, venueProfile, venueContextSource: location.venueContextSource, weather: feedState(stored, outletId, "WEATHER", hasCoordinates, input.now ?? new Date()), events: feedState(stored, outletId, "EVENTS", hasCoordinates, input.now ?? new Date()),
+    ...(southAfrican ? { holidays: feedFreshness(stored.holidayFeed, HOLIDAY_FEED_STALE_HOURS, input.now ?? new Date()) } : {}) };
 }

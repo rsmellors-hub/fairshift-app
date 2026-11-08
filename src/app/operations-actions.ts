@@ -17,7 +17,7 @@ import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
-import { clearWorkloadPolicy, setRegularCoverage, setTradingHours, setVenueContext, setWorkloadPolicy, type PolicyLevel } from "@/server/intelligence/business-policy";
+import { clearWorkloadPolicy, setLocationProfile, setRegularCoverage, setTradingHours, setVenueContext, setWorkloadPolicy, type PolicyLevel } from "@/server/intelligence/business-policy";
 import { createShiftFromOpportunity } from "@/server/intelligence/opportunity-shifts";
 import { parseCoverageText, parseTradingText } from "@/server/intelligence/workload";
 import { guardDemoWrite } from "@/server/demo/fixtures";
@@ -240,6 +240,10 @@ export async function saveTradingHoursAction(form: FormData) {
 export async function saveVenueContextAction(form: FormData) {
   const scope=await requireScope(["OWNER"]);
   return perform("/owner/policies", () => setVenueContext(getDatabase(),scope,{ venueProfile: field(form,"venueProfile"), latitude: field(form,"latitude"), longitude: field(form,"longitude") }));
+}
+export async function saveLocationProfileAction(form: FormData) {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => setLocationProfile(getDatabase(),scope,{ area: field(form,"area"), venueType: field(form,"venueType"), typicalCustomers: field(form,"typicalCustomers") }));
 }
 export async function saveRegularCoverageAction(form: FormData) {
   const scope=await requireScope(["OWNER"]);

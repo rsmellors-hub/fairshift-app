@@ -1,5 +1,5 @@
 import { VENUE_PROFILES, VENUE_PROFILE_LABEL } from "@/server/intelligence/venue-profile";
-import { saveVenueContextAction, clearLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, saveOrganisationWorkloadPolicyAction, saveRegularCoverageAction, saveTradingHoursAction } from "@/app/operations-actions";
+import { saveLocationProfileAction, saveVenueContextAction, clearLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, saveOrganisationWorkloadPolicyAction, saveRegularCoverageAction, saveTradingHoursAction } from "@/app/operations-actions";
 import { policySummary } from "@/app/components/staffing";
 import type { getStaffingConfiguration } from "@/server/intelligence/business-policy";
 import { formatCoverageText, formatTradingText } from "@/server/intelligence/workload";
@@ -25,7 +25,7 @@ const stateOf = (rows: readonly ({ source: string } | null)[], word: string) => 
 
 // A business's own staffing inputs. FairShift supplies no value and doesn't suggest one.
 export function StaffingConfiguration({ configuration, locationName }: { configuration: Configuration; locationName: string }) {
-  const { organisationPolicy, locationPolicy, trading, coverage, venue } = configuration;
+  const { organisationPolicy, locationPolicy, trading, coverage, venue, profile } = configuration;
   return <>
     <section className="panel" id="workload-policy" aria-labelledby="workload-policy-title"><h2 id="workload-policy-title">Service capacity and minimum cover</h2>
       <p>FairShift turns expected transactions into the staff capacity you need using these two figures. They’re your own policy. FairShift doesn’t know the right values and sets none for you. Sales value isn’t part of this.</p>
@@ -55,6 +55,15 @@ export function StaffingConfiguration({ configuration, locationName }: { configu
         <button className="primary-button">Save venue context</button>
       </form>
       <p className="note">{venue.source === "REFERENCE" ? "Reference company configuration: an approximate public-area coordinate, not real premises." : venue.source === "CONFIGURED" ? "Set by the business owner." : "Not set for this location."}</p>
+      <h3 id="location-profile">Location profile</h3>
+      <p>In your own words: the area, what kind of venue this is, and who usually comes. AI uses this to judge which local events, holidays and disruptions matter here. Describe the place, not people: no names, contact details or links.</p>
+      <form action={saveLocationProfileAction} className="workspace-form form-grid">
+        <label>Area<input name="area" maxLength={160} defaultValue={profile?.area ?? ""} placeholder="For example, a busy high street near the station" /></label>
+        <label>Venue type<input name="venueType" maxLength={160} defaultValue={profile?.venueType ?? ""} placeholder="For example, a cafe with a small dining room" /></label>
+        <label className="form-span">Typical customers<input name="typicalCustomers" maxLength={240} defaultValue={profile?.typicalCustomers ?? ""} placeholder="For example, office workers on weekdays and families at weekends" /></label>
+        <button className="secondary-button">Save location profile</button>
+      </form>
+      <p className="note">{profile?.source === "DEMO_SEED" ? "Demo profile for a fictional venue, written for the demonstration." : profile?.source === "OWNER" ? "Written by the business owner." : "Not set, so AI has only the area’s name to go on."}</p>
     </section>
     <section className="panel" id="regular-coverage" aria-labelledby="regular-coverage-title"><h2 id="regular-coverage-title">Regular coverage · {locationName}</h2>
       <p>How many regular staff are in at each time of a normal week. This is capacity for planning, not a roster. Write <code>07:00-12:00 x3, 12:00-15:00 x4</code>, and <code>none</code> for a day with no regular staff. A blank day isn’t the same as none: its casual requirement stays unavailable.</p>

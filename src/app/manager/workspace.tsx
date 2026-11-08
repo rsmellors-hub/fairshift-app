@@ -31,6 +31,7 @@ import { AllocationScheduler } from "./allocation-scheduler";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
 import { refreshContextFeedsIfDue } from "@/server/intelligence/demand-context-service";
 import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context";
+import { LocalIntelligencePanel } from "./local-intelligence";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
 import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
 import { getSquareFreshness, liveSquareConnection } from "@/server/commerce/square-connection";
@@ -76,7 +77,7 @@ function shiftSaIndicator(shift: Parameters<typeof shiftWageCheck>[0], jurisdict
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
 
-export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, importResult, financialScope, financialOnly = false }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean }) {
+export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, local, importResult, financialScope, financialOnly = false }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; local?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=financialScope ?? await requireScope(["OWNER","MANAGER"]);
   let data;
@@ -144,7 +145,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       <details className="panel disclosure" open={!team.length}><summary>Add a worker</summary><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p className="form-span note">They join {scope.locationName} and receive an invitation by email.</p><button className="primary-button">Create & send FairShift invite</button></form></details>
     </> : null}
     {area === "team" && !scope.demo ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
-    {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context) : null}
+    {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context, local) : null}
     {area === "allocations" ? await Roster(scope, timezone) : null}
     {area === "fill" ? <>
       {gapDay ? <section className="panel staffing-handoff" aria-label="Staffing requirement"><h2>{longDate(gapDay.planningDate)}{opportunity ? ` · ${opportunity.windowStart}–${opportunity.windowEnd}` : ""}</h2>
@@ -370,7 +371,7 @@ function PlanContext({ date, department }: { date?: string; department?: string 
 }
 // Planning-week staffing evidence for the manager's own location; managers are
 // scoped to one location, so no location selector is shown.
-async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: WeeklyStaffing | null, contextDate: string | null, contextNotice?: string) {
+async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: WeeklyStaffing | null, contextDate: string | null, contextNotice?: string, localNotice?: string) {
   if (!staffing) return <StatePanel title="Staffing unavailable" tone="warning"><p>Forecast or coverage could not be loaded, so no labour gap is shown. Existing requirements remain available below.</p></StatePanel>;
   const outlet = staffing.outlets.find(row => row.outletId === scope.locationId);
   if (!outlet) return <StatePanel title="Staffing unavailable" tone="warning"><p>This location is not available for planning.</p></StatePanel>;
@@ -383,8 +384,9 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
     <WeekCover outlet={outlet} />
     </section>
     <OpportunityList outlet={outlet} act />
+    <LocalIntelligencePanel outlet={outlet} selectedDate={contextDate} notice={localNotice} demo={!!scope.demo} />
     <DemandContextPanel outlet={outlet} selectedDate={contextDate} notice={contextNotice} aiConfigured={getConfigurationStatus().aiConfigured} eventsConfigured={!!getTicketmasterApiKey()} />
-    {outlet.baselineTotals ? <p className="note context-week-note" role="status">This week includes {outlet.days.filter(day => day.context).length === 1 ? "one accepted scenario" : `${outlet.days.filter(day => day.context).length} accepted scenarios`}. Casual requirement {labourHours(outlet.totals?.casualGapMinutes ?? 0)}, against {labourHours(outlet.baselineTotals.casualGapMinutes)} on the baseline.</p> : null}
+    {outlet.baselineTotals ? <p className="note context-week-note" role="status">This week includes {[outlet.days.filter(day => day.context).length ? (outlet.days.filter(day => day.context).length === 1 ? "one accepted scenario" : `${outlet.days.filter(day => day.context).length} accepted scenarios`) : null, outlet.days.filter(day => day.local).length ? `AI-found adjustments on ${outlet.days.filter(day => day.local).length === 1 ? "one day" : `${outlet.days.filter(day => day.local).length} days`}` : null].filter(Boolean).join(" and ")}. Casual requirement {labourHours(outlet.totals?.casualGapMinutes ?? 0)}, against {labourHours(outlet.baselineTotals.casualGapMinutes)} on the baseline.</p> : null}
     {outlet.totals ? <div className="metric-strip" aria-label="Planning week totals">
       <article><span>Expected transactions</span><strong>{transactions(outlet.totals.expectedMilliTransactions)}</strong><small>Sets the staff capacity needed</small></article>
       <article><span>Expected sales</span><strong>{outlet.commercial?.forecast && outlet.currency ? wholeMoney(outlet.commercial.forecast.totalMinor, outlet.currency) : "Not available"}</strong><small>{outlet.commercial?.comparable && outlet.currency ? `Comparable days ${wholeMoney(outlet.commercial.comparable.salesMinor, outlet.currency)} · ` : ""}commercial context</small></article>
