@@ -5,7 +5,7 @@ import { hashPassword } from "@/server/auth/identity";
 import { inviteMember, redeemInvitation } from "@/server/auth/tenancy";
 import { organisationEntitled, workplaceComplete } from "@/server/billing/entitlement";
 import type { Database } from "@/server/db/client";
-import { memberships, users } from "@/server/db/schema";
+import { memberships, subscriptions, users } from "@/server/db/schema";
 import { provisionSaReferenceBusiness } from "@/server/reference/sa-provision";
 import { SA_REFERENCE_ORGANISATION, saReferenceLocation } from "@/server/reference/sa-reference";
 import { ensureDemoBooking } from "./booking";
@@ -49,6 +49,10 @@ export async function provisionSaDemo(db: Database, options: { password?: string
   const ownerId = await user(DEMO_ACCOUNTS.OWNER);
   let [owner] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.userId, ownerId), eq(memberships.organisationId, organisationId), eq(memberships.role, "OWNER")));
   if (!owner) [owner] = await db.insert(memberships).values({ id: randomUUID(), userId: ownerId, organisationId, role: "OWNER" }).returning({ id: memberships.id });
+  // The organisation's subscription record, as every customer organisation gets one when it is created
+  // (ensureCustomerOrganisation). UNCONFIGURED, with no provider or plan, it grants nothing: the Owner
+  // starts the PayPal checkout from it, and only PayPal's ACTIVE status, reconciled, gives entitlement.
+  await db.insert(subscriptions).values({ id: randomUUID(), organisationId, requestId: randomUUID() }).onConflictDoNothing({ target: subscriptions.organisationId });
   const entitled = await organisationEntitled(db, organisationId) && await workplaceComplete(db, organisationId);
   let manager: { id: string } | null = null, worker: { id: string; workerId: string | null } | null = null;
   if (entitled) {

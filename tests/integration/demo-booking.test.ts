@@ -39,7 +39,6 @@ afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); 
 // Demo setup, with the business made entitled as its approved PayPal Sandbox subscription would.
 async function setUp(db: Db, now = NOW) {
   await provisionSaDemo(db, { now, range: RANGE });
-  await db.insert(subscriptions).values({ id: randomUUID(), organisationId: ORG, requestId: randomUUID() });
   await entitled(db, ORG);
   const result = await provisionSaDemo(db, { now, range: RANGE });
   vi.stubEnv("FAIRSHIFT_PUBLIC_DEMO", "enabled"); vi.stubEnv("FAIRSHIFT_DEMO_ORGANISATION_ID", ORG);
@@ -70,6 +69,11 @@ describe("demo setup books tomorrow's casual shift at Rosebank", () => {
     const before = await provisionSaDemo(db, { now: NOW, range: RANGE });
     expect(before).toMatchObject({ organisationId: ORG, entitled: false, memberships: { MANAGER: null, WORKER: null }, booking: null });
     expect(await liveBookings(db)).toEqual([]);
+    // The subscription record checkout starts from, granting nothing until PayPal reports ACTIVE.
+    const record = () => db.select().from(subscriptions).where(eq(subscriptions.organisationId, ORG));
+    expect(await record()).toEqual([expect.objectContaining({ status: "UNCONFIGURED", providerId: null, planId: null, verifiedAt: null })]);
+    await provisionSaDemo(db, { now: NOW, range: RANGE });
+    expect(await record()).toHaveLength(1);
 
     const result = await setUp(db);
     expect(result).toMatchObject({ entitled: true, booking: { date: "2026-12-02", created: true, workerId: result.workerId } });
