@@ -15,7 +15,7 @@ import { inviteMember, redeemInvitation } from "@/server/auth/tenancy";
 import { connectSquare, syncSquare } from "@/server/commerce/square-connection";
 import { mapSquareTeamMember } from "@/server/commerce/square-mapping";
 import { getDatabase } from "@/server/db/client";
-import { auditEvents, identityTokens, memberships, organisations, outlets, sessions, shiftOffers, shifts, subscriptions, users, workAcceptances, workAllocations, workPayables, workPayouts, workPerformanceResults } from "@/server/db/schema";
+import { auditEvents, identityTokens, memberships, payAgentEvents, organisations, outlets, sessions, shiftOffers, shifts, subscriptions, users, workAcceptances, workAllocations, workPayables, workPayouts, workPerformanceResults } from "@/server/db/schema";
 import { demoConfig } from "@/server/demo/config";
 import { DEMO_OPEN_SHIFT_LIMIT, resetDemo } from "@/server/demo/fixtures";
 import { enterDemo, switchDemoPersona } from "@/server/demo/session";
@@ -31,7 +31,7 @@ import DemoPage from "@/app/demo/page";
 import Account from "@/app/account/page";
 import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { inviteAction, requestResetAction, requestVerificationAction, selectMembershipAction, signOutAction } from "@/app/auth-actions";
-import { allocateAssignmentAction, approvePayableAction, changeAssignmentAction, confirmPerformanceAction, confirmWorkAction, createPolicyAction, createRequirementAction, offerAssignmentAction, refreshPayoutAction, respondAssignmentAction, saveAvailabilityAction, sendPayoutAction } from "@/app/operations-actions";
+import { allocateAssignmentAction, approvePayableAction, changeAssignmentAction, confirmPerformanceAction, confirmWorkAction, createPolicyAction, createRequirementAction, offerAssignmentAction, refreshPayoutAction, rejectPayAgentHoldAction, releasePayAgentHoldAction, respondAssignmentAction, retryPayAgentAction, saveAvailabilityAction, sendPayoutAction } from "@/app/operations-actions";
 import { rescheduleShiftAction } from "@/app/schedule-actions";
 import { saveDemoPayoutDestinationAction } from "@/app/scheduling-actions";
 import { prepareDemoShiftAction, recordSquareSandboxSaleAction, refreshSquareSalesAction, syncSquareAction } from "@/app/square-actions";
@@ -338,7 +338,7 @@ describe("demo and normal sessions stay separate", () => {
 
 describe("prepared evidence and providers", () => {
   it("15. the prepared completed and paid shift can't be changed by any route", () => withDb(async db => {
-    const p = await prepared(db), before = await evidence(db, p);
+    const p = await prepared(db), before = await evidence(db, p), agentEvents = (await db.select().from(payAgentEvents)).length;
     await as(db, "MANAGER");
     expect(await outcome(() => changeAssignmentAction(form({ shiftId: p.shift.id, cancel: "yes", planDate: "", planDepartment: "" })))).toContain("status=demo-protected");
     expect(await outcome(() => changeAssignmentAction(form({ shiftId: p.shift.id, startsAt: "2026-02-02T09:00", endsAt: "2026-02-02T10:00", planDate: "", planDepartment: "" })))).toContain("status=demo-protected");
@@ -349,7 +349,13 @@ describe("prepared evidence and providers", () => {
       () => confirmWorkAction(form({ offerId: p.offer.id, confirmed: "yes" })),
       () => confirmPerformanceAction(form({ allocationId: p.allocation.id, complete: "yes", seenCount: "0", seenMinor: "0" })),
       () => approvePayableAction(form({ payableId: p.payable.id })),
+      // The Pay Agent's own controls: a public demo visitor can't start, release or reject a settlement.
+      () => retryPayAgentAction(form({ payableId: p.payable.id })),
+      () => releasePayAgentHoldAction(form({ eventId: randomUUID() })),
+      () => rejectPayAgentHoldAction(form({ eventId: randomUUID(), reason: "Demo visitor" })),
     ]) expect(await outcome(action)).toBe("REDIRECT:/manager?status=demo-read-only");
+    expect(await db.select().from(payAgentEvents)).toHaveLength(agentEvents);
+    expect(p.paypal.createPayout).not.toHaveBeenCalled();
     await as(db, "WORKER");
     expect(await outcome(() => respondAssignmentAction(form({ offerId: p.offer.id, termsVersion: "1", response: "DECLINED", acknowledged: "yes" })))).toContain("status=demo-protected");
     expect(await evidence(db, p)).toBe(before);

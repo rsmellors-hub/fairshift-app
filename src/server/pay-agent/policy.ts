@@ -23,7 +23,7 @@ const OUTCOME_EXPLANATIONS: Record<string, string> = {
   OUTPUT_REJECTED: "The Pay Agent's answer was outside its allowed actions, so it was rejected. Nothing was paid.",
   ATTEMPTS_EXHAUSTED: "The Pay Agent stopped after repeated failures. Nothing was paid.",
   // The settlement gates.
-  DRY_RUN_ELIGIBLE: "Dry run: every payment check passed, and nothing was sent to PayPal.",
+  DRY_RUN_ELIGIBLE: "Demo dry run: every payment check passed, and nothing was sent to PayPal: no PayPal call was made and no money moved.",
   COMPENSATION_UNVERIFIED: "This payable was not calculated from accepted terms, so it cannot be paid automatically.",
   COMPENSATION_MISMATCH: "The approved amount does not match the deterministic payable, so nothing was sent.",
   SETTLEMENT_CHECK_FAILED: "A payment check could not be completed. Nothing was sent.",

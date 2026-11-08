@@ -11,6 +11,8 @@ import { runLocalDiscovery } from "@/server/intelligence/local-intelligence-serv
 import { approveWorkPayable } from "@/server/payments/work-payouts";
 import { getProofPanel, LOCAL_SUBSCRIPTION_FIXTURE } from "@/server/product/proof";
 import { ProofPanelView } from "@/app/owner/proof-panel";
+import { labelledMoney, rand } from "@/app/components/format";
+import { USD_SANDBOX_PLAN_IDS } from "../helpers/subscription-plans";
 
 // Fixtures only: no PayPal, OpenAI or web page is contacted.
 const NOW = new Date("2026-10-21T08:00:00Z");
@@ -20,6 +22,28 @@ afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 const provider = (responseId: string): LocalDiscoveryProvider => ({ provider: "OPENAI", model: "fixture-model", discover: vi.fn(async () => ({ responseId, responseModel: "fixture-model", text: JSON.stringify({ coverage: [], signals: [] }), searches: [], consultedUrls: [], citedUrls: [] })) });
 
 describe("Proof panel", () => {
+  it("shows the hosted PayPal records: the subscription on its USD trial plan, and a paid payout from rand to US dollars at the frozen ECB rate", async () => {
+    const { db, close } = await createTestDatabase();
+    const demo = await payAgentCompany(db, { country: "South Africa" });
+    sandboxFixture(demo.organisationId);
+    vi.stubEnv("PAYPAL_MULTI_OUTLET_MONTHLY_PLAN_ID", USD_SANDBOX_PLAN_IDS.PAYPAL_MULTI_OUTLET_MONTHLY_PLAN_ID);
+    await db.update(subscriptions).set({ providerId: "I-W03RREWEH5VB", planId: USD_SANDBOX_PLAN_IDS.PAYPAL_MULTI_OUTLET_MONTHLY_PLAN_ID, status: "ACTIVE", tier: "MULTI_OUTLET", billingPeriod: "MONTHLY", locationLimit: 5, verifiedAt: NOW })
+      .where(eq(subscriptions.organisationId, demo.organisationId));
+    const work = await confirmedWork(db, demo.scopes[0]);
+    const payable = await approveWorkPayable(db, demo.scopes[0], work.payable!.id);
+    expect(payable.approvedCurrencyCode).toBe("ZAR");
+    const usd = Math.floor(payable.approvedAmountMinor! * 1_000_000 / 16_538_200), payoutId = randomUUID();
+    await db.insert(workPayouts).values({ id: payoutId, payableId: payable.id, organisationId: demo.organisationId, outletId: demo.scopes[0].locationId, workerId: work.worker.id, amountMinor: payable.approvedAmountMinor!, currencyCode: "ZAR",
+      providerCurrency: "USD", providerAmountMinor: usd, fxRateMicros: 16_538_200, fxRateSource: "ECB_EUROFXREF_DAILY:2026-11-06", recipient: "sb-recipient@personal.example.com", senderBatchId: "FSWP-B-PROOF", senderItemId: "FSWP-I-PROOF", status: "SUBMITTING", reservedAt: NOW });
+    await db.update(workPayouts).set({ status: "PROCESSING", paypalBatchId: "5ZBF3L7XQ4AWA", paypalBatchStatus: "PENDING" }).where(eq(workPayouts.id, payoutId));
+    await db.update(workPayouts).set({ status: "PAID", paypalItemId: "LNCVDBR5FJ2PY", paypalStatus: "SUCCESS", paypalBatchStatus: "SUCCESS", paypalTransactionId: "TXPROOF", paidAt: NOW, statusCheckedAt: NOW }).where(eq(workPayouts.id, payoutId));
+    const html = renderToStaticMarkup(ProofPanelView({ data: await getProofPanel(db, { organisationId: demo.organisationId, role: "OWNER" }, NOW) }));
+    for (const shown of ["I-W03RREWEH5VB", "ACTIVE", "Group Monthly (USD), 30-day trial: 30 days free, then US$69.48 a month (R1,149 incl. VAT)", "PayPal reports a subscription as ACTIVE during its free trial",
+      "5ZBF3L7XQ4AWA", "LNCVDBR5FJ2PY", "SUCCESS", "PAID", `${rand(payable.approvedAmountMinor!)}<small> → ${labelledMoney(usd, "USD")} (ECB_EUROFXREF_DAILY:2026-11-06)`]) expect(html).toContain(shown);
+    for (const hidden of ["sb-recipient@personal.example.com", "FSWP-B-PROOF", "ZAR 1"]) expect(html).not.toContain(hidden);
+    await close();
+  });
+
   it("shows the demonstration organisation's own evidence only, and no recipient, token or secret", async () => {
     const { db, close } = await createTestDatabase();
     const demo = await payAgentCompany(db), other = await payAgentCompany(db);

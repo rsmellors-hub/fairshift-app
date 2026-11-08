@@ -279,7 +279,7 @@ describe("what managers and workers see", () => {
       await agentFor(t.db, fakePayAgentModel()).process({ eventId: work.payAgentEvent!.id }, (await import("@/server/pay-agent/identity")).mintPayAgentCredentialForManager(manager));
       wireActions(t.db, manager);
       const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
-      for (const text of ["Dry run: all checks passed", "Recommendation", "Settle", "Dry-run outcome", "nothing was sent to PayPal", "Retry agent checks"]) expect(review).toContain(text);
+      for (const text of ["Demo dry run: all checks passed", "Recommendation", "Settle", "Dry-run outcome", "nothing was sent to PayPal", "Retry agent checks"]) expect(review).toContain(text);
       // No button names payment before a payout exists (the existing work-payables guard).
       expect(review).not.toMatch(/<button[^>]*>[^<]*\bPay\b/);
       vi.mocked(requireScope).mockResolvedValue(work.workerScope);

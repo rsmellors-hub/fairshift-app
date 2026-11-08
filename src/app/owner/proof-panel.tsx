@@ -1,5 +1,6 @@
 import { DataLabel, StatePanel } from "@/app/components/product-ui";
 import { FeedLabel, OpenMeteoAttribution, SourceLink, stamp } from "@/app/components/source-labels";
+import { labelledMoney } from "@/app/components/format";
 import { money } from "@/app/components/workspace-ui";
 import type { ProofPanel as ProofData } from "@/server/product/proof";
 
@@ -33,17 +34,17 @@ export function ProofPanelView({ data }: { data: ProofData | null }) {
         <tbody>{data.payouts.map(row => <tr key={row.id}><th scope="row">{when(row.createdAt, tz)}</th><td data-label="For">{row.kind === "TIP" ? "Tip line" : "Confirmed work"} · {data.nameOf(row.outletId)}</td>
           <td data-label="Batch / item"><code>{row.paypalBatchId ?? "not yet returned"}</code> / <code>{row.paypalItemId ?? "not yet returned"}</code></td><td data-label="Transaction"><code>{row.paypalTransactionId ?? "—"}</code></td>
           <td data-label="PayPal status">{row.paypalStatus ?? row.paypalBatchStatus ?? "unknown"}{row.statusCheckedAt ? <small> · checked {when(row.statusCheckedAt, tz)}</small> : null}</td><td data-label="FairShift status">{row.status}{row.paidAt ? <small> · paid {when(row.paidAt, tz)}</small> : null}</td>
-          <td data-label="Amount">{money(Number(row.amountMinor), row.currencyCode)}{row.providerCurrency && row.providerAmountMinor !== null ? <small> → {money(Number(row.providerAmountMinor), row.providerCurrency)}{row.fxRateSource ? ` (${row.fxRateSource})` : ""}</small> : null}</td></tr>)}</tbody></table></div>
+          <td data-label="Amount">{money(Number(row.amountMinor), row.currencyCode)}{row.providerCurrency && row.providerAmountMinor !== null && (row.providerCurrency !== row.currencyCode || row.fxRateSource) ? <small> → {labelledMoney(Number(row.providerAmountMinor), row.providerCurrency)}{row.fxRateSource ? ` (${row.fxRateSource})` : ""}</small> : null}</td></tr>)}</tbody></table></div>
         : <Empty>No PayPal Sandbox payout has been created for this organisation.</Empty>}
     </section>
 
     <section className="panel" aria-labelledby="proof-subscription"><h2 id="proof-subscription">Subscription</h2>
-      {data.subscription ? <dl className="detail-list"><div><dt>Subscription ID</dt><dd><code>{data.subscription.providerId ?? "none"}</code>{data.subscription.fixture ? " · local runtime fixture, not a PayPal subscription" : ""}</dd></div><div><dt>Plan ID</dt><dd><code>{data.subscription.planId ?? "none"}</code></dd></div><div><dt>Status</dt><dd>{data.subscription.status}{data.subscription.verifiedAt ? ` · confirmed ${when(data.subscription.verifiedAt, tz)}` : ""}</dd></div></dl> : <Empty>No subscription record.</Empty>}
+      {data.subscription ? <dl className="detail-list"><div><dt>Subscription ID</dt><dd><code>{data.subscription.providerId ?? "none"}</code>{data.subscription.fixture ? " · local runtime fixture, not a PayPal subscription" : ""}</dd></div><div><dt>Plan ID</dt><dd><code>{data.subscription.planId ?? "none"}</code>{data.subscription.plan ? ` · ${data.subscription.plan.name}: ${data.subscription.plan.trialDays} days free, then ${labelledMoney(Math.round(Number(data.subscription.plan.amount) * 100), data.subscription.plan.currency)} a ${data.subscription.plan.interval === "YEAR" ? "year" : "month"} (${money(Math.round(Number(data.subscription.plan.homeAmount) * 100), "ZAR", { whole: true })} incl. VAT)` : ""}</dd></div><div><dt>Status</dt><dd>{data.subscription.status}{data.subscription.verifiedAt ? ` · confirmed ${when(data.subscription.verifiedAt, tz)}` : ""}{data.subscription.plan && data.subscription.status === "ACTIVE" ? " · PayPal reports a subscription as ACTIVE during its free trial" : ""}</dd></div></dl> : <Empty>No subscription record.</Empty>}
     </section>
 
     <section className="panel" aria-labelledby="proof-ai"><h2 id="proof-ai">AI decisions and their response identifiers</h2>
       <h3>Pay Agent (confirmed work)</h3>
-      {data.payAgent.length ? <ul>{data.payAgent.map(row => <li key={row.id}>{when(row.createdAt, tz)} · {data.nameOf(row.outletId)} · {row.decision ?? row.status}{row.reasonCode ? ` / ${row.reasonCode}` : ""}{row.summary ? ` · “${row.summary}”` : ""}{row.dryRun ? " · dry run" : ""} · <code>{row.responseId ?? "no model response"}</code>{row.responseModel ? ` (${row.responseModel})` : ""}</li>)}</ul> : <Empty>No Pay Agent decisions yet.</Empty>}
+      {data.payAgent.length ? <ul>{data.payAgent.map(row => <li key={row.id}>{when(row.createdAt, tz)} · {data.nameOf(row.outletId)} · {row.decision ?? row.status}{row.reasonCode ? ` / ${row.reasonCode}` : ""}{row.summary ? ` · “${row.summary}”` : ""}{row.dryRun ? " · demo dry run, no PayPal call" : ""} · <code>{row.responseId ?? "no model response"}</code>{row.responseModel ? ` (${row.responseModel})` : ""}</li>)}</ul> : <Empty>No Pay Agent decisions yet.</Empty>}
       <h3>Pay Agent tip checks</h3>
       {data.tipAgent.length ? <ul>{data.tipAgent.map(row => <li key={row.id}>{when(row.createdAt, tz)} · {data.nameOf(row.outletId)} · {row.decision ?? row.status}{row.reasonCode ? ` / ${row.reasonCode}` : ""}{row.summary ? ` · “${row.summary}”` : ""}{row.dryRun ? " · dry run" : ""} · <code>{row.responseId ?? "no model response"}</code></li>)}</ul> : <Empty>No tip checks yet.</Empty>}
       <h3>Local intelligence (web search)</h3>

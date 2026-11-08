@@ -33,7 +33,7 @@ const MANAGER_STATUS: Record<string, string> = {
   PENDING: "Queued", CLAIMED: "Checking the evidence", SKIPPED: "No action needed", BLOCKED: "Waiting for evidence",
   REJECTED_OUTPUT: "Model answer rejected", FAILED_RETRYABLE: "Will retry", FAILED_TERMINAL: "Stopped",
   DECIDED_SETTLE: "Recommended: settle", DECIDED_HOLD: "Held for your review", HOLD_RELEASED: "Released by a manager",
-  HOLD_REJECTED: "Rejected by a manager", SETTLING: "Running payment checks", DRY_RUN_ELIGIBLE: "Dry run: all checks passed",
+  HOLD_REJECTED: "Rejected by a manager", SETTLING: "Running payment checks", DRY_RUN_ELIGIBLE: "Demo dry run: all checks passed",
   SETTLEMENT_BLOCKED: "Payment checks blocked", SETTLEMENT_SUBMITTED: "Sent to the payment service",
 };
 const HOLD_REASON: Record<string, string> = {

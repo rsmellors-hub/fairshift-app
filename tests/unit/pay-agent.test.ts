@@ -225,7 +225,7 @@ describe("Pay Agent presentation", () => {
   it("gives managers labels and actions, and no claim internals", () => {
     expect(managerPayAgentView(event)).toMatchObject({ status: "Held for your review", decision: "Hold for review", reason: "Hours mismatch", summary: event.summary, model: "response-model", responseId: "resp_1", canResolve: true, canRetry: false });
     expect(managerPayAgentView({ ...event, status: "DRY_RUN_ELIGIBLE", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "DRY_RUN_ELIGIBLE", dryRun: true }))
-      .toMatchObject({ status: "Dry run: all checks passed", decision: "Settle", dryRun: true, canRetry: true, canResolve: false, explanation: expect.stringMatching(/nothing was sent to PayPal/) });
+      .toMatchObject({ status: "Demo dry run: all checks passed", decision: "Settle", dryRun: true, canRetry: true, canResolve: false, explanation: expect.stringMatching(/nothing was sent to PayPal/) });
     expect(managerPayAgentView({ ...event, status: "SETTLEMENT_SUBMITTED", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "PAYOUT_RESERVED" })).toMatchObject({ canRetry: false, canResolve: false });
     const view = toPayAgentEventView({ ...event, claimToken: "secret-token", leaseExpiresAt: new Date(), evidenceVersion: "f".repeat(64) } as typeof event);
     expect(view).not.toHaveProperty("claimToken");

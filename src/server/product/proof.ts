@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
 import { aiStaffingAssessments, demandContextFeeds, demandContextProposals, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outlets, payAgentEvents, subscriptions, tipAgentEvents, workPayouts } from "@/server/db/schema";
+import { commercialPlan, configuredPlan, planSelection, TRIAL_DAYS } from "@/server/billing/plans";
 import { getLiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
@@ -13,6 +14,15 @@ import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
 
 export const LOCAL_SUBSCRIPTION_FIXTURE = "LOCAL-RUNTIME-FIXTURE";
 
+// The catalogue terms of a subscription's plan, only when its plan ID is the one configured for that
+// choice now (the current USD trial plans). An earlier GBP plan shows its ID and status, no terms.
+function currentPlanTerms(row: { planId: string | null; tier: string | null; billingPeriod: string | null }) {
+  const choice = planSelection.safeParse({ tier: row.tier, billingPeriod: row.billingPeriod });
+  if (!choice.success || !row.planId || configuredPlan(choice.data) !== row.planId) return null;
+  const terms = commercialPlan(choice.data);
+  return { name: terms.name, amount: terms.amount, currency: terms.currency, homeAmount: terms.homeAmount, interval: terms.interval, trialDays: TRIAL_DAYS };
+}
+
 export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "role">, now = new Date()) {
   if (scope.role !== "OWNER" || !isDemoOrganisation(scope.organisationId)) return null;
   const organisationId = scope.organisationId;
@@ -23,7 +33,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
       paypalBatchId: workPayouts.paypalBatchId, paypalItemId: workPayouts.paypalItemId, paypalTransactionId: workPayouts.paypalTransactionId, amountMinor: workPayouts.amountMinor, currencyCode: workPayouts.currencyCode,
       providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt })
       .from(workPayouts).where(eq(workPayouts.organisationId, organisationId)).orderBy(desc(workPayouts.createdAt)).limit(50),
-    db.select({ providerId: subscriptions.providerId, planId: subscriptions.planId, status: subscriptions.status, tier: subscriptions.tier, verifiedAt: subscriptions.verifiedAt }).from(subscriptions).where(eq(subscriptions.organisationId, organisationId)),
+    db.select({ providerId: subscriptions.providerId, planId: subscriptions.planId, status: subscriptions.status, tier: subscriptions.tier, billingPeriod: subscriptions.billingPeriod, verifiedAt: subscriptions.verifiedAt }).from(subscriptions).where(eq(subscriptions.organisationId, organisationId)),
     db.select({ id: payAgentEvents.id, outletId: payAgentEvents.outletId, status: payAgentEvents.status, decision: payAgentEvents.decision, reasonCode: payAgentEvents.reasonCode, summary: payAgentEvents.summary, responseId: payAgentEvents.responseId, responseModel: payAgentEvents.responseModel, dryRun: payAgentEvents.dryRun, createdAt: payAgentEvents.createdAt })
       .from(payAgentEvents).where(eq(payAgentEvents.organisationId, organisationId)).orderBy(desc(payAgentEvents.createdAt)).limit(50),
     db.select({ id: tipAgentEvents.id, outletId: tipAgentEvents.outletId, status: tipAgentEvents.status, decision: tipAgentEvents.decision, reasonCode: tipAgentEvents.reasonCode, summary: tipAgentEvents.summary, responseId: tipAgentEvents.responseId, responseModel: tipAgentEvents.responseModel, dryRun: tipAgentEvents.dryRun, createdAt: tipAgentEvents.createdAt })
@@ -46,7 +56,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
   return {
     timezone: locations[0]?.timezone ?? "UTC", nameOf,
     payouts: payouts.map(row => ({ ...row, kind: row.kind ? "TIP" as const : "WORK" as const })),
-    subscription: subscription[0] ? { ...subscription[0], fixture: subscription[0].providerId === LOCAL_SUBSCRIPTION_FIXTURE } : null,
+    subscription: subscription[0] ? { ...subscription[0], fixture: subscription[0].providerId === LOCAL_SUBSCRIPTION_FIXTURE, plan: currentPlanTerms(subscription[0]) } : null,
     payAgent, tipAgent, proposals, assessments,
     runs: runs.map(run => ({ ...run, signals: signals.filter(signal => signal.runId === run.id) })),
     // A forecast older than six hours, or whose last fetch failed, is stale.
