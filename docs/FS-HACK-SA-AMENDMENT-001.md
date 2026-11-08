@@ -231,3 +231,11 @@ that a reason is required.
 ```
 
 **Not recorded here.** Code committed earlier on `submission` (`7f5417e`, `70abe3f`, `6c97ca1`, `71a2448`) cites "Owner decision(s), 8 November 2026" for local intelligence, capacity and access disruptions, the early shift notice, the signal track record and source links on Owner-entered events. Apart from the four decisions above, no verbatim text of those decisions is in this repository, and this record does not supply it.
+
+### Owner decision, 8 November 2026 — demo casual pay term
+
+**Decision date:** 8 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** Owner-supplied work package **FS-SITE-COPY-SA-001**, step 2 ("If casual pay terms for the example aren't recorded, STOP and ask; do not invent"). No casual pay term was recorded, so the Owner was asked and chose the option below, recorded verbatim. It is a value for the fictional demo business and its public worked example, not a rate for any real employer.
+
+```text
+Approve R45.00/hour — Record R45.00/hour (the demo's seeded casual terms, above the R30.23 SA national minimum) as an Owner-approved demo value, cite it, and keep 6 h × R45.00 = R270.00.
+```

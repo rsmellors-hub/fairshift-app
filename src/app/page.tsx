@@ -1,33 +1,37 @@
 import Link from "next/link";
 import { PublicShell, WorkedExample } from "@/app/components/public-shell";
 
+// Public copy follows the decision record: DEC-SA-011 and FS-APPROVER-DEC-001 (casual pay on
+// preauthorised terms, confirmed by a manager), DEC-SA-012 (ZAR earnings paid in US dollars at the
+// latest ECB reference rate, locked at reservation), FS-TIP-DEC-002 and FS-TIP-AGENT-DEC-001 (tip
+// policy, AI release or hold, holds to the Owner) and the 8 November 2026 demand-signal decisions.
 const LOOP = [
   ["Commerce", "Sales history for each location"],
-  ["Forecast", "Expected sales and transactions for the next seven days"],
+  ["Forecast", "Expected sales and transactions for the next seven days, with local signals"],
   ["Staffing gap", "Staff capacity needed by time of day, minus the cover you already have"],
-  ["Shift offer", "Clear terms, sent to available workers"],
-  ["Performance", "Attributed sales against an agreed target"],
-  ["PayPal payment", "Base plus bonus, once a manager approves"],
+  ["Shift offer", "Pay terms set in advance, sent to available workers"],
+  ["Confirmed work", "The manager confirms the completed shift"],
+  ["PayPal payment", "Rand earnings paid in US dollars at the ECB reference rate"],
 ] as const;
 
 const JOBS = [
-  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Sales and transaction forecast with a planning range", "Staff capacity needed, minus regular cover, equals the gap", "AI-assisted priorities with the reason for each"]],
-  ["Staff", "Managers turn a gap into a shift and offer it to available workers at their location.", ["Every offer shows times, base pay, target and bonus", "Terms are fixed once a worker accepts", "One timeline shows who is working when"]],
-  ["Track", "Workers follow their own progress towards an agreed sales target during the shift.", ["Sales attributed to the worker, within the shift", "Refunds are kept for audit and don’t change the result", "Workers see only their own figures"]],
-  ["Pay", "After the shift, a manager checks the work and sales, approves the total, and it goes to the worker’s PayPal account.", ["Base pay plus any bonus earned, calculated by rule", "Nothing is sent without a manager’s approval", "Marked Paid only when PayPal confirms it"]],
+  ["Plan", "See each location’s next seven days of demand, and where your regular team won’t cover it.", ["Sales and transaction forecast with a planning range", "Weather, public holidays and local events, used for staffing only when a manager accepts them", "Staff capacity needed, minus regular cover, equals the gap"]],
+  ["Staff", "Managers turn a gap into a shift and offer it to available workers at their location.", ["Every offer shows the date, times and the pay terms the Owner set in advance", "Terms are fixed once a worker accepts", "One timeline shows who is working when"]],
+  ["Tips", "The Owner sets one tip policy per location: DIRECT, where each tip goes to the person on its POS row, or SHIFT_POOL, shared equally within each shift block.", ["Amounts and recipients follow the policy, never AI", "AI checks the tip evidence and releases or holds each allocation", "Holds go to the Owner, who releases them as calculated or keeps them held"]],
+  ["Pay", "After the shift, the manager confirms the work. The FairShift Pay Agent checks it, and FairShift’s server pays it through PayPal.", ["Earnings come from the terms the worker accepted before the shift", "Rand converted to US dollars at the latest ECB reference rate, locked when the payout is reserved", "Marked Paid only when PayPal confirms it"]],
 ] as const;
 
 const ROLES = [
-  ["Owner", "Every location on one screen", "Next week’s demand and staffing gap by location. Sets pay terms, targets and bonuses once for the business."],
-  ["Manager", "Plan, fill, approve", "Works their location. Sees the gap, sends offers, finalises who works, and approves what was earned."],
-  ["Worker", "A phone app, not a portal", "Shift offers with clear terms, a live target during the shift, and earnings split into earned, pending and paid."],
+  ["Owner", "Every location on one screen", "Next week’s demand and staffing gap by location. Sets pay terms and each location’s tip policy, and decides any tip the AI holds."],
+  ["Manager", "Plan, fill, confirm", "Works their location. Sees the gap and the local signals, sends offers, finalises who works, and confirms completed shifts."],
+  ["Worker", "A phone app, not a portal", "Shift offers with clear terms, and earnings and tips split into earned, pending and paid."],
 ] as const;
 
 const RULES = [
   ["AI suggests, people decide", "AI explains the forecast and suggests what to staff first. It never books a shift, chooses a worker or sets pay."],
-  ["Pay follows the agreed terms", "The amount comes from what the worker accepted and the sales recorded, by a fixed rule."],
-  ["No payment without approval", "A manager approves every total before anything goes to PayPal."],
-  ["Your figures are yours", "Workers see their own progress, never a ranking of colleagues."],
+  ["Pay follows the agreed terms", "The amount comes from the terms the worker accepted before the shift, by a fixed rule."],
+  ["No payment without confirmed work", "A manager confirms each completed shift before anything goes to PayPal, and no AI sets an amount or a recipient."],
+  ["Your figures are yours", "Workers see their own earnings and tips, never a ranking of colleagues."],
 ] as const;
 
 export default function Home() {
@@ -35,7 +39,7 @@ export default function Home() {
     <section className="home-hero"><div className="site-width home-hero-grid">
       <div>
         <h1>The right people. The right place. The right time. The right pay.</h1>
-        <p className="lede">FairShift turns your sales history into a forecast by time of day and a clear staffing gap. Managers fill it with transparent shift terms, and approved earnings reach workers through PayPal.</p>
+        <p className="lede">FairShift turns your sales history into a forecast by time of day and a clear staffing gap, and shows how weather, public holidays and local events could change it. Managers decide whether staffing uses those signals, fill the gap on terms set in advance, and confirmed earnings reach workers through PayPal.</p>
         <div className="cta-row">
           <Link className="primary-button button-link" href="/register">Start your business</Link>
           <Link className="secondary-button button-link" href="/demo">Try the demo</Link>

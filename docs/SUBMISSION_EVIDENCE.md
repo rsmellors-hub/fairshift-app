@@ -397,3 +397,44 @@ demo personas, so the worker's notice was read through the casual fixture's own 
 **Checkpoint 2 verification.** Full suite with the real-PostgreSQL URL set: **98 files, 1,189 tests, all
 passed, 0 skipped** (2,017.98 s, slower than checkpoint 1 under other load on the machine), first run, no
 rerun. Typecheck, lint and the isolated production build ran on the committed tree before the push.
+
+## FS-SITE-COPY-SA-001 — public site and /demo copy (8 November 2026)
+
+Copy only, on `submission`; no server logic, schema, migration, pricing plan or PayPal change.
+
+**Audit (read-only, before editing).** Between `origin/fs-square-live-001` (`9571b5d`, what Render
+deploys) and `submission`, the public marketing files differed only in `/demo` and the home worked
+example (already SA copy from Day 5 checkpoint 2); home, `/product`, `/faq` and `/pricing` were the
+same on both. Conflicts found there: the sales-target bonus as the pay model (home loop, jobs, roles,
+rules; `/product` "Worker acceptance", "Attributed performance", "Incentives"; FAQ pay, attribution
+and worker answers; plan card "Shift offers and live targets"), "manager approves every total" and
+"approved total" wording (home, `/product` "Manager approval", FAQ), and no tips, no ZAR→USD and no
+local demand signals anywhere. No public page mentioned Zettle or the UK, and no location name was
+wrong.
+
+**Changes.** Home (`src/app/page.tsx`): hero, loop, the four jobs (Track becomes Tips), roles and
+rules. `/product`: new Local signals, Confirmed work, Pay Agent and Tips steps; Worker acceptance and
+PayPal payout rewritten; the target, incentive and manager-approval steps removed. `/faq`: pay,
+approval, double payment, currency, tips, sales source, refunds, forecast, AI and worker answers.
+Plan cards: two feature lines. `/demo`: the five locations named, local signals, the rate locked at
+reservation. Sources: DEC-SA-011, FS-APPROVER-DEC-001, DEC-SA-012, FS-TIP-DEC-002,
+FS-TIP-AGENT-DEC-001, FS-DEMAND-CONTEXT-001 and the 8 November demand-signal decisions.
+
+**Kept as instructed:** the tagline, the 30-day free trial, "AI suggests, people decide" and "Paid
+only when PayPal confirms it".
+
+**Worked example.** No casual pay term was recorded, so the Owner was asked and approved R45.00 an
+hour as the demo value (recorded verbatim in `docs/FS-HACK-SA-AMENDMENT-001.md` section 5). The home
+example keeps 6 h × R45.00 = R270.00 and now cites it, and says the rate is the latest ECB rate,
+locked when the payout is reserved.
+
+**Left for the Owner:** pricing currency. "Plans from £29 a month", "Prices in GBP" and the plan
+prices are unchanged.
+
+**Verification.** Typecheck PASS; lint PASS, 0 warnings; isolated production build PASS (15/15 static
+pages). Full suite with the real-PostgreSQL URL: **98 files, 1,189 tests, all passed, 0 skipped**
+(909.91 s) on the third run. The first run was stopped to finish the edits; the second had one 30 s
+timeout in `pay-agent-processing` while the Mac idle-slept from 09:14 to 09:22, so the third ran under
+`caffeinate -i`. Headless Chrome against the local server: `/`, `/product`, `/faq`, `/pricing` and
+`/demo` show the new copy, none shows "bonus", "sales target" or "approves every total", and every page
+has 0 console errors.
