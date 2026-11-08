@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getConfigurationStatus } from "@/server/config/env";
 import { deploymentMode, sandboxOrganisationId } from "@/server/config/deployment";
 import { getDatabase, type Database } from "@/server/db/client";
@@ -9,13 +9,13 @@ import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server
 import { fetchOpenMeteoHourly } from "@/server/integrations/open-meteo/forecast";
 import { refreshLocationWeather, type FetchHourly } from "@/server/intelligence/demand-context-service";
 import type { RunKind } from "@/server/intelligence/local-intelligence-contract";
-import { recheckUnreachableSources, runLocalDiscovery } from "@/server/intelligence/local-intelligence-service";
+import { discoverWithRetryRule, mayRetry, recheckUnreachableSources } from "@/server/intelligence/local-intelligence-service";
 import { createSourceChecker, type SourceChecker } from "@/server/intelligence/local-intelligence-sources";
 import { refreshHolidayFeed } from "@/server/reference/public-holiday-feed";
 import { recordTrackRecord } from "@/server/intelligence/track-record";
 import { provisionSaReferenceBusiness } from "@/server/reference/sa-provision";
 import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
-import { localDate, shiftDate } from "@/server/intelligence/forecast";
+import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 
 // Keeps the demo's real feeds current without anyone opening a page: weather for every demo location,
 // the South African holiday feed, the ECB reference rate and the AI's local discovery. Each job's last
@@ -25,6 +25,15 @@ import { localDate, shiftDate } from "@/server/intelligence/forecast";
 
 const HOUR = 3_600_000, MINUTE = 60_000;
 const TICK_MS = 10 * MINUTE;
+
+// AI discovery cadence (Owner decision, 8 November 2026): one call per demo location at about 05:00
+// and about 17:00 South African time, ten a day for five locations. The 05:00 run searches every
+// category for the coming days; the 17:00 run is the short-notice check. The feeds above keep their own
+// intervals and never count toward the AI cap. A slot missed while the server was down is caught up
+// only while it is recent, so a run never lands at an unrelated time of day.
+export const AI_SLOT_TIME_ZONE = "Africa/Johannesburg";
+const SLOT_GRACE_MS = 3 * HOUR;
+export type Slot = { minute: number; timeZone: string; graceMs: number };
 
 export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily";
 export type JobResult = { ok: boolean; code?: string | null; detail?: Record<string, unknown> };
@@ -39,8 +48,13 @@ export type SchedulerDeps = {
   aiSchedule: boolean;
   // A pause between one location's model call and the next, so a run never bursts at the provider.
   pauseMs?: number;
+  // The pause before the retry rule's one retry (default one minute), and the clock's wait; both for tests.
+  retryBackoffMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 };
-type Job = { key: JobKey; intervalMs: number; retryMs: number; leaseMs: number; enabled: (deps: SchedulerDeps) => boolean; run: (db: Database, deps: SchedulerDeps) => Promise<JobResult> };
+// An interval job runs when its interval has passed since its last success; a slot job once per slot.
+type Job = { key: JobKey; retryMs: number; leaseMs: number; enabled: (deps: SchedulerDeps) => boolean; run: (db: Database, deps: SchedulerDeps, slotStart: Date | null) => Promise<JobResult> }
+  & ({ intervalMs: number; slot?: undefined } | { slot: Slot; intervalMs?: undefined });
 
 async function demoLocations(db: Database, deps: SchedulerDeps) {
   if (!deps.demoOrganisationIds.length) return [];
@@ -48,32 +62,39 @@ async function demoLocations(db: Database, deps: SchedulerDeps) {
     .where(and(inArray(outlets.organisationId, [...deps.demoOrganisationIds]), eq(outlets.active, true))).orderBy(outlets.name);
 }
 
-async function discover(db: Database, deps: SchedulerDeps, kind: RunKind): Promise<JobResult> {
+const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+// One pass of a slot: each demo location's call, with the retry rule's one retry. The calls this slot
+// already made at a location (by a pass that stopped with the server) are found first, so a resumed
+// pass never repeats a call that got an answer and never makes more than the call and its retry.
+async function discover(db: Database, deps: SchedulerDeps, kind: RunKind, slotStart: Date): Promise<JobResult> {
   const provider = deps.discovery;
   if (!provider) return { ok: false, code: "NOT_CONFIGURED" };
   const checkSource = deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl });
+  const sleep = deps.sleep ?? wait;
   const tally: Record<string, number> = {};
+  const add = (key: string) => { tally[key] = (tally[key] ?? 0) + 1; };
   let called = false;
   for (const location of await demoLocations(db, deps)) {
-    // A retry after a partial failure calls the model only for locations still without a fresh daily run.
-    if (kind === "DAILY") {
-      const [fresh] = await db.select({ createdAt: localIntelligenceRuns.createdAt }).from(localIntelligenceRuns)
-        .where(and(eq(localIntelligenceRuns.outletId, location.locationId), eq(localIntelligenceRuns.kind, "DAILY"), eq(localIntelligenceRuns.status, "COMPLETED"))).orderBy(desc(localIntelligenceRuns.createdAt)).limit(1);
-      if (fresh && deps.now().getTime() - fresh.createdAt.getTime() < 20 * HOUR) { tally.FRESH = (tally.FRESH ?? 0) + 1; continue; }
-    }
-    if (kind === "DISRUPTIONS") {
-      // A daily run in the last few hours already covered short-notice news.
-      const [recent] = await db.select({ createdAt: localIntelligenceRuns.createdAt }).from(localIntelligenceRuns)
-        .where(and(eq(localIntelligenceRuns.outletId, location.locationId), eq(localIntelligenceRuns.status, "COMPLETED"))).orderBy(desc(localIntelligenceRuns.createdAt)).limit(1);
-      if (recent && deps.now().getTime() - recent.createdAt.getTime() < 4 * HOUR) { tally.RECENT = (tally.RECENT ?? 0) + 1; continue; }
-    }
-    if (called && deps.pauseMs) await new Promise(resolve => setTimeout(resolve, deps.pauseMs));
+    const earlier = await db.select().from(localIntelligenceRuns)
+      .where(and(eq(localIntelligenceRuns.outletId, location.locationId), eq(localIntelligenceRuns.kind, kind), eq(localIntelligenceRuns.trigger, "SCHEDULE"), gte(localIntelligenceRuns.createdAt, slotStart)))
+      .orderBy(asc(localIntelligenceRuns.createdAt));
+    if (earlier.length >= 2 || (earlier.length === 1 && !mayRetry(earlier[0], deps.now()))) { add("ALREADY_RUN"); continue; }
+    if (called && deps.pauseMs) await sleep(deps.pauseMs);
     called = true;
-    const outcome = await runLocalDiscovery(db, { organisationId: location.organisationId, outletId: location.locationId }, { kind, trigger: "SCHEDULE", provider, checkSource, now: deps.now() });
-    tally[outcome.status] = (tally[outcome.status] ?? 0) + 1;
-    if (outcome.status === "CAPPED") break;
+    const outcomes = await discoverWithRetryRule(db, { organisationId: location.organisationId, outletId: location.locationId },
+      { kind, trigger: "SCHEDULE", provider, checkSource, earlier, clock: deps.now, backoffMs: deps.retryBackoffMs, sleep });
+    const last = outcomes.at(-1);
+    if (!last) { add("ALREADY_RUN"); continue; }
+    // A location ends COMPLETED or FAILED by the calls actually made; CAPPED or UNAVAILABLE when none was.
+    const made = outcomes.filter(outcome => outcome.status === "COMPLETED" || outcome.status === "FAILED");
+    const final = made.at(-1)?.status ?? last.status;
+    add(final);
+    if (earlier.length + made.length === 2) add("RETRIED");
+    if (last.status === "CAPPED") { if (final !== "CAPPED") add("CAPPED"); break; }
   }
-  return { ok: !tally.FAILED, code: tally.FAILED ? "SOME_RUNS_FAILED" : null, detail: tally };
+  // complete: this pass went through every location (or stopped at the cap), so the slot is done.
+  return { ok: !tally.FAILED, code: tally.FAILED ? "SOME_RUNS_FAILED" : null, detail: { ...tally, slot: slotStart.toISOString(), complete: true } };
 }
 
 export const JOBS: readonly Job[] = [
@@ -123,15 +144,37 @@ export const JOBS: readonly Job[] = [
       }
       return { ok: true, detail: tally };
     } },
-  { key: "intel:daily", intervalMs: 24 * HOUR, retryMs: 2 * HOUR, leaseMs: 30 * MINUTE, enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps) => discover(db, deps, "DAILY") },
-  { key: "intel:disruptions", intervalMs: 8 * HOUR, retryMs: 2 * HOUR, leaseMs: 30 * MINUTE, enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps) => discover(db, deps, "DISRUPTIONS") },
+  // Leases cover a whole pass: five locations, each with a call, a pause and possibly a retry.
+  { key: "intel:daily", slot: { minute: 5 * 60, timeZone: AI_SLOT_TIME_ZONE, graceMs: SLOT_GRACE_MS }, retryMs: 30 * MINUTE, leaseMs: 60 * MINUTE,
+    enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps, slotStart) => discover(db, deps, "DAILY", slotStart!) },
+  { key: "intel:disruptions", slot: { minute: 17 * 60, timeZone: AI_SLOT_TIME_ZONE, graceMs: SLOT_GRACE_MS }, retryMs: 30 * MINUTE, leaseMs: 60 * MINUTE,
+    enabled: deps => deps.aiSchedule && !!deps.discovery && deps.demoOrganisationIds.length > 0, run: (db, deps, slotStart) => discover(db, deps, "DISRUPTIONS", slotStart!) },
 ];
 
+// The most recent time the slot's local clock time came round, at or before now.
+export function latestSlotStart(now: Date, slot: Pick<Slot, "minute" | "timeZone">) {
+  const at = (date: string) => new Date(startOfLocalDay(date, slot.timeZone).getTime() + slot.minute * MINUTE);
+  const today = localDate(now, slot.timeZone);
+  const todays = at(today);
+  return todays.getTime() <= now.getTime() ? todays : at(shiftDate(today, -1));
+}
+
 type JobRow = typeof scheduledJobs.$inferSelect;
-export function isDue(job: Pick<Job, "intervalMs" | "retryMs">, row: JobRow | undefined, now: Date) {
+export function isDue(job: Pick<Job, "intervalMs" | "retryMs" | "slot">, row: JobRow | undefined, now: Date) {
+  if (job.slot) {
+    const start = latestSlotStart(now, job.slot);
+    // Too late to count as this slot's run: wait for the next one.
+    if (now.getTime() - start.getTime() > job.slot.graceMs) return false;
+    if (!row?.lastStartedAt || row.lastStartedAt < start) return true;
+    // A pass began in this slot and never finished: the server stopped. It resumes once the lease lapses.
+    if (!row.lastFinishedAt || row.lastFinishedAt < row.lastStartedAt) return true;
+    // A pass that went through every location is done until the next slot; one cut short by an error
+    // resumes after a pause, and skips the locations already called.
+    return (row.lastResult as { complete?: unknown } | null)?.complete !== true && now.getTime() - row.lastFinishedAt.getTime() >= job.retryMs;
+  }
   if (!row) return true;
   if (row.lastFailureCode && row.lastFinishedAt && now.getTime() - row.lastFinishedAt.getTime() < job.retryMs) return false;
-  return !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= job.intervalMs;
+  return !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= (job.intervalMs ?? 0);
 }
 
 export type TickOutcome = { key: JobKey; outcome: "RAN" | "NOT_DUE" | "LEASED" | "DISABLED"; ok?: boolean; code?: string | null };
@@ -149,7 +192,7 @@ export async function runDueJobs(db: Database, deps: SchedulerDeps, jobs: readon
       .where(and(eq(scheduledJobs.job, job.key), or(isNull(scheduledJobs.leaseUntil), lt(scheduledJobs.leaseUntil, now)))).returning();
     if (!claimed) { results.push({ key: job.key, outcome: "LEASED" }); continue; }
     let result: JobResult;
-    try { result = await job.run(db, deps); } catch (error) { result = { ok: false, code: error instanceof Error ? error.name : "ERROR" }; }
+    try { result = await job.run(db, deps, job.slot ? latestSlotStart(now, job.slot) : null); } catch (error) { result = { ok: false, code: error instanceof Error ? error.name : "ERROR" }; }
     const finished = deps.now();
     await db.update(scheduledJobs).set({ leaseUntil: null, lastFinishedAt: finished, ...(result.ok ? { lastSuccessAt: finished, lastFailureCode: null } : { lastFailureCode: result.code ?? "FAILED" }), lastResult: result.detail ?? {} })
       .where(eq(scheduledJobs.job, job.key));

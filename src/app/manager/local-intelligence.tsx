@@ -102,7 +102,7 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo, sho
   const elsewhere = local.signals.filter(signal => !shown.includes(signal));
   return <section className="panel local-intelligence" id="local-intelligence" aria-labelledby="local-intelligence-title">
     {head}
-    <p className="panel-lede">Every day, and every few hours for short-notice news, AI searches the web for anything that could change demand here, or affect trading or getting here. Each finding needs a source page FairShift could reach. FairShift applies at most two findings to any hour, in fixed bands, and you decide whether staffing uses them.</p>
+    <p className="panel-lede">Every day at about 05:00, and again at about 17:00 for short-notice news (South African time), AI searches the web for anything that could change demand here, or affect trading or getting here. Each finding needs a source page FairShift could reach. FairShift applies at most two findings to any hour, in fixed bands, and you decide whether staffing uses them.</p>
     {banner}
     {local.alerts.length ? <div className="setup-notice" role="status"><strong>{local.alerts.some(alert => alert.closureLikely) ? "AI found something likely to stop this location trading" : "AI found something that could stop this location trading"}</strong>
       <ul className="context-signals">{local.alerts.map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul></div> : null}

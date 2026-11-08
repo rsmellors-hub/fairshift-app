@@ -25,7 +25,7 @@ export const CATEGORY_LABEL: Readonly<Record<InfluenceCategory, string>> = {
   NEWS_POLITICAL: "News and political events", SERVICE_DISRUPTION: "Local service disruptions (water, power, municipal works)",
   ACCESS_DISRUPTION: "Access disruptions (road closures, race routes, transport strikes)", EXTREME_WEATHER: "Extreme weather", OTHER: "Anything else relevant to this neighbourhood",
 };
-// What a short-notice run checks every few hours. The daily run checks everything.
+// What the short-notice run checks at about 17:00. The 05:00 daily run checks everything.
 export const DISRUPTION_CATEGORIES: readonly InfluenceCategory[] = ["NEWS_POLITICAL", "SERVICE_DISRUPTION", "ACCESS_DISRUPTION", "EXTREME_WEATHER"];
 export const RUN_KINDS = ["DAILY", "DISRUPTIONS"] as const;
 export type RunKind = typeof RUN_KINDS[number];

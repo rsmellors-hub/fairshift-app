@@ -9,13 +9,15 @@ import * as schema from "../src/server/db/schema";
 import { localIntelligenceSignals, outlets } from "../src/server/db/schema";
 import { getLocalDiscoveryProvider } from "../src/server/integrations/openai/web-discovery";
 import { RUN_KINDS, type RunKind } from "../src/server/intelligence/local-intelligence-contract";
-import { runLocalDiscovery } from "../src/server/intelligence/local-intelligence-service";
+import { discoverWithRetryRule } from "../src/server/intelligence/local-intelligence-service";
 import { createSourceChecker } from "../src/server/intelligence/local-intelligence-sources";
 import { SA_REFERENCE_ORGANISATION } from "../src/server/reference/sa-reference";
 
 // OPERATOR SCRIPT. One genuine local-intelligence discovery per location, once, outside the schedule:
-// for verifying the integration. Each call counts against the organisation's daily cap. Nothing runs
-// without --confirm. Prints what each run found and where from; never a credential.
+// for verifying the integration, and the manual refresh the Owner decision of 8 November 2026 counts
+// toward the daily cap. Each call counts against the organisation's daily cap. The same retry rule as the
+// schedule applies: one retry after a minute, only after HTTP 429 or no response. Nothing runs without
+// --confirm. Prints what each run found and where from; never a credential.
 const usage = `One local-intelligence discovery per location (a genuine model call with web search).
 
   node --env-file=<env> --import tsx scripts/local-intelligence.ts --confirm [--organisation <uuid>] [--location <name>]... [--kind DAILY|DISRUPTIONS]
@@ -38,15 +40,17 @@ try {
   if (!locations.length) throw new Error("No matching active location.");
   const checkSource = createSourceChecker();
   for (const location of locations) {
-    const outcome = await runLocalDiscovery(db, { organisationId, outletId: location.id }, { kind, trigger: "MANUAL", provider, checkSource });
-    const run = outcome.run;
-    console.log(`\n${location.name}: ${outcome.status}${run ? ` · run ${run.id} · response ${run.providerResponseId ?? "none"} · model ${run.model} (answered by ${run.responseModel ?? "none"})${run.failureCode ? ` · failure ${run.failureCode}` : ""}` : ""}`);
-    if (!run) continue;
-    const searches = (run.searches as { action: string; queries: string[]; url: string | null }[]);
-    console.log(`  window ${run.windowFrom} to ${run.windowTo} · ${searches.length} search actions · ${(run.consultedUrls as string[]).length} pages consulted · counts ${JSON.stringify(run.counts)}`);
-    for (const row of run.coverage as { category: string; outcome: string; queries: string[] }[]) console.log(`  coverage ${row.category}: ${row.outcome}${row.queries.length ? ` · ${row.queries.join(" | ")}` : ""}`);
-    for (const signal of await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.runId, run.id)))
-      console.log(`  signal [${signal.status}${signal.rejectionCode ? ` ${signal.rejectionCode}` : ""}] ${signal.category}${signal.otherLabel ? ` (${signal.otherLabel})` : ""} · ${signal.effectType} ${signal.direction ?? ""}${signal.sizeBand ? ` ${signal.sizeBand}` : ""}${signal.severity ? ` severity ${signal.severity}` : ""}${signal.closureLikely ? " closure likely" : ""} · ${signal.validFrom}${signal.validTo !== signal.validFrom ? `–${signal.validTo}` : ""} · ${signal.name} · ${signal.sourceTier} · ${signal.sourceUrl} (${signal.sourceCheck}${signal.sourceHttpStatus ? ` ${signal.sourceHttpStatus}` : ""}, search ${signal.consultedInSearch})`);
+    const outcomes = await discoverWithRetryRule(db, { organisationId, outletId: location.id }, { kind, trigger: "MANUAL", provider, checkSource });
+    for (const [attempt, outcome] of outcomes.entries()) {
+      const run = outcome.run;
+      console.log(`\n${location.name}${attempt ? " (retry)" : ""}: ${outcome.status}${run ? ` · run ${run.id} · response ${run.providerResponseId ?? "none"} · model ${run.model} (answered by ${run.responseModel ?? "none"})${run.failureCode ? ` · failure ${run.failureCode}` : ""}` : ""}`);
+      if (!run) continue;
+      const searches = (run.searches as { action: string; queries: string[]; url: string | null }[]);
+      console.log(`  window ${run.windowFrom} to ${run.windowTo} · ${searches.length} search actions · ${(run.consultedUrls as string[]).length} pages consulted · counts ${JSON.stringify(run.counts)}`);
+      for (const row of run.coverage as { category: string; outcome: string; queries: string[] }[]) console.log(`  coverage ${row.category}: ${row.outcome}${row.queries.length ? ` · ${row.queries.join(" | ")}` : ""}`);
+      for (const signal of await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.runId, run.id)))
+        console.log(`  signal [${signal.status}${signal.rejectionCode ? ` ${signal.rejectionCode}` : ""}] ${signal.category}${signal.otherLabel ? ` (${signal.otherLabel})` : ""} · ${signal.effectType} ${signal.direction ?? ""}${signal.sizeBand ? ` ${signal.sizeBand}` : ""}${signal.severity ? ` severity ${signal.severity}` : ""}${signal.closureLikely ? " closure likely" : ""} · ${signal.validFrom}${signal.validTo !== signal.validFrom ? `–${signal.validTo}` : ""} · ${signal.name} · ${signal.sourceTier} · ${signal.sourceUrl} (${signal.sourceCheck}${signal.sourceHttpStatus ? ` ${signal.sourceHttpStatus}` : ""}, search ${signal.consultedInSearch})`);
+    }
   }
 } catch (error) {
   console.error(`Refused: ${error instanceof Error ? error.message : String(error)}`);

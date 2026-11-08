@@ -283,3 +283,42 @@ worker has no PayPal email), as designed. Unit test covers 850 min → 14.2 h wi
 
 Verification: typecheck PASS; lint PASS, 0 warnings; full suite with the real-PostgreSQL URL **90 files,
 1,141 tests, all passed, 0 skipped** (1,676.04 s).
+
+## Day 5, Checkpoint 1 — Owner decisions of 8 November, AI discovery cadence (8 November 2026)
+
+**Decisions (step 1).** The four Owner decisions confirmed by Ryan on 8 November 2026 (staffing gate,
+roles, bands, AI discovery cadence) are recorded verbatim, dated, in `docs/FS-HACK-SA-AMENDMENT-001.md`
+section 5. The 7 November decisions DEC-SA-012, FS-TIP-DEC-002, FS-TIP-AGENT-DEC-001 and
+FS-APPROVER-DEC-001 were already recorded verbatim there: VERIFIED by reading. Gap, not filled: code
+committed earlier on 8 November cites further "Owner decision(s), 8 November 2026" (local intelligence,
+disruptions, early shift notice, track record, Owner-entered event links) whose text is in no document.
+
+Read-only check of the code against the three decisions it did not need to change: UNCONFIRMED signals
+are never applied (`blockAdjustments` takes ACCEPTED only); bands are 500 or 1,000 basis points
+(`LOCAL_BAND_BPS`); at most two signals shape a block (`MAX_APPLIED_PER_BLOCK`) and blocks are clock
+hours, so at most two per hour; FOH/BOH is shown and used nowhere else. One difference: staffing changes
+only on an explicit acceptance, but the server accepts it from an Owner as well as a Manager
+(`decideLocalAdjustments`). Reported, not changed.
+
+**Cadence (step 2).** `src/server/scheduler/feeds.ts`: `intel:daily` at 05:00 and `intel:disruptions` at
+17:00, Africa/Johannesburg, one call per demo location per slot. 05:00 searches every category; 17:00 is
+the short-notice check (the two existing run kinds, now on fixed times: an implementation choice, not in
+the decision). Each pass is persisted in `scheduled_jobs` with the slot it served and a 60-minute lease;
+a pass the server stopped resumes only for locations not yet called in that slot; a slot missed while the
+server was down is caught up within three hours, otherwise it waits for the next one.
+`src/server/intelligence/local-intelligence-service.ts` (`discoverWithRetryRule`): one retry after 60 s,
+only after HTTP 429, a timeout, a failed connection or a run interrupted mid-call; never after any answer,
+including one FairShift can't use. The retry is a run of its own, so it counts toward the daily cap (20
+per organisation, unchanged), as every run does whatever started it. `scripts/local-intelligence.ts`
+(the manual refresh) uses the same rule. Weather, holiday and ECB jobs are unchanged and make no AI call.
+
+Tests: `tests/unit/scheduler-slots.test.ts` (2) and eight cadence tests replacing one in
+`tests/integration/scheduled-feeds.test.ts`: cap reached (no call, not even a retry), 429 → one retry →
+stop, a retry that succeeds ends the calls, no response → one retry, an HTTP 500 or an unusable answer →
+no retry, success → no retry, manual refresh and its retry counted toward the cap, restart in the same
+slot makes no call, a missed slot caught up only while recent, a stopped pass resumed only where no call
+got an answer. All providers are fixtures.
+
+**Checkpoint 1 verification.** Full suite with the real-PostgreSQL URL set: **96 files, 1,185 tests, all
+passed, 0 skipped** (1,130.05 s), first run, no rerun. Typecheck, lint (0 warnings) and the isolated
+production build: see the commit's checkpoint record below.

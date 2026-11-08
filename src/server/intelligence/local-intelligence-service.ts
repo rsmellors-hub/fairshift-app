@@ -19,8 +19,9 @@ import { parseClock, tradingWindowsSchema, type PlanningBlock, type TradingWindo
 import { holidayFeedKey, holidayLookup, isSouthAfrica } from "@/server/reference/public-holiday-feed";
 
 // Runs and reads local intelligence. A model is called only by the schedule (or an operator's script),
-// one request per run, inside a daily cap per organisation. Whatever it returns is validated and its
-// sources checked before anything is stored as a signal; a failure is recorded and changes nothing.
+// one request per run, inside a daily cap per organisation that every run counts toward, whatever
+// started it. Whatever it returns is validated and its sources checked before anything is stored as a
+// signal; a failure is recorded and changes nothing.
 
 export const LOCAL_INTEL_DAILY_CAP_DEFAULT = 20;
 const MAX_TOOL_CALLS: Readonly<Record<RunKind, number>> = { DAILY: 10, DISRUPTIONS: 5 };
@@ -128,6 +129,41 @@ export async function runLocalDiscovery(db: Database, target: { organisationId: 
   });
   if (failureCode) console.error("Local intelligence run did not complete; earlier signals stand.", { outletId: outlet.id, code: failureCode, responseId: response?.responseId ?? null });
   return { status: failureCode ? "FAILED" : "COMPLETED", run: completed };
+}
+
+// Retry rule (Owner decision, 8 November 2026): one more call, after a pause, only when the provider
+// answered HTTP 429 or never answered at all. A call that got any other answer, including one that
+// succeeded, is never repeated. The retry is a run of its own, so it counts against the daily cap.
+export const RETRYABLE_FAILURES: readonly string[] = ["HTTP_429", "TIMEOUT", "NETWORK_ERROR"];
+export const RETRY_BACKOFF_MS = 60_000;
+
+// Whether a call may have its one retry: a 429, a timeout or a failed connection, or a run that was
+// interrupted mid-call (still marked as running long after it began), which FairShift never heard back from.
+export function mayRetry(run: Pick<RunRow, "status" | "failureCode" | "createdAt">, now: Date) {
+  if (run.status === "FAILED") return RETRYABLE_FAILURES.includes(run.failureCode ?? "");
+  return run.status === "RUNNING" && now.getTime() - run.createdAt.getTime() > RUN_INTERRUPTED_MINUTES * 60_000;
+}
+
+const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+// One location's discovery under the retry rule. `earlier` holds calls already made for the same
+// purpose, oldest first (a scheduled pass resumed after a restart), so there are never more than two
+// calls in all: the call and its one retry. Returns the outcome of each call made here.
+export async function discoverWithRetryRule(db: Database, target: { organisationId: string; outletId: string }, options: Omit<Parameters<typeof runLocalDiscovery>[2], "now"> & {
+  earlier?: readonly RunRow[]; clock?: () => Date; backoffMs?: number; sleep?: (ms: number) => Promise<void>;
+}): Promise<DiscoveryOutcome[]> {
+  const { earlier = [], clock = () => new Date(), backoffMs = RETRY_BACKOFF_MS, sleep = pause, ...call } = options;
+  const last = earlier.at(-1);
+  if (earlier.length >= 2 || (last && !mayRetry(last, clock()))) return [];
+  const outcomes: DiscoveryOutcome[] = [];
+  if (!last) {
+    const first = await runLocalDiscovery(db, target, { ...call, now: clock() });
+    outcomes.push(first);
+    if (first.status !== "FAILED" || !first.run || !mayRetry(first.run, clock())) return outcomes;
+  }
+  await sleep(backoffMs);
+  outcomes.push(await runLocalDiscovery(db, target, { ...call, now: clock() }));
+  return outcomes;
 }
 
 // FairShift's own source check can fail for a moment: a slow official site, a dropped connection. A

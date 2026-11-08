@@ -218,3 +218,16 @@ that a reason is required.
 ```
 
 **Supersession record (as instructed above).** For permanent-staff tips, FS-TIP-DEC-002 and FS-TIP-AGENT-DEC-001 replace, in the specification's section 1: FS-TIP-POOL-DEC-001's hours-proportional service-period pools; FS-TIP-ELIGIBILITY-DEC-001's open recording of permanent-staff hours; the Manager approval of tip allocations in FS-TIP-POOL-DEC-001 and FS-TIP-DEC-001 (C); the staff request and election mechanism and the 50% ceiling of FS-PAYOUT-TIMING-DEC-002 (replaced by the Owner's per-staff daily auto-release cap); and the employee-requested permanent-tip release in DEC-SA-011 and FS-HACK-SA-ROADMAP-001 section 2's supporting path, which becomes AI-checked automatic release. FS-TIP-POOL-DEC-002's exclusion of hours-based pooling is retained. Every other dated rule stands.
+
+### Owner decisions, 8 November 2026
+
+**Decision date:** 8 November 2026. **Status:** OWNER APPROVED (confirmed by Ryan). **Authorising source:** Owner-supplied work package **FairShift — Day 5: record decisions, harden, deploy `submission` to hosted** (within FS-HACK-SA-SUBMISSION-001), STEP 1. Recorded verbatim. Requirements only: this record implements nothing.
+
+```text
+  - Staffing gate: the server applies accepted signal bands to the forecast. Staffing changes only when a manager accepts the adjusted forecast. UNCONFIRMED signals are shown, never applied.
+  - Roles: FOH/BOH appears on each signal as a label only. Staffing is not split by role.
+  - Bands: fixed ±5% or ±10% (existing scenario percentages), at most two signals per hour.
+  - AI discovery cadence: one discovery call per location at ~05:00 and ~17:00 SAST (10/day for 5 locations). Daily cap stays 20 AI calls; Owner manual refresh counts toward it. One retry with backoff ONLY after HTTP 429 or a call that returned no response. Never retry a successful call. Weather, holiday and ECB feeds keep their own schedules and don't count toward the AI cap.
+```
+
+**Not recorded here.** Code committed earlier on `submission` (`7f5417e`, `70abe3f`, `6c97ca1`, `71a2448`) cites "Owner decision(s), 8 November 2026" for local intelligence, capacity and access disruptions, the early shift notice, the signal track record and source links on Owner-entered events. Apart from the four decisions above, no verbatim text of those decisions is in this repository, and this record does not supply it.
