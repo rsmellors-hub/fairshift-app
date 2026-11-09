@@ -95,8 +95,13 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent" };
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved" };
 const FEEDBACK: Record<string, string> = {
+  "payout-email-mismatch": "The two email addresses don't match, so nothing was saved.",
+  "payout-email-invalid": "Enter a valid PayPal email. Nothing was saved.",
+  "payout-email-unchanged": "That's already your PayPal email, so nothing changed.",
+  "payout-password": "Your password wasn't accepted, so your PayPal email wasn't changed.",
+  "payout-change-needs-confirmation": "Changing your PayPal email needs your password. Nothing was changed.",
   "commerce-not-configured": "Commerce connections are not configured in this environment.",
   "commerce-location": "That location is not available.",
   "commerce-not-connected": "This location has no sales connection.",

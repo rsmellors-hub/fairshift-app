@@ -287,7 +287,9 @@ export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, inp
     : await resolveProviderAmount({ amountMinor: input.amountMinor, currencyCode: input.currencyCode }, () => currentZarConversion(db));
   await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
   payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
-  const [worker] = await db.select({ email: workers.paypalPayoutEmail }).from(workers)
+  // A payout already reserved keeps the address it was reserved with (Day 6, Step 3b): a later change
+  // to the worker's PayPal email affects only payouts reserved after it.
+  const [worker] = input.existing ? [{ email: input.existing.recipient }] : await db.select({ email: workers.paypalPayoutEmail }).from(workers)
     .where(and(eq(workers.id, input.workerId), eq(workers.organisationId, scope.organisationId)));
   const recipient = recipientSchema.safeParse(worker?.email ?? "");
   if (!recipient.success) throw new PaymentDetailsRequiredError();

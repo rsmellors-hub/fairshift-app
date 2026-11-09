@@ -27,6 +27,7 @@ import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { createActivatedTeamMember } from "../helpers/workers";
 import { fixtureHourlyRate } from "../helpers/pay-agent";
 import { ownerAcknowledgesWageNotChecked } from "../helpers/legacy-commission";
+import { workerChangesPayoutEmail } from "../helpers/payout-destination";
 import { wageJurisdiction } from "@/server/domain/statutory-wage";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
@@ -322,6 +323,30 @@ describe("manager approval and PayPal payout of confirmed work", () => {
     } finally { await t.close(); }
   });
 
+  it("keeps a reserved payout's recipient when the worker changes their PayPal email before a resend (Day 6, Step 3b)", async () => {
+    const t = await createTestDatabase();
+    try {
+      const manager = (await company(t.db)).scopes[0];
+      const { payable, workerScope } = await confirmedPayable(t.db, manager);
+      await approveWorkPayable(t.db, manager, payable.id);
+      const notSent = new PayPalPayoutError("No request reached PayPal.", "NETWORK_ERROR", undefined, undefined, undefined, "NOT_SENT");
+      const createPayout = vi.fn().mockRejectedValueOnce(notSent).mockImplementation(async (input: { senderBatchId: string }) => pending(input));
+      const paypal = fakePayPal({ createPayout });
+      const first = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      expect(first.payout).toMatchObject({ status: "NOT_SENT", recipient: "casual.sandbox@example.test" });
+      await workerChangesPayoutEmail(t.db, workerScope, "changed@example.test");
+      // Audited with masked addresses only, counting the reserved payout it leaves alone.
+      const [changed] = await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_DESTINATION_CHANGED"));
+      expect(changed.metadata).toMatchObject({ actorUserId: workerScope.userId, previous: "c•••@example.test", next: "c•••@example.test", reconfirmed: "PASSWORD_AND_REPEATED_ADDRESS", reservedPayoutsUnchanged: 1 });
+      expect(JSON.stringify(changed.metadata)).not.toMatch(/casual\.sandbox@|changed@/);
+      // The resend goes to the address the payout was reserved with.
+      const second = await submitWorkPayout(t.db, paypal, manager, payable.id);
+      expect(second).toMatchObject({ submitted: true, payout: { recipient: "casual.sandbox@example.test" } });
+      expect(createPayout).toHaveBeenLastCalledWith(expect.objectContaining({ recipient: "casual.sandbox@example.test" }));
+      expect((await t.db.select().from(workers).where(eq(workers.id, workerScope.workerId!)))[0].paypalPayoutEmail).toBe("changed@example.test");
+    } finally { await t.close(); }
+  });
+
   it("G: concurrent sends create one payout and one PayPal request", async () => {
     const t = await createTestDatabase();
     try {
@@ -401,7 +426,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(await submitWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ submitted: false });
       expect(createPayout).toHaveBeenCalledTimes(1);
       // The worker changes their PayPal email meanwhile; the reconciliation still uses the original request.
-      await savePayoutDestination(t.db, workerScope, "changed@example.test");
+      await workerChangesPayoutEmail(t.db, workerScope, "changed@example.test");
       // A reconciliation attempt that does not leave cannot prove the first did not pay.
       expect(await refreshWorkPayout(t.db, paypal, manager, payable.id)).toMatchObject({ status: "RECONCILIATION_REQUIRED", attempts: 2 });
       const reconciled = await refreshWorkPayout(t.db, paypal, manager, payable.id);
@@ -745,7 +770,7 @@ describe("uncertain no-batch recovery safety window", () => {
         expect(first.payout).toMatchObject({ reservedAt: FIRST, submittedAt: null, paypalBatchId: null, paidAt: null });
         // Emulate an interrupted recovery after the original response was lost.
         if (state === "SUBMITTING") await t.db.update(workPayouts).set({ status: state }).where(eq(workPayouts.id, first.payout.id));
-        await savePayoutDestination(t.db, workerScope, "changed@example.test");
+        await workerChangesPayoutEmail(t.db, workerScope, "changed@example.test");
         await subscriptionStatus(t.db, c.organisationId, "CANCELLED");
         vi.setSystemTime(new Date(FIRST.getTime() + age));
         const [before] = await payoutsOf(t.db);

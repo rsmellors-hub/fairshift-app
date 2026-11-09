@@ -2,7 +2,8 @@
 
 import { requireScope } from "@/server/auth/request";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
-import { savePayoutDestination } from "@/server/auth/operations";
+import { changePayoutDestination } from "@/server/auth/operations";
+import { UserFacingError } from "@/server/domain/errors";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "@/app/revalidate";
 
@@ -81,9 +82,18 @@ export async function refreshDemoIncentivePayoutAction(formData: FormData) {
   throw new Error("Legacy incentive payout is unavailable. Use the approved payable workflow.");
 }
 
+// Day 6, Step 3b: a change needs the new address twice and, for an existing one, the worker's password.
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
   const scope=await requireScope(["TEAM_MEMBER"]);
-  return performAction("/worker/profile", () => savePayoutDestination(getDatabase(),scope,String(formData.get("payoutEmail") ?? "")));
+  const field = (name: string) => String(formData.get(name) ?? "");
+  if (!getConfigurationStatus().databaseConfigured) redirect("/worker/profile?status=error#payment-settings");
+  try {
+    await changePayoutDestination(getDatabase(), scope, { email: field("payoutEmail"), confirmEmail: field("confirmPayoutEmail"), password: field("currentPassword") || undefined });
+  } catch (error) {
+    redirect(`/worker/profile?status=${error instanceof UserFacingError ? error.feedback : "error"}#payment-settings`);
+  }
+  for (const workspace of ["/manager", "/worker", "/owner", "/operator"]) revalidatePath(workspace, "layout");
+  redirect("/worker/profile?status=payout-email-saved#payment-settings");
 }
 async function demoAuthority(worker=false) {
   const scope=await requireScope(worker ? ["TEAM_MEMBER"] : ["OWNER","MANAGER"]);

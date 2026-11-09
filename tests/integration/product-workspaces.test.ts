@@ -83,7 +83,9 @@ describe("functional product workspaces", () => {
       await configure(t.db);
       const createPayout = vi.fn();
       vi.mocked(getPayPalPayoutClient).mockReturnValue({ createPayout } as unknown as ReturnType<typeof getPayPalPayoutClient>);
-      await expect(saveDemoPayoutDestinationAction(form({ payoutEmail: "worker@example.test" }))).rejects.toThrow("REDIRECT:/worker/profile?status=saved");
+      // The address must be typed twice (Day 6, Step 3b).
+      await expect(saveDemoPayoutDestinationAction(form({ payoutEmail: "worker@example.test", confirmPayoutEmail: "other@example.test" }))).rejects.toThrow("REDIRECT:/worker/profile?status=payout-email-mismatch");
+      await expect(saveDemoPayoutDestinationAction(form({ payoutEmail: "worker@example.test", confirmPayoutEmail: "worker@example.test" }))).rejects.toThrow("REDIRECT:/worker/profile?status=payout-email-saved");
       expect((await getWorkerWorkspace(t.db)).profile?.paypalPayoutEmail).toBe("worker@example.test");
       await expect(publishDemoShiftAction(form({ workerSelected: "yes" }))).rejects.toThrow("Access denied.");
       await expect(acceptDemoShiftAction(form({ shiftId: randomUUID() }))).rejects.toThrow("Access denied.");

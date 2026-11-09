@@ -412,3 +412,14 @@ Step 3a: confirm the "no wage rule recorded for this country/date" case shows "M
 - Commission casual terms are refused when written, in every country, and commission shifts made earlier are refused when created or offered. Commission work already accepted keeps flowing to confirmation, with no payable until attribution is verified.
 
 The agent could find no earlier record of the acknowledgement requirement in this session or the repository. It was implemented from this instruction.
+
+### Day 6, Step 3b — PayPal payout destination changes (as implemented, not a further decision)
+
+Implements the Day 6 instruction "PayPal email change requires re-confirmation, is audited, and never affects reserved payouts". Re-confirmation was not further specified, and the agent chose this reading:
+
+- The first PayPal email is typed twice.
+- Changing an existing one needs the new address typed twice and the worker's current FairShift password. Attempts are limited to five per 15 minutes.
+- Every save writes an audit row (`PAYOUT_DESTINATION_ADDED` or `PAYOUT_DESTINATION_CHANGED`) with masked old and new addresses, never the full ones, and a count of the worker's reserved payouts that the save leaves unchanged.
+- A payout keeps the recipient it was reserved with, including when an unsent payout is sent again. A new address applies only to payouts reserved after the change.
+
+No email is sent to confirm the new address: no email provider was added.

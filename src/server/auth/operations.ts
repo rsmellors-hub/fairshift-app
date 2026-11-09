@@ -1,9 +1,11 @@
 import { requireEntitlement } from "@/server/billing/entitlement";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
 import { randomUUID } from "node:crypto";
-import { shiftOffers, shifts, workerAvailability, workers } from "@/server/db/schema";
+import { auditEvents, shiftOffers, shifts, users, workPayouts, workerAvailability, workers } from "@/server/db/schema";
+import { checkPassword, consumeLimit } from "./identity";
+import { auditActor } from "./audit-actor";
 import { UserFacingError } from "@/server/domain/errors";
 import { assertRole, type Scope } from "./access";
 import { respondToAssignment } from "@/server/scheduling/operations";
@@ -27,14 +29,58 @@ export async function workerRespond(db:Database,scope:Scope,offerId:string,versi
   }
   return respondToAssignment(db,scope.workerId!,offerId,version,response,acknowledged,scope);
 }
-export async function savePayoutDestination(db:Database,scope:Scope,value:string) {
+// Day 6, Step 3b: the worker's PayPal payout destination. Adding the first one needs the address typed
+// twice; changing an existing one also needs the worker's current password (rate-limited). Every save
+// is audited with masked addresses, never the full ones. A payout already reserved keeps the address it
+// was reserved with: resending an unsent payout reuses it (work-payouts.ts), so a change affects only
+// payouts reserved afterwards.
+const payoutEmailSchema = z.string().trim().email().max(254);
+const maskEmail = (value: string) => { const [name, domain] = value.split("@"); return `${name.slice(0, 1)}•••@${domain}`; };
+const sameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+async function payoutWorker(db: Database, scope: Scope) {
   assertRole(scope,["TEAM_MEMBER"]);
   await requireEntitlement(db,scope.organisationId);
   if (!scope.workerId) throw new Error("Access denied.");
-  const [row]=await db.update(workers).set({paypalPayoutEmail:z.string().trim().email().max(254).parse(value),updatedAt:new Date()})
-    .where(and(eq(workers.id,scope.workerId),eq(workers.userId,scope.userId),eq(workers.organisationId,scope.organisationId),eq(workers.locationId,scope.locationId))).returning();
+  const [row] = await db.select({ id: workers.id, email: workers.paypalPayoutEmail }).from(workers)
+    .where(and(eq(workers.id,scope.workerId),eq(workers.userId,scope.userId),eq(workers.organisationId,scope.organisationId),eq(workers.locationId,scope.locationId)));
   if (!row) throw new Error("Access denied.");
   return row;
+}
+
+async function writePayoutDestination(db: Database, scope: Scope, previous: string | null, next: string) {
+  return db.transaction(async tx => {
+    const [row] = await tx.update(workers).set({ paypalPayoutEmail: next, updatedAt: new Date() })
+      .where(and(eq(workers.id,scope.workerId!),eq(workers.userId,scope.userId),eq(workers.organisationId,scope.organisationId),eq(workers.locationId,scope.locationId))).returning();
+    if (!row) throw new Error("Access denied.");
+    // Reserved payouts not yet final keep their own recipient; they are counted, not changed.
+    const [{ reserved }] = await tx.select({ reserved: sql<number>`count(*)::int` }).from(workPayouts)
+      .where(and(eq(workPayouts.workerId, row.id), inArray(workPayouts.status, ["SUBMITTING", "NOT_SENT", "PROCESSING", "RECONCILIATION_REQUIRED"])));
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: previous ? "PAYOUT_DESTINATION_CHANGED" : "PAYOUT_DESTINATION_ADDED",
+      entityType: "worker", entityId: row.id, correlationId: `payout-destination:${row.id}:${Date.now()}`,
+      metadata: { ...auditActor(scope), previous: previous ? maskEmail(previous) : null, next: maskEmail(next), reconfirmed: previous ? "PASSWORD_AND_REPEATED_ADDRESS" : "REPEATED_ADDRESS", reservedPayoutsUnchanged: reserved } });
+    return row;
+  });
+}
+
+// The first destination only: an existing one is changed through changePayoutDestination.
+export async function savePayoutDestination(db:Database,scope:Scope,value:string) {
+  const current = await payoutWorker(db, scope);
+  if (current.email) throw new UserFacingError("payout-change-needs-confirmation", "Changing your PayPal email needs your password.");
+  return writePayoutDestination(db, scope, null, payoutEmailSchema.parse(value));
+}
+
+export async function changePayoutDestination(db: Database, scope: Scope, input: { email: string; confirmEmail: string; password?: string }) {
+  const current = await payoutWorker(db, scope);
+  const parsed = payoutEmailSchema.safeParse(input.email);
+  if (!parsed.success) throw new UserFacingError("payout-email-invalid", "Enter a valid PayPal email.");
+  if (!sameEmail(input.email, input.confirmEmail)) throw new UserFacingError("payout-email-mismatch", "The two email addresses don't match.");
+  if (!current.email) return writePayoutDestination(db, scope, null, parsed.data);
+  if (sameEmail(current.email, parsed.data)) throw new UserFacingError("payout-email-unchanged", "That's already your PayPal email.");
+  await consumeLimit(db, `payout-destination:${scope.userId}`, 5);
+  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, scope.userId));
+  if (!user || !input.password || !await checkPassword(input.password, user.passwordHash)) throw new UserFacingError("payout-password", "Your password wasn't accepted, so your PayPal email wasn't changed.");
+  return writePayoutDestination(db, scope, current.email, parsed.data);
 }
 
 // A worker's own weekly availability, Monday..Sunday. Null clears a day to not provided.
