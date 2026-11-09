@@ -62,24 +62,24 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   if (area === "forecast") {
     // One clock for both reads; a staffing failure leaves the forecast intact and vice versa.
     const now = new Date();
-    let weekly = null, staffing = null;
-    try { weekly = await getWeeklyForecast(getDatabase(), scope, now); } catch { weekly = null; }
-    try { staffing = await getWeeklyStaffing(getDatabase(), scope, now); } catch { staffing = null; }
+    // Independent reads in parallel (Day 6, Step 2); each failure leaves the others intact.
+    const [weekly, staffing, feeds] = await Promise.all([
+      getWeeklyForecast(getDatabase(), scope, now).catch(() => null),
+      getWeeklyStaffing(getDatabase(), scope, now).catch(() => null),
+      getLiveFeedStatus(getDatabase(), now).catch((): LiveFeedStatus | null => null),
+    ]);
     // The AI assessment is read from storage only; a failure leaves the forecast intact.
-    let view = null;
-    if (staffing) { try { view = await getStaffingAssessmentView(getDatabase(), scope, "ORGANISATION", staffing); } catch { view = null; } }
+    const viewRead = staffing ? getStaffingAssessmentView(getDatabase(), scope, "ORGANISATION", staffing).catch(() => null) : Promise.resolve(null);
+    const timeZone = staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone ?? staffing?.outlets[0]?.timezone ?? "UTC";
+    // The same alerts as the Overview, with the casual shifts a likely closure covers, so both pages agree.
+    const raised: DisruptionAlert[] = (staffing?.outlets ?? []).flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })));
+    const [view, alerts] = await Promise.all([viewRead,
+      Promise.all(raised.map(async alert => alert.signal.closureLikely ? { ...alert, affected: await affectedShifts(getDatabase(), { organisationId: scope.organisationId, outletId: alert.outletId, timezone: alert.timezone }, alert.signal, now) } : alert))
+        .catch(() => { console.error("Early-notice candidates could not be read; alerts show without them."); return raised; })]);
     const names = Object.fromEntries((staffing?.outlets ?? []).map(outlet => [outlet.outletId, outlet.outletName]));
     const assessment = staffing === null && weekly === null ? null : <AiStaffingAssessment view={view} names={names} signals={signalLookup(staffing?.outlets ?? [])} configured={configuration.aiConfigured} action={generateOwnerAssessmentAction} notice={ai}
       timeZone={staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone}
       planHref={(outletId, date) => outletId === scope.locationId ? `/manager/plan${date ? `?date=${date}` : ""}#add-requirement` : null} />;
-    // The feeds behind the week, each with its source and when it last updated.
-    let feeds: LiveFeedStatus | null = null;
-    try { feeds = await getLiveFeedStatus(getDatabase(), now); } catch { feeds = null; }
-    const timeZone = staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone ?? staffing?.outlets[0]?.timezone ?? "UTC";
-    // The same alerts as the Overview, with the casual shifts a likely closure covers, so both pages agree.
-    let alerts: DisruptionAlert[] = (staffing?.outlets ?? []).flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })));
-    try { alerts = await Promise.all(alerts.map(async alert => alert.signal.closureLikely ? { ...alert, affected: await affectedShifts(getDatabase(), { organisationId: scope.organisationId, outletId: alert.outletId, timezone: alert.timezone }, alert.signal, now) } : alert)); }
-    catch { console.error("Early-notice candidates could not be read; alerts show without them."); }
     return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} aiSignals={staffing ? <AiThisWeek outlets={staffing.outlets} /> : null} /><div className="owner-overview owner-forecast"><DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} /><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} showTrackRecord={isDemoOrganisation(scope.organisationId)} /></div></>;
   }
   // What a judge can check is real, for the demonstration organisation only.

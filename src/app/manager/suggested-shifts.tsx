@@ -2,6 +2,7 @@ import { DataLabel, StatusBadge } from "@/app/components/product-ui";
 import { labourHours, longDate } from "@/app/components/staffing";
 import { approveSuggestedShiftAction } from "@/app/suggestion-actions";
 import type { AssessmentView } from "@/server/intelligence/ai-staffing";
+import { fillPlaceholders } from "@/server/intelligence/ai-staffing-contract";
 import type { OutletStaffing } from "@/server/intelligence/staffing";
 import { formatClock } from "@/server/intelligence/workload";
 import { suggestShifts, type ShiftRules, type SuggestedShift } from "@/server/scheduling/shift-rules";
@@ -38,7 +39,8 @@ export function SuggestedShifts({ outlet, briefing, departments, policies, appro
     return <li key={s.key} className="context-signal suggested-shift">
       <p><strong>{longDate(s.date)} · {formatClock(s.start)}–{formatClock(s.end)}</strong> · {hoursText(s.minutes)} · {s.headcount === 1 ? "1 person" : `${s.headcount} people`}{ai ? <> <StatusBadge tone="predictive">AI order {ai.rank}</StatusBadge></> : null}</p>
       <p className="note">Covers the casual gap {s.window.replace("-", "–")} ({hoursText(s.windowRemainingMinutes)} short), cut with this location’s rules.</p>
-      {ai ? <p><DataLabel kind="predictive">AI</DataLabel> {ai.reason}</p> : null}
+      {ai ? (() => { const text = fillPlaceholders(ai.reason, { window: `${formatClock(s.start)}–${formatClock(s.end)}`, gap_hours: hoursText(s.windowRemainingMinutes), location: outlet.outletName });
+        return text === null ? null : <p><DataLabel kind="predictive">AI</DataLabel> {text}</p>; })() : null}
       {done ? <p className="note"><StatusBadge tone={done.accepted >= done.headcount ? "success" : "neutral"}>{done.accepted >= done.headcount ? "Filled" : "Approved: offers out"}</StatusBadge> {done.rounds.map(r => `Round ${r.round}: ${r.offered} offered${r.closesAt ? ` until ${at(r.closesAt)}` : ", open until filled"}`).join(" · ")} · {done.accepted} of {done.headcount} accepted. Finalise accepted workers on Fill shifts.</p>
         : act ? <form action={approveSuggestedShiftAction} className="button-row suggestion-approve"><input type="hidden" name="key" value={s.key} />
           <label>Role<select name="departmentId" defaultValue={departments[0]?.id}>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>

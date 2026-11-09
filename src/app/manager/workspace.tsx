@@ -86,8 +86,14 @@ export type ManagerArea = "overview" | typeof managerAreas[number];
 export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, local, importResult, financialScope, financialOnly = false }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; local?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=financialScope ?? await requireScope(["OWNER","MANAGER"]);
-  let data;
-  try { data = await getOperations(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
+  // Opening the plan brings weather and listed events up to date when they're due: in the background
+  // (Day 6, Step 2), so the page shows the latest stored feeds at once. A failure changes nothing, and a
+  // public demo never reaches a provider.
+  if (area === "plan" && !scope.demo) void refreshContextFeedsIfDue(getDatabase(), scope).catch(() => console.error("Context feeds could not be checked; planning continues."));
+  // The location's records and the planning week are independent reads, in parallel.
+  const [operations, week] = await Promise.allSettled([getOperations(getDatabase(), scope), area === "plan" || area === "fill" || area === "overview" ? getWeeklyStaffing(getDatabase(), scope, new Date()) : Promise.resolve(null)]);
+  if (operations.status === "rejected") return <WorkspaceUnavailable />;
+  const data = operations.value;
   const { team, departments, policies, paymentIssues, payables, availability, timezone, wageJurisdiction: wageReference } = data;
   // A demo reset closes shifts rather than deleting their evidence, so demo views leave them out.
   const requirements = scope.demo ? data.requirements.filter(row => row.status !== "CANCELLED") : data.requirements;
@@ -98,11 +104,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
     return { pending: rows.filter(r => r.offer.status === "OFFERED").length, accepted: rows.filter(r => r.offer.status === "ACCEPTED").length, allocated: rows.filter(r => r.allocation?.state === "ALLOCATED").length };
   };
   // The one calculated week behind both the staffing panel and the Fill Shifts context.
-  let staffing: WeeklyStaffing | null = null;
-  // Opening the plan brings weather and listed events up to date when they're due. It waits a few
-  // seconds at most, a failure changes nothing, and a public demo never reaches a provider.
-  if (area === "plan" && !scope.demo) { try { await refreshContextFeedsIfDue(getDatabase(), scope); } catch { console.error("Context feeds could not be checked; planning continues."); } }
-  if (area === "plan" || area === "fill" || area === "overview") { try { staffing = await getWeeklyStaffing(getDatabase(),scope,new Date()); } catch { staffing = null; } }
+  const staffing: WeeklyStaffing | null = week.status === "fulfilled" ? week.value : null;
   const planningOutlet = staffing?.outlets.find(row => row.outletId === scope.locationId) ?? null;
   const planningDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
   const gapDay = planningDate ? planningOutlet?.days.find(day => day.planningDate === planningDate) ?? null : null;
@@ -388,10 +390,10 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
   if (!outlet) return <StatePanel title="Staffing unavailable" tone="warning"><p>This location is not available for planning.</p></StatePanel>;
   const evidence = outlet.evidence;
   // The location's AI briefing, read once for both "What to staff first" and the suggested shifts' order.
-  let briefing = null;
-  try { briefing = await getStaffingAssessmentView(getDatabase(), scope, "LOCATION", staffing); } catch { briefing = null; }
-  let suggestionData: Awaited<ReturnType<typeof suggestionContext>> | null = null;
-  try { suggestionData = await suggestionContext(getDatabase(), scope, suggestShifts(outlet)); } catch { suggestionData = null; }
+  const [briefing, suggestionData] = await Promise.all([
+    getStaffingAssessmentView(getDatabase(), scope, "LOCATION", staffing).catch(() => null),
+    suggestionContext(getDatabase(), scope, suggestShifts(outlet)).catch(() => null),
+  ]);
   return <div className="staffing-week">
     <PlanSignalCards outlet={outlet} act={!scope.demo} simulated={!!scope.demo} notice={localNotice ? LOCAL_NOTICE[localNotice] : undefined} />
     <section className="panel" aria-labelledby="week-cover-title">

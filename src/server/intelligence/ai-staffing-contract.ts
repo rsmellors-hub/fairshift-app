@@ -15,8 +15,8 @@ import { suggestShifts } from "@/server/scheduling/shift-rules";
 // text, so nothing in the input can act as an instruction. Its output is accepted
 // only if every reference and every number it cites matches this input exactly.
 
-export const AI_INPUT_VERSION = "fs-staffing-ai-input-v4";
-export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v4";
+export const AI_INPUT_VERSION = "fs-staffing-ai-input-v5";
+export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v5";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 export const LOCATION_FLAGS = ["SYNTHETIC_REFERENCE_DATA", "HISTORICAL_EVIDENCE_STALE", "REGULAR_COVERAGE_MISSING", "FORECAST_UNAVAILABLE", "NO_WORKLOAD_POLICY", "TRADING_HOURS_MISSING", "LOW_SUPPORT_DAYS"] as const;
@@ -239,6 +239,19 @@ export function assessmentJsonSchema(input: AssessmentInput) {
 
 export const windowOf = (row: Pick<AssessmentOpportunity, "start" | "end">) => `${row.start}–${row.end}`;
 
+// Placeholders the model writes instead of figures (Owner instruction, 9 November 2026): the server fills
+// each from computed data when the text is shown, so every figure a reader sees is FairShift's. They are
+// allowed only where there is something to fill them with: a priority's or a suggested shift's text.
+export const PLACEHOLDERS = ["gap_hours", "window", "location", "signal"] as const;
+export type Placeholder = (typeof PLACEHOLDERS)[number];
+const placeholdersIn = (text: string) => [...text.matchAll(/\{([^{}]*)\}/g)].map(match => match[1]);
+// Fills placeholders from computed values. A text that still holds a digit the model wrote is withheld
+// (null): only FairShift's own figures are ever shown.
+export function fillPlaceholders(text: string, values: Partial<Record<Placeholder, string>>): string | null {
+  if (/\d/.test(text.replace(/\[\[L\d+\]\]/g, ""))) return null;
+  return text.replace(/\{(gap_hours|window|location|signal)\}/g, (_, key: Placeholder) => values[key] ?? "");
+}
+
 export type ValidationFailure = "SCHEMA" | "UNKNOWN_REFERENCE" | "NUMBER_MISMATCH" | "NUMBER_IN_TEXT" | "INCONSISTENT" | "RANKING";
 export type ValidationResult = { ok: true; assessment: StaffingAssessment } | { ok: false; code: ValidationFailure; detail: string };
 
@@ -263,11 +276,20 @@ export function validateAssessment(raw: unknown, input: AssessmentInput): Valida
   const fail = (code: ValidationFailure, detail: string): ValidationResult => ({ ok: false, code, detail });
 
   const texts = [assessment.summary, assessment.signalCommentary, assessment.commercialImplication, ...assessment.priorities.flatMap(p => [p.reason, p.actionNote]), ...assessment.constraints.map(c => c.note), ...assessment.suggestionOrder.map(row => row.reason)];
+  // Placeholders: known names only, and only where they can be filled.
+  for (const text of [assessment.summary, assessment.signalCommentary, assessment.commercialImplication, ...assessment.constraints.map(c => c.note)]) if (placeholdersIn(text).length) return fail("UNKNOWN_REFERENCE", "placeholder outside a priority or suggestion");
+  for (const text of texts) for (const name of placeholdersIn(text)) if (!(PLACEHOLDERS as readonly string[]).includes(name)) return fail("UNKNOWN_REFERENCE", `placeholder {${name}}`);
+  for (const p of assessment.priorities) for (const name of [p.reason, p.actionNote].flatMap(placeholdersIn)) {
+    const location = input.locations.find(row => row.key === p.locationKey);
+    if ((name === "window" && !p.window) || (name === "signal" && !p.signalRefs.length) || (name === "gap_hours" && (!location || gapOf(location, p.date) === null))) return fail("INCONSISTENT", `{${name}} with nothing to fill it`);
+  }
+  for (const row of assessment.suggestionOrder) if (placeholdersIn(row.reason).includes("signal")) return fail("INCONSISTENT", "{signal} in a suggestion");
   const known = new Set(input.locations.flatMap(location => location.suggestions.map(row => row.ref)));
   if (assessment.suggestionOrder.some(row => !known.has(row.ref))) return { ok: false, code: "UNKNOWN_REFERENCE", detail: "suggestion" };
   if (new Set(assessment.suggestionOrder.map(row => row.ref)).size !== assessment.suggestionOrder.length) return { ok: false, code: "RANKING", detail: "repeated suggestion" };
   for (const text of texts) {
-    // Location tokens such as [[L2]] are references, not figures.
+    // Location tokens such as [[L2]] are references, not figures. Every figure, time included, comes from
+    // a placeholder the server fills.
     if (/\d/.test(text.replace(/\[\[L\d+\]\]/g, ""))) return fail("NUMBER_IN_TEXT", "prose contains a number");
     // A figure spelled out would escape the evidence check just as digits would.
     if (/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|percent|per cent)\b/i.test(text)) return fail("NUMBER_IN_TEXT", "prose spells out a figure");
@@ -389,8 +411,14 @@ Explain what deserves staffing attention in the planning week and why:
   to FairShift, so never call them total labour cost.
 
 Rules:
-- Write no digits anywhere in text fields, and do not spell figures out in words or
-  write percentages. Describe size in words such as modest or substantial. Put numbers only in evidence items, each
+- Write no digits anywhere in text fields, not even times, and do not spell figures out
+  in words or write percentages. In a priority's reason and actionNote, and in a
+  suggestion's reason, use placeholders that FairShift fills from its own figures:
+  {gap_hours} (the casual gap for that date, or the week), {window} (the priority's
+  window, or the suggested shift's times), {location} (the location's name) and
+  {signal} (the names of the priority's signalRefs; not in suggestions). Use a
+  placeholder only where it has a value: {window} needs a window, {signal} needs
+  signalRefs. Write no placeholder in the summary, constraints or commentary. Describe size in words such as modest or substantial. Put numbers only in evidence items, each
   copied exactly from the input: for a date, the field of that day; for a null date,
   the location's "week" totals; "evidenceAgeDays" is the location's evidence ageDays.
   Minutes are staff minutes; expectedTransactions is a transaction count; amounts ending

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AI_OUTPUT_SCHEMA_VERSION, assessmentJsonSchema, prepareAssessmentInput, validateAssessment, type AssessmentInput, type StaffingAssessment } from "@/server/intelligence/ai-staffing-contract";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AI_OUTPUT_SCHEMA_VERSION, assessmentJsonSchema, fillPlaceholders, prepareAssessmentInput, validateAssessment, type AssessmentInput, type StaffingAssessment } from "@/server/intelligence/ai-staffing-contract";
+import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
 import type { OutletStaffing, WorkloadPolicy } from "@/server/intelligence/staffing";
 
 // Test-fixture values, not a recommendation.
@@ -225,5 +227,36 @@ describe("AI staffing briefing: windows and signals", () => {
     const schema = assessmentJsonSchema(input) as { properties: { priorities: { items: { properties: { signalRefs: { items: { enum: string[] } }; window: { anyOf: { enum?: string[] }[] } } } } } };
     expect(schema.properties.priorities.items.properties.signalRefs.items.enum).toEqual(["S1"]);
     expect(schema.properties.priorities.items.properties.window.anyOf[0].enum).toContain("12:00–14:00");
+  });
+});
+
+// Day 6 (Owner instruction, 9 Nov 2026, after the hosted finding that the live model wrote clock times):
+// the model writes placeholders, the server fills them from computed data, and no figure the model
+// writes is ever shown.
+describe("AI staffing briefing placeholders", () => {
+  const { input, locationKeys } = prepareAssessmentInput(week(), "ORGANISATION");
+  const withReason = (reason: string, edit: (o: StaffingAssessment) => void = () => {}) => { const o = valid(input); o.priorities[0].reason = reason; edit(o); return validateAssessment(o, input); };
+  it("accepts known placeholders where they can be filled, and refuses digits, times and unknown or empty placeholders", () => {
+    expect(withReason("{location} is short {window}, a gap of {gap_hours}.", o => { o.priorities[0].window = "12:00–14:00"; })).toMatchObject({ ok: true });
+    expect(withReason("Saturday is short from 12:00 to 14:00.")).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
+    expect(withReason("Saturday needs 8 more staff hours.")).toMatchObject({ ok: false, code: "NUMBER_IN_TEXT" });
+    expect(withReason("Saturday costs {amount}.")).toMatchObject({ ok: false, code: "UNKNOWN_REFERENCE" });
+    expect(withReason("Saturday is short {window}.")).toMatchObject({ ok: false, code: "INCONSISTENT" });
+    expect(withReason("Because of {signal}.")).toMatchObject({ ok: false, code: "INCONSISTENT" });
+    expect(validateAssessment({ ...valid(input), summary: "The week is short by {gap_hours}." }, input)).toMatchObject({ ok: false, code: "UNKNOWN_REFERENCE" });
+  });
+  it("fills placeholders from computed values and never shows a model-written figure", () => {
+    expect(fillPlaceholders("{location} is short {window} ({gap_hours}).", { location: "Leeds", window: "12:00–14:00", gap_hours: "8 h" })).toBe("Leeds is short 12:00–14:00 (8 h).");
+    expect(fillPlaceholders("Saturday needs 8 more people.", { gap_hours: "8 h" })).toBeNull();
+    // Rendered: a stored explanation holding a digit is withheld; the computed figure is what shows.
+    const assessment = valid(input);
+    assessment.priorities[0].reason = "{location} needs cover: a gap of {gap_hours}.";
+    assessment.priorities[0].actionNote = "Hire 12 people today.";
+    const prepared = prepareAssessmentInput(week(), "ORGANISATION");
+    const view = { state: "CURRENT" as const, prepared, assessment, record: { id: "a", createdAt: new Date(0), model: "m", responseModel: "m", provider: "OPENAI", failureCode: null } };
+    const html = renderToStaticMarkup(AiStaffingAssessment({ view, names: { [locationKeys.L2]: "Leeds" }, configured: true, action: async () => {} }));
+    expect(html).toContain("<p>Leeds needs cover: a gap of 8 h.</p>");
+    expect(html).not.toContain("Hire 12");
+    expect(html).toContain("withheld");
   });
 });

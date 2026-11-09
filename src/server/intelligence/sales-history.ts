@@ -44,6 +44,34 @@ export function syntheticHistoryAllowed(scope: Pick<Scope, "organisationId"> & P
 // for recorded sales and for the weekly forecast. Outside a request it simply runs.
 export const loadDailySales = cache(async function loadDailySales(db: DatabaseSession, organisationId: string, outletIds?: string[], allowSynthetic = false): Promise<DailySalesRow[]> {
   if (outletIds && !outletIds.length) return [];
+  if (!allowSynthetic) return queryDailySales(db, organisationId, outletIds, false);
+  return demoAggregate(db, organisationId, outletIds ?? null, `daily:${organisationId}:${outletIds?.join(",") ?? "*"}`, () => queryDailySales(db, organisationId, outletIds, true));
+});
+
+// The demo business's aggregates, kept between requests (Day 6, Step 2): its history is synthetic
+// and changes only when rows are added or removed, so a result is reused while every location's newest
+// row and row count are unchanged, for at most thirty minutes (the scheduler keeps it warm: job cache:demo). Kept per database connection, so separate databases never share.
+const DEMO_AGGREGATE_TTL_MS = 30 * 60_000;
+const demoAggregates = new WeakMap<object, Map<string, { version: string; at: number; value: Promise<unknown> }>>();
+async function historyVersion(db: DatabaseSession, organisationId: string, outletIds: readonly string[] | null) {
+  const rows = await db.select({ id: outlets.id, newest: sql<string | null>`(select max(st.created_at)::text || ':' || count(*) from sale_transactions st where st.outlet_id = "outlets"."id")` })
+    .from(outlets).where(and(eq(outlets.organisationId, organisationId), outletIds ? inArray(outlets.id, [...outletIds]) : undefined)).orderBy(outlets.id);
+  return rows.map(row => `${row.id}=${row.newest ?? ""}`).join("|");
+}
+async function demoAggregate<T>(db: DatabaseSession, organisationId: string, outletIds: readonly string[] | null, key: string, load: () => Promise<T>): Promise<T> {
+  const version = await historyVersion(db, organisationId, outletIds);
+  let store = demoAggregates.get(db as object);
+  if (!store) { store = new Map(); demoAggregates.set(db as object, store); }
+  const hit = store.get(key);
+  if (hit && hit.version === version && Date.now() - hit.at < DEMO_AGGREGATE_TTL_MS) return hit.value as Promise<T>;
+  const value = load();
+  store.set(key, { version, at: Date.now(), value });
+  // A failed read is never kept.
+  value.catch(() => { if (store.get(key)?.value === value) store.delete(key); });
+  return value;
+}
+
+async function queryDailySales(db: DatabaseSession, organisationId: string, outletIds: string[] | undefined, allowSynthetic: boolean): Promise<DailySalesRow[]> {
   const rows = await db.select({
     outletId: outlets.id, source: saleTransactions.source, currency: saleTransactions.currencyCode, date: saleDate,
     salesMinor: sql<number>`sum(${saleTransactions.grossAmountMinor})`.mapWith(Number),
@@ -53,12 +81,17 @@ export const loadDailySales = cache(async function loadDailySales(db: DatabaseSe
       allowSynthetic ? undefined : notInArray(saleTransactions.source, ["REFERENCE", "DEMO_SEEDED"]), eligibleSale))
     .groupBy(outlets.id, saleTransactions.source, saleTransactions.currencyCode, saleDate);
   return rows.map(row => ({ ...row, source: row.source as SalesSource }));
-});
+}
 
 // Transactions of one source and currency at one location, per 15-minute local time slot,
 // for the workload forecast. Only sales with a real recorded time count: a row whose only
 // time is when it was written says nothing about when customers came.
-export async function loadTransactionSlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
+export async function loadTransactionSlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string, demoOrganisationId?: string | null): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
+  // Synthetic history for the demo business is cached like its daily totals.
+  if (demoOrganisationId && (source === "REFERENCE" || source === "DEMO_SEEDED")) return demoAggregate(db, demoOrganisationId, [outletId], `slots:${outletId}:${source}:${currency}:${from}:${through}`, () => querySlots(db, outletId, source, currency, from, through));
+  return querySlots(db, outletId, source, currency, from, through);
+}
+function querySlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
   const known = sql`coalesce(${saleTransactions.occurredAt}, ${saleTransactions.providerCreatedAt})`;
   const local = sql`(${known} at time zone ${outlets.timezone})`;
   const date = sql<string>`to_char(${local}, 'YYYY-MM-DD')`;

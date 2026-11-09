@@ -100,7 +100,7 @@ describe("AI staffing intelligence", () => {
       expect(sent.locations).toHaveLength(5);
       for (const text of [...c.rows.map(row => row.name), ...c.rows.map(row => row.id), "AI company", c.organisationId, "@"]) expect(provider.assess.mock.calls[0][0].input).not.toContain(text);
       expect(record).toMatchObject({ status: "AVAILABLE", scopeKey: "ORGANISATION", outletId: null, provider: "OPENAI", model: "gpt-test", responseModel: "gpt-test-2026", providerResponseId: "resp_test",
-        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2026-10-18", inputVersion: "fs-staffing-ai-input-v4", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
+        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2026-10-18", inputVersion: "fs-staffing-ai-input-v5", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
       expect(record.input).toEqual(sent);
       expect(Object.values(record.locationKeys as Record<string, string>).sort()).toEqual(c.rows.map(row => row.id).sort());
 
@@ -319,6 +319,23 @@ describe("scheduled AI briefing", () => {
       // Off without the AI schedule or a model.
       expect((await runDueJobs(t.db, { ...deps, aiSchedule: false }, job))[0].outcome).toBe("DISABLED");
       expect((await runDueJobs(t.db, { ...deps, assessment: null }, job))[0].outcome).toBe("DISABLED");
+    } finally { await t.close(); }
+  });
+});
+
+describe("scheduled AI briefing, rejected answer", () => {
+  it("tries once more straight away when FairShift's validation rejects an answer, and records both", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await referenceCompany(t.db);
+      await t.db.insert(memberships).values({ id: randomUUID(), userId: c.owner.userId, organisationId: c.organisationId, role: "OWNER" });
+      let calls = 0;
+      const provider = fakeProvider(input => (++calls === 1 ? { ...validAssessment(input), summary: "Pressure needs 12 more hours." } : validAssessment(input)));
+      const [run] = await runDueJobs(t.db, { now: () => NOW, demoOrganisationIds: [c.organisationId], aiSchedule: true, assessment: provider }, JOBS.filter(row => row.key === "ai:briefing"));
+      expect(run).toMatchObject({ outcome: "RAN", ok: true });
+      const organisation = await t.db.select().from(aiStaffingAssessments).where(eq(aiStaffingAssessments.scopeKey, "ORGANISATION"));
+      expect(organisation.map(row => row.status).sort()).toEqual(["AVAILABLE", "FAILED"]);
+      expect(organisation.find(row => row.status === "FAILED")!.failureCode).toBe("VALIDATION_NUMBER_IN_TEXT");
     } finally { await t.close(); }
   });
 });

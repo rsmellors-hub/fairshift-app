@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import { resolveScope, type Scope } from "@/server/auth/access";
-import { auditEvents, localIntelligenceDecisions, memberships, notificationDeliveries, notifications, shiftOffers, shifts, subscriptions, users, workAllocations, workers } from "@/server/db/schema";
+import { auditEvents, departments, localIntelligenceDecisions, memberships, workPolicies, notificationDeliveries, notifications, shiftOffers, shifts, subscriptions, users, workAllocations, workers } from "@/server/db/schema";
 import { ensureDemoBooking, isSyntheticEmail } from "@/server/demo/booking";
 import { JOBS, runDueJobs } from "@/server/scheduler/feeds";
 import { changeAssignment, createRequirement } from "@/server/scheduling/operations";
@@ -11,6 +11,7 @@ import { demoConfig } from "@/server/demo/config";
 import { resetDemo } from "@/server/demo/fixtures";
 import { DEMO_ACCOUNTS, provisionSaDemo } from "@/server/demo/provision";
 import { JUDGE_ACCOUNTS, provisionJudgeAccounts } from "@/server/demo/judges";
+import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { enterDemo } from "@/server/demo/session";
 import { checkPassword } from "@/server/auth/identity";
 import { randomUUID } from "node:crypto";
@@ -289,6 +290,19 @@ describe("judges' accounts and a signed-in Reset demo (Owner decision, 9 Novembe
     vi.setSystemTime(next);
     await enterDemo(db, demoConfig(), "OWNER", next);
     expect((await liveBookings(db)).map(row => row.shiftDate)).toContain("2026-12-03");
+    await close();
+  });
+});
+
+describe("demo settings seed", () => {
+  it("gives every demo location the demo's casual role and hourly terms once, so a suggested shift can be approved anywhere", async () => {
+    const { db, close } = await createTestDatabase();
+    await setUp(db);
+    await ensureDemoRules(db, ORG);
+    const terms = await db.select({ outletId: workPolicies.outletId, model: workPolicies.earningsModel, rate: workPolicies.rateMinor, currency: workPolicies.currencyCode }).from(workPolicies).where(eq(workPolicies.name, "Casual floor terms"));
+    expect(terms.map(row => row.outletId).sort()).toEqual(SA_REFERENCE_LOCATIONS.map(row => row.id).sort());
+    expect(terms.every(row => row.model === "HOURLY" && row.rate === 4_500 && row.currency === "ZAR")).toBe(true);
+    expect((await db.select({ id: departments.id }).from(departments).where(eq(departments.name, "Floor"))).length).toBe(SA_REFERENCE_LOCATIONS.length);
     await close();
   });
 });

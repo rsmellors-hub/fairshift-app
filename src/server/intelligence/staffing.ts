@@ -8,7 +8,7 @@ import { SCENARIO_ADJUSTMENT_BPS } from "@/server/intelligence/demand-context-po
 import { commercialContext, consolidateCommercial, type CommercialContext, type WorkRate } from "@/server/intelligence/commerce-labour";
 import { LOOKBACK_DAYS, shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
 import { loadShiftRules, type ShiftRules } from "@/server/scheduling/shift-rules";
-import { loadTransactionSlots, referenceDatasetOf } from "@/server/intelligence/sales-history";
+import { loadTransactionSlots, referenceDatasetOf, syntheticHistoryAllowed } from "@/server/intelligence/sales-history";
 import { getWeeklyForecast, type OutletWeeklyForecast } from "@/server/intelligence/weekly";
 import { loadLocalIntelligence, resolveLocalIntelligence, UNAVAILABLE_LOCAL, type LocalApplied, type LocalDay, type OutletLocalIntelligence, type StoredLocalIntelligence } from "@/server/intelligence/local-intelligence-service";
 import { calculateDayWorkload, coverageWindowsSchema, resolveWorkloadPolicy, tradingWindowsSchema, WORKLOAD_FORECAST_METHOD_VERSION, type CoverageWindow, type DayWorkload, type PlanningBlock, type ServicePeriod, type TradingWindow, type TransactionSlot, type UnavailableReason, type WorkloadPolicy, type WorkloadPolicyRecord } from "@/server/intelligence/workload";
@@ -164,22 +164,26 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
   ]);
   // The contextual layer falls back to the baseline: if it can't be read, planning still works.
   const firstDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 1)).sort()[0], lastDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 7)).sort().at(-1)!;
-  let stored: StoredContext | null = null;
-  try { stored = await loadStoredContext(db, scope.organisationId, outletIds, firstDate, lastDate); }
-  catch { console.error("Demand context unavailable; planning continues from the baseline."); }
-  let local: StoredLocalIntelligence | null = null;
-  try { local = await loadLocalIntelligence(db, scope.organisationId, outletIds, firstDate, lastDate, now); }
-  catch { console.error("Local intelligence unavailable; planning continues from the baseline."); }
-  // Suggested shifts need the rules; without them a location simply has no suggestions.
-  let shiftRules = new Map<string, ShiftRules>();
-  try { shiftRules = await loadShiftRules(db, scope.organisationId, outletIds); }
-  catch { console.error("Shift rules unavailable; no shifts are suggested."); }
-  const result: OutletStaffing[] = [];
-  for (const outlet of weekly.outlets) {
+  // Independent reads, in parallel (Day 6, Step 2). Each falls back on its own: planning still works
+  // from the baseline, and without rules a location simply has no suggested shifts.
+  const [stored, local, shiftRules] = await Promise.all([
+    loadStoredContext(db, scope.organisationId, outletIds, firstDate, lastDate).catch((): StoredContext | null => { console.error("Demand context unavailable; planning continues from the baseline."); return null; }),
+    loadLocalIntelligence(db, scope.organisationId, outletIds, firstDate, lastDate, now).catch((): StoredLocalIntelligence | null => { console.error("Local intelligence unavailable; planning continues from the baseline."); return null; }),
+    loadShiftRules(db, scope.organisationId, outletIds).catch(() => { console.error("Shift rules unavailable; no shifts are suggested."); return new Map<string, ShiftRules>(); }),
+  ]);
+  const demoOrganisationId = syntheticHistoryAllowed(scope) ? scope.organisationId : null;
+  // Each location's own chosen history only (sources and currencies are never mixed), read in parallel.
+  const histories = await Promise.all(weekly.outlets.map(async outlet => {
     const selected = outlet.selection.status === "SELECTED" ? outlet.selection : null;
-    // One location's own chosen history only: sources and currencies are never mixed.
-    const slots = selected ? await loadTransactionSlots(db, outlet.outletId, selected.source, selected.currency, shiftDate(selected.dataThrough, -(LOOKBACK_DAYS - 1)), selected.dataThrough) : [];
-    const dataset = selected?.source === "REFERENCE" ? await referenceDatasetOf(db, outlet.outletId) : null;
+    const [slots, dataset] = await Promise.all([
+      selected ? loadTransactionSlots(db, outlet.outletId, selected.source, selected.currency, shiftDate(selected.dataThrough, -(LOOKBACK_DAYS - 1)), selected.dataThrough, demoOrganisationId) : Promise.resolve([]),
+      selected?.source === "REFERENCE" ? referenceDatasetOf(db, outlet.outletId) : Promise.resolve(null),
+    ]);
+    return { slots, dataset };
+  }));
+  const result: OutletStaffing[] = [];
+  for (const [index, outlet] of weekly.outlets.entries()) {
+    const { slots, dataset } = histories[index];
     const inputs: WorkloadInputs = {
       trading: new Map(tradingRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, { windows: tradingWindowsSchema.parse(row.windows), source: row.source }])),
       coverage: new Map(coverageRows.filter(row => row.outletId === outlet.outletId).map(row => [row.isoWeekday, { windows: coverageWindowsSchema.parse(row.windows), source: row.source }])),

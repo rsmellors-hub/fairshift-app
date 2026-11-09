@@ -242,7 +242,7 @@ describe("AI remains interpretation only", () => {
       const staffing = await getWeeklyStaffing(t.db, c.scope(c.rows[0].id, "OWNER"), NOW);
       const { input } = prepareAssessmentInput(staffing, "ORGANISATION");
       const location = input.locations.find(row => row.week)!;
-      expect(input).toMatchObject({ inputVersion: "fs-staffing-ai-input-v4", staffingMethodVersion: "transaction-capacity-windows-v1", workloadMethodVersion: "transaction-windows-recency-v1" });
+      expect(input).toMatchObject({ inputVersion: "fs-staffing-ai-input-v5", staffingMethodVersion: "transaction-capacity-windows-v1", workloadMethodVersion: "transaction-windows-recency-v1" });
       expect(location).toMatchObject({ workloadPolicyVersion: "organisation-v1" });
       // Seven hours at the fixture minimum of 60 minutes, plus three hours for the busy one.
       expect(location.days[0]).toMatchObject({ expectedTransactions: 12, requiredMinutes: 600, regularMinutes: 480, casualGapMinutes: 120 });

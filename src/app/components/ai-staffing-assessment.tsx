@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DataLabel } from "@/app/components/product-ui";
 import { AiFoundLabel, DemoScenarioLabel } from "@/app/components/source-labels";
 import { labourHours, longDate, wholeMoney } from "@/app/components/staffing";
-import { evidenceValue, type EvidenceMetric } from "@/server/intelligence/ai-staffing-contract";
+import { evidenceValue, fillPlaceholders, type EvidenceMetric, type Placeholder } from "@/server/intelligence/ai-staffing-contract";
 import type { AssessmentView } from "@/server/intelligence/ai-staffing";
 
 const CATEGORY: Record<string, string> = {
@@ -32,8 +32,11 @@ const failureText = (code: string | null) => !code ? "it could not be completed"
 const generated = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone }).format(date);
 
 // Location keys in AI text become location names; the model never sees the names.
-function Prose({ text, names }: { text: string; names: Record<string, string> }) {
-  return <>{text.split(/(\[\[L\d+\]\])/g).map((part, i) => { const key = /^\[\[(L\d+)\]\]$/.exec(part)?.[1]; return key ? <strong key={i}>{names[key] ?? "a location"}</strong> : part; })}</>;
+// Placeholders become FairShift's own figures; a text holding a digit the model wrote is never shown.
+function Prose({ text, names, values = {} }: { text: string; names: Record<string, string>; values?: Partial<Record<Placeholder, string>> }) {
+  const filled = fillPlaceholders(text, values);
+  if (filled === null) return <span className="note">(This part of the AI explanation was withheld: it contained a figure FairShift didn’t calculate.)</span>;
+  return <>{filled.split(/(\[\[L\d+\]\])/g).map((part, i) => { const key = /^\[\[(L\d+)\]\]$/.exec(part)?.[1]; return key ? <strong key={i}>{names[key] ?? "a location"}</strong> : part; })}</>;
 }
 
 export type AiPanelProps = {
@@ -100,12 +103,15 @@ export function AiStaffingAssessment({ view, names, configured, action, planHref
     {a.priorities.length ? <ol className="ai-priorities">{a.priorities.map(p => {
       const location = locations.get(p.locationKey)!;
       const href = p.action === "FILL_SHIFTS" ? planHref?.(view.prepared.locationKeys[p.locationKey], p.date) ?? null : null;
+      const gap = evidenceValue(location, p.date, "casualGapMinutes");
+      const values = { location: keyNames[p.locationKey], gap_hours: gap === null ? undefined : labourHours(gap), window: p.window ?? undefined,
+        signal: p.signalRefs.map(ref => signals[view.prepared.signalKeys?.[ref] ?? ""]?.name).filter(Boolean).join(" and ") || undefined };
       return <li key={p.rank} className="ai-priority">
         <p className="ai-priority-heading"><span className={`ai-severity ai-severity-${p.severity.toLowerCase()}`}>{p.severity === "HIGH" ? "High" : p.severity === "MEDIUM" ? "Medium" : "Low"} priority</span> <strong>{keyNames[p.locationKey]}</strong> · {p.date ? longDate(p.date) : "whole week"}{p.window ? ` · short ${p.window}` : ""} · {CATEGORY[p.category]}</p>
-        <p><Prose text={p.reason} names={keyNames} /></p>
+        <p><Prose text={p.reason} names={keyNames} values={values} /></p>
         {p.signalRefs?.length ? <ul className="ai-priority-signals" aria-label="Signals behind this priority">{p.signalRefs.map(ref => { const found = signals[view.prepared.signalKeys?.[ref] ?? ""]; return found ? <li key={ref}><strong>{found.name}</strong> {found.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={found.sourceUrl} title={found.sourceTitle} />}</li> : null; })}</ul> : null}
         <dl className="ai-evidence" aria-label="Calculated evidence">{p.evidence.map(item => { const value = evidenceValue(location, p.date, item.metric)!; return <div key={item.metric}><dt>{METRIC[item.metric]}</dt><dd>{format(item.metric, value, location.currency)}</dd></div>; })}</dl>
-        <p><strong>Recommended: {ACTION[p.action]}.</strong> <Prose text={p.actionNote} names={keyNames} />{href ? <> <Link href={href}>Plan shifts{p.date ? ` for ${longDate(p.date)}` : ""} →</Link></> : null}</p>
+        <p><strong>Recommended: {ACTION[p.action]}.</strong> <Prose text={p.actionNote} names={keyNames} values={values} />{href ? <> <Link href={href}>Plan shifts{p.date ? ` for ${longDate(p.date)}` : ""} →</Link></> : null}</p>
       </li>;
     })}</ol> : <p>The assessment identified no staffing priorities.</p>}
     {a.constraints.length ? <><h3>Evidence limits</h3><ul className="ai-constraints">{a.constraints.map((c, i) => <li key={i}><strong>{CONSTRAINT[c.type]}{c.locationKey ? ` · ${keyNames[c.locationKey]}` : ""}:</strong> <Prose text={c.note} names={keyNames} /></li>)}</ul></> : null}

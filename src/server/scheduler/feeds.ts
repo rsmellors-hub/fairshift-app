@@ -8,6 +8,7 @@ import { advanceOfferRounds } from "@/server/scheduling/shift-suggestions";
 import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
+import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -40,7 +41,7 @@ export const AI_SLOT_TIME_ZONE = "Africa/Johannesburg";
 const SLOT_GRACE_MS = 3 * HOUR;
 export type Slot = { minute: number; timeZone: string; graceMs: number };
 
-export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily" | "demo:booking" | "ai:briefing" | "offers:rounds";
+export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily" | "demo:booking" | "ai:briefing" | "offers:rounds" | "cache:demo";
 export type JobResult = { ok: boolean; code?: string | null; detail?: Record<string, unknown> };
 export type SchedulerDeps = {
   now: () => Date;
@@ -164,7 +165,13 @@ export const JOBS: readonly Job[] = [
         const scopeAt = (locationId: string) => ({ userId: owner.userId, organisationId, locationId, role: "OWNER" as const });
         for (const [kind, locationId] of [["ORGANISATION", sites[0].id] as const, ...sites.map(site => ["LOCATION", site.id] as const)]) {
           try {
-            const result = await generateStaffingAssessment(db, scopeAt(locationId), kind, deps.assessment!, deps.now());
+            let result = await generateStaffingAssessment(db, scopeAt(locationId), kind, deps.assessment!, deps.now());
+            // An answer FairShift's validation rejected gets one immediate second attempt (counted and recorded
+            // like the first); a provider failure waits for the next run.
+            if (result.generated && result.record.status === "FAILED" && result.record.failureCode?.startsWith("VALIDATION_")) {
+              tally.retried = (tally.retried ?? 0) + 1;
+              result = await generateStaffingAssessment(db, scopeAt(locationId), kind, deps.assessment!, deps.now());
+            }
             const key = result.generated ? (result.record.status === "AVAILABLE" ? "generated" : "failed") : "current";
             tally[key] = (tally[key] ?? 0) + 1;
           } catch (error) { tally[error instanceof NoPlanningEvidenceError ? "noEvidence" : "error"] = (tally[error instanceof NoPlanningEvidenceError ? "noEvidence" : "error"] ?? 0) + 1; }
@@ -175,6 +182,20 @@ export const JOBS: readonly Job[] = [
   // FS-OFFER-ORDER-DEC-001: when a first offer round's window closes with places open, round 2 opens.
   { key: "offers:rounds", intervalMs: 5 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => ({ ok: true, detail: await advanceOfferRounds(db, deps.demoOrganisationIds, deps.now()) }) },
+  // Day 6, Step 2: keeps the demo business's planning week warm in this server's cache, so the first
+  // visitor after a restart doesn't wait for months of history to be aggregated. Reads only.
+  { key: "cache:demo", intervalMs: 15 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
+    run: async (db, deps) => {
+      let warmed = 0;
+      for (const organisationId of deps.demoOrganisationIds) {
+        const [owner] = await db.select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.organisationId, organisationId), eq(memberships.role, "OWNER"), eq(memberships.state, "ACTIVE"))).orderBy(asc(memberships.createdAt)).limit(1);
+        const [site] = await db.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.organisationId, organisationId), eq(outlets.active, true))).limit(1);
+        if (!owner || !site) continue;
+        await getWeeklyStaffing(db, { userId: owner.userId, organisationId, locationId: site.id, role: "OWNER", organisationName: "", locationName: "" }, deps.now());
+        warmed++;
+      }
+      return { ok: true, detail: { warmed } };
+    } },
   { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => { const result = await recheckUnreachableSources(db, deps.demoOrganisationIds, deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
   { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
