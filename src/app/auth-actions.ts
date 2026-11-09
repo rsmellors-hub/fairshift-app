@@ -1,4 +1,5 @@
 "use server";
+import { planningChanged } from "@/server/intelligence/planning-cache";
 import { assertSandboxDeployment, assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { randomUUID } from "node:crypto";
@@ -112,7 +113,7 @@ export async function checkSubscriptionStatusAction():Promise<{destination:strin
 }
 export async function createLocationAction(form:FormData) {
  const scope=await requireScope(["OWNER"]);
- try {await createLocation(getDatabase(),scope,{name:field(form,"name")});} catch (error) {
+ try {await createLocation(getDatabase(),scope,{name:field(form,"name")}); planningChanged();} catch (error) {
    const message=error instanceof UserFacingError || error instanceof Error && /plan allows|entitlement needs configuration/.test(error.message) ? (error as Error).message : "The location could not be added.";
    redirect(`/owner/locations?status=${encodeURIComponent(message)}`);
  }

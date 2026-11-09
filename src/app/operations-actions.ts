@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/app/revalidate";
 import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
 import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";

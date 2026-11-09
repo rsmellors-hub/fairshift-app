@@ -4,6 +4,7 @@ import type { DatabaseSession } from "@/server/db/client";
 import { outlets } from "@/server/db/schema";
 import { forecastFromHistory, localDate, LOOKBACK_DAYS, METHOD_VERSION, shiftDate, type DailySales, type SalesForecast, type SalesSource } from "@/server/intelligence/forecast";
 import { loadDailySales, syntheticHistoryAllowed, type DailySalesRow } from "@/server/intelligence/sales-history";
+import { cachedPlanning, planningCacheEnabled } from "@/server/intelligence/planning-cache";
 
 export const SOURCE_RULE_VERSION = "source-eligibility-v4";
 export const PROVIDER_RULE = { minimumDays: 28, minimumPerWeekday: 3, maximumAgeDays: 2 } as const;
@@ -119,7 +120,13 @@ export type OutletWeeklyForecast = {
 
 // Seven-day demand forecast per authorised outlet. No staffing, AI or schedule
 // change happens here; missing evidence yields no forecast rather than zero demand.
+// The demo business's forecast is cached like its planning week (planning-cache.ts).
 export async function getWeeklyForecast(db: DatabaseSession, scope: Scope, now = new Date()) {
+  assertRole(scope, ["OWNER", "MANAGER"]);
+  if (!planningCacheEnabled() || !syntheticHistoryAllowed(scope)) return computeWeeklyForecast(db, scope, now);
+  return cachedPlanning(db, `forecast:${scope.organisationId}:${scope.role === "OWNER" ? "*" : scope.locationId}:${now.toISOString().slice(0, 10)}`, () => computeWeeklyForecast(db, scope, now), now.getTime());
+}
+async function computeWeeklyForecast(db: DatabaseSession, scope: Scope, now: Date) {
   assertRole(scope, ["OWNER", "MANAGER"]);
   const rows = await db.select({ id: outlets.id, name: outlets.name, timezone: outlets.timezone }).from(outlets)
     .where(and(eq(outlets.organisationId, scope.organisationId), eq(outlets.active, true),

@@ -8,6 +8,8 @@ import { SCENARIO_ADJUSTMENT_BPS } from "@/server/intelligence/demand-context-po
 import { commercialContext, consolidateCommercial, type CommercialContext, type WorkRate } from "@/server/intelligence/commerce-labour";
 import { LOOKBACK_DAYS, shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
 import { loadShiftRules, type ShiftRules } from "@/server/scheduling/shift-rules";
+import { cachedPlanning, planningCacheEnabled } from "@/server/intelligence/planning-cache";
+import { isDemoOrganisation } from "@/server/demo/organisation";
 import { loadTransactionSlots, referenceDatasetOf, syntheticHistoryAllowed } from "@/server/intelligence/sales-history";
 import { getWeeklyForecast, type OutletWeeklyForecast } from "@/server/intelligence/weekly";
 import { loadLocalIntelligence, resolveLocalIntelligence, UNAVAILABLE_LOCAL, type LocalApplied, type LocalDay, type OutletLocalIntelligence, type StoredLocalIntelligence } from "@/server/intelligence/local-intelligence-service";
@@ -135,7 +137,13 @@ export function outletStaffing(organisationId: string, forecast: OutletWeeklyFor
 // transactions, required staff capacity, regular and allocated casual coverage, and what
 // remains for casual work. Deterministic and derived on read; nothing is stored, no shift
 // is created and no AI is involved. A failed query rejects rather than reading as zero.
+// The demo business's week is cached between requests while nothing it reads has changed (planning-cache.ts).
 export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now = new Date()) {
+  assertRole(scope, ["OWNER", "MANAGER"]);
+  if (!planningCacheEnabled() || !isDemoOrganisation(scope.organisationId)) return computeWeeklyStaffing(db, scope, now);
+  return cachedPlanning(db, `staffing:${scope.organisationId}:${scope.role === "OWNER" ? "*" : scope.locationId}:${now.toISOString().slice(0, 10)}`, () => computeWeeklyStaffing(db, scope, now), now.getTime());
+}
+async function computeWeeklyStaffing(db: DatabaseSession, scope: Scope, now: Date) {
   assertRole(scope, ["OWNER", "MANAGER"]);
   const weekly = await getWeeklyForecast(db, scope, now);
   const outletIds = weekly.outlets.map(outlet => outlet.outletId);

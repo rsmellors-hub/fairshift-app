@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/app/revalidate";
 import { requireScope } from "@/server/auth/request";
 import { disconnectCommerceConnection } from "@/server/commerce/connections";
 import { connectSquare, getSquareFreshness, refreshSquareSales, squareSandboxCredentials, syncSquare } from "@/server/commerce/square-connection";

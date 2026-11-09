@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/app/revalidate";
 import { z } from "zod";
 import { requireScope } from "@/server/auth/request";
 import { workers } from "@/server/db/schema";

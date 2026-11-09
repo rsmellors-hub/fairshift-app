@@ -9,6 +9,7 @@ import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { planningChanged } from "@/server/intelligence/planning-cache";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -266,6 +267,8 @@ export async function runDueJobs(db: Database, deps: SchedulerDeps, jobs: readon
     const finished = deps.now();
     await db.update(scheduledJobs).set({ leaseUntil: null, lastFinishedAt: finished, ...(result.ok ? { lastSuccessAt: finished, lastFailureCode: null } : { lastFailureCode: result.code ?? "FAILED" }), lastResult: result.detail ?? {} })
       .where(eq(scheduledJobs.job, job.key));
+    // A job may have changed what the planning week reads (planning-cache.ts).
+    planningChanged();
     results.push({ key: job.key, outcome: "RAN", ok: result.ok, code: result.code ?? null });
   }
   return results;

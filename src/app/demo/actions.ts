@@ -6,6 +6,7 @@ import { DEMO_COOKIE, requireScope, SESSION_COOKIE, setSessionCookie } from "@/s
 import { revokeSession } from "@/server/auth/identity";
 import { getDatabase } from "@/server/db/client";
 import { DEMO_HOME, demoConfig } from "@/server/demo/config";
+import { planningChanged } from "@/server/intelligence/planning-cache";
 import { UserFacingError } from "@/server/domain/errors";
 import { resetDemo } from "@/server/demo/fixtures";
 import { enterDemo, switchDemoPersona } from "@/server/demo/session";
@@ -44,7 +45,7 @@ export async function resetDemoAction() {
   const scope = await requireScope(["OWNER", "MANAGER", "TEAM_MEMBER"], { demoWrite: true });
   const home = scope.demo ? DEMO_HOME[scope.demo.persona] : scope.role === "OWNER" ? "/owner" : scope.role === "MANAGER" ? "/manager" : "/worker";
   let status = "demo-reset";
-  try { await resetDemo(getDatabase(), demoConfig(), scope); }
+  try { await resetDemo(getDatabase(), demoConfig(), scope); planningChanged(); }
   catch (error) { status = error instanceof UserFacingError ? error.feedback : "error"; }
   redirect(`${home}?status=${status}`);
 }
