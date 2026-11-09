@@ -9,7 +9,6 @@ import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
-import { planningChanged } from "@/server/intelligence/planning-cache";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -186,17 +185,7 @@ export const JOBS: readonly Job[] = [
   // Day 6, Step 2: keeps the demo business's planning week warm in this server's cache, so the first
   // visitor after a restart doesn't wait for months of history to be aggregated. Reads only.
   { key: "cache:demo", intervalMs: 15 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
-    run: async (db, deps) => {
-      let warmed = 0;
-      for (const organisationId of deps.demoOrganisationIds) {
-        const [owner] = await db.select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.organisationId, organisationId), eq(memberships.role, "OWNER"), eq(memberships.state, "ACTIVE"))).orderBy(asc(memberships.createdAt)).limit(1);
-        const [site] = await db.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.organisationId, organisationId), eq(outlets.active, true))).limit(1);
-        if (!owner || !site) continue;
-        await getWeeklyStaffing(db, { userId: owner.userId, organisationId, locationId: site.id, role: "OWNER", organisationName: "", locationName: "" }, deps.now());
-        warmed++;
-      }
-      return { ok: true, detail: { warmed } };
-    } },
+    run: async (db, deps) => ({ ok: true, detail: { warmed: await warmDemoPlanning(db, deps.demoOrganisationIds, deps.now()) } }) },
   { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => { const result = await recheckUnreachableSources(db, deps.demoOrganisationIds, deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
   { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
@@ -267,8 +256,6 @@ export async function runDueJobs(db: Database, deps: SchedulerDeps, jobs: readon
     const finished = deps.now();
     await db.update(scheduledJobs).set({ leaseUntil: null, lastFinishedAt: finished, ...(result.ok ? { lastSuccessAt: finished, lastFailureCode: null } : { lastFailureCode: result.code ?? "FAILED" }), lastResult: result.detail ?? {} })
       .where(eq(scheduledJobs.job, job.key));
-    // A job may have changed what the planning week reads (planning-cache.ts).
-    planningChanged();
     results.push({ key: job.key, outcome: "RAN", ok: result.ok, code: result.code ?? null });
   }
   return results;
@@ -281,6 +268,22 @@ export function demoOrganisationIds() {
 export function aiScheduleEnabled(env: Record<string, string | undefined> = process.env) {
   const setting = env.FAIRSHIFT_LOCAL_INTELLIGENCE_SCHEDULE;
   return setting === "on" || (setting !== "off" && deploymentMode() === "HOSTED_SANDBOX_DEMO");
+}
+
+// The demo business's planning week, for the Owner (every location) and for each location's Manager,
+// read once so the planning cache holds it. Reads only.
+export async function warmDemoPlanning(db: Database, organisationIds: readonly string[], now: Date) {
+  let warmed = 0;
+  for (const organisationId of organisationIds) {
+    const [owner] = await db.select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.organisationId, organisationId), eq(memberships.role, "OWNER"), eq(memberships.state, "ACTIVE"))).orderBy(asc(memberships.createdAt)).limit(1);
+    const sites = await db.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.organisationId, organisationId), eq(outlets.active, true))).orderBy(asc(outlets.name));
+    if (!owner || !sites.length) continue;
+    const base = { userId: owner.userId, organisationId, organisationName: "", locationName: "" };
+    await getWeeklyStaffing(db, { ...base, locationId: sites[0].id, role: "OWNER" }, now);
+    warmed++;
+    for (const site of sites) { await getWeeklyStaffing(db, { ...base, locationId: site.id, role: "MANAGER" }, now); warmed++; }
+  }
+  return warmed;
 }
 
 let started = false;
@@ -301,7 +304,13 @@ export function startScheduledFeeds() {
       console.error("Scheduled feeds did not complete; the last good data stands.", { error: error instanceof Error ? error.name : "unknown" });
     } finally { running = false; }
   };
-  void tick();
+  // The planning cache is warmed first, straight away, so the first visitor after a deploy doesn't wait for it;
+  // the scheduled jobs (some with AI calls) follow.
+  void (async () => {
+    try { await warmDemoPlanning(db, demoOrganisationIds(), new Date()); }
+    catch { console.error("The planning cache could not be warmed; pages compute it on first use."); }
+    finally { void tick(); }
+  })();
   setInterval(() => void tick(), TICK_MS).unref();
 }
 

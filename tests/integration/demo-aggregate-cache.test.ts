@@ -26,7 +26,7 @@ describe("demo aggregate cache", () => {
       const first = await loadDailySales(db, b.organisationId, undefined, true);
       const callsAfterFirst = select.mock.calls.length;
       const again = await loadDailySales(db, b.organisationId, undefined, true);
-      expect(again).toEqual(first);
+      expect(again).toBe(first);
       // Only the version probe ran the second time.
       expect(select.mock.calls.length - callsAfterFirst).toBe(1);
       // A new day of history is a new version: read again, and it includes the new rows.
@@ -38,7 +38,8 @@ describe("demo aggregate cache", () => {
       // Slots are cached the same way, keyed by their own range.
       const slots = await loadTransactionSlots(db, b.outletId, "REFERENCE", "ZAR", "2026-12-01", "2026-12-14", b.organisationId);
       const before = select.mock.calls.length;
-      expect(await loadTransactionSlots(db, b.outletId, "REFERENCE", "ZAR", "2026-12-01", "2026-12-14", b.organisationId)).toEqual(slots);
+      // The same result, not the same query run again (a query builder would re-run on each await).
+      expect(await loadTransactionSlots(db, b.outletId, "REFERENCE", "ZAR", "2026-12-01", "2026-12-14", b.organisationId)).toBe(slots);
       expect(select.mock.calls.length - before).toBe(1);
       // Without demo authority nothing is cached: every call reads the database.
       const plain = select.mock.calls.length;

@@ -50,8 +50,8 @@ export const loadDailySales = cache(async function loadDailySales(db: DatabaseSe
 
 // The demo business's aggregates, kept between requests (Day 6, Step 2): its history is synthetic
 // and changes only when rows are added or removed, so a result is reused while every location's newest
-// row and row count are unchanged, for at most thirty minutes (the scheduler keeps it warm: job cache:demo). Kept per database connection, so separate databases never share.
-const DEMO_AGGREGATE_TTL_MS = 30 * 60_000;
+// row and row count are unchanged, for at most six hours. Kept per database connection, so separate databases never share.
+const DEMO_AGGREGATE_TTL_MS = 6 * 60 * 60_000;
 const demoAggregates = new WeakMap<object, Map<string, { version: string; at: number; value: Promise<unknown> }>>();
 async function historyVersion(db: DatabaseSession, organisationId: string, outletIds: readonly string[] | null) {
   const rows = await db.select({ id: outlets.id, newest: sql<string | null>`(select max(st.created_at)::text || ':' || count(*) from sale_transactions st where st.outlet_id = "outlets"."id")` })
@@ -91,12 +91,13 @@ export async function loadTransactionSlots(db: DatabaseSession, outletId: string
   if (demoOrganisationId && (source === "REFERENCE" || source === "DEMO_SEEDED")) return demoAggregate(db, demoOrganisationId, [outletId], `slots:${outletId}:${source}:${currency}:${from}:${through}`, () => querySlots(db, outletId, source, currency, from, through));
   return querySlots(db, outletId, source, currency, from, through);
 }
-function querySlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
+// Async on purpose: a query builder runs again each time it is awaited, so the cache must hold a promise.
+async function querySlots(db: DatabaseSession, outletId: string, source: SalesSource, currency: string, from: string, through: string): Promise<{ date: string; minute: number; transactions: number; salesMinor: number }[]> {
   const known = sql`coalesce(${saleTransactions.occurredAt}, ${saleTransactions.providerCreatedAt})`;
   const local = sql`(${known} at time zone ${outlets.timezone})`;
   const date = sql<string>`to_char(${local}, 'YYYY-MM-DD')`;
   const minute = sql<number>`(extract(hour from ${local})::int * 60 + floor(extract(minute from ${local}) / 15)::int * 15)`.mapWith(Number);
-  return db.select({ date, minute,
+  return await db.select({ date, minute,
     transactions: sql<number>`count(*)`.mapWith(Number), salesMinor: sql<number>`sum(${saleTransactions.grossAmountMinor})`.mapWith(Number),
   }).from(saleTransactions).innerJoin(outlets, eq(saleTransactions.outletId, outlets.id))
     .where(and(eq(outlets.id, outletId), eq(saleTransactions.source, source), eq(saleTransactions.currencyCode, currency), sql`${known} is not null`, eligibleSale,
@@ -105,7 +106,11 @@ function querySlots(db: DatabaseSession, outletId: string, source: SalesSource, 
 }
 
 // Which generated dataset a location's reference history came from, if any.
-export async function referenceDatasetOf(db: DatabaseSession, outletId: string): Promise<string | null> {
+export async function referenceDatasetOf(db: DatabaseSession, outletId: string, demoOrganisationId?: string | null): Promise<string | null> {
+  if (demoOrganisationId) return demoAggregate(db, demoOrganisationId, [outletId], `dataset:${outletId}`, () => queryReferenceDataset(db, outletId));
+  return queryReferenceDataset(db, outletId);
+}
+async function queryReferenceDataset(db: DatabaseSession, outletId: string): Promise<string | null> {
   const [row] = await db.select({ dataset: saleTransactions.sourceSystem }).from(saleTransactions)
     .where(and(eq(saleTransactions.outletId, outletId), eq(saleTransactions.source, "REFERENCE"))).limit(1);
   return row?.dataset ?? null;

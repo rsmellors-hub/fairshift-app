@@ -185,7 +185,7 @@ async function computeWeeklyStaffing(db: DatabaseSession, scope: Scope, now: Dat
     const selected = outlet.selection.status === "SELECTED" ? outlet.selection : null;
     const [slots, dataset] = await Promise.all([
       selected ? loadTransactionSlots(db, outlet.outletId, selected.source, selected.currency, shiftDate(selected.dataThrough, -(LOOKBACK_DAYS - 1)), selected.dataThrough, demoOrganisationId) : Promise.resolve([]),
-      selected?.source === "REFERENCE" ? referenceDatasetOf(db, outlet.outletId) : Promise.resolve(null),
+      selected?.source === "REFERENCE" ? referenceDatasetOf(db, outlet.outletId, demoOrganisationId) : Promise.resolve(null),
     ]);
     return { slots, dataset };
   }));

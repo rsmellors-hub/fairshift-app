@@ -46,9 +46,9 @@ describe("planning cache", () => {
       const recalculated = await getWeeklyStaffing(db, scope, new Date(NOW.getTime() + 2_000));
       expect(recalculated).not.toBe(first);
       expect(recalculated.outlets[0].days).toEqual(first.outlets[0].days);
-      // After a minute the cached week is served at once, and recalculated behind it.
+      // After five minutes the cached week is served at once, and recalculated behind it.
       const before = select.mock.calls.length;
-      const stale = await getWeeklyStaffing(db, scope, new Date(NOW.getTime() + 2_000 + 61_000));
+      const stale = await getWeeklyStaffing(db, scope, new Date(NOW.getTime() + 2_000 + 5 * 60_000 + 1_000));
       expect(stale).toBe(recalculated);
       await vi.waitFor(() => expect(select.mock.calls.length).toBeGreaterThan(before));
       // Another database never sees this one's week.

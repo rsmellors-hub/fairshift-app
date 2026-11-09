@@ -4,14 +4,15 @@ import type { DatabaseSession } from "@/server/db/client";
 // The demo business's computed planning week, kept between requests (Day 6, Step 2). Hosted runs on a very
 // small database, and the week is ~35 queries and months of history, so each page would otherwise take
 // seconds. A cached week is reused while nothing it reads has changed:
-//  - every server action and scheduler job in this process bumps a generation (writes made here show at
-//    once, for the person who made them), and
+//  - every server action in this process bumps a generation (writes made here show at once, for the
+//    person who made them), and
 //  - Postgres's own counters of inserted, updated and deleted rows on the planning tables catch writes from
-//    anywhere else (another process or a script), within about a second.
-// After a minute an unchanged week is served while it is recalculated in the background; after five
-// minutes it is recalculated before it is served. Only the demo business is cached (the caller decides).
+//    anywhere else (the scheduler, another process or a script), within seconds.
+// After five minutes an unchanged week is served while it is recalculated in the background; after an hour
+// it is recalculated before it is served. The scheduler warms it on server start. Only the demo business
+// is cached (the caller decides).
 
-const STALE_MS = 60_000, MAX_AGE_MS = 5 * 60_000;
+const STALE_MS = 5 * 60_000, MAX_AGE_MS = 60 * 60_000;
 const PLANNING_TABLES = ["sale_transactions", "outlets", "shifts", "shift_offers", "work_allocations", "work_policies", "workload_policies", "outlet_trading_hours", "regular_coverage_windows",
   "demand_context_signals", "demand_context_feeds", "demand_context_proposals", "demand_context_decisions", "external_feeds", "local_intelligence_runs", "local_intelligence_signals",
   "local_intelligence_decisions", "local_intelligence_signal_decisions", "local_intelligence_outcomes", "location_shift_rules", "offer_rounds"] as const;
