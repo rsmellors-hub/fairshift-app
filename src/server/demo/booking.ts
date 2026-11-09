@@ -1,6 +1,7 @@
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/server/db/client";
-import { departments, shiftOffers, shifts, workAllocations, workers, workPolicies } from "@/server/db/schema";
+import { randomUUID } from "node:crypto";
+import { auditEvents, departments, shiftOffers, shifts, workAllocations, workers, workPolicies } from "@/server/db/schema";
 import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 import { SA_REFERENCE_DATASET, SA_REFERENCE_ORGANISATION, saReferenceLocation } from "@/server/reference/sa-reference";
 import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
@@ -23,18 +24,30 @@ export function isSyntheticEmail(email: string | null | undefined) {
 
 export type DemoBooking = { shiftId: string; offerId: string; workerId: string; date: string; created: boolean };
 
-export async function ensureDemoBooking(db: Database, input: { organisationId: string; workerId?: string | null; now?: Date }): Promise<DemoBooking | null> {
+// Two ways in. Keeping (demo setup, the hourly scheduler, entering the demo): a booking is made only
+// when tomorrow at Rosebank has no shift at all and no demo booking was ever made for that date, so
+// whatever happened to it (an early notice sent, a cancellation, a judge's own shift) stands until
+// Reset demo. Rebuilding (Reset demo only, after it has closed live shifts): a fresh booking is made
+// when no live one exists. Either way nothing is notified: the booking goes through the scheduling
+// operations, which send no messages, and an early notice is only ever sent by an Owner.
+export async function ensureDemoBooking(db: Database, input: { organisationId: string; workerId?: string | null; now?: Date; rebuild?: boolean }): Promise<DemoBooking | null> {
   if (input.organisationId !== SA_REFERENCE_ORGANISATION.id) return null;
   const now = input.now ?? new Date(), timezone = SA_REFERENCE_DATASET.timezone;
   const rosebank = saReferenceLocation(DEMO_SCENARIO_LOCATION).id, site = { organisationId: input.organisationId, locationId: rosebank };
   const date = shiftDate(localDate(now, timezone), 1), dayStart = startOfLocalDay(date, timezone).getTime();
   return db.transaction(async tx => {
-    // One booking per day, however many demo setups or resets run at once.
+    // One booking per day, however many demo setups, resets and scheduler passes run at once.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`demo-booking:${input.organisationId}`}))`);
     const [booked] = await tx.select({ shiftId: shifts.id, offerId: shiftOffers.id, workerId: shiftOffers.workerId })
       .from(workAllocations).innerJoin(shiftOffers, eq(shiftOffers.id, workAllocations.offerId)).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId)).innerJoin(workers, eq(workers.id, shiftOffers.workerId))
       .where(and(eq(shifts.outletId, rosebank), eq(shifts.shiftDate, date), eq(shifts.status, "PUBLISHED"), eq(shiftOffers.status, "ACCEPTED"), eq(workAllocations.state, "ALLOCATED"), eq(workers.workerType, "CASUAL"))).limit(1);
     if (booked) return { ...booked, date, created: false };
+    if (!input.rebuild) {
+      const [anyShift] = await tx.select({ id: shifts.id }).from(shifts).where(and(eq(shifts.outletId, rosebank), eq(shifts.shiftDate, date))).limit(1);
+      const [madeBefore] = await tx.select({ id: auditEvents.id }).from(auditEvents)
+        .where(and(eq(auditEvents.organisationId, input.organisationId), eq(auditEvents.action, "DEMO_BOOKING_CREATED"), sql`${auditEvents.metadata}->>'date' = ${date}`)).limit(1);
+      if (anyShift || madeBefore) return null;
+    }
     const casuals = (await tx.select({ id: workers.id, email: workers.email }).from(workers)
       .where(and(eq(workers.organisationId, input.organisationId), eq(workers.locationId, rosebank), eq(workers.workerType, "CASUAL"), eq(workers.status, "ACTIVE"), isNotNull(workers.userId))).orderBy(asc(workers.id)))
       .filter(row => isSyntheticEmail(row.email));
@@ -52,6 +65,8 @@ export async function ensureDemoBooking(db: Database, input: { organisationId: s
     const offer = await offerAssignment(session, shift.id, worker.id, site);
     await respondToAssignment(session, worker.id, offer.id, shift.termsVersion, "ACCEPTED", true, site);
     await allocateAssignment(session, offer.id, site);
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: input.organisationId, outletId: rosebank, action: "DEMO_BOOKING_CREATED", entityType: "shift", entityId: shift.id,
+      correlationId: `demo-booking:${date}`, metadata: { date, offerId: offer.id, workerId: worker.id, rebuild: !!input.rebuild } });
     return { shiftId: shift.id, offerId: offer.id, workerId: worker.id, date, created: true };
   });
 }

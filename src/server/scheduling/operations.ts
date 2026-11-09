@@ -164,7 +164,9 @@ async function eligible(db: DatabaseSession, workerId: string, shift: typeof shi
   if (!isOfferable(state)) throw new Error("Team member unavailable at this location.");
   return worker;
 }
-export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope) {
+// options.round: an offer in a fair-offer-order round (FS-OFFER-ORDER-DEC-001), where every eligible worker
+// in the round is offered and the earliest acceptances fill the places; otherwise offers stop at headcount.
+export async function offerAssignment(db: Database, shiftId: string, workerId: string, scope:OperatingScope, options: { round?: boolean } = {}) {
   return db.transaction(async (tx) => {
     const shift = await scopedShift(tx, shiftId, scope);
     await assertWageAllowsOffer(tx, await location(tx, scope), { ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) });
@@ -172,7 +174,9 @@ export async function offerAssignment(db: Database, shiftId: string, workerId: s
     // Capacity / over-invitation policy is unresolved: do not create offers beyond headcount.
     const existing = await tx.select().from(shiftOffers).where(eq(shiftOffers.shiftId, shift.id));
     if (existing.some((o) => o.workerId === workerId)) throw new UserFacingError("already-offered", "An offer already exists for this member.");
-    if (existing.filter((o) => ["OFFERED", "ACCEPTED"].includes(o.status)).length >= shift.requiredHeadcount) throw new Error("Requirement has no unoffered places. Capacity policy requires review.");
+    const accepted = existing.filter((o) => o.status === "ACCEPTED").length;
+    if (accepted >= shift.requiredHeadcount) throw new UserFacingError("shift-filled", "This shift has been filled.");
+    if (!options.round && existing.filter((o) => ["OFFERED", "ACCEPTED"].includes(o.status)).length >= shift.requiredHeadcount) throw new Error("Requirement has no unoffered places. Capacity policy requires review.");
     const [offer] = await tx.insert(shiftOffers).values({ id: randomUUID(), shiftId, workerId }).returning();
     return offer;
   });
@@ -189,6 +193,9 @@ export async function respondToAssignment(db: Database, workerId: string, offerI
     if (offer.status === response) return offer;
     if (offer.status !== "OFFERED") throw new Error("Offer is closed.");
     const now = new Date();
+    // The earliest acceptances fill the places; once they're filled, the shift is closed to the rest.
+    const acceptedBefore = response === "ACCEPTED" ? (await tx.select({ id: shiftOffers.id }).from(shiftOffers).where(and(eq(shiftOffers.shiftId, shift.id), eq(shiftOffers.status, "ACCEPTED")))).length : 0;
+    if (response === "ACCEPTED" && acceptedBefore >= shift.requiredHeadcount) throw new UserFacingError("shift-filled", "This shift has been filled.");
     if (response === "ACCEPTED") {
       const [department] = shift.departmentId ? await tx.select().from(departments).where(eq(departments.id, shift.departmentId)) : [];
       const snapshot = { authUserId: worker.userId, workerId, workerName: worker.displayName, offerId, assignmentId: shift.id, locationId: scope.locationId, locationName: (await location(tx, scope)).name,
@@ -201,6 +208,8 @@ export async function respondToAssignment(db: Database, workerId: string, offerI
       await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "SHIFT_ACCEPTED", entityType: "shift_offer", entityId: offerId, correlationId: `demo-cycle:${shift.id}`, metadata: { workerId, shiftId: shift.id, termsVersion: version } });
     }
     const [updated] = await tx.update(shiftOffers).set({ status: response, respondedAt: now, acceptedAt: response === "ACCEPTED" ? now : null, updatedAt: now }).where(eq(shiftOffers.id, offerId)).returning();
+    if (response === "ACCEPTED" && acceptedBefore + 1 >= shift.requiredHeadcount)
+      await tx.update(shiftOffers).set({ status: "CANCELLED", respondedAt: now, updatedAt: now }).where(and(eq(shiftOffers.shiftId, shift.id), eq(shiftOffers.status, "OFFERED")));
     return updated;
   });
 }

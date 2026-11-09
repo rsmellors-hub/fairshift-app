@@ -79,8 +79,8 @@ function fakeProvider() {
     const first = input.rankedGapDays[0];
     const location = input.locations.find(row => row.key === first.locationKey)!;
     return { responseId: "resp", responseModel: "test-model", text: JSON.stringify({ schemaVersion: AI_OUTPUT_SCHEMA_VERSION, summary: `Pressure is highest at [[${first.locationKey}]].`,
-      priorities: [{ rank: 1, locationKey: first.locationKey, date: first.date, severity: "HIGH", category: "CASUAL_GAP", reason: "This day has the largest gap.", evidence: [{ metric: "casualGapMinutes", value: first.casualGapMinutes }], action: "FILL_SHIFTS", actionNote: "Plan this day first." }],
-      constraints: [], signalCommentary: `Evidence is ${location.evidence?.synthetic ? "synthetic" : "imported"}.`, commercialImplication: "Demand and cost are in proportion." }) };
+      priorities: [{ rank: 1, locationKey: first.locationKey, date: first.date, severity: "HIGH", category: "CASUAL_GAP", reason: "This day has the largest gap.", evidence: [{ metric: "casualGapMinutes", value: first.casualGapMinutes }], action: "FILL_SHIFTS", actionNote: "Plan this day first.", window: null, signalRefs: [] }],
+      constraints: [], signalCommentary: `Evidence is ${location.evidence?.synthetic ? "synthetic" : "imported"}.`, commercialImplication: "Demand and cost are in proportion.", suggestionOrder: [] }) };
   });
   return { provider: "OPENAI" as const, model: "test-model", assess } as StaffingAssessmentProvider & { assess: typeof assess };
 }

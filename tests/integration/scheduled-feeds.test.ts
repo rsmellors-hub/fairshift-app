@@ -57,7 +57,7 @@ describe("scheduled feeds", () => {
     let opened = await createTestDatabase(dir);
     const { organisationId, withCoordinates } = await demoBusiness(opened.db);
     const first = feeds();
-    expect(outcomes(await runDueJobs(opened.db, deps(organisationId, T0, first.fetchImpl)))).toEqual({ "holidays:ZA": "RAN_OK", "ecb:daily": "RAN_OK", "weather:demo": "RAN_OK", "intel:recheck": "RAN_OK", "intel:daily": "DISABLED", "intel:disruptions": "DISABLED", "track:daily": "RAN_OK" });
+    expect(outcomes(await runDueJobs(opened.db, deps(organisationId, T0, first.fetchImpl)))).toEqual({ "holidays:ZA": "RAN_OK", "ecb:daily": "RAN_OK", "weather:demo": "RAN_OK", "intel:recheck": "RAN_OK", "intel:daily": "DISABLED", "intel:disruptions": "DISABLED", "track:daily": "RAN_OK", "demo:booking": "RAN_OK", "ai:briefing": "DISABLED", "offers:rounds": "RAN_OK" });
     expect((await opened.db.select().from(fxReferenceRates))[0]).toMatchObject({ rateDate: "2026-11-06", source: "ECB_EUROFXREF_DAILY" });
     expect((await opened.db.select().from(demandContextFeeds).where(eq(demandContextFeeds.outletId, withCoordinates)))[0]).toMatchObject({ feed: "WEATHER", lastSuccessAt: T0 });
     expect((await opened.db.select().from(externalFeeds)).map(row => row.feed).sort()).toEqual(["ECB_EUROFXREF", "HOLIDAYS:ZA"]);

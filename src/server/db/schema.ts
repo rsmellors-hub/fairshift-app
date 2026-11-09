@@ -298,6 +298,8 @@ export const workers = pgTable(
     locationId: uuid("location_id").references(() => outlets.id),
     attributionCode: text("attribution_code").notNull().default(sql`'FS-' || upper(replace(gen_random_uuid()::text, '-', ''))`),
     paypalPayoutEmail: text("paypal_payout_email"),
+    // FS-OFFER-ORDER-DEC-001: a preference the worker sets; no reason is collected.
+    wantsMoreHours: boolean("wants_more_hours").notNull().default(false),
     workerType: text("worker_type").notNull(),
     status: text("status").notNull().default("ACTIVE"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1138,6 +1140,8 @@ export const payAgentEvents = pgTable("pay_agent_events", {
   decision: text("decision"),
   reasonCode: text("reason_code"),
   summary: text("summary"),
+  // The model's verdict on each check (Day 6, Step 1g): {hours, overlap, timing, records}: OK | CONCERN.
+  checks: jsonb("checks"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   dryRun: boolean("dry_run"),
   payoutId: uuid("payout_id").references(() => workPayouts.id, { onDelete: "restrict" }),
@@ -1163,7 +1167,7 @@ export const payAgentEvents = pgTable("pay_agent_events", {
   check("pay_agent_events_codes_check", sql`coalesce(char_length(${t.outcomeCode}), 0) <= 64 and coalesce(char_length(${t.errorClass}), 0) <= 64 and coalesce(char_length(${t.responseId}), 0) <= 200 and coalesce(char_length(${t.configuredModel}), 0) <= 100 and coalesce(char_length(${t.responseModel}), 0) <= 100`),
   check("pay_agent_events_decision_check", sql`(${t.decision} is null and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is null)
     or (${t.decision} = 'SETTLE' and ${t.reasonCode} is null and ${t.summary} is null and ${t.decidedAt} is not null)
-    or (${t.decision} = 'HOLD' and ${t.reasonCode} in ('HOURS_MISMATCH', 'INCOMPLETE_EVIDENCE', 'CONFIRMATION_DELAY', 'CONFLICTING_RECORDS') and char_length(${t.summary}) between 1 and 200 and ${t.decidedAt} is not null)`),
+    or (${t.decision} = 'HOLD' and ${t.reasonCode} in ('HOURS_MISMATCH', 'INCOMPLETE_EVIDENCE', 'CONFIRMATION_DELAY', 'CONFLICTING_RECORDS', 'OVERLAPPING_WORK') and char_length(${t.summary}) between 1 and 200 and ${t.decidedAt} is not null)`),
   check("pay_agent_events_decided_status_check", sql`(${t.status} not in ('DECIDED_HOLD', 'HOLD_RELEASED', 'HOLD_REJECTED') or ${t.decision} = 'HOLD') and (${t.status} <> 'DECIDED_SETTLE' or ${t.decision} = 'SETTLE')`),
   check("pay_agent_events_resolution_check", sql`(${t.resolution} is null and ${t.resolvedBy} is null and ${t.resolvedAt} is null and ${t.resolutionNote} is null)
     or (${t.resolution} = 'RELEASED' and ${t.decision} = 'HOLD' and ${t.resolvedBy} is not null and ${t.resolvedAt} is not null and coalesce(char_length(${t.resolutionNote}), 0) <= 500)
@@ -1612,6 +1616,25 @@ export const localIntelligenceDecisions = pgTable("local_intelligence_decisions"
   check("local_intelligence_decisions_fingerprint_check", sql`${t.adjustmentFingerprint} ~ '^[0-9a-f]{64}$'`),
 ]);
 
+// A person's choice to set one AI-found demand signal aside (or bring it back), append-only. The latest
+// row for a location and signal key stands. A dismissed signal moves no demand; the day's adjustments are
+// worked out again without it, so an earlier acceptance of that day no longer matches.
+export const localIntelligenceSignalDecisions = pgTable("local_intelligence_signal_decisions", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  signalKey: text("signal_key").notNull(),
+  signalId: uuid("signal_id").notNull().references(() => localIntelligenceSignals.id, { onDelete: "restrict" }),
+  action: text("action").notNull(),
+  decidedBy: uuid("decided_by").notNull().references(() => users.id),
+  decidedByRole: text("decided_by_role").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("local_intelligence_signal_decisions_scope_idx").on(t.organisationId, t.outletId, t.signalKey, t.decidedAt),
+  check("local_intelligence_signal_decisions_action_check", sql`${t.action} in ('DISMISSED', 'RESTORED')`),
+  check("local_intelligence_signal_decisions_role_check", sql`${t.decidedByRole} in ('OWNER', 'MANAGER')`),
+]);
+
 // The AI signal track record: one accepted demand signal on one completed day, its predicted direction
 // against what happened in the hours it covered. Here measured against synthetic reference history,
 // which has no real-world events in it. Rows are evidence: never edited or deleted.
@@ -1663,3 +1686,63 @@ export const schema = {
   auditEvents,
   payAgentEvents,
 };
+
+// A location's shift-length rules and offer-round window (Owner decisions, 9 November 2026), as dated
+// versions: the latest stands, earlier ones stay as the record. Suggested shifts are cut from the
+// casual gap with these; the first offer round closes after firstRoundMinutes, or firstRoundCutoffMinutes
+// before the shift starts if that is sooner. No default: a location without rules gets no suggestions.
+export const locationShiftRules = pgTable("location_shift_rules", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  minMinutes: integer("min_minutes").notNull(),
+  maxMinutes: integer("max_minutes").notNull(),
+  preferredMinutes: integer("preferred_minutes").notNull(),
+  firstRoundMinutes: integer("first_round_minutes").notNull(),
+  firstRoundCutoffMinutes: integer("first_round_cutoff_minutes").notNull(),
+  source: text("source").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("location_shift_rules_scope_idx").on(t.organisationId, t.outletId, t.createdAt),
+  check("location_shift_rules_lengths_check", sql`${t.minMinutes} >= 60 and ${t.minMinutes} <= ${t.preferredMinutes} and ${t.preferredMinutes} <= ${t.maxMinutes} and ${t.maxMinutes} <= 960 and ${t.minMinutes} % 15 = 0 and ${t.maxMinutes} % 15 = 0 and ${t.preferredMinutes} % 15 = 0`),
+  check("location_shift_rules_round_check", sql`${t.firstRoundMinutes} >= 0 and ${t.firstRoundCutoffMinutes} >= 0`),
+  check("location_shift_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED')`),
+]);
+
+// A business's guaranteed-hours alert (FS-PATHWAY-DEC-001; Owner decision, 9 November 2026): the Owner is
+// alerted when a casual worker averages weeklyThresholdMinutes or more over referenceWeeks. FairShift only
+// alerts. The same figure orders the first offer round: fewest hours left to it first. Dated versions.
+export const organisationHoursRules = pgTable("organisation_hours_rules", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  weeklyThresholdMinutes: integer("weekly_threshold_minutes").notNull(),
+  referenceWeeks: integer("reference_weeks").notNull(),
+  source: text("source").notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("organisation_hours_rules_scope_idx").on(t.organisationId, t.createdAt),
+  check("organisation_hours_rules_values_check", sql`${t.weeklyThresholdMinutes} > 0 and ${t.weeklyThresholdMinutes} <= 4800 and ${t.referenceWeeks} between 1 and 52`),
+  check("organisation_hours_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED')`),
+]);
+
+// One offer round for a shift (FS-OFFER-ORDER-DEC-001): who it went to, why, and until when. Round 1 goes
+// to eligible workers who want more hours, fewest hours left to the threshold first; round 2 to every
+// other eligible worker at the location, open until the shift is filled. A record: never edited.
+export const offerRounds = pgTable("offer_rounds", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  shiftId: uuid("shift_id").notNull().references(() => shifts.id, { onDelete: "restrict" }),
+  round: integer("round").notNull(),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+  closesAt: timestamp("closes_at", { withTimezone: true }),
+  criteria: text("criteria").notNull(),
+  offers: jsonb("offers").notNull(),
+  openedBy: uuid("opened_by").references(() => users.id),
+}, t => [
+  uniqueIndex("offer_rounds_shift_round_unique").on(t.shiftId, t.round),
+  index("offer_rounds_scope_idx").on(t.organisationId, t.outletId, t.openedAt),
+  check("offer_rounds_round_check", sql`${t.round} in (1, 2)`),
+]);

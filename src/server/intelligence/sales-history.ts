@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Scope } from "@/server/auth/access";
-import { demoConfig } from "@/server/demo/config";
+import { isDemoOrganisation } from "@/server/demo/organisation";
 import type { DatabaseSession } from "@/server/db/client";
 import { outlets, saleTransactions } from "@/server/db/schema";
 import type { SalesSource } from "@/server/intelligence/forecast";
@@ -31,10 +31,11 @@ const eligibleSale = sql`(
 
 export type DailySalesRow = { outletId: string; source: SalesSource; currency: string; date: string; salesMinor: number; transactions: number };
 
-// Synthetic history is readable only in a server-issued demo persona for the
-// explicitly configured demo organisation. Rows alone never grant demo access.
+// Synthetic history is readable only for the organisation the server configures as the
+// demonstration (public demo or Sandbox organisation), whether the visitor is a public demo
+// persona or a signed-in account of that business. Rows alone never grant demo access.
 export function syntheticHistoryAllowed(scope: Pick<Scope, "organisationId"> & Partial<Pick<Scope, "demo">>) {
-  return !!scope.demo && demoConfig()?.organisationId === scope.organisationId;
+  return isDemoOrganisation(scope.organisationId);
 }
 
 // Eligible daily totals per outlet, source and currency for one organisation,

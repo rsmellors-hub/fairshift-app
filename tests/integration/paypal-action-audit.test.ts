@@ -32,7 +32,7 @@ const rows = (db: Db, action: string) => db.select().from(auditEvents).where(eq(
 const meta = (row: Row) => row.metadata as Record<string, unknown>;
 const DEMO_GROUP = "7d1f0c9e-0b5a-4c55-9a43-5f1f5a7a2b10";
 const publicDemo = (scope: Scope): Scope => ({ ...scope, demo: { persona: scope.role, group: DEMO_GROUP } } as Scope);
-const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended." });
+const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended.", checks: { hours: "OK", overlap: "OK", timing: "CONCERN", records: "OK" } });
 const expectTimed = (list: Row[]) => { for (const row of list) expect(row.createdAt).toBeInstanceOf(Date); };
 
 describe("audit of actions that can lead to a PayPal call", () => {
@@ -49,19 +49,22 @@ describe("audit of actions that can lead to a PayPal call", () => {
 
       // A public demo visitor is refused, and recorded as a public demo session.
       await expect(preparePayAgentRetry(t.db, publicDemo(manager), payableId)).rejects.toThrow("Access denied");
-      await expect(releasePayAgentHold(t.db, publicDemo(manager), eventId)).rejects.toThrow("Access denied");
+      await expect(releasePayAgentHold(t.db, publicDemo(manager), eventId, "Checked with the worker: the hours were right.")).rejects.toThrow("Access denied");
       // A held payment can't be retried; a manager can't release a hold on their own work; a rejection needs a reason.
       await expect(preparePayAgentRetry(t.db, manager, payableId)).rejects.toMatchObject({ feedback: "pay-agent-hold-pending" });
-      const selfManager: Scope = { ...manager, userId: work.workerScope.userId };
-      await expect(releasePayAgentHold(t.db, selfManager, eventId)).rejects.toMatchObject({ feedback: "pay-agent-own-work" });
-      await expect(rejectPayAgentHold(t.db, manager, eventId, "  ")).rejects.toMatchObject({ feedback: "pay-agent-reject-reason" });
-      const releaser: Scope = { ...manager, userId: await testUser(t.db) };
-      await releasePayAgentHold(t.db, releaser, eventId);
-      await expect(rejectPayAgentHold(t.db, manager, eventId, "Hours not worked.")).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
+      // Held payments are the Owner's to decide (Day 6); one on the Owner's own work goes to someone else.
+      const selfManager: Scope = { ...manager, role: "OWNER", userId: work.workerScope.userId };
+      await expect(releasePayAgentHold(t.db, selfManager, eventId, "Checked with the worker: the hours were right.")).rejects.toMatchObject({ feedback: "pay-agent-own-work" });
+      await expect(rejectPayAgentHold(t.db, manager, eventId, "Hours not worked.")).rejects.toMatchObject({ feedback: "pay-agent-owner-decides" });
+      await expect(rejectPayAgentHold(t.db, { ...manager, role: "OWNER" }, eventId, "  ")).rejects.toMatchObject({ feedback: "pay-agent-reject-reason" });
+      const releaser: Scope = { ...manager, role: "OWNER", userId: await testUser(t.db) };
+      await releasePayAgentHold(t.db, releaser, eventId, "Checked with the worker: the hours were right.");
+      await expect(rejectPayAgentHold(t.db, { ...manager, role: "OWNER" }, eventId, "Hours not worked.")).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
       // A form value that isn't an ID is refused and never stored.
-      await expect(releasePayAgentHold(t.db, manager, "not-an-id")).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
+      await expect(releasePayAgentHold(t.db, { ...manager, role: "OWNER" }, "not-an-id", "Checked with the worker: the hours were right.")).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
 
       const signedIn = { actorRole: "MANAGER", sessionType: "SIGNED_IN" };
+      const ownerSignedIn = { actorRole: "OWNER", sessionType: "SIGNED_IN" };
       const retries = await rows(t.db, "PAY_AGENT_RETRY_REQUESTED");
       expect(retries.map(meta)).toEqual([
         expect.objectContaining({ actorUserId: manager.userId, actorRole: "MANAGER", sessionType: "PUBLIC_DEMO", demoGroup: DEMO_GROUP, outcome: "REFUSED:access-denied", payableId }),
@@ -72,20 +75,21 @@ describe("audit of actions that can lead to a PayPal call", () => {
       const releases = await rows(t.db, "PAY_AGENT_HOLD_RELEASE_REQUESTED");
       expect(releases.map(meta)).toEqual([
         expect.objectContaining({ actorUserId: manager.userId, actorRole: "MANAGER", sessionType: "PUBLIC_DEMO", outcome: "REFUSED:access-denied" }),
-        expect.objectContaining({ actorUserId: selfManager.userId, ...signedIn, outcome: "REFUSED:pay-agent-own-work", payableId }),
-        expect.objectContaining({ actorUserId: releaser.userId, ...signedIn, outcome: "RELEASED", payableId }),
-        expect.objectContaining({ actorUserId: manager.userId, ...signedIn, outcome: "REFUSED:pay-agent-hold-unavailable", payableId: null }),
+        expect.objectContaining({ actorUserId: selfManager.userId, ...ownerSignedIn, outcome: "REFUSED:pay-agent-own-work", payableId }),
+        expect.objectContaining({ actorUserId: releaser.userId, ...ownerSignedIn, outcome: "RELEASED", payableId }),
+        expect.objectContaining({ actorUserId: manager.userId, ...ownerSignedIn, outcome: "REFUSED:pay-agent-hold-unavailable", payableId: null }),
       ]);
       expect(releases[2]).toMatchObject({ entityId: eventId, correlationId: `payable:${payableId}` });
       expect(releases[3]).toMatchObject({ entityId: null, correlationId: `pay-agent-control:${manager.userId}` });
 
       const rejections = await rows(t.db, "PAY_AGENT_HOLD_REJECT_REQUESTED");
       expect(rejections.map(meta)).toEqual([
-        expect.objectContaining({ actorUserId: manager.userId, ...signedIn, outcome: "REFUSED:pay-agent-reject-reason" }),
-        expect.objectContaining({ actorUserId: manager.userId, ...signedIn, outcome: "REFUSED:pay-agent-hold-unavailable" }),
+        expect.objectContaining({ actorUserId: manager.userId, ...signedIn, outcome: "REFUSED:pay-agent-owner-decides" }),
+        expect.objectContaining({ actorUserId: manager.userId, ...ownerSignedIn, outcome: "REFUSED:pay-agent-reject-reason" }),
+        expect.objectContaining({ actorUserId: manager.userId, ...ownerSignedIn, outcome: "REFUSED:pay-agent-hold-unavailable" }),
       ]);
       // The journal's own row for the release names the same person, role and session.
-      expect((await rows(t.db, "PAY_AGENT_HOLD_RELEASED")).map(meta)).toEqual([expect.objectContaining({ actorUserId: releaser.userId, ...signedIn, outcome: "RELEASED" })]);
+      expect((await rows(t.db, "PAY_AGENT_HOLD_RELEASED")).map(meta)).toEqual([expect.objectContaining({ actorUserId: releaser.userId, ...ownerSignedIn, outcome: "RELEASED" })]);
       for (const list of [retries, releases, rejections]) expectTimed(list);
       expect([...retries, ...releases, ...rejections].filter(row => meta(row).sessionType === "SIGNED_IN").every(row => !("demoGroup" in meta(row)))).toBe(true);
       // None of this reached PayPal.

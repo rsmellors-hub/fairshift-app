@@ -1,11 +1,12 @@
 import type { Scope } from "@/server/auth/access";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { DEMO_CASUAL_WORKER_ID, DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import type { DatabaseSession } from "@/server/db/client";
-import { organisations, outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
+import { offerRounds, organisations, outlets, saleTransactions, shiftIncentives, shiftOffers, shifts, workers, workAllocations, workPayables, workPayouts, workPerformanceResults, workerAvailability, departments } from "@/server/db/schema";
 import { getDemoWorkerShift } from "@/server/scheduling/demo";
 import { latestPayAgentEvents } from "@/server/pay-agent/journal";
+import { payAgentChecklist } from "@/server/pay-agent/presentation";
 import { wageJurisdiction } from "@/server/domain/statutory-wage";
 import { payoutRefusal } from "@/server/domain/payout-refusal";
 
@@ -27,7 +28,7 @@ export async function getLocationWorkspace(db: DatabaseSession) {
 }
 
 export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId"|"workerId">) {
-  const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode })
+  const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode, wantsMoreHours: workers.wantsMoreHours })
     .from(workers).where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId))).limit(1);
   // Deliberately exclude team revenue, transaction data, provider IDs and other workers.
   const rows = await db.select({
@@ -75,9 +76,17 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
   // Only the status of each of the worker's own payables' latest Pay Agent event, mapped to plain
   // statuses on screen; never the decision text, reason, model detail or another worker's state.
   const agentEvents = await latestPayAgentEvents(db, scope, rows.flatMap(row => row.payable?.id ? [row.payable.id] : []));
-  const assignments = rows.map(({ refusalSource, ...row }) => ({ ...row,
+  // The offer round each offer came in (FS-OFFER-ORDER-DEC-001): its criteria and window, shown on the offer.
+  const shiftIds = [...new Set(rows.map(row => row.shift.id))];
+  const rounds = shiftIds.length ? await db.select({ shiftId: offerRounds.shiftId, round: offerRounds.round, criteria: offerRounds.criteria, closesAt: offerRounds.closesAt, offers: offerRounds.offers }).from(offerRounds)
+    .where(and(eq(offerRounds.organisationId, scope.organisationId), eq(offerRounds.outletId, scope.locationId), inArray(offerRounds.shiftId, shiftIds))) : [];
+  const roundOf = (offerId: string) => { const found = rounds.find(round => Array.isArray(round.offers) && (round.offers as { offerId?: string }[]).some(item => item.offerId === offerId)); return found ? { round: found.round, criteria: found.criteria, closesAt: found.closesAt } : null; };
+  const assignments = rows.map(({ refusalSource, ...row }) => ({ ...row, offerRound: roundOf(row.offer.id),
     payout: row.payout ? { ...row.payout, refusal: payoutRefusal(refusalSource) } : null,
-    payAgentStatus: row.payable?.id ? agentEvents.get(row.payable.id)?.status ?? null : null }));
+    payAgentStatus: row.payable?.id ? agentEvents.get(row.payable.id)?.status ?? null : null,
+    // The Pay Agent's checklist and, for a hold, its plain explanation: about this worker's own pay only.
+    payAgentChecklist: row.payable?.id && agentEvents.get(row.payable.id) ? payAgentChecklist(agentEvents.get(row.payable.id)!) : [],
+    payAgentHoldSummary: row.payable?.id && agentEvents.get(row.payable.id)?.status === "DECIDED_HOLD" ? agentEvents.get(row.payable.id)!.summary : null }));
   const current = assignments.find(row => row.shift.status === "PUBLISHED" && row.offer.status === "ACCEPTED");
   const availability = profile && scope.workerId ? await db.select({ isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(eq(workerAvailability.workerId, scope.workerId)) : [];
   const [location] = await db.select({ timezone: outlets.timezone, country: outlets.country, organisationCountry: organisations.country }).from(outlets)

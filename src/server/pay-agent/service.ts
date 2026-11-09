@@ -116,12 +116,18 @@ async function heldEvent(db: Database, scope: ManagerScope, eventId: string) {
   return event;
 }
 
-// A manager releases a hold: the payable goes through the settlement gates without asking the
-// model again, and the journal records the manager's override. A hold on a manager's own work
-// must be released by someone else.
-export async function releasePayAgentHold(db: Database, scope: ManagerScope, eventId: string): Promise<{ eventId: string; credential: PayAgentServiceCredential }> {
+// The Owner releases a hold (R5, Owner decisions of 9 November 2026: Pay Agent holds go to the Owner):
+// the payable goes through the settlement gates without asking the model again, and the journal
+// records the Owner's override. A hold on the releaser's own work must be released by someone else.
+const ownerDecides = (scope: ManagerScope) => { if (scope.role !== "OWNER") throw new UserFacingError("pay-agent-owner-decides", "A held payment is decided by the business owner."); };
+// Owner decision, 9 November 2026 (amends FS-APPROVER-DEC-001): the Owner is then the approver of record,
+// with the AI finding and the Owner's written reason stored. A release needs that reason.
+export async function releasePayAgentHold(db: Database, scope: ManagerScope, eventId: string, note: string): Promise<{ eventId: string; credential: PayAgentServiceCredential }> {
   return audited(db, control(scope, "PAY_AGENT_HOLD_RELEASE_REQUESTED", { eventId }), async found => {
     const credential = mintPayAgentCredentialForManager(scope);
+    ownerDecides(scope);
+    const reason = (note ?? "").trim();
+    if (!reason || reason.length > 500) throw new UserFacingError("pay-agent-release-reason", "Give a reason for releasing this payment, in up to 500 characters.");
     const event = await heldEvent(db, scope, eventId);
     onPayable(found, event.payableId);
     const evidence = await loadConfirmedWork(db, scope, event.payableId);
@@ -129,7 +135,7 @@ export async function releasePayAgentHold(db: Database, scope: ManagerScope, eve
     if ((scope.workerId && scope.workerId === evidence.payable.workerId) || (evidence.worker?.userId && evidence.worker.userId === scope.userId)) {
       throw new UserFacingError("pay-agent-own-work", "A hold on your own work must be released by another manager.");
     }
-    const released = await resolveHold(db, scope, eventId, { resolution: "RELEASED", userId: scope.userId, note: null, actor: auditActor(scope) });
+    const released = await resolveHold(db, scope, eventId, { resolution: "RELEASED", userId: scope.userId, note: reason, actor: auditActor(scope) });
     if (!released) throw new UserFacingError("pay-agent-hold-unavailable", "This hold has already been resolved or isn't available.");
     return { eventId: released.id, credential };
   }, () => "RELEASED");
@@ -143,6 +149,7 @@ export function runReleasedHold(agent: PayAgent, released: { eventId: string; cr
 export async function rejectPayAgentHold(db: Database, scope: ManagerScope, eventId: string, note: string): Promise<PayAgentEvent> {
   return audited(db, control(scope, "PAY_AGENT_HOLD_REJECT_REQUESTED", { eventId }), async found => {
     mintPayAgentCredentialForManager(scope);
+    ownerDecides(scope);
     const reason = note.trim();
     if (!reason || reason.length > 500) throw new UserFacingError("pay-agent-reject-reason", "Give a reason for rejecting this payment, in up to 500 characters.");
     onPayable(found, (await heldEvent(db, scope, eventId)).payableId);

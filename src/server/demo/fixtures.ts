@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { AccessError, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { memberships, outlets, shiftIncentives, shiftOffers, shifts, workAllocations, workPayables, workPerformanceResults } from "@/server/db/schema";
+import { randomUUID } from "node:crypto";
+import { localIntelligenceDecisions, localIntelligenceSignalDecisions, memberships, outlets, shiftIncentives, shiftOffers, shifts, workAllocations, workPayables, workPerformanceResults } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
 import { ensureDemoBooking } from "./booking";
 import type { DemoConfig } from "./config";
@@ -46,9 +47,13 @@ export async function guardDemoWrite(db: DatabaseSession, scope: Scope, target: 
 // sales, payments and provider evidence aren't touched. Then the booked casual shift for tomorrow
 // that the DEMO early notice needs is made again (ensureDemoBooking), for the demo Worker persona
 // where possible, so a fresh notice can always be sent. Running it again changes nothing further.
+// Signed-in accounts of the demo business (judges' Owner, Manager and Worker accounts) may reset it too
+// (Owner decision, 9 November 2026). A reset also returns the AI story to its start: days whose AI-found
+// adjustments were accepted go back to their baseline, and dismissed signals come back, each as a new
+// recorded decision (nothing is deleted).
 export async function resetDemo(db: Database, config: DemoConfig | null, scope: Scope, now = new Date()) {
-  if (!config || !scope.demo || scope.organisationId !== config.organisationId) throw new AccessError();
-  await limited(db, `demo-reset:${scope.demo.group}`, RESET_LIMIT);
+  if (!config || scope.organisationId !== config.organisationId) throw new AccessError();
+  await limited(db, `demo-reset:${scope.demo?.group ?? scope.userId}`, RESET_LIMIT);
   const closed = await db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`demo-reset:${config.organisationId}`}))`);
     const held = await protectedShiftIds(tx, config.organisationId);
@@ -59,10 +64,32 @@ export async function resetDemo(db: Database, config: DemoConfig | null, scope: 
     await tx.update(shifts).set({ status: "CANCELLED", updatedAt: new Date() }).where(inArray(shifts.id, live));
     return live.length;
   });
+  const story = await resetAiStory(db, config.organisationId, scope, now);
   const [worker] = await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, config.organisationId)));
-  const booking = await ensureDemoBooking(db, { organisationId: config.organisationId, workerId: worker?.workerId, now });
-  await demoAudit(db, config.organisationId, "DEMO_RESET", scope.demo.group, { closedShifts: closed, persona: scope.demo.persona, bookedShiftId: booking?.shiftId ?? null });
-  return { closedShifts: closed, booking };
+  const booking = await ensureDemoBooking(db, { organisationId: config.organisationId, workerId: worker?.workerId, now, rebuild: true });
+  await demoAudit(db, config.organisationId, "DEMO_RESET", scope.demo?.group ?? scope.userId, { closedShifts: closed, persona: scope.demo?.persona ?? null, actorUserId: scope.userId, signedIn: !scope.demo, bookedShiftId: booking?.shiftId ?? null, ...story });
+  return { closedShifts: closed, booking, ...story };
+}
+
+async function resetAiStory(db: Database, organisationId: string, scope: Scope, now: Date) {
+  // Only an Owner or Manager decides on AI findings; a Worker's reset leaves those decisions as they are.
+  if (scope.role !== "OWNER" && scope.role !== "MANAGER") return { withdrawnDays: 0, restoredSignals: 0 };
+  const role = scope.role;
+  return db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`demo-reset-ai:${organisationId}`}))`);
+    const decisions = await tx.select().from(localIntelligenceDecisions).where(eq(localIntelligenceDecisions.organisationId, organisationId));
+    const latest = new Map<string, typeof decisions[number]>();
+    for (const row of decisions) { const key = `${row.outletId}:${row.targetDate}`; if (!latest.has(key) || latest.get(key)!.sequence < row.sequence) latest.set(key, row); }
+    const withdraw = [...latest.values()].filter(row => row.action === "ACCEPTED");
+    if (withdraw.length) await tx.insert(localIntelligenceDecisions).values(withdraw.map(row => ({ id: randomUUID(), organisationId, outletId: row.outletId, targetDate: row.targetDate, sequence: row.sequence + 1, action: "WITHDRAWN",
+      adjustmentFingerprint: row.adjustmentFingerprint, adjustments: row.adjustments, policyVersion: row.policyVersion, decidedBy: scope.userId, decidedByRole: role, decidedAt: now })));
+    const dismissals = await tx.select().from(localIntelligenceSignalDecisions).where(eq(localIntelligenceSignalDecisions.organisationId, organisationId));
+    const last = new Map<string, typeof dismissals[number]>();
+    for (const row of dismissals) { const key = `${row.outletId}:${row.signalKey}`; if (!last.has(key) || last.get(key)!.decidedAt < row.decidedAt) last.set(key, row); }
+    const restore = [...last.values()].filter(row => row.action === "DISMISSED");
+    if (restore.length) await tx.insert(localIntelligenceSignalDecisions).values(restore.map(row => ({ id: randomUUID(), organisationId, outletId: row.outletId, signalKey: row.signalKey, signalId: row.signalId, action: "RESTORED", decidedBy: scope.userId, decidedByRole: role, decidedAt: now })));
+    return { withdrawnDays: withdraw.length, restoredSignals: restore.length };
+  });
 }
 
 // Used by the demo copy, so it only mentions earlier evidence that actually exists.

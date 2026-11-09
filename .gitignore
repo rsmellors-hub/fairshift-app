@@ -16,3 +16,6 @@ coverage/
 # Postman environments hold local Sandbox credentials; only templates are committed.
 *.postman_environment.json
 !*.postman_environment.template.json
+
+# Judges' credentials for Devpost private instructions: never committed.
+.judge-credentials.local

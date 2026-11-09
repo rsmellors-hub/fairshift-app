@@ -42,7 +42,7 @@ export async function switchDemoPersonaAction(form: FormData) {
 
 export async function resetDemoAction() {
   const scope = await requireScope(["OWNER", "MANAGER", "TEAM_MEMBER"], { demoWrite: true });
-  const home = scope.demo ? DEMO_HOME[scope.demo.persona] : "/";
+  const home = scope.demo ? DEMO_HOME[scope.demo.persona] : scope.role === "OWNER" ? "/owner" : scope.role === "MANAGER" ? "/manager" : "/worker";
   let status = "demo-reset";
   try { await resetDemo(getDatabase(), demoConfig(), scope); }
   catch (error) { status = error instanceof UserFacingError ? error.feedback : "error"; }

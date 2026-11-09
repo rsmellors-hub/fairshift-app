@@ -225,6 +225,27 @@
       "when": 1794105160026,
       "tag": "0031_signal_track_record",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794223703920,
+      "tag": "0032_signal_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794231198873,
+      "tag": "0033_shift_suggestions_offer_rounds",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794233529519,
+      "tag": "0034_pay_agent_checks",
+      "breakpoints": true
     }
   ]
 }

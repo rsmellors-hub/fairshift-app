@@ -20,7 +20,7 @@ import { getOwnerWorkspace } from "@/server/product/workspace";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
 import { getStaffingConfiguration } from "@/server/intelligence/business-policy";
 import { StaffingConfiguration } from "@/app/owner/staffing-configuration";
-import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
+import { AiStaffingAssessment, signalLookup } from "@/app/components/ai-staffing-assessment";
 import { explainWageAction, generateOwnerAssessmentAction } from "@/app/intelligence-actions";
 import { commerceConnectionsConfigured, getCommerceConnections } from "@/server/commerce/connections";
 import { OwnerSales, type SalesFilter } from "@/app/owner/sales";
@@ -32,7 +32,9 @@ import { PolicyForm } from "@/app/owner/policy-form";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
 import { OwnerLiveFeeds } from "@/app/owner/live-feeds";
-import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
+import { DisruptionAlerts, type DisruptionAlert } from "@/app/owner/disruption-alerts";
+import { affectedShifts } from "@/server/intelligence/early-notice";
+import { AiThisWeek } from "@/app/components/ai-signals";
 import { getLiveFeedStatus, type LiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { getProofPanel, LOCAL_SUBSCRIPTION_FIXTURE } from "@/server/product/proof";
@@ -67,14 +69,18 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     let view = null;
     if (staffing) { try { view = await getStaffingAssessmentView(getDatabase(), scope, "ORGANISATION", staffing); } catch { view = null; } }
     const names = Object.fromEntries((staffing?.outlets ?? []).map(outlet => [outlet.outletId, outlet.outletName]));
-    const assessment = staffing === null && weekly === null ? null : <AiStaffingAssessment view={view} names={names} configured={configuration.aiConfigured} action={generateOwnerAssessmentAction} notice={ai}
+    const assessment = staffing === null && weekly === null ? null : <AiStaffingAssessment view={view} names={names} signals={signalLookup(staffing?.outlets ?? [])} configured={configuration.aiConfigured} action={generateOwnerAssessmentAction} notice={ai}
       timeZone={staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone}
       planHref={(outletId, date) => outletId === scope.locationId ? `/manager/plan${date ? `?date=${date}` : ""}#add-requirement` : null} />;
     // The feeds behind the week, each with its source and when it last updated.
     let feeds: LiveFeedStatus | null = null;
     try { feeds = await getLiveFeedStatus(getDatabase(), now); } catch { feeds = null; }
     const timeZone = staffing?.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone ?? staffing?.outlets[0]?.timezone ?? "UTC";
-    return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} /><div className="owner-overview owner-forecast"><DisruptionAlerts alerts={(staffing?.outlets ?? []).flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })))} /><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} showTrackRecord={isDemoOrganisation(scope.organisationId)} /></div></>;
+    // The same alerts as the Overview, with the casual shifts a likely closure covers, so both pages agree.
+    let alerts: DisruptionAlert[] = (staffing?.outlets ?? []).flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })));
+    try { alerts = await Promise.all(alerts.map(async alert => alert.signal.closureLikely ? { ...alert, affected: await affectedShifts(getDatabase(), { organisationId: scope.organisationId, outletId: alert.outletId, timezone: alert.timezone }, alert.signal, now) } : alert)); }
+    catch { console.error("Early-notice candidates could not be read; alerts show without them."); }
+    return <><OwnerWeeklyForecast weekly={weekly} staffing={staffing} assessment={assessment} aiSignals={staffing ? <AiThisWeek outlets={staffing.outlets} /> : null} /><div className="owner-overview owner-forecast"><DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} /><OwnerLiveFeeds staffing={staffing} feeds={feeds} timeZone={timeZone} eventsConfigured={!!getTicketmasterApiKey()} now={now} showTrackRecord={isDemoOrganisation(scope.organisationId)} /></div></>;
   }
   // What a judge can check is real, for the demonstration organisation only.
   if (area === "proof") {

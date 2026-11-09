@@ -76,6 +76,8 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
     return <article className="earning-item" key={row.offer.id} data-earlier={scope.demo ? "" : undefined} aria-label={`${row.departmentName ?? row.shift.roleName}, ${when.date}`}>
       <div className="worker-shift-head"><h4>{when.date}</h4>{agentStatus ? <StatusBadge tone={agentStatus === "Paid" ? "success" : agentStatus === "Under review" ? "warning" : "neutral"}>{agentStatus}</StatusBadge> : <WorkerPaymentBadge status={payable.status} payout={row.payout} />}</div>
       {agentStatus ? <p className="note" role="status">{WORKER_PAY_STATUS_NOTE[agentStatus]}</p> : null}
+      {row.payAgentHoldSummary ? <p className="note">Why it&rsquo;s held: {row.payAgentHoldSummary}</p> : null}
+      {row.payAgentChecklist?.length ? <ul className="pay-agent-checklist" aria-label="Pay Agent checks">{row.payAgentChecklist.map(item => <li key={item.text}><span aria-hidden="true">{item.ok ? "✓" : "⚠"}</span> {item.ok ? null : <span className="visually-hidden">Concern: </span>}{item.text}</li>)}</ul> : null}
       <p className="note">{scope.locationName} · {when.time}</p>
       <dl className="earning-sum">
         <div><dt>Base pay<small>{payableBasis(payable)}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
@@ -125,6 +127,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
           <label><input type="radio" name={`day${i + 1}`} value="UNAVAILABLE" defaultChecked={current === "UNAVAILABLE"} /> Unavailable</label>
           <label><input type="radio" name={`day${i + 1}`} value="" defaultChecked={current === ""} /> Not set</label>
         </div></fieldset>; })}
+        <label className="acceptance-check"><input type="checkbox" name="wantsMoreHours" value="yes" defaultChecked={!!profile?.wantsMoreHours} /> I want more hours. New shifts here are offered first to people who said so; you don’t need to give a reason.</label>
         <button className="primary-button">Save availability</button>
       </form>
       <p className="note">If you choose Unavailable, your manager can’t offer you shifts that day. Not set means they may still offer you work, and you decide then.</p>

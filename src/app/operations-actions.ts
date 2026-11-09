@@ -120,7 +120,7 @@ export async function saveAvailabilityAction(form: FormData) {
     if (!value) return null;
     if (value !== "AVAILABLE" && value !== "UNAVAILABLE") throw new Error("Invalid availability.");
     return value;
-  })));
+  }), form.get("wantsMoreHours") === "yes"));
 }
 export async function confirmWorkAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
@@ -145,7 +145,7 @@ export async function releasePayAgentHoldAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
   return perform("/settlements", async () => {
     const db = getDatabase();
-    runReleasedHold(payAgentFor(db), await releasePayAgentHold(db, scope, field(form, "eventId")));
+    runReleasedHold(payAgentFor(db), await releasePayAgentHold(db, scope, field(form, "eventId"), field(form, "reason")));
   });
 }
 // A manager's rejection of a Pay Agent hold, with a reason: the payable stays unpaid.

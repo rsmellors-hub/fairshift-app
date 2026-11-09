@@ -55,13 +55,18 @@ describe("weekly demand forecast", () => {
     } finally { await t.close(); }
   });
 
-  it("does not select reference rows for an ordinary account, even in the configured demo organisation", async () => {
+  // Day 6 (Step 1c): a signed-in account of the configured demo business (a judge's account) reads the same
+  // labelled reference history as a demo persona; an account of any other business never does.
+  it("selects reference rows for any account of the configured demo organisation, and for no other business", async () => {
     const t = await createTestDatabase();
     try {
       const c = await referenceCompany(t.db);
-      const ordinary = await getWeeklyForecast(t.db, { ...c.owner, demo: undefined }, NOW);
-      expect(ordinary.outlets).toHaveLength(5);
-      expect(ordinary.outlets.every(row => row.selection.status === "NONE" && row.weeklyTotalMinor === null)).toBe(true);
+      const signedIn = await getWeeklyForecast(t.db, { ...c.owner, demo: undefined }, NOW);
+      expect(signedIn.outlets.every(row => row.selection.status === "SELECTED" && row.selection.source === "REFERENCE")).toBe(true);
+      process.env.FAIRSHIFT_TEST_DEMO_ORG = randomUUID();
+      const other = await getWeeklyForecast(t.db, { ...c.owner, demo: undefined }, NOW);
+      expect(other.outlets).toHaveLength(5);
+      expect(other.outlets.every(row => row.selection.status === "NONE" && row.weeklyTotalMinor === null)).toBe(true);
     } finally { await t.close(); }
   }, 180_000);
   it("forecasts seven days for each of five outlets from reference history, deterministically and in GBP", async () => {

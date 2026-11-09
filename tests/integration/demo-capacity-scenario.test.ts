@@ -89,7 +89,7 @@ describe("DEMO capacity scenario", () => {
     expect(card(true)).toContain("not a real event");
     expect(card(true)).not.toContain("AI-found");
     expect(card(true)).toContain("Send early notice to 1 casual worker");
-    expect(card(false)).toContain("turned off in the public demo");
+    expect(card(false)).toContain("Simulated in the public demo");
     const panel = renderToStaticMarkup(LocalIntelligencePanel({ outlet: rosebank, selectedDate: TOMORROW, demo: false }));
     expect(panel).toContain("DEMO scenario");
     expect(panel).not.toContain("AI found something");

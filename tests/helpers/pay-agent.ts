@@ -62,7 +62,7 @@ export async function allocatedWork(db: Database, manager: Scope, options: WorkO
 }
 
 // An in-process model double that answers with a decision for the payable it was shown.
-export function fakePayAgentModel(reply: (payableId: string) => unknown = payableId => ({ action: "settle_confirmed_work", payableId })) {
+export function fakePayAgentModel(reply: (payableId: string) => unknown = payableId => ({ action: "settle_confirmed_work", payableId, checks: { hours: "OK", overlap: "OK", timing: "OK", records: "OK" } })) {
   const assess = vi.fn(async (request: AssessmentRequest): Promise<AssessmentResponse> => {
     const { payableId } = JSON.parse(request.input) as { payableId: string };
     return { responseId: "resp_test_1", responseModel: "test-model-2026-01-01", text: JSON.stringify({ decision: reply(payableId) }) };

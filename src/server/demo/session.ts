@@ -5,6 +5,7 @@ import { organisationEntitled, workplaceComplete } from "@/server/billing/entitl
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, memberships, sessions, users, workers } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
+import { ensureDemoBooking } from "./booking";
 import { DEMO_MEMBERSHIP_ROLE, DEMO_PERSONAS, DEMO_SESSION_MS, demoPersona, type DemoConfig, type DemoPersona } from "./config";
 
 const ENTRY_LIMIT = 300;
@@ -45,6 +46,12 @@ export async function enterDemo(db: Database, config: DemoConfig | null, input: 
   const group = randomUUID(), expiresAt = new Date(now.getTime() + DEMO_SESSION_MS);
   const token = await issue(db, config, persona.data, group, expiresAt);
   await demoAudit(db, config.organisationId, "DEMO_SESSION_ENTERED", group, { persona: persona.data });
+  // The demo story's booked shift for tomorrow, if the day has rolled over since setup or the last reset.
+  // Best effort: entry never fails because of it.
+  try {
+    const [worker] = await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, config.organisationId)));
+    await ensureDemoBooking(db, { organisationId: config.organisationId, workerId: worker?.workerId ?? null, now });
+  } catch { console.error("The demo booking could not be checked on entry."); }
   return { token, expiresAt, persona: persona.data };
 }
 

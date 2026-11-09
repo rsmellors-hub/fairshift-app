@@ -115,9 +115,9 @@ export function createPayAgent(deps: PayAgentDependencies) {
     const late = preModelCheck(after);
     if (late) return finish(identity, counted, { status: late.status, outcomeCode: late.code, ...modelEvidence });
     if (decision.decision.action === "hold_for_manager_review") {
-      return finish(identity, counted, { status: "DECIDED_HOLD", decision: "HOLD", reasonCode: decision.decision.reasonCode, summary: decision.decision.summary, ...modelEvidence });
+      return finish(identity, counted, { status: "DECIDED_HOLD", decision: "HOLD", reasonCode: decision.decision.reasonCode, summary: decision.decision.summary, checks: decision.decision.checks, ...modelEvidence });
     }
-    const decided = await finishClaim(deps.db, counted, { status: "DECIDED_SETTLE", decision: "SETTLE", ...modelEvidence });
+    const decided = await finishClaim(deps.db, counted, { status: "DECIDED_SETTLE", decision: "SETTLE", checks: decision.decision.checks, ...modelEvidence });
     if (!decided) return current(identity, claimed.id);
     return settle(identity, decided, false);
   }

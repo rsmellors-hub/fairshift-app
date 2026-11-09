@@ -38,13 +38,15 @@ export async function savePayoutDestination(db:Database,scope:Scope,value:string
 }
 
 // A worker's own weekly availability, Monday..Sunday. Null clears a day to not provided.
-export async function saveWorkerAvailability(db:Database,scope:Scope,states:unknown) {
+// wantsMoreHours: the worker's own "I want more hours" preference (FS-OFFER-ORDER-DEC-001), no reason asked.
+export async function saveWorkerAvailability(db:Database,scope:Scope,states:unknown,wantsMoreHours?:boolean) {
   assertRole(scope,["TEAM_MEMBER"]);
   await requireEntitlement(db,scope.organisationId);
   await workerIdentity(db,scope);
   const days=z.array(z.enum(["AVAILABLE","UNAVAILABLE"]).nullable()).length(7).parse(states);
   const workerId=scope.workerId!;
   return db.transaction(async tx=>{
+    if (wantsMoreHours !== undefined) await tx.update(workers).set({wantsMoreHours,updatedAt:new Date()}).where(and(eq(workers.id,workerId),eq(workers.organisationId,scope.organisationId)));
     for (const [i,state] of days.entries()) {
       if (state === null) await tx.delete(workerAvailability).where(and(eq(workerAvailability.workerId,workerId),eq(workerAvailability.isoWeekday,i+1)));
       else await tx.insert(workerAvailability).values({id:randomUUID(),workerId,isoWeekday:i+1,state}).onConflictDoUpdate({target:[workerAvailability.workerId,workerAvailability.isoWeekday],set:{state,updatedAt:new Date()}});

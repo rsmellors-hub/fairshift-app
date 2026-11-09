@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { DatabaseSession } from "@/server/db/client";
@@ -42,6 +42,10 @@ export type ConfirmedWorkEvidence = {
   // A manager has rejected a Pay Agent hold for this payable: it stays unpaid.
   managerRejected: boolean;
   missing: MissingFact[];
+  // Day 6, Step 1g: other confirmed work by the same person (the same account, at any location of this
+  // business) whose scheduled time overlaps this payable's. Context for the model's judgement, not part
+  // of the evidence version: another payable changing never makes this one stale.
+  overlappingConfirmedWork: number;
 };
 
 const iso = (value: Date | null | undefined) => (value ? value.toISOString() : null);
@@ -118,6 +122,16 @@ export async function loadConfirmedWork(db: DatabaseSession, scope: PayAgentScop
   const [payout] = await db.select({ id: workPayouts.id, status: workPayouts.status }).from(workPayouts).where(eq(workPayouts.payableId, payable.id));
   const [rejection] = await db.select({ id: payAgentEvents.id }).from(payAgentEvents)
     .where(and(eq(payAgentEvents.payableId, payable.id), eq(payAgentEvents.status, "HOLD_REJECTED"))).limit(1);
+  // The same person's worker records in this business: one account has one record, so a second
+  // identity at another location shows up by the same email or telephone. Never sent to the model.
+  const [contact] = await db.select({ email: workers.email, telephone: workers.telephone }).from(workers).where(eq(workers.id, payable.workerId));
+  const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+  const sameperson = (await db.select({ id: workers.id }).from(workers).where(and(eq(workers.organisationId, scope.organisationId), or(eq(workers.id, payable.workerId),
+    contact?.email ? sql`lower(${workers.email}) = lower(${contact.email})` : undefined,
+    digits(contact?.telephone).length >= 6 ? sql`regexp_replace(coalesce(${workers.telephone}, ''), '[^0-9]', '', 'g') = ${digits(contact?.telephone)}` : undefined)))).map(row => row.id);
+  const [{ overlapping }] = await db.select({ overlapping: sql<number>`count(*)`.mapWith(Number) }).from(workPayables)
+    .where(and(eq(workPayables.organisationId, scope.organisationId), inArray(workPayables.workerId, sameperson.length ? sameperson : [payable.workerId]), ne(workPayables.id, payable.id),
+      lt(workPayables.scheduledStartsAt, payable.scheduledEndsAt), gt(workPayables.scheduledEndsAt, payable.scheduledStartsAt)));
 
   const missing: MissingFact[] = [];
   if (!allocation) missing.push("ALLOCATION");
@@ -152,6 +166,7 @@ export async function loadConfirmedWork(db: DatabaseSession, scope: PayAgentScop
     payout: payout ?? null,
     managerRejected: !!rejection,
     missing,
+    overlappingConfirmedWork: overlapping,
   };
 }
 
@@ -214,5 +229,12 @@ export function modelView(evidence: ConfirmedWorkEvidence) {
     incentive: { required: payable.incentiveRequired, resolved: payable.finalAmountMinor !== null },
     performance: performance ? { salesCount: performance.salesCount, evidenceProvenance: performance.evidenceProvenance, confirmedAt: iso(performance.confirmedAt) } : null,
     missing: evidence.missing,
+    // Facts FairShift computed for the model to judge (Day 6, Step 1g). The rules above don't hold on these.
+    anomalyChecks: {
+      // Minutes the payable's accepted schedule runs beyond the shift record (negative: shorter).
+      payableMinutesBeyondShiftRecord: shift ? minutesBetween(payable.scheduledStartsAt, payable.scheduledEndsAt) - minutesBetween(shift.startsAt, shift.endsAt) : null,
+      // Other confirmed work by the same person, at any location of this business, at an overlapping time.
+      overlappingConfirmedWork: evidence.overlappingConfirmedWork,
+    },
   };
 }

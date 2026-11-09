@@ -35,7 +35,7 @@ function Provenance({ outlet }: { outlet: OutletWeeklyForecast }) {
 
 // staffing: null = failed to load (never zero coverage or zero gap).
 // assessment: the AI interpretation panel, rendered after the calculated staffing figures it interprets.
-export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: WeeklyForecast | null; staffing?: WeeklyStaffing | null; assessment?: React.ReactNode }) {
+export function OwnerWeeklyForecast({ weekly, staffing, assessment, aiSignals }: { weekly: WeeklyForecast | null; staffing?: WeeklyStaffing | null; assessment?: React.ReactNode; aiSignals?: React.ReactNode }) {
   const header = <header className="owner-heading"><div><p className="eyebrow">Forecast · next seven days</p><h1>Weekly forecast</h1><p>What sales to expect, how much work that means and when, and where regular cover falls short.</p></div></header>;
   if (!weekly) return <div className="owner-overview owner-forecast">{header}<section className="owner-empty" role="alert"><h2>Forecast could not be loaded</h2><p>No demand has been assumed. Reload to try again.</p></section></div>;
   const c = weekly.consolidated;
@@ -55,6 +55,7 @@ export function OwnerWeeklyForecast({ weekly, staffing, assessment }: { weekly: 
         <div><h2>Evidence</h2><strong className="owner-metric-empty">{c ? sourceLabel(c.source) : `${available.length} of ${weekly.outlets.length} locations`}</strong><p>{c ? `${historical.length ? "Historical evidence" : "Data"} through ${longDate(c.dataThrough)}${c.dataThroughConsistent ? "" : " (earliest location)"}` : "See each location for its source."}</p></div>
         <StaffingSummary staffing={staffing} />
       </section>
+      {aiSignals}
       {staffing ? <WorkloadSetupNotice outlets={staffing.outlets} owner /> : null}
       {staffing ? <AcceptedContextNote outlets={staffing.outlets} /> : null}
       {historical.length ? <p className="owner-forecast-notice"><span className="owner-label">Forecast from historical evidence</span>{`${historical.map(sourceLabel).join(" and ")} ${historical.length > 1 ? "are" : "is"} labelled synthetic input${c ? `, through ${longDate(c.dataThrough)}` : ""}. Comparable weekdays from the last 56 days of that history are mapped onto the planning week; seasonal differences are not modelled. It does not describe current trading or any provider’s sales.`}</p> : null}

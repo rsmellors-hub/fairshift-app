@@ -340,3 +340,59 @@ Approve R45.00/hour — Record R45.00/hour (the demo's seeded casual terms, abov
 **Effect on earlier records.** The pricing decision replaces, for the demo, the GBP catalogue in the product specification's "Commercial entry and FairShift viability" table (Single Outlet £29/£290, Multi Outlet £69/£690). It resolves the pricing-currency question left open by FS-SITE-COPY-SA-001. Location limits (1, and up to 5), the 30-day free trial (FS-SUBSCRIPTION-TRIAL-DEC-001) and Enterprise by contact are unchanged. The USD billing amounts are the Owner's figures. They are not computed by FairShift at checkout.
 
 **AI local intelligence.** The "AI LOCAL INTELLIGENCE (8 Nov)" text was not in the work package. The Owner supplied it later the same day, and it is recorded verbatim, with the Owner's precedence note, in "Owner decision, 8 November 2026 — AI local intelligence" above.
+
+### Owner decisions, 9 November 2026 — location-driven rules, events feed, access, notifications, worker pool, profile, setup, pay queries (Day 6)
+
+**Decision date:** 9 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** Owner-supplied work package **FairShift — Day 6: product-ready by Wed 11 Nov 20:00 SAST (product freeze). SANDBOX ONLY.** (within FS-HACK-SA-SUBMISSION-001), STEP 0. Recorded verbatim. Requirements only: this record implements nothing.
+
+```text
+- Location-driven, never hardcoded (R1), covering AI rules AND pay rules.
+- Events feed: OpenWeb Ninja replaces Ticketmaster ("Events in <city>" from the location record, distance-filtered, passed to AI as candidate evidence).
+- Access: "Public demo visitors are simulated: no live AI, payouts or notices. Judges get signed-in Owner, Manager and Worker accounts (credentials only in Devpost's private judging instructions) with live AI (no per-session limit, all calls counted and logged), live in-app early notice, and real PayPal Sandbox payouts; every action audited."
+- Notifications: "Workers are notified of shift offers, bookings, cancellations, early notices, confirmed earnings at the end of a shift, Pay Agent holds, payout sent, paid, not paid with reason, and pay-query updates. Every notification is logged in an outbox; content follows the business's country/currency profile."
+- Worker pool, worker profile, editable setup and pay queries as described in Step 3.
+```
+
+The rule R1 referred to above, as stated in the same work package:
+
+```text
+R1 Nothing hardcoded to SA or the demo. AI prompts, queries, schedules, wage floors, holiday/cancellation rules, VAT, currency, conversion, notification text and all rule copy come from the business's country/currency profile and each location's record. Demo values live in seed data only.
+```
+
+Step 3 of the same work package, referred to by the last decision:
+
+```text
+b) Worker pool: Owner or Manager invites a casual worker (name, email or phone, home location); worker accepts to join that location's pool; only pool members get offers; removal recorded, never deleted.
+c) Worker profile: worker edits contact details, availability and PayPal payout destination. Destination change needs re-confirmation and never changes an already-reserved payout. Audited.
+d) Editable setup: Owner edits trading hours, service capacity/minimum cover, regular coverage, pay terms, tip policy and location profile after onboarding. Changes are dated and apply from then on; accepted shift terms never change. Validation from the country rules (R1), e.g. pay below the country wage floor is blocked with the floor shown.
+e) Pay queries (inside FairShift — PayPal Payouts has no recipient dispute process):
+ - Worker: "Query this payment" on any shift/payout; reason (hours wrong, tips missing, not received, amount wrong) + note.
+ - Routed to the Owner (approver of record); hours queries also visible to the confirming Manager.
+ - Pay Agent checks the query against evidence (accepted terms, confirmed hours, tip records, PayPal item status) and returns a finding with reason; never sets amounts or recipients.
+ - Owner resolves: explain (close with mandatory written reason), approve a separate correction payout (through Pay Agent + PayPal), or re-send to the confirmed destination if PayPal status is UNCLAIMED/RETURNED.
+ - Every query, AI finding and Owner decision permanently recorded (who, when, reason) and shown on the worker's statement.
+```
+
+**Effect on earlier records.** The events-feed decision replaces Ticketmaster (FS-CONTEXT-SIGNALS-DEC-001, DEC-002) as the event listing source once implemented; until then the existing Ticketmaster code is unchanged. The access decision replaces, for public (unsigned) demo visitors, the live behaviour introduced by `6a6abf2`. Nothing else in earlier records is changed.
+
+### Owner decisions, 9 November 2026 — suggested shifts, guaranteed-hours alert and offer rounds (Day 6, Step 1i)
+
+**Decision date:** 9 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** answers given in the Day 6 session to the agent's questions for Step 1i, recorded verbatim. They supply the values FS-OFFER-ORDER-DEC-001 and FS-PATHWAY-DEC-001 left OPEN, for this business's settings; every value is an Owner-editable setting, not code.
+
+```text
+Shift length (demo business's locations): Min 4 h, max 8 h, prefer 6 h.
+Guaranteed-hours threshold: Alert the Owner when a casual worker averages 20 hours a week or more over a 12-week reference period. Owner setting per business; FairShift only alerts, never makes a guaranteed-hours offer itself.
+Offer window: First round (workers who want more hours, fewest hours left to threshold first): 2 hours, or until 12 hours before the shift starts if that's sooner. Then open to all eligible workers at that location until filled. Owner setting per location; window shown on every offer.
+```
+
+**Effect on earlier records.** Resolves, for this business, the values register conflict R-05 depended on (threshold, reference period, acceptance window). The pathway's Owner alert is the only action: no offer of regular hours, contract or eligibility decision is made by FairShift.
+
+### Owner decision, 9 November 2026 — Pay Agent holds on casual pay (amends FS-APPROVER-DEC-001)
+
+**Decision date:** 9 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** the Owner's message in the Day 6 session confirming Owner-only release of casual-pay holds. Recorded verbatim.
+
+```text
+When the Pay Agent holds a casual settlement, only the Owner can release or reject it; the Owner is then the approver of record, with the AI finding and the Owner's written reason stored. Settlements without a hold keep the confirming manager as approver of record.
+```
+
+**Effect on earlier records.** Amends FS-APPROVER-DEC-001 ("Automatic casual settlements keep the confirming (or hold-releasing) manager as approver of record") for held settlements only: a hold is released or rejected by the Owner, with a written reason either way. Unheld settlements are unchanged.

@@ -32,7 +32,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.resetAllMocks(); });
 
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const form = (values: Record<string, string>) => { const result = new FormData(); for (const [key, value] of Object.entries(values)) result.set(key, value); return result; };
-const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended." });
+const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended.", checks: { hours: "OK", overlap: "OK", timing: "CONCERN", records: "OK" } });
 const agentFor = (db: Db, model: StaffingAssessmentProvider | null, paypal = fakePayoutClient()) =>
   createPayAgent({ db, identityVerifier: payAgentServiceVerifier, model: () => model, settlement: confirmedWorkSettlement(db, paypal) });
 const eventOf = async (db: Db, id: string) => (await db.select().from(payAgentEvents).where(eq(payAgentEvents.id, id)))[0];
@@ -186,17 +186,18 @@ describe("manager hold resolution and retry", () => {
       const agent = agentFor(t.db, model);
       await agent.process({ eventId: work.payAgentEvent!.id }, (await import("@/server/pay-agent/identity")).mintPayAgentCredentialForManager(manager));
       // A manager who is this worker cannot release their own hold.
-      const selfManager: Scope = { ...manager, userId: work.workerScope.userId };
-      await expect(releasePayAgentHold(t.db, selfManager, work.payAgentEvent!.id)).rejects.toMatchObject({ feedback: "pay-agent-own-work" });
+      // Held payments are the Owner's to decide (Day 6); one on the Owner's own work goes to someone else.
+      const selfManager: Scope = { ...manager, role: "OWNER", userId: work.workerScope.userId };
+      await expect(releasePayAgentHold(t.db, selfManager, work.payAgentEvent!.id, "Checked with the worker: the hours were right.")).rejects.toMatchObject({ feedback: "pay-agent-own-work" });
       await expect(preparePayAgentRetry(t.db, manager, work.payable!.id)).rejects.toMatchObject({ feedback: "pay-agent-hold-pending" });
-      const releaser: Scope = { ...manager, userId: await testUser(t.db) };
+      const releaser: Scope = { ...manager, role: "OWNER", userId: await testUser(t.db) };
       const { tasks, schedule } = capture();
-      runReleasedHold(agent, await releasePayAgentHold(t.db, releaser, work.payAgentEvent!.id), schedule);
+      runReleasedHold(agent, await releasePayAgentHold(t.db, releaser, work.payAgentEvent!.id, "Checked with the worker: the hours were right."), schedule);
       expect(await eventOf(t.db, work.payAgentEvent!.id)).toMatchObject({ status: "HOLD_RELEASED", resolvedBy: releaser.userId });
       await tasks[0]();
       expect(await eventOf(t.db, work.payAgentEvent!.id)).toMatchObject({ status: "DRY_RUN_ELIGIBLE", resolution: "RELEASED" });
       expect(model.assess).toHaveBeenCalledTimes(1);
-      await expect(releasePayAgentHold(t.db, releaser, work.payAgentEvent!.id)).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
+      await expect(releasePayAgentHold(t.db, releaser, work.payAgentEvent!.id, "Checked with the worker: the hours were right.")).rejects.toMatchObject({ feedback: "pay-agent-hold-unavailable" });
     } finally { await t.close(); }
   });
 
@@ -207,7 +208,8 @@ describe("manager hold resolution and retry", () => {
       sandboxFixture(manager.organisationId);
       const work = await confirmedWork(t.db, manager);
       await agentFor(t.db, fakePayAgentModel(holdReply)).process({ eventId: work.payAgentEvent!.id }, (await import("@/server/pay-agent/identity")).mintPayAgentCredentialForManager(manager));
-      wireActions(t.db, manager);
+      // Held payments are the Owner's to decide (Day 6).
+      wireActions(t.db, { ...manager, role: "OWNER" });
       await expect(rejectPayAgentHoldAction(form({ eventId: work.payAgentEvent!.id, reason: "  " }))).rejects.toThrow("REDIRECT:/settlements?status=pay-agent-reject-reason");
       await expect(rejectPayAgentHoldAction(form({ eventId: work.payAgentEvent!.id, reason: "Hours were not worked as confirmed." }))).rejects.toThrow("REDIRECT:/settlements?status=saved");
       expect(await eventOf(t.db, work.payAgentEvent!.id)).toMatchObject({ status: "HOLD_REJECTED", resolvedBy: manager.userId, resolutionNote: "Hours were not worked as confirmed." });
@@ -258,15 +260,19 @@ describe("what managers and workers see", () => {
       sandboxFixture(manager.organisationId);
       const work = await confirmedWork(t.db, manager);
       await agentFor(t.db, fakePayAgentModel(holdReply)).process({ eventId: work.payAgentEvent!.id }, (await import("@/server/pay-agent/identity")).mintPayAgentCredentialForManager(manager));
-      wireActions(t.db, manager);
+      // The Owner sees the actions on a held payment (Day 6: holds are the Owner's to decide).
+      wireActions(t.db, { ...manager, role: "OWNER" });
       const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
-      for (const text of ["Pay Agent", "Held for your review", "Hold for review · Confirmation delay", "Confirmation was recorded long after the shift ended.", "resp_test_1", "Release for payment checks", "Reject payment", "Resolve the Pay Agent&#x27;s hold to continue."]) expect(review).toContain(text);
+      for (const text of ["Pay Agent", "Held for the Owner", "Hold for the Owner · Confirmation delay", "Confirmation was recorded long after the shift ended.", "resp_test_1", "Release for payment checks", "Reject payment", "Resolve the Pay Agent&#x27;s hold to continue."]) expect(review).toContain(text);
       expect(review).not.toContain("Approve £78.00");
       vi.mocked(requireScope).mockResolvedValue(work.workerScope);
       const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
       expect(earnings).toContain("Under review");
-      expect(earnings).toContain("Your manager is reviewing this payment.");
-      for (const hidden of ["DECIDED_HOLD", "CONFIRMATION_DELAY", "Confirmation delay", "Confirmation was recorded long after", "resp_test_1", "test-model", "Pay Agent"]) expect(earnings).not.toContain(hidden);
+      expect(earnings).toContain("The business owner is reviewing this payment.");
+      // Day 6, Step 1g: the worker sees the plain explanation and the checklist for their own pay, never codes or model detail.
+      expect(earnings).toContain("Why it’s held: Confirmation was recorded long after the shift ended.");
+      expect(earnings).toContain("Confirmed unusually long after the shift: held for the Owner");
+      for (const hidden of ["DECIDED_HOLD", "CONFIRMATION_DELAY", "resp_test_1", "test-model"]) expect(earnings).not.toContain(hidden);
     } finally { await t.close(); }
   });
 
@@ -277,7 +283,8 @@ describe("what managers and workers see", () => {
       sandboxFixture(manager.organisationId);
       const work = await confirmedWork(t.db, manager);
       await agentFor(t.db, fakePayAgentModel()).process({ eventId: work.payAgentEvent!.id }, (await import("@/server/pay-agent/identity")).mintPayAgentCredentialForManager(manager));
-      wireActions(t.db, manager);
+      // The Owner sees the actions on a held payment (Day 6: holds are the Owner's to decide).
+      wireActions(t.db, { ...manager, role: "OWNER" });
       const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
       for (const text of ["Demo dry run: all checks passed", "Recommendation", "Settle", "Dry-run outcome", "nothing was sent to PayPal", "Retry agent checks"]) expect(review).toContain(text);
       // No button names payment before a payout exists (the existing work-payables guard).

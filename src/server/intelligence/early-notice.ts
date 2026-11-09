@@ -1,13 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt } from "drizzle-orm";
-import { AccessError, assertRole, type Scope } from "@/server/auth/access";
+import { assertRole, type Scope } from "@/server/auth/access";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, notifications, shiftOffers, shifts, workAllocations, workers } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
-import { isSyntheticEmail } from "@/server/demo/booking";
-import { demoConfig } from "@/server/demo/config";
-import { limited } from "@/server/demo/session";
 import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 import { coversBlock } from "@/server/intelligence/local-intelligence-contract";
 import type { LocalSignalView } from "@/server/intelligence/local-intelligence-service";
@@ -47,23 +44,19 @@ export async function affectedShifts(db: DatabaseSession, target: { organisation
 export type EarlyNoticeAlert = { signal: LocalSignalView; outletId: string; outletName: string; timezone: string };
 
 // The Owner's confirmation. The form names only the location and the finding: whether it is still a
-// current closure alert, and who it affects, are worked out again here. A public demo visitor, as the
-// demo Owner, may send only the DEMO scenario's notice, only in the configured demo business and only
-// to synthetic workers (reserved test addresses); the caller never emails it, and email dispatch
-// refuses the demo business's activity anyway (Owner instruction, 8 November 2026).
+// current closure alert, and who it affects, are worked out again here. Public demo visitors are
+// simulated and send nothing (Owner decision, 9 November 2026); a signed-in Owner, including a judge's
+// account of the demo business, sends it in the app.
 export async function sendEarlyNotice(db: Database, scope: Pick<Scope, "userId" | "organisationId" | "role" | "demo">, input: { outletId: string; signalKey: string }, readAlert: (outletId: string, signalKey: string) => Promise<EarlyNoticeAlert | null>, now = new Date()) {
   assertRole(scope as Scope, ["OWNER"]);
-  if (scope.demo && demoConfig()?.organisationId !== scope.organisationId) throw new AccessError();
+  if (scope.demo) throw new UserFacingError("demo-simulated", "Simulated in the public demo: no notice was sent.");
   await requireEntitlement(db, scope.organisationId);
   const alert = await readAlert(input.outletId, input.signalKey);
   if (!alert || !alert.signal.closureLikely) throw new UserFacingError("early-notice-unavailable", "That alert is no longer current, so no notice was sent.");
-  if (scope.demo && !alert.signal.demo) throw new UserFacingError("demo-read-only", "In the public demo, only the DEMO scenario’s early notice can be sent.");
-  if (scope.demo) await limited(db, `demo-notice:${scope.demo.group}`, 20);
   const affected = (await affectedShifts(db, { organisationId: scope.organisationId, outletId: alert.outletId, timezone: alert.timezone }, alert.signal, now)).filter(row => !row.noticeAt);
   if (!affected.length) throw new UserFacingError("early-notice-none", "Every casual worker this affects has already had the notice.");
   const people = await db.select({ id: workers.id, email: workers.email, userId: workers.userId }).from(workers).where(and(eq(workers.organisationId, scope.organisationId), inArray(workers.id, affected.map(row => row.workerId))));
-  const pending = scope.demo ? affected.filter(row => isSyntheticEmail(people.find(person => person.id === row.workerId)?.email)) : affected;
-  if (!pending.length) throw new UserFacingError("early-notice-demo-synthetic", "In the public demo, the early notice goes only to synthetic workers, and none is affected.");
+  const pending = affected;
   const day = (instant: Date) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: alert.timezone }).format(instant);
   const time = (instant: Date) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: alert.timezone }).format(instant);
   // A DEMO scenario's notice says so, and names no source: it has none.

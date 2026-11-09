@@ -29,7 +29,7 @@ describe("Pay Agent when the AI service is unavailable", () => {
   it("keeps other outcomes as they were: an unusable answer is not an outage", () => {
     expect(aiCheckUnavailable(event({ status: "REJECTED_OUTPUT", outcomeCode: "OUTPUT_REJECTED", errorClass: null }))).toBe(false);
     expect(aiCheckUnavailable(event({ errorClass: "INPUT_TOO_LARGE" }))).toBe(false);
-    expect(managerPayAgentView(event({ status: "DECIDED_HOLD", outcomeCode: null, errorClass: null })).status).toBe("Held for your review");
+    expect(managerPayAgentView(event({ status: "DECIDED_HOLD", outcomeCode: null, errorClass: null })).status).toBe("Held for the Owner");
   });
   it("shows a judge the plain message, never a provider code, and shows the worker a plain status", () => {
     const html = renderToStaticMarkup(PayAgentPanel({ event: event(), payableId: "pay-1", demo: true, timezone: "Africa/Johannesburg" }));

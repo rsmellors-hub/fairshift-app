@@ -448,7 +448,8 @@ describe("demo session lifetime and the feature flag", () => {
     await createRequirementAction(newShift(p)).catch(() => undefined);
     const count = (await db.select().from(shifts)).length;
     await expect(resetDemo(db, null, scope)).rejects.toThrow("Access denied");
-    await expect(resetDemo(db, demoConfig(), p.manager.scope)).rejects.toThrow("Access denied");
+    // Signed-in accounts of the demo business may reset it (Owner decision, 9 November 2026); another business may not.
+    await expect(resetDemo(db, demoConfig(), { ...p.manager.scope, organisationId: "99999999-9999-4999-8999-999999999999" })).rejects.toThrow("Access denied");
     vi.stubEnv("FAIRSHIFT_PUBLIC_DEMO", "");
     expect(await outcome(() => resetDemoAction())).toBe("REDIRECT:/demo?status=unavailable");
     vi.stubEnv("FAIRSHIFT_PUBLIC_DEMO", "enabled"); vi.stubEnv("FAIRSHIFT_DEMO_WORKER_MEMBERSHIP_ID", "not-a-uuid");

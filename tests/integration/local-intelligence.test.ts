@@ -344,7 +344,7 @@ describe("local intelligence", () => {
     const before = renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: true }));
     expect(before).toContain("Send early notice to 1 casual worker");
     expect(before).toContain("cancels nothing and changes no pay");
-    expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: false }))).toContain("turned off in the public demo");
+    expect(renderToStaticMarkup(DisruptionAlerts({ alerts: [{ outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg", signal, affected: await affectedShifts(db, target, signal, NOW) }], canSend: false }))).toContain("Simulated in the public demo");
 
     const readAlert = async () => ({ signal, outletId, outletName: "Rosebank", timezone: "Africa/Johannesburg" });
     await expect(sendEarlyNotice(db, { ...scope, role: "MANAGER" }, { outletId, signalKey: signal.key }, readAlert, NOW)).rejects.toThrow();

@@ -21,8 +21,8 @@ import { approveWorkPayable, submitWorkPayout } from "@/server/payments/work-pay
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 const wire = (decision: unknown) => JSON.stringify({ decision });
-const settleReply = (payableId: string) => ({ action: "settle_confirmed_work", payableId });
-const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended." });
+const settleReply = (payableId: string) => ({ action: "settle_confirmed_work", payableId, checks: { hours: "OK", overlap: "OK", timing: "OK", records: "OK" } });
+const holdReply = (payableId: string) => ({ action: "hold_for_manager_review", payableId, reasonCode: "CONFIRMATION_DELAY", summary: "Confirmation was recorded long after the shift ended.", checks: { hours: "OK", overlap: "OK", timing: "CONCERN", records: "OK" } });
 
 function fakeModel(reply: (payableId: string) => unknown = settleReply) {
   const assess = vi.fn(async (request: AssessmentRequest): Promise<AssessmentResponse> => {
@@ -71,8 +71,8 @@ describe("Pay Agent decisions from persisted evidence", () => {
       expect(await s.payable()).toMatchObject({ status: "PENDING_REVIEW", approvedBy: null, approvedAmountMinor: null });
       // The model saw the payable ID and work facts only.
       const request = s.fake.assess.mock.calls[0][0];
-      expect(request.schemaName).toBe("fairshift_pay_agent_decision_v2");
-      expect(Object.keys(JSON.parse(request.input)).sort()).toEqual(["acceptedSchedule", "allocation", "evidenceVersion", "incentive", "managerConfirmation", "missing", "payableId", "performance", "shiftRecord", "terms"]);
+      expect(request.schemaName).toBe("fairshift_pay_agent_decision_v3");
+      expect(Object.keys(JSON.parse(request.input)).sort()).toEqual(["acceptedSchedule", "allocation", "anomalyChecks", "evidenceVersion", "incentive", "managerConfirmation", "missing", "payableId", "performance", "shiftRecord", "terms"]);
       expect(request.input).not.toContain("@");
       expect(request.input).not.toContain(s.work.worker.displayName);
       // A repeat replays the recorded outcome without another model call.

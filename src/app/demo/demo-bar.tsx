@@ -20,7 +20,24 @@ export function DemoBar({ persona }: { persona: DemoPersona }) {
       </details>
       <form action={exitDemoAction}><button className="demo-exit">Exit</button></form>
     </div>
-    <p>A prepared business shared with other visitors. No real money moves. <span className="demo-bar-more">It includes an earlier completed shift so you can explore the full performance and payout journey.</span></p>
+    <p>Sample business. In the public demo nothing sends money, AI requests or messages. <span className="demo-bar-more">Actions that would are marked “Simulated in the public demo”.</span></p>
+  </aside>;
+}
+
+// Signed-in accounts of the demo business (judges' accounts): everything is live in the PayPal Sandbox,
+// and recorded. Reset demo is offered here too; forms are not hidden.
+export function SandboxBar() {
+  return <aside className="demo-bar sandbox-bar" aria-label="Sandbox demo business">
+    <div className="demo-bar-row">
+      <strong>Sandbox demo business</strong>
+      <span>Live: AI search and assessments, in-app notices and PayPal Sandbox payouts. Every action is recorded.</span>
+      <details className="demo-reset"><summary>Reset demo</summary>
+        <div>
+          <p>Closes shifts and offers made since setup, books tomorrow’s demo shift again and returns AI decisions to the start. Completed, paid work and its records aren’t changed.</p>
+          <form action={resetDemoAction}><button>Reset demo</button></form>
+        </div>
+      </details>
+    </div>
   </aside>;
 }
 

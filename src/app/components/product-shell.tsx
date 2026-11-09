@@ -22,6 +22,7 @@ export function ProductShell({
   navigation,
   mobile = false,
   banner,
+  notice,
   contextControl,
   children,
 }: {
@@ -30,6 +31,8 @@ export function ProductShell({
   navigation: ProductNavItem[];
   mobile?: boolean;
   banner?: React.ReactNode;
+  // A bar for signed-in accounts of the demo business: shown like the banner, but nothing is hidden.
+  notice?: React.ReactNode;
   // A control beside the context, such as the Owner's operating-location switch.
   contextControl?: React.ReactNode;
   children: React.ReactNode;
@@ -57,7 +60,7 @@ export function ProductShell({
           </div>
           {banner ? null : <Link className="workspace-account" href="/account">Account</Link>}
         </header>
-        {banner}
+        {banner}{notice}
         <main className="product-main" id="main-content" tabIndex={-1}>{children}</main>
       </div>
       {mobile ? (

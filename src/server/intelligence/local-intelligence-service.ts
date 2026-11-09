@@ -4,7 +4,7 @@ import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, externalFeeds, localIntelligenceDecisions, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outletTradingHours, outlets } from "@/server/db/schema";
+import { auditEvents, externalFeeds, localIntelligenceDecisions, localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignalDecisions, localIntelligenceSignals, outletTradingHours, outlets, users } from "@/server/db/schema";
 import { UserFacingError } from "@/server/domain/errors";
 import { AiProviderError } from "@/server/integrations/openai/staffing-assessment";
 import type { DiscoveryResponse, LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -225,22 +225,28 @@ type DiscoveredSignalTier = Parameters<typeof sourceDecision>[0]["sourceTier"];
 // --- Reading -------------------------------------------------------------------------------------
 
 export type TrackRecordRow = typeof localIntelligenceOutcomes.$inferSelect & { name: string };
-export type StoredLocalIntelligence = { runs: readonly RunRow[]; signals: readonly SignalRow[]; decisions: readonly (typeof localIntelligenceDecisions.$inferSelect)[]; outcomes?: readonly TrackRecordRow[] };
+export type DecisionRow = typeof localIntelligenceDecisions.$inferSelect & { decidedByName?: string | null };
+export type SignalDecisionRow = typeof localIntelligenceSignalDecisions.$inferSelect & { decidedByName?: string | null };
+export type StoredLocalIntelligence = { runs: readonly RunRow[]; signals: readonly SignalRow[]; decisions: readonly DecisionRow[]; outcomes?: readonly TrackRecordRow[]; signalDecisions?: readonly SignalDecisionRow[] };
 
 export async function loadLocalIntelligence(db: DatabaseSession, organisationId: string, outletIds: readonly string[], firstDate: string, lastDate: string, now = new Date()): Promise<StoredLocalIntelligence> {
-  if (!outletIds.length) return { runs: [], signals: [], decisions: [], outcomes: [] };
+  if (!outletIds.length) return { runs: [], signals: [], decisions: [], outcomes: [], signalDecisions: [] };
   const ids = [...outletIds];
   // The latest week of runs is enough to find each location's current daily and short-notice runs.
   const runs = await db.select().from(localIntelligenceRuns).where(and(eq(localIntelligenceRuns.organisationId, organisationId), inArray(localIntelligenceRuns.outletId, ids), gte(localIntelligenceRuns.createdAt, new Date(now.getTime() - 7 * 86_400_000))))
     .orderBy(desc(localIntelligenceRuns.createdAt)).limit(400);
   const current = ids.flatMap(id => currentRuns(runs.filter(row => row.outletId === id))).map(row => row.id);
-  const [signals, decisions, outcomes] = await Promise.all([
+  const [signals, decisions, outcomes, signalDecisions] = await Promise.all([
     current.length ? db.select().from(localIntelligenceSignals).where(inArray(localIntelligenceSignals.runId, current)) : Promise.resolve([] as SignalRow[]),
-    db.select().from(localIntelligenceDecisions).where(and(eq(localIntelligenceDecisions.organisationId, organisationId), inArray(localIntelligenceDecisions.outletId, ids), gte(localIntelligenceDecisions.targetDate, firstDate), sql`${localIntelligenceDecisions.targetDate} <= ${lastDate}`)).orderBy(desc(localIntelligenceDecisions.sequence)),
+    db.select({ decision: localIntelligenceDecisions, name: users.name }).from(localIntelligenceDecisions).leftJoin(users, eq(users.id, localIntelligenceDecisions.decidedBy))
+      .where(and(eq(localIntelligenceDecisions.organisationId, organisationId), inArray(localIntelligenceDecisions.outletId, ids), gte(localIntelligenceDecisions.targetDate, firstDate), sql`${localIntelligenceDecisions.targetDate} <= ${lastDate}`)).orderBy(desc(localIntelligenceDecisions.sequence)),
     db.select({ outcome: localIntelligenceOutcomes, name: localIntelligenceSignals.name }).from(localIntelligenceOutcomes).innerJoin(localIntelligenceSignals, eq(localIntelligenceSignals.id, localIntelligenceOutcomes.signalId))
       .where(and(eq(localIntelligenceOutcomes.organisationId, organisationId), inArray(localIntelligenceOutcomes.outletId, ids))).orderBy(desc(localIntelligenceOutcomes.targetDate)).limit(200),
+    db.select({ decision: localIntelligenceSignalDecisions, name: users.name }).from(localIntelligenceSignalDecisions).leftJoin(users, eq(users.id, localIntelligenceSignalDecisions.decidedBy))
+      .where(and(eq(localIntelligenceSignalDecisions.organisationId, organisationId), inArray(localIntelligenceSignalDecisions.outletId, ids), gte(localIntelligenceSignalDecisions.decidedAt, new Date(now.getTime() - 21 * 86_400_000)))),
   ]);
-  return { runs, signals, decisions, outcomes: outcomes.map(row => ({ ...row.outcome, name: row.name })) };
+  return { runs, signals, decisions: decisions.map(row => ({ ...row.decision, decidedByName: row.name })), outcomes: outcomes.map(row => ({ ...row.outcome, name: row.name })),
+    signalDecisions: signalDecisions.map(row => ({ ...row.decision, decidedByName: row.name })) };
 }
 
 // A location's current runs: its latest completed daily run, and a later short-notice run if there is
@@ -259,7 +265,9 @@ export type LocalSignalView = AppliableSignal & {
   // Demand: applied in at least one planning block, or listed (ranked below the top signals, or outside the
   // planning week). Capacity: an Owner alert when severe, else noted. Access: a staff-attendance risk.
   // Unconfirmed: shown, never applied.
-  use: "APPLIED" | "LISTED" | "UNCONFIRMED" | "ALERT" | "ATTENDANCE_RISK" | "NOTED";
+  use: "APPLIED" | "LISTED" | "UNCONFIRMED" | "ALERT" | "ATTENDANCE_RISK" | "NOTED" | "DISMISSED";
+  // Set when an Owner or Manager set this demand signal aside: it then moves no demand.
+  dismissed?: { byName: string | null; byRole: string; at: Date } | null;
   // A DEMO scenario made by FairShift for the demonstration (src/server/demo/capacity-scenario.ts):
   // never stored, never found by AI, and labelled DEMO wherever it is shown.
   demo?: boolean;
@@ -267,7 +275,7 @@ export type LocalSignalView = AppliableSignal & {
 export type RunView = { id: string; kind: string; status: "COMPLETED" | "FAILED" | "RUNNING" | "INTERRUPTED"; failureCode: string | null; responseId: string | null; model: string; responseModel: string | null; createdAt: Date; completedAt: Date | null;
   coverage: { category: string; label: string; queries: string[]; outcome: string }[]; searches: { action: string; queries: string[]; url: string | null }[]; counts: Record<string, number>; rejected: { name: string; code: string | null; note: string | null; sourceUrl: string }[] };
 export type LocalDecisionState = "NOT_USED" | "ACCEPTED" | "STALE" | "SCENARIO_ACCEPTED";
-export type LocalDay = { date: string; blocks: BlockAdjustment[]; adjusted: BlockAdjustment[]; fingerprint: string; state: LocalDecisionState; decisionId: string | null; decidedAt: Date | null; decidedByRole: string | null;
+export type LocalDay = { date: string; blocks: BlockAdjustment[]; adjusted: BlockAdjustment[]; fingerprint: string; state: LocalDecisionState; decisionId: string | null; decidedAt: Date | null; decidedByRole: string | null; decidedByName?: string | null;
   // Capacity and access signals on each planning block. They never move demand.
   risks: BlockRisk[];
   preview: { expectedMilliTransactions: number | null; requiredMinutes: number | null; casualGapMinutes: number | null; blocks: PlanningBlock[] } | null };
@@ -313,20 +321,25 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
       sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, sourceCheck: row.sourceCheck, consultedInSearch: row.consultedInSearch, serverNote: stored.note, rejectionCode: row.rejectionCode,
       responseId: run.providerResponseId, model: run.model, responseModel: run.responseModel, foundAt: run.completedAt ?? run.createdAt };
   });
+  // The latest dismissal or restoration per signal key at this location; a dismissed demand signal moves nothing.
+  const dismissals = new Map<string, SignalDecisionRow>();
+  for (const row of [...(input.stored.signalDecisions ?? [])].filter(row => row.outletId === input.outletId).sort((a, b) => a.decidedAt.getTime() - b.decidedAt.getTime())) dismissals.set(row.signalKey, row);
+  const dismissedOf = (key: string) => { const row = dismissals.get(key); return row?.action === "DISMISSED" ? { byName: row.decidedByName ?? null, byRole: row.decidedByRole, at: row.decidedAt } : null; };
+  const active = base.filter(signal => !(signal.effectType === "DEMAND" && dismissedOf(signal.key)));
   const days: LocalDay[] = input.days.map(day => {
     const blocks = day.closed ? [] : day.blocks.map(block => ({ start: block.start, end: block.end }));
-    const result = blockAdjustments(day.planningDate, blocks, base);
+    const result = blockAdjustments(day.planningDate, blocks, active);
     const latest = input.stored.decisions.filter(row => row.outletId === input.outletId && row.targetDate === day.planningDate).sort((a, b) => b.sequence - a.sequence)[0];
     const accepted = latest?.action === "ACCEPTED";
     const matches = accepted && latest.adjustmentFingerprint === result.fingerprint && latest.policyVersion === LOCAL_INTEL_POLICY_VERSION && result.adjusted.length > 0;
     const state: LocalDecisionState = !accepted ? "NOT_USED" : !matches ? "STALE" : input.scenarioDates.has(day.planningDate) ? "SCENARIO_ACCEPTED" : "ACCEPTED";
-    return { date: day.planningDate, blocks: result.blocks, adjusted: result.adjusted, fingerprint: result.fingerprint, state, decisionId: accepted ? latest.id : null, decidedAt: accepted ? latest.decidedAt : null, decidedByRole: accepted ? latest.decidedByRole : null,
+    return { date: day.planningDate, blocks: result.blocks, adjusted: result.adjusted, fingerprint: result.fingerprint, state, decisionId: accepted ? latest.id : null, decidedAt: accepted ? latest.decidedAt : null, decidedByRole: accepted ? latest.decidedByRole : null, decidedByName: accepted ? latest.decidedByName ?? null : null,
       risks: blockRisks(day.planningDate, blocks, [...base, ...demo]), preview: null };
   });
   const applied = new Set(days.flatMap(day => day.blocks.flatMap(block => block.applied)));
-  const useOf = (signal: (typeof base)[number]): LocalSignalView["use"] => signal.status === "UNCONFIRMED" ? "UNCONFIRMED"
+  const useOf = (signal: (typeof base)[number]): LocalSignalView["use"] => signal.status === "UNCONFIRMED" ? "UNCONFIRMED" : signal.effectType === "DEMAND" && dismissedOf(signal.key) ? "DISMISSED"
     : signal.effectType === "CAPACITY" ? (signal.severity === "HIGH" ? "ALERT" : "NOTED") : signal.effectType === "ACCESS" ? "ATTENDANCE_RISK" : applied.has(signal.key) ? "APPLIED" : "LISTED";
-  const signals: LocalSignalView[] = [...base.map((signal): LocalSignalView => ({ ...signal, use: useOf(signal) })), ...demo]
+  const signals: LocalSignalView[] = [...base.map((signal): LocalSignalView => ({ ...signal, use: useOf(signal), dismissed: signal.effectType === "DEMAND" ? dismissedOf(signal.key) : null })), ...demo]
     .sort((a, b) => b.impact - a.impact || a.validFrom.localeCompare(b.validFrom) || a.key.localeCompare(b.key));
   const accepted = new Map(days.filter(day => day.state === "ACCEPTED").map(day => [day.date, { decisionId: day.decisionId!, blocks: new Map(day.adjusted.map(block => [block.start, block.bps])) }]));
   const runViews = current.map(row => runView(row, input.stored.signals, now));
@@ -363,6 +376,31 @@ export async function decideLocalAdjustments(db: Database, scope: DecisionScope,
       policyVersion: LOCAL_INTEL_POLICY_VERSION, decidedBy: scope.userId, decidedByRole: scope.role, decidedAt: now }).returning();
     await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: `LOCAL_INTELLIGENCE_${input.action}`, entityType: "local_intelligence_decision", entityId: decision.id,
       correlationId: `local-intelligence:${scope.locationId}`, metadata: { actorUserId: scope.userId, date: input.date, fingerprint: decision.adjustmentFingerprint, adjustments: decision.adjustments } });
+    return decision;
+  });
+}
+
+// --- Setting one demand signal aside ---------------------------------------------------------------
+
+export type SignalDecisionAction = "DISMISSED" | "RESTORED";
+
+// An Owner or Manager sets one AI-found demand signal aside at the session's own location, or brings it
+// back. The form names only the signal key and the choice; the signal is read again on the server. A
+// dismissed signal moves no demand, so any acceptance of a day it changed no longer matches (STALE)
+// until someone looks again. Rows are never edited; the latest stands.
+export async function decideSignal(db: Database, scope: DecisionScope, input: { signalKey: string; action: SignalDecisionAction }, readSignal: (signalKey: string) => Promise<LocalSignalView | null>, now = new Date()) {
+  assertRole(scope as Scope, ["OWNER", "MANAGER"]);
+  await requireEntitlement(db, scope.organisationId);
+  if (!["DISMISSED", "RESTORED"].includes(input.action) || !/^lis_[0-9a-f]{24}$/.test(input.signalKey)) throw new UserFacingError("local-not-found", "That is no longer available.");
+  const signal = await readSignal(input.signalKey);
+  if (!signal || signal.demo || signal.effectType !== "DEMAND" || signal.status === "UNCONFIRMED") throw new UserFacingError("local-not-found", "That is no longer available.");
+  if (input.action === "DISMISSED" && signal.use === "DISMISSED") return null;
+  if (input.action === "RESTORED" && signal.use !== "DISMISSED") return null;
+  return db.transaction(async tx => {
+    const [decision] = await tx.insert(localIntelligenceSignalDecisions).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, signalKey: signal.key, signalId: signal.id,
+      action: input.action, decidedBy: scope.userId, decidedByRole: scope.role, decidedAt: now }).returning();
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: `LOCAL_SIGNAL_${input.action}`, entityType: "local_intelligence_signal_decision", entityId: decision.id,
+      correlationId: `local-intelligence:${scope.locationId}`, metadata: { actorUserId: scope.userId, signalKey: signal.key, signalId: signal.id, name: signal.name } });
     return decision;
   });
 }

@@ -25,13 +25,17 @@ import { availabilityForShift, isOfferable, OPPORTUNITY_LABEL, shiftWeekdays, wo
 import { ManagerToday } from "./today";
 import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
 import { getStaffingAssessmentView } from "@/server/intelligence/ai-staffing";
-import { AiStaffingAssessment } from "@/app/components/ai-staffing-assessment";
+import { AiStaffingAssessment, signalLookup } from "@/app/components/ai-staffing-assessment";
 import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { AllocationScheduler } from "./allocation-scheduler";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
 import { refreshContextFeedsIfDue } from "@/server/intelligence/demand-context-service";
 import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context";
-import { LocalIntelligencePanel } from "./local-intelligence";
+import { LocalIntelligencePanel, NOTICE as LOCAL_NOTICE } from "./local-intelligence";
+import { PlanSignalCards } from "@/app/components/ai-signals";
+import { SuggestedShifts } from "@/app/manager/suggested-shifts";
+import { suggestionContext } from "@/server/scheduling/shift-suggestions";
+import { suggestShifts } from "@/server/scheduling/shift-rules";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { PayoutProgress, ReviewStages } from "@/app/components/payment-progress";
 import { payoutRefusal, refusalText } from "@/server/domain/payout-refusal";
@@ -147,7 +151,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       <details className="panel disclosure" open={!team.length}><summary>Add a worker</summary><form action={createTeamAction} className="workspace-form form-grid"><label>First name<input name="firstName" maxLength={100} required /></label><label>Surname<input name="surname" maxLength={100} required /></label><label>Telephone number<input type="tel" name="telephone" maxLength={30} required /></label><label>Email address<input type="email" name="email" maxLength={254} required /></label><p className="form-span note">They join {scope.locationName} and receive an invitation by email.</p><button className="primary-button">Create & send FairShift invite</button></form></details>
     </> : null}
     {area === "team" && !scope.demo ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
-    {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context, local) : null}
+    {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context, local, status) : null}
     {area === "allocations" ? await Roster(scope, timezone) : null}
     {area === "fill" ? <>
       {gapDay ? <section className="panel staffing-handoff" aria-label="Staffing requirement"><h2>{longDate(gapDay.planningDate)}{opportunity ? ` · ${opportunity.windowStart}–${opportunity.windowEnd}` : ""}</h2>
@@ -239,7 +243,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             {unknown ? <p className="note">{amount(finalPayableMinor(payable))} base only · bonus not known yet</p> : null}
             {payable.approvedAt ? <p className="note">Approved {dateTime(payable.approvedAt, timezone)} ({timezone})</p> : null}
             <PayoutProgress status={payable.status} payout={payout ? { ...payout, refusal: payoutRefusal(payout) } : payout} />
-            {payAgent ? <PayAgentPanel event={payAgent} payableId={payable.id} demo={!!scope.demo} timezone={timezone} /> : null}
+            {payAgent ? <PayAgentPanel event={payAgent} payableId={payable.id} demo={!!scope.demo} timezone={timezone} owner={scope.role === "OWNER"} /> : null}
             <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} agentStatus={payAgent?.status ?? null} /></div>
           </article>; })}</div>
           <p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
@@ -327,7 +331,7 @@ type ManagerPayables = Awaited<ReturnType<typeof getOperations>>["payables"];
 // only the payable ID; the server reads amount, currency and recipient itself.
 function PayableAction({ demo = false, payable, payout, paymentDetailsSaved, payoutsConfigured, timezone, agentStatus = null }: Pick<ManagerPayables[number], "payable" | "payout" | "paymentDetailsSaved"> & { demo?: boolean; payoutsConfigured: boolean; timezone: string; agentStatus?: string | null }) {
   // The public demo never reaches PayPal. It says so, and shows no action that would try.
-  if (demo && !payout) return <p className="note">Approving and paying are turned off in the public demo, so nothing here can reach PayPal.</p>;
+  if (demo && !payout) return <p className="note"><DataLabel kind="demo">Simulated in the public demo</DataLabel> Approving and paying never reach PayPal from here. Signed-in accounts pay through the PayPal Sandbox.</p>;
   // A Pay Agent hold is resolved with Release or Reject; a rejected payment stays unpaid.
   if (!payout && agentStatus === "DECIDED_HOLD") return <p className="note">Resolve the Pay Agent&apos;s hold to continue.</p>;
   if (!payout && agentStatus === "HOLD_REJECTED") return <p className="note">A manager rejected this payment, so it stays unpaid.</p>;
@@ -374,18 +378,29 @@ function PlanContext({ date, department }: { date?: string; department?: string 
 }
 // Planning-week staffing evidence for the manager's own location; managers are
 // scoped to one location, so no location selector is shown.
-async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: WeeklyStaffing | null, contextDate: string | null, contextNotice?: string, localNotice?: string) {
+const SUGGESTION_NOTICE: Record<string, string> = {
+  "suggestion-round-1": "Shift created. Round 1 offers have gone to workers here who want more hours.", "suggestion-round-2": "Shift created. Offers have gone to every eligible worker here.",
+  "suggestion-approved": "That suggested shift was already approved.", "offer-rules-missing": "Shift created, but this location's offer settings aren't set, so no offers went out.",
+};
+async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: WeeklyStaffing | null, contextDate: string | null, contextNotice?: string, localNotice?: string, status?: string) {
   if (!staffing) return <StatePanel title="Staffing unavailable" tone="warning"><p>Forecast or coverage could not be loaded, so no labour gap is shown. Existing requirements remain available below.</p></StatePanel>;
   const outlet = staffing.outlets.find(row => row.outletId === scope.locationId);
   if (!outlet) return <StatePanel title="Staffing unavailable" tone="warning"><p>This location is not available for planning.</p></StatePanel>;
   const evidence = outlet.evidence;
+  // The location's AI briefing, read once for both "What to staff first" and the suggested shifts' order.
+  let briefing = null;
+  try { briefing = await getStaffingAssessmentView(getDatabase(), scope, "LOCATION", staffing); } catch { briefing = null; }
+  let suggestionData: Awaited<ReturnType<typeof suggestionContext>> | null = null;
+  try { suggestionData = await suggestionContext(getDatabase(), scope, suggestShifts(outlet)); } catch { suggestionData = null; }
   return <div className="staffing-week">
+    <PlanSignalCards outlet={outlet} act={!scope.demo} simulated={!!scope.demo} notice={localNotice ? LOCAL_NOTICE[localNotice] : undefined} />
     <section className="panel" aria-labelledby="week-cover-title">
     <p className="provenance-line">{evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "SQUARE" ? "Square Sandbox sales · connected seller" : evidence.source === "ZETTLE" ? "Earlier connected-account sales" : "Verified PayPal Sandbox sales"}</DataLabel> : null}<span>Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</span></p>
     <p className="note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
     <WorkloadSetupNotice outlets={[outlet]} owner={scope.role === "OWNER"} />
     <WeekCover outlet={outlet} />
     </section>
+    {suggestionData ? <SuggestedShifts outlet={outlet} briefing={briefing} departments={suggestionData.departments} policies={suggestionData.policies} approved={suggestionData.approved} act={!scope.demo} simulated={!!scope.demo} notice={SUGGESTION_NOTICE[status ?? ""]} /> : null}
     <OpportunityList outlet={outlet} act />
     <LocalIntelligencePanel outlet={outlet} selectedDate={contextDate} notice={localNotice} demo={!!scope.demo} showTrackRecord={isDemoOrganisation(scope.organisationId)} />
     <DemandContextPanel outlet={outlet} selectedDate={contextDate} notice={contextNotice} aiConfigured={getConfigurationStatus().aiConfigured} eventsConfigured={!!getTicketmasterApiKey()} ownerView={scope.role === "OWNER"} />
@@ -399,7 +414,7 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
       <article><span>Estimated cost to fill</span><strong>{outlet.commercial?.cost && outlet.currency ? outlet.commercial.cost.lowMinor === outlet.commercial.cost.highMinor ? wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency) : `${wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency)} – ${wholeMoney(outlet.commercial.cost.highMinor, outlet.currency)}` : "Not available"}</strong><small>{outlet.commercial?.cost ? "Estimate on this location’s work policies" : "Needs a work policy in this currency"}</small></article>
     </div> : null}
     <section className="panel" aria-labelledby="service-days-title"><h2 id="service-days-title">By time of day</h2><p className="panel-lede">Open a day to see when it’s covered and when it isn’t.</p><ServiceDays outlet={outlet} act /></section>
-    <section className="panel ai-section"><h2 className="visually-hidden">AI priorities</h2><DecisionNote />{await LocationAssessment(scope, staffing, aiNotice)}</section>
+    <section className="panel ai-section"><h2 className="visually-hidden">AI priorities</h2><DecisionNote />{LocationAssessment(scope, staffing, briefing, aiNotice)}</section>
     <details className="panel disclosure"><summary>Day-by-day figures</summary>
     <div className="table-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="data-table" planHref={fillHref} /></div>
     <p className="note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>
@@ -408,11 +423,9 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
 }
 // AI interpretation of this location's staffing week. A failure here never hides the
 // calculated figures above it.
-async function LocationAssessment(scope:Scope, staffing:WeeklyStaffing, notice?: string) {
-  let view = null;
-  try { view = await getStaffingAssessmentView(getDatabase(),scope,"LOCATION",staffing); } catch { view = null; }
+function LocationAssessment(scope:Scope, staffing:WeeklyStaffing, view: Awaited<ReturnType<typeof getStaffingAssessmentView>> | null, notice?: string) {
   const names = Object.fromEntries(staffing.outlets.map(outlet => [outlet.outletId, outlet.outletName]));
-  return <AiStaffingAssessment view={view} names={names} configured={getConfigurationStatus().aiConfigured} action={generateLocationAssessmentAction} notice={notice}
+  return <AiStaffingAssessment view={view} names={names} signals={signalLookup(staffing.outlets)} configured={getConfigurationStatus().aiConfigured} action={generateLocationAssessmentAction} notice={notice}
     timeZone={staffing.outlets.find(outlet => outlet.outletId === scope.locationId)?.timezone}
     planHref={(outletId, date) => outletId === scope.locationId ? `/manager/fill${date ? `?date=${date}` : ""}#add-requirement` : null} />;
 }

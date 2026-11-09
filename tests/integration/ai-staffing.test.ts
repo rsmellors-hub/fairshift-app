@@ -14,7 +14,7 @@ import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
-import { aiStaffingAssessments, auditEvents, organisations, outlets, shiftOffers, shifts, subscriptions, users, workAllocations, workPayables, workPayouts } from "@/server/db/schema";
+import { aiStaffingAssessments, auditEvents, memberships, organisations, outlets, shiftOffers, shifts, subscriptions, users, workAllocations, workPayables, workPayouts } from "@/server/db/schema";
 import { AiProviderError, getStaffingAssessmentProvider, OpenAiStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { AI_OUTPUT_SCHEMA_VERSION, type AssessmentInput, type StaffingAssessment } from "@/server/intelligence/ai-staffing-contract";
 import { generateStaffingAssessment, getStaffingAssessmentView, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
@@ -26,6 +26,7 @@ import { OwnerWorkspace } from "@/app/owner/workspace";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { generateLocationAssessmentAction, generateOwnerAssessmentAction } from "@/app/intelligence-actions";
 import { createActivatedTeamMember } from "../helpers/workers";
+import { JOBS, runDueJobs } from "@/server/scheduler/feeds";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -67,11 +68,11 @@ function validAssessment(input: AssessmentInput): StaffingAssessment {
     schemaVersion: AI_OUTPUT_SCHEMA_VERSION,
     summary: `Casual staffing pressure is highest at [[${top.key}]].`,
     priorities: [
-      { rank: 1, locationKey: top.key, date: day.date, severity: "HIGH", category: "CASUAL_GAP", reason: "This is the largest casual gap in the planning week.", evidence: [{ metric: "casualGapMinutes", value: day.casualGapMinutes! }, { metric: "requiredMinutes", value: day.requiredMinutes! }], action: "FILL_SHIFTS", actionNote: "Plan casual shifts for this day first." },
-      { rank: 2, locationKey: top.key, date: null, severity: "MEDIUM", category: "CASUAL_GAP", reason: "The location needs casual cover across the week.", evidence: [{ metric: "casualGapMinutes", value: top.week!.casualGapMinutes }], action: "FILL_SHIFTS", actionNote: "Then cover the remaining days." },
+      { rank: 1, locationKey: top.key, date: day.date, severity: "HIGH", category: "CASUAL_GAP", reason: "This is the largest casual gap in the planning week.", evidence: [{ metric: "casualGapMinutes", value: day.casualGapMinutes! }, { metric: "requiredMinutes", value: day.requiredMinutes! }], action: "FILL_SHIFTS", actionNote: "Plan casual shifts for this day first.", window: null, signalRefs: [] },
+      { rank: 2, locationKey: top.key, date: null, severity: "MEDIUM", category: "CASUAL_GAP", reason: "The location needs casual cover across the week.", evidence: [{ metric: "casualGapMinutes", value: top.week!.casualGapMinutes }], action: "FILL_SHIFTS", actionNote: "Then cover the remaining days.", window: null, signalRefs: [] },
     ],
     constraints: [{ type: "SYNTHETIC_REFERENCE_DATA", locationKey: null, note: "Forecasts come from synthetic reference history, not live sales." }, { type: "STALE_EVIDENCE", locationKey: null, note: "The planning week is mapped from older history." }],
-    signalCommentary: "Treat the ranking as directional: the history is synthetic and older than the planning week.", commercialImplication: "Demand and cost are in proportion.",
+    signalCommentary: "Treat the ranking as directional: the history is synthetic and older than the planning week.", commercialImplication: "Demand and cost are in proportion.", suggestionOrder: [],
   };
 }
 function fakeProvider(respond: (input: AssessmentInput) => unknown = validAssessment) {
@@ -99,7 +100,7 @@ describe("AI staffing intelligence", () => {
       expect(sent.locations).toHaveLength(5);
       for (const text of [...c.rows.map(row => row.name), ...c.rows.map(row => row.id), "AI company", c.organisationId, "@"]) expect(provider.assess.mock.calls[0][0].input).not.toContain(text);
       expect(record).toMatchObject({ status: "AVAILABLE", scopeKey: "ORGANISATION", outletId: null, provider: "OPENAI", model: "gpt-test", responseModel: "gpt-test-2026", providerResponseId: "resp_test",
-        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2026-10-18", inputVersion: "fs-staffing-ai-input-v3", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
+        planningStart: "2026-10-26", planningEnd: "2026-11-01", evidenceThrough: "2026-10-18", inputVersion: "fs-staffing-ai-input-v4", outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION, failureCode: null });
       expect(record.input).toEqual(sent);
       expect(Object.values(record.locationKeys as Record<string, string>).sort()).toEqual(c.rows.map(row => row.id).sort());
 
@@ -198,7 +199,9 @@ describe("AI staffing intelligence", () => {
       // Not configured: the deterministic page is complete and no assessment is offered or invented.
       vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true, aiConfigured: false } as ReturnType<typeof getConfigurationStatus>);
       html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
+      // The earlier failed attempt is still reported; nothing can be asked for.
       expect(html).toContain("AI assessment is not configured in this environment");
+      expect(html).not.toContain("Prepare the briefing now");
       expect(html).not.toContain("<button class=\"secondary-button\">Generate AI assessment");
       vi.mocked(getStaffingAssessmentProvider).mockReturnValue(null);
       await expect(generateOwnerAssessmentAction()).rejects.toThrow("REDIRECT:/owner/forecast?ai=not-configured");
@@ -209,7 +212,7 @@ describe("AI staffing intelligence", () => {
       vi.mocked(getDatabase).mockReturnValue(db as typeof t.db);
       html = renderToStaticMarkup(await OwnerWorkspace({ area: "forecast" }));
       expect(html).toContain("Casual requirement by location");
-      expect(html).toContain("AI assessment is unavailable because the staffing evidence could not be loaded");
+      expect(html).toContain("The AI briefing can’t be shown because the staffing figures couldn’t be loaded");
     } finally { await t.close(); }
   });
 
@@ -286,6 +289,36 @@ describe("AI staffing intelligence", () => {
       // A location assessment must name a location of its own organisation.
       await expect(t.db.insert(aiStaffingAssessments).values({ ...record, id: randomUUID(), outletId, scopeKey: `LOCATION:${outletId}`, inputFingerprint: "0".repeat(64) })).rejects.toThrow();
       await expect(t.db.insert(aiStaffingAssessments).values({ ...record, id: randomUUID(), assessment: null })).rejects.toThrow();
+    } finally { await t.close(); }
+  });
+});
+
+// Day 6, Step 1h: "What to staff first" is generated by the scheduler for the demo business and each
+// of its locations, only when the evidence has changed, so it is populated when anyone opens the page.
+describe("scheduled AI briefing", () => {
+  it("briefs the organisation and every location once per evidence, recording each call", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await referenceCompany(t.db);
+      await t.db.insert(memberships).values({ id: randomUUID(), userId: c.owner.userId, organisationId: c.organisationId, role: "OWNER" });
+      const provider = fakeProvider();
+      const job = JOBS.filter(row => row.key === "ai:briefing");
+      const deps = { now: () => NOW, demoOrganisationIds: [c.organisationId], aiSchedule: true, assessment: provider };
+      const [first] = await runDueJobs(t.db, deps, job);
+      expect(first).toMatchObject({ key: "ai:briefing", outcome: "RAN", ok: true });
+      const stored = await t.db.select().from(aiStaffingAssessments).where(eq(aiStaffingAssessments.organisationId, c.organisationId));
+      expect(stored.map(row => row.scopeKey).sort()).toEqual(["ORGANISATION", ...c.rows.map(row => `LOCATION:${row.id}`)].sort());
+      expect(stored.every(row => row.status === "AVAILABLE")).toBe(true);
+      expect(provider.assess).toHaveBeenCalledTimes(1 + c.rows.length);
+      expect((await t.db.select().from(auditEvents).where(eq(auditEvents.action, "AI_STAFFING_ASSESSMENT_CREATED"))).length).toBe(1 + c.rows.length);
+      // A manager opening the Plan page sees their location's briefing without asking for one.
+      expect((await getStaffingAssessmentView(t.db, await c.manager(2), "LOCATION", await getWeeklyStaffing(t.db, await c.manager(2), NOW))).state).toBe("CURRENT");
+      // Two hours later nothing has changed, so the model isn't called again.
+      await runDueJobs(t.db, { ...deps, now: () => new Date(NOW.getTime() + 2 * 3_600_000 + 1) }, job);
+      expect(provider.assess).toHaveBeenCalledTimes(1 + c.rows.length);
+      // Off without the AI schedule or a model.
+      expect((await runDueJobs(t.db, { ...deps, aiSchedule: false }, job))[0].outcome).toBe("DISABLED");
+      expect((await runDueJobs(t.db, { ...deps, assessment: null }, job))[0].outcome).toBe("DISABLED");
     } finally { await t.close(); }
   });
 });

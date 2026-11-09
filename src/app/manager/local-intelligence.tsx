@@ -20,9 +20,10 @@ const ROLE: Record<string, string> = { FOH: "front of house", BOH: "kitchen" };
 const PART: Record<string, string> = { MORNING: "morning", AFTERNOON: "afternoon", EVENING: "evening" };
 const USE: Record<LocalSignalView["use"], [string, "success" | "neutral" | "warning" | "predictive" | "danger"]> = {
   APPLIED: ["Applied to the forecast", "success"], LISTED: ["Listed, not applied", "neutral"], UNCONFIRMED: ["Unconfirmed: shown, never applied", "warning"],
-  ALERT: ["Owner alert: could stop trading", "danger"], ATTENDANCE_RISK: ["Staff attendance risk", "warning"], NOTED: ["Noted: no change to demand", "predictive"],
+  ALERT: ["Owner alert: could stop trading", "danger"], ATTENDANCE_RISK: ["Staff attendance risk", "warning"], NOTED: ["Noted: no change to demand", "predictive"], DISMISSED: ["Dismissed: no change to demand", "neutral"],
 };
-const NOTICE: Record<string, string> = {
+export const NOTICE: Record<string, string> = {
+  "local-dismissed": "That signal is set aside: it no longer changes demand. Any day it changed is back on review.", "local-restored": "That signal is back: it can change demand again once accepted.",
   "local-accepted": "Staffing for this day now uses the AI-found adjustments shown.", "local-withdrawn": "Staffing for this day is back on its baseline.",
   "local-changed": "The AI-found signals have changed since you looked. Check them again before using them.", "local-scenario-accepted": "This day already uses an accepted scenario. Withdraw it first, so the same influence isn’t counted twice.",
   "local-nothing-to-use": "There are no AI-found adjustments for that day.", "local-not-found": "That is no longer available.", error: "That couldn’t be completed. Staffing is unaffected.",
@@ -138,7 +139,7 @@ export function LocalIntelligencePanel({ outlet, selectedDate, notice, demo, sho
       <h3>{longDate(day.date)}</h3>
       <DayBlocks day={day} outlet={outlet} />
       {day.preview && day.adjusted.length ? <p className="note">For the day: expected transactions {transactions((staffing.context?.baseline ?? staffing.local?.baseline ?? staffing).expectedMilliTransactions)} on the baseline, {transactions(day.preview.expectedMilliTransactions)} AI-adjusted; casual requirement {labourHours((staffing.context?.baseline ?? staffing.local?.baseline ?? staffing).casualGapMinutes ?? 0)}, against {labourHours(day.preview.casualGapMinutes ?? 0)} with the adjustments. FairShift’s fixed bands, not the AI, set these percentages. Expected sales and pay don’t change.</p> : null}
-      {demo ? <p className="note">Choosing whether staffing uses these is turned off in the public demo.</p>
+      {demo ? <p className="note"><DataLabel kind="demo">Simulated in the public demo</DataLabel> Signed-in Owners and Managers choose whether staffing uses these.</p>
         : day.state === "ACCEPTED" ? <div className="button-row"><StatusBadge tone="success">In use</StatusBadge><span className="note">Used for staffing by a {day.decidedByRole === "OWNER" ? "business owner" : "Manager"}{day.decidedAt ? ` on ${stamp(day.decidedAt, outlet.timezone)}` : ""}.</span><Decide date={day.date} action="WITHDRAWN" label="Stop using and return to baseline" /></div>
         : day.state === "STALE" ? <div className="setup-notice" role="status"><strong>The AI-found signals changed</strong><p>Staffing is back on its baseline until you use the current adjustments.</p><div className="button-row">{day.adjusted.length ? <Decide date={day.date} action="ACCEPTED" fingerprint={day.fingerprint} label="Use the current adjustments" primary /> : null}<Decide date={day.date} action="WITHDRAWN" label="Clear the old decision" /></div></div>
         : day.state === "SCENARIO_ACCEPTED" ? <p className="note">This day uses an accepted scenario, so the AI-found adjustments aren’t applied.</p>

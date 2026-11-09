@@ -7,7 +7,8 @@ import { checkWage, termsForWageCheck, UK_MINIMUM_WAGE_SOURCE, type WageJurisdic
 import { SaWageIndicatorLine, saIndicatorFor } from "@/app/components/wage-check";
 
 type Row = { shift: { id: string; roleName: string; shiftDate: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
-  offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null };
+  offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null;
+  offerRound?: { round: number; criteria: string; closesAt: Date | null } | null };
 
 // The worker's shifts, grouped by what they need to do. Terms always come from the
 // persisted shift, and the time is always the work location's.
@@ -96,6 +97,7 @@ export function WorkerShiftCard({ row, kind, locationName, timeZone, availabilit
       : row.shift.incentiveAmountMinor > 0 ? <p>You could also earn a {money(row.shift.incentiveAmountMinor, row.shift.currencyCode)} incentive if the team meets its target.</p> : null}
     {NEXT[kind] ? <p className="note">{NEXT[kind]}</p> : null}
     {blocked ? <p role="status">You’ve marked this day as unavailable. <Link href="/worker/availability">Change your availability</Link> if you want to accept.</p> : null}
+    {respond && row.offerRound ? <p className="note offer-round">{row.offerRound.criteria}</p> : null}
     {respond ? <AssignmentResponse offerId={row.offer.id} version={row.shift.termsVersion} canAccept={!blocked} /> : null}
   </article>;
 }

@@ -1,0 +1,5 @@
+ALTER TABLE "pay_agent_events" DROP CONSTRAINT "pay_agent_events_decision_check";--> statement-breakpoint
+ALTER TABLE "pay_agent_events" ADD COLUMN "checks" jsonb;--> statement-breakpoint
+ALTER TABLE "pay_agent_events" ADD CONSTRAINT "pay_agent_events_decision_check" CHECK (("pay_agent_events"."decision" is null and "pay_agent_events"."reason_code" is null and "pay_agent_events"."summary" is null and "pay_agent_events"."decided_at" is null)
+    or ("pay_agent_events"."decision" = 'SETTLE' and "pay_agent_events"."reason_code" is null and "pay_agent_events"."summary" is null and "pay_agent_events"."decided_at" is not null)
+    or ("pay_agent_events"."decision" = 'HOLD' and "pay_agent_events"."reason_code" in ('HOURS_MISMATCH', 'INCOMPLETE_EVIDENCE', 'CONFIRMATION_DELAY', 'CONFLICTING_RECORDS', 'OVERLAPPING_WORK') and char_length("pay_agent_events"."summary") between 1 and 200 and "pay_agent_events"."decided_at" is not null));

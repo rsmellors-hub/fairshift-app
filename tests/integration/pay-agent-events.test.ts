@@ -165,7 +165,7 @@ describe("confirmed-work evidence reader", () => {
       acceptance: { id: "c", termsVersion: 1, acceptedAt: new Date(0), acknowledged: true },
       shift: { id: "s", status: "PUBLISHED", termsVersion: 1, startsAt: new Date(0), endsAt: new Date(1) },
       worker: { id: "w", status: "ACTIVE", locationId: "l", workerType: "CASUAL", userId: "worker" },
-      performance: null, payout: null, managerRejected: false, missing: [],
+      performance: null, payout: null, managerRejected: false, missing: [], overlappingConfirmedWork: 0,
     } satisfies ConfirmedWorkEvidence;
     const variant = (change: (value: ConfirmedWorkEvidence) => void) => { const value = structuredClone(base) as ConfirmedWorkEvidence; change(value); return preModelCheck(value); };
     expect(preModelCheck(base)).toBeNull();

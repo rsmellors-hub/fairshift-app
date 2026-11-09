@@ -10,6 +10,8 @@ import { DisruptionAlerts, type DisruptionAlert } from "@/app/owner/disruption-a
 import { affectedShifts } from "@/server/intelligence/early-notice";
 import { OwnerSetupChecklist } from "@/app/owner/setup-checklist";
 import { ActionFeedback } from "@/app/components/workspace-ui";
+import { AiThisWeek } from "@/app/components/ai-signals";
+import type { WeeklyStaffing } from "@/server/intelligence/staffing";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export default async function OwnerPage({ searchParams }: { searchParams?: Promise<{ welcome?: string; status?: string }> }) {
@@ -20,10 +22,11 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
   catch { return <OwnerOverviewUnavailable />; }
   // A forecast failure leaves the factual sections intact and is shown as unavailable.
   const now = new Date();
-  let forecast = null, staffing = null, alerts: DisruptionAlert[] = [];
+  let forecast = null, staffing = null, alerts: DisruptionAlert[] = [], week: WeeklyStaffing | null = null;
   try { forecast = ownerForecastSummary(await getWeeklyForecast(getDatabase(), scope, now)); } catch { forecast = null; }
   try {
     const weekly = await getWeeklyStaffing(getDatabase(), scope, now);
+    week = weekly;
     staffing = ownerStaffingSummary(weekly);
     // High-severity capacity signals at any location: something that could stop it trading.
     alerts = weekly.outlets.flatMap(outlet => (outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal })));
@@ -36,7 +39,7 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
   let setup = null;
   try { setup = await getOwnerSetup(getDatabase(), scope, !!staffing?.outlets.some(row => row.casualGapMinutes !== null)); } catch { setup = null; }
   const query = await searchParams, welcome = !!query?.welcome;
-  return <div className="product-page"><ActionFeedback status={query?.status} />{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} /><OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
+  return <div className="product-page"><ActionFeedback status={query?.status} />{week ? <AiThisWeek outlets={week.outlets} /> : null}{setup ? <OwnerSetupChecklist steps={setup} welcome={welcome} /> : null}<DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} /><OwnerOverview data={data} forecast={forecast} staffing={staffing} /></div>;
 }
 
 function OwnerOverviewUnavailable() {

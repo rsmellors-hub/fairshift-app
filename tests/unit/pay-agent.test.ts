@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccessError } from "@/server/auth/access";
 import { ProviderCurrencyRateUnavailableError } from "@/server/domain/provider-currency";
 import { AiProviderError, OpenAiStaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
-import { HOLD_REASON_CODES, PAY_AGENT_INSTRUCTIONS, PAY_AGENT_SCHEMA_NAME, parsePayDecision, payDecisionJsonSchema, payDecisionSchema } from "@/server/pay-agent/contract";
+import { CHECK_OF_REASON, HOLD_REASON_CODES, PAY_AGENT_INSTRUCTIONS, PAY_AGENT_SCHEMA_NAME, parsePayDecision, payDecisionJsonSchema, payDecisionSchema } from "@/server/pay-agent/contract";
 import { confirmationTiming } from "@/server/pay-agent/evidence";
 import { mintPayAgentCredentialForManager, mintPayAgentCredentialForRecovery, payAgentServiceVerifier } from "@/server/pay-agent/identity";
 import { isTransientModelFailure, PAY_AGENT_MODEL_TIMEOUT_MS, payAgentModelFor, requestPayDecision } from "@/server/pay-agent/model";
@@ -26,16 +26,28 @@ const ORG = "00000000-0000-4000-8000-000000000001";
 const LOCATION = "00000000-0000-4000-8000-000000000002";
 const PAYABLE = "00000000-0000-4000-8000-000000000003";
 const OTHER = "00000000-0000-4000-8000-000000000005";
-const settle = { action: "settle_confirmed_work", payableId: PAYABLE };
-const hold = { action: "hold_for_manager_review", payableId: PAYABLE, reasonCode: "HOURS_MISMATCH", summary: "Accepted schedule shows 6 hours; the shift record shows 8." };
+const settle = { action: "settle_confirmed_work", payableId: PAYABLE, checks: { hours: "OK", overlap: "OK", timing: "OK", records: "OK" } };
+const hold = { action: "hold_for_manager_review", payableId: PAYABLE, reasonCode: "HOURS_MISMATCH", summary: "Accepted schedule shows 6 hours; the shift record shows 8.", checks: { hours: "CONCERN", overlap: "OK", timing: "OK", records: "OK" } };
 const wire = (decision: unknown) => JSON.stringify({ decision });
 
 describe("Pay Agent decision contract", () => {
   it("accepts exactly the two allowlisted decisions for the server's payable", () => {
     expect(parsePayDecision(wire(settle), PAYABLE)).toEqual({ ok: true, decision: settle });
     expect(parsePayDecision(wire(hold), PAYABLE)).toEqual({ ok: true, decision: hold });
-    for (const reasonCode of HOLD_REASON_CODES) expect(parsePayDecision(wire({ ...hold, reasonCode }), PAYABLE).ok).toBe(true);
+    for (const reasonCode of HOLD_REASON_CODES) expect(parsePayDecision(wire({ ...hold, reasonCode, checks: { ...settle.checks, [CHECK_OF_REASON[reasonCode]]: "CONCERN" } }), PAYABLE).ok).toBe(true);
     expect(payDecisionSchema.safeParse(settle).success).toBe(true);
+  });
+
+  // Day 6, Step 1g: the checklist must agree with the decision.
+  it("rejects a checklist that contradicts the decision, or is missing", () => {
+    expect(parsePayDecision(wire({ ...settle, checks: { ...settle.checks, overlap: "CONCERN" } }), PAYABLE)).toEqual({ ok: false, reason: "INCONSISTENT_CHECKS" });
+    expect(parsePayDecision(wire({ ...hold, checks: settle.checks }), PAYABLE)).toEqual({ ok: false, reason: "INCONSISTENT_CHECKS" });
+    expect(parsePayDecision(wire({ ...hold, reasonCode: "OVERLAPPING_WORK" }), PAYABLE)).toEqual({ ok: false, reason: "INCONSISTENT_CHECKS" });
+    const { checks: _omit, ...bare } = settle;
+    void _omit;
+    expect(parsePayDecision(wire(bare), PAYABLE)).toEqual({ ok: false, reason: "SCHEMA_INVALID" });
+    expect(parsePayDecision(wire({ ...settle, checks: { ...settle.checks, hours: "MAYBE" } }), PAYABLE)).toEqual({ ok: false, reason: "SCHEMA_INVALID" });
+    expect(parsePayDecision(wire({ ...settle, checks: { ...settle.checks, amount: "OK" } }), PAYABLE)).toEqual({ ok: false, reason: "SCHEMA_INVALID" });
   });
 
   it.each([
@@ -80,8 +92,8 @@ describe("Pay Agent decision contract", () => {
       expect(branch.properties.payableId).toEqual({ type: "string", enum: [PAYABLE] });
       expect(Object.keys(branch.properties).sort()).toEqual([...branch.required].sort());
     }
-    expect(Object.keys(branches[0].properties)).toEqual(["action", "payableId"]);
-    expect(Object.keys(branches[1].properties)).toEqual(["action", "payableId", "reasonCode", "summary"]);
+    expect(Object.keys(branches[0].properties)).toEqual(["action", "payableId", "checks"]);
+    expect(Object.keys(branches[1].properties)).toEqual(["action", "payableId", "reasonCode", "summary", "checks"]);
     expect(JSON.stringify(schema)).not.toMatch(/amount|currency|recipient|merchant|funding|rate/i);
     expect(PAY_AGENT_INSTRUCTIONS).toMatch(/never supply an amount, currency, recipient, exchange rate, organisation, merchant, funding source/i);
   });
@@ -223,7 +235,7 @@ describe("Pay Agent presentation", () => {
   });
 
   it("gives managers labels and actions, and no claim internals", () => {
-    expect(managerPayAgentView(event)).toMatchObject({ status: "Held for your review", decision: "Hold for review", reason: "Hours mismatch", summary: event.summary, model: "response-model", responseId: "resp_1", canResolve: true, canRetry: false });
+    expect(managerPayAgentView(event)).toMatchObject({ status: "Held for the Owner", decision: "Hold for the Owner", reason: "Hours mismatch", summary: event.summary, model: "response-model", responseId: "resp_1", canResolve: true, canRetry: false });
     expect(managerPayAgentView({ ...event, status: "DRY_RUN_ELIGIBLE", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "DRY_RUN_ELIGIBLE", dryRun: true }))
       .toMatchObject({ status: "Demo dry run: all checks passed", decision: "Settle", dryRun: true, canRetry: true, canResolve: false, explanation: expect.stringMatching(/nothing was sent to PayPal/) });
     expect(managerPayAgentView({ ...event, status: "SETTLEMENT_SUBMITTED", decision: "SETTLE", reasonCode: null, summary: null, outcomeCode: "PAYOUT_RESERVED" })).toMatchObject({ canRetry: false, canResolve: false });

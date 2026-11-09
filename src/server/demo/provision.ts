@@ -9,6 +9,7 @@ import { memberships, subscriptions, users } from "@/server/db/schema";
 import { provisionSaReferenceBusiness } from "@/server/reference/sa-provision";
 import { SA_REFERENCE_ORGANISATION, saReferenceLocation } from "@/server/reference/sa-reference";
 import { ensureDemoBooking } from "./booking";
+import { ensureDemoRules } from "./settings-seed";
 
 // Demo setup for the fictional South African demo business: its locations and labelled reference
 // history, three synthetic accounts for the public demo's personas (an Owner, the Rosebank Manager
@@ -59,6 +60,8 @@ export async function provisionSaDemo(db: Database, options: { password?: string
     manager = await invited(await resolveScope(db, ownerId, owner.id, rosebank), DEMO_ACCOUNTS.MANAGER, "MANAGER");
     worker = await invited(await resolveScope(db, ownerId, owner.id, rosebank), DEMO_ACCOUNTS.WORKER, "TEAM_MEMBER");
   }
+  // The demo business's shift-length and hours rules (Owner decisions, 9 November 2026), once.
+  await ensureDemoRules(db, organisationId);
   const booking = worker ? await ensureDemoBooking(db, { organisationId, workerId: worker.workerId, now }) : null;
   return {
     organisationId, entitled,

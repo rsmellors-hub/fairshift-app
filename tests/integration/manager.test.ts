@@ -64,7 +64,8 @@ describe("persisted commercial history to manager output", () => {
       expect(html).toContain("Configuration required");
       expect(html).toContain("service capacity and minimum cover");
       expect(html).not.toMatch(/Casual labour gap<\/span><strong>/);
-      expect(html).toContain("No eligible sales history");
+      // Day 6 (Step 1c): a signed-in account of the demo business reads its labelled demo history.
+      expect(html).toContain("Demo / seeded history");
       expect(singleDay).toContain("comparison assumption, not a saved plan");
       expect(singleDay).toContain("comparable-days-recency-v1");
       expect(singleDay).toContain("not a calibrated confidence interval");

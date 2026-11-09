@@ -6,7 +6,7 @@ import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
 import { UserFacingError } from "@/server/domain/errors";
-import { decideLocalAdjustments, type LocalDecisionAction } from "@/server/intelligence/local-intelligence-service";
+import { decideLocalAdjustments, decideSignal, type LocalDecisionAction, type SignalDecisionAction } from "@/server/intelligence/local-intelligence-service";
 import { sendEarlyNotice } from "@/server/intelligence/early-notice";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { dispatchWorkerEmails } from "@/server/notifications/service";
@@ -34,6 +34,41 @@ export async function decideLocalAdjustmentsAction(form: FormData) {
   }
   for (const role of ["manager", "owner"]) revalidatePath(`/${role}`, "layout");
   redirect(`/manager/plan?${date ? `date=${date}&` : ""}local=${outcome}#local-intelligence`);
+}
+
+// Accepting one AI-found demand signal: staffing uses the current adjustments on every day it changes,
+// each checked against what the person saw (date:fingerprint pairs from the card). The adjustments on a
+// day can include another applied signal; the card names them. Dismissing sets one signal aside.
+const back = (form: FormData) => field(form, "next") === "/owner/forecast" ? "/owner/forecast" : "/manager/plan";
+export async function acceptSignalAction(form: FormData) {
+  const scope = await requireScope(["OWNER", "MANAGER"]);
+  const seen = field(form, "seen").split(",").map(pair => pair.split(":")).filter(([date, fp]) => /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") && /^[0-9a-f]{64}$/.test(fp ?? ""));
+  let outcome = "error";
+  if (getConfigurationStatus().databaseConfigured && seen.length) {
+    try {
+      const db = getDatabase();
+      const outlet = (await getWeeklyStaffing(db, scope, new Date())).outlets.find(row => row.outletId === scope.locationId);
+      for (const [date, fingerprint] of seen) await decideLocalAdjustments(db, scope, { date, action: "ACCEPTED", fingerprint }, async target => ({ day: outlet?.localIntelligence?.days.find(row => row.date === target) ?? null, scenarioAccepted: !!outlet?.demandContext?.accepted.has(target) }));
+      outcome = "local-accepted";
+    } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
+  }
+  for (const role of ["manager", "owner"]) revalidatePath(`/${role}`, "layout");
+  redirect(`${back(form)}?local=${outcome}#ai-signals`);
+}
+
+export async function decideSignalAction(form: FormData) {
+  const scope = await requireScope(["OWNER", "MANAGER"]);
+  const action = field(form, "decision") as SignalDecisionAction;
+  let outcome = "error";
+  if (getConfigurationStatus().databaseConfigured) {
+    try {
+      const db = getDatabase();
+      await decideSignal(db, scope, { signalKey: field(form, "signalKey"), action }, async key => (await getWeeklyStaffing(db, scope, new Date())).outlets.find(row => row.outletId === scope.locationId)?.localIntelligence?.signals.find(row => row.key === key) ?? null);
+      outcome = action === "DISMISSED" ? "local-dismissed" : "local-restored";
+    } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
+  }
+  for (const role of ["manager", "owner"]) revalidatePath(`/${role}`, "layout");
+  redirect(`${back(form)}?local=${outcome}#ai-signals`);
 }
 
 // The Owner's confirmation of an early shift notice for a likely closure. Nothing is sent without it,

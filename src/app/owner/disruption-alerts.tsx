@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatusBadge } from "@/app/components/product-ui";
+import { DataLabel, StatusBadge } from "@/app/components/product-ui";
 import { AiFoundLabel, DemoScenarioLabel, stamp } from "@/app/components/source-labels";
 import { sendEarlyNoticeAction } from "@/app/local-intelligence-actions";
 import { dateSpan } from "@/app/manager/local-intelligence";
@@ -14,10 +14,10 @@ import { formatClock } from "@/server/intelligence/workload";
 // scenario's notice. It cancels nothing and changes no pay.
 export type DisruptionAlert = { outletId: string; outletName: string; timezone: string; signal: LocalSignalView; affected?: AffectedShift[] };
 
-// A public demo visitor may send only the DEMO scenario's notice; the server checks this again. The demo
-// hides every form not marked data-demo-write (src/app/demo/demo.css), so this one is marked for them.
+// Public demo visitors are simulated (Owner decision, 9 November 2026): they see who would be told, and
+// that sending is simulated; the server refuses a demo send too. Signed-in accounts send it for real.
 function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; canSend: boolean; demoVisitor: boolean }) {
-  const allowed = canSend || (demoVisitor && !!alert.signal.demo);
+  const allowed = canSend && !demoVisitor;
   if (!alert.affected) return <p className="note">Closure is likely: the Overview shows which casual workers it affects, so you can tell them early.</p>;
   const affected = alert.affected;
   if (!affected.length) return <p className="note">No allocated casual shift falls in this time, so no early notice is needed.</p>;
@@ -27,8 +27,8 @@ function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; 
     <p><strong>Recommended:</strong> tell the {affected.length === 1 ? "casual worker" : `${affected.length} casual workers`} whose shifts this covers now, so a short-notice cancellation is avoided. The notice cancels nothing and changes no pay or terms.</p>
     <ul>{affected.map(row => <li key={row.offerId}>{row.workerName} · {when(row)}{row.noticeAt ? ` · early notice sent ${stamp(row.noticeAt, alert.timezone)}` : ""}</li>)}</ul>
     {!pending.length ? <p className="note">Everyone this affects has had the early notice.</p>
-      : !allowed ? <p className="note">Sending notices is turned off in the public demo.</p>
-      : <form action={sendEarlyNoticeAction} className="workspace-form" {...(demoVisitor ? { "data-demo-write": "" } : {})}>{demoVisitor ? <p className="note">In the public demo this goes only to the synthetic casual worker, in FairShift. It is never emailed.</p> : null}<input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
+      : !allowed ? <p className="note"><DataLabel kind="demo">Simulated in the public demo</DataLabel> No notice is sent from here. Signed-in Owner accounts send it to the workers above, in FairShift.</p>
+      : <form action={sendEarlyNoticeAction} className="workspace-form"><input type="hidden" name="outletId" value={alert.outletId} /><input type="hidden" name="signalKey" value={alert.signal.key} />
         <label className="acceptance-check"><input type="checkbox" name="confirmed" value="yes" required /> {alert.signal.demo ? "I understand this is a DEMO scenario and want to give this early notice." : "I’ve checked the source and want to give this early notice."}</label>
         <button className="primary-button">Send early notice to {pending.length === 1 ? "1 casual worker" : `${pending.length} casual workers`}</button></form>}
   </div>;

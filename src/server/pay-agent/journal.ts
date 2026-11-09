@@ -118,7 +118,7 @@ export type ClaimFinish = {
   status: PayAgentEventStatus;
   outcomeCode?: string | null; errorClass?: string | null;
   configuredModel?: string | null; responseModel?: string | null; responseId?: string | null;
-  decision?: "SETTLE" | "HOLD"; reasonCode?: string; summary?: string;
+  decision?: "SETTLE" | "HOLD"; reasonCode?: string; summary?: string; checks?: Record<string, string>;
   dryRun?: boolean | null; payoutId?: string | null;
   retryAfterSeconds?: number;
 };
@@ -128,11 +128,11 @@ const TERMINAL: ReadonlySet<PayAgentEventStatus> = new Set(["SKIPPED", "BLOCKED"
 // writes the attempt to audit_events in the same transaction. Null when the claim was lost:
 // that late result is discarded, never written over the current owner's state.
 export async function finishClaim(db: Database, claimed: PayAgentEvent, finish: ClaimFinish): Promise<PayAgentEvent | null> {
-  const { retryAfterSeconds, decision, reasonCode, summary, ...values } = finish;
+  const { retryAfterSeconds, decision, reasonCode, summary, checks, ...values } = finish;
   return db.transaction(async tx => {
     const [row] = await tx.update(payAgentEvents).set({
       ...values,
-      ...(decision ? { decision, reasonCode: reasonCode ?? null, summary: summary ?? null, decidedAt: sql`now()` } : {}),
+      ...(decision ? { decision, reasonCode: reasonCode ?? null, summary: summary ?? null, checks: checks ?? null, decidedAt: sql`now()` } : {}),
       nextAttemptAt: retryAfterSeconds === undefined ? null : after(retryAfterSeconds),
       completedAt: TERMINAL.has(finish.status) ? sql`now()` : null,
       claimToken: null, claimedAt: null, leaseExpiresAt: null, updatedAt: sql`now()`,

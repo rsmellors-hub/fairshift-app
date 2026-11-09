@@ -51,6 +51,13 @@ async function managerScope(): Promise<Scope> {
   if (!row) throw new Error("Run scripts/seed-sa-runtime.ts first.");
   return resolveScope(db, row.userId, row.id, saReferenceLocation("SA01").id);
 }
+// Held payments are the Owner's to decide (Owner decision, 9 November 2026).
+async function ownerScope(): Promise<Scope> {
+  const [row] = await db.select({ id: memberships.id, userId: memberships.userId }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(users.email, "owner@jacaranda-runtime.example.test"), eq(memberships.organisationId, ORG), eq(memberships.role, "OWNER")));
+  if (!row) throw new Error("Run scripts/seed-sa-runtime.ts first.");
+  return resolveScope(db, row.userId, row.id, saReferenceLocation("SA01").id);
+}
 async function negativeWorker(manager: Scope): Promise<Scope> {
   const email = "negative.tests@jacaranda-runtime.example.test";
   const [existing] = await db.select({ id: memberships.id, userId: memberships.userId }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(and(eq(users.email, email), eq(memberships.organisationId, ORG)));
@@ -71,11 +78,11 @@ const out: Record<string, unknown>[] = [];
 const releases = process.argv.includes("--release") ? process.argv.slice(process.argv.indexOf("--release") + 1).map(arg => arg.split("=")) : [];
 if (releases.length) {
   try {
-    const manager = await managerScope();
+    const owner = await ownerScope();
     const agent = payAgentFor(db);
     for (const [code, eventId] of releases) {
       if (!CODES.includes(code)) throw new Error(`Unknown test value ${code}.`);
-      const released = await releasePayAgentHold(db, manager, eventId);
+      const released = await releasePayAgentHold(db, owner, eventId, `Negative payout test ${code}: released to exercise the PayPal refusal path.`);
       process.env[PAYOUT_NEGATIVE_TEST_CODE_ENV] = code;
       const run = await agent.process({ eventId: released.eventId }, released.credential);
       delete process.env[PAYOUT_NEGATIVE_TEST_CODE_ENV];

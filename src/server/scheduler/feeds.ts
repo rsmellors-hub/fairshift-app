@@ -2,7 +2,12 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-o
 import { getConfigurationStatus } from "@/server/config/env";
 import { deploymentMode, sandboxOrganisationId } from "@/server/config/deployment";
 import { getDatabase, type Database } from "@/server/db/client";
-import { externalFeeds, localIntelligenceRuns, organisations, outlets, scheduledJobs } from "@/server/db/schema";
+import { externalFeeds, localIntelligenceRuns, memberships, organisations, outlets, scheduledJobs } from "@/server/db/schema";
+import { ensureDemoBooking } from "@/server/demo/booking";
+import { advanceOfferRounds } from "@/server/scheduling/shift-suggestions";
+import { ensureDemoRules } from "@/server/demo/settings-seed";
+import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
+import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -35,7 +40,7 @@ export const AI_SLOT_TIME_ZONE = "Africa/Johannesburg";
 const SLOT_GRACE_MS = 3 * HOUR;
 export type Slot = { minute: number; timeZone: string; graceMs: number };
 
-export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily";
+export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily" | "demo:booking" | "ai:briefing" | "offers:rounds";
 export type JobResult = { ok: boolean; code?: string | null; detail?: Record<string, unknown> };
 export type SchedulerDeps = {
   now: () => Date;
@@ -43,6 +48,8 @@ export type SchedulerDeps = {
   fetchImpl?: typeof fetch;
   fetchHourly?: FetchHourly;
   discovery?: LocalDiscoveryProvider | null;
+  // The staffing briefing's model ("What to staff first"); the job runs only with one.
+  assessment?: StaffingAssessmentProvider | null;
   checkSource?: SourceChecker;
   // The AI jobs run only when this is on and a provider is configured.
   aiSchedule: boolean;
@@ -126,6 +133,48 @@ export const JOBS: readonly Job[] = [
       }
       return { ok: !tally.FAILED, code: tally.FAILED ? "SOME_LOCATIONS_FAILED" : null, detail: tally };
     } },
+  // The demo story's booked casual shift for tomorrow (src/server/demo/booking.ts), so the DEMO capacity
+  // scenario always has a shift to give early notice about, whatever the date. Idempotent: an existing
+  // booking is kept. Only the fictional demo business has one.
+  { key: "demo:booking", intervalMs: HOUR, retryMs: 15 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
+    run: async (db, deps) => {
+      const config = demoConfig();
+      const booked: string[] = [];
+      for (const organisationId of deps.demoOrganisationIds) {
+        const [worker] = config?.organisationId === organisationId ? await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, organisationId))) : [];
+        // The demo business's shift-length and hours rules (Owner decisions, 9 November 2026), once.
+        await ensureDemoRules(db, organisationId);
+        const booking = await ensureDemoBooking(db, { organisationId, workerId: worker?.workerId ?? null, now: deps.now() });
+        if (booking) booked.push(booking.date);
+      }
+      return { ok: true, detail: { booked } };
+    } },
+  // "What to staff first" (Day 6, Step 1h): the AI briefing for the demo business and each of its
+  // locations, so it is there when anyone opens the page. A briefing is generated only when the
+  // figures it reads have changed (a new planning day, new AI findings, an accepted change), never
+  // twice for the same evidence, and every call is recorded with its own audit event.
+  { key: "ai:briefing", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.aiSchedule && !!deps.assessment && deps.demoOrganisationIds.length > 0,
+    run: async (db, deps) => {
+      const tally: Record<string, number> = {};
+      for (const organisationId of deps.demoOrganisationIds) {
+        const [owner] = await db.select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.organisationId, organisationId), eq(memberships.role, "OWNER"), eq(memberships.state, "ACTIVE"))).orderBy(asc(memberships.createdAt)).limit(1);
+        if (!owner) continue;
+        const sites = await db.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.organisationId, organisationId), eq(outlets.active, true))).orderBy(asc(outlets.name));
+        if (!sites.length) continue;
+        const scopeAt = (locationId: string) => ({ userId: owner.userId, organisationId, locationId, role: "OWNER" as const });
+        for (const [kind, locationId] of [["ORGANISATION", sites[0].id] as const, ...sites.map(site => ["LOCATION", site.id] as const)]) {
+          try {
+            const result = await generateStaffingAssessment(db, scopeAt(locationId), kind, deps.assessment!, deps.now());
+            const key = result.generated ? (result.record.status === "AVAILABLE" ? "generated" : "failed") : "current";
+            tally[key] = (tally[key] ?? 0) + 1;
+          } catch (error) { tally[error instanceof NoPlanningEvidenceError ? "noEvidence" : "error"] = (tally[error instanceof NoPlanningEvidenceError ? "noEvidence" : "error"] ?? 0) + 1; }
+        }
+      }
+      return { ok: !tally.error, code: tally.error ? "PARTIAL" : null, detail: tally };
+    } },
+  // FS-OFFER-ORDER-DEC-001: when a first offer round's window closes with places open, round 2 opens.
+  { key: "offers:rounds", intervalMs: 5 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
+    run: async (db, deps) => ({ ok: true, detail: await advanceOfferRounds(db, deps.demoOrganisationIds, deps.now()) }) },
   { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => { const result = await recheckUnreachableSources(db, deps.demoOrganisationIds, deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
   { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
@@ -223,7 +272,7 @@ export function startScheduledFeeds() {
     try {
       const organisations = demoOrganisationIds();
       const ai = aiScheduleEnabled();
-      await runDueJobs(db, { now: () => new Date(), demoOrganisationIds: organisations, aiSchedule: ai, discovery: ai ? getLocalDiscoveryProvider() : null, pauseMs: 30_000 });
+      await runDueJobs(db, { now: () => new Date(), demoOrganisationIds: organisations, aiSchedule: ai, discovery: ai ? getLocalDiscoveryProvider() : null, assessment: ai ? getStaffingAssessmentProvider() : null, pauseMs: 30_000 });
     } catch (error) {
       console.error("Scheduled feeds did not complete; the last good data stands.", { error: error instanceof Error ? error.name : "unknown" });
     } finally { running = false; }

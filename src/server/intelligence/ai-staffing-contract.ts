@@ -7,6 +7,7 @@ import { outletOpportunities } from "@/server/intelligence/opportunity";
 import type { OutletStaffing, WeeklyStaffing } from "@/server/intelligence/staffing";
 import { PROVIDER_RULE } from "@/server/intelligence/weekly";
 import { transactionCount } from "@/server/intelligence/workload";
+import { suggestShifts } from "@/server/scheduling/shift-rules";
 
 // Versioned contract between FairShift's deterministic staffing week and the AI
 // interpretation of it. The model receives aggregate planning evidence only, with
@@ -14,8 +15,8 @@ import { transactionCount } from "@/server/intelligence/workload";
 // text, so nothing in the input can act as an instruction. Its output is accepted
 // only if every reference and every number it cites matches this input exactly.
 
-export const AI_INPUT_VERSION = "fs-staffing-ai-input-v3";
-export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v3";
+export const AI_INPUT_VERSION = "fs-staffing-ai-input-v4";
+export const AI_OUTPUT_SCHEMA_VERSION = "fs-staffing-ai-output-v4";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 export const LOCATION_FLAGS = ["SYNTHETIC_REFERENCE_DATA", "HISTORICAL_EVIDENCE_STALE", "REGULAR_COVERAGE_MISSING", "FORECAST_UNAVAILABLE", "NO_WORKLOAD_POLICY", "TRADING_HOURS_MISSING", "LOW_SUPPORT_DAYS"] as const;
@@ -34,6 +35,12 @@ export type EvidenceMetric = typeof EVIDENCE_METRICS[number];
 type Flag = typeof LOCATION_FLAGS[number];
 
 export type AssessmentDay = { date: string; weekday: typeof WEEKDAYS[number]; support: "LOW" | "MODERATE" | null; unavailable: string | null; acceptedContextScenario?: string } & { [K in DayMetric]: number | null };
+// A signal around a location in the planning week, by opaque reference only: its name, reasoning and
+// source page are web text and never reach the model (the page shows them beside the reference).
+export type AssessmentSignal = { ref: string; type: "DEMAND" | "CAPACITY" | "ACCESS"; direction: "UP" | "DOWN" | null; band: "MINOR" | "MODERATE" | null; severity: string | null;
+  from: string; to: string; synthetic: boolean;
+  state: "APPLIED_TO_STAFFING" | "PROPOSED" | "LISTED" | "ALERT" | "ATTENDANCE_RISK" | "NOTED";
+  changes: { date: string; start: string; end: string; bps: number }[] };
 export type AssessmentOpportunity = { date: string; start: string; end: string; state: "OPEN" | "FILLED"; expectedTransactions: number; lowerTransactions: number; upperTransactions: number; requiredMinutes: number; regularMinutes: number; allocatedCasualMinutes: number; remainingCasualMinutes: number };
 export type AssessmentLocation = {
   key: string;
@@ -48,6 +55,10 @@ export type AssessmentLocation = {
   days: AssessmentDay[];
   // Windows where casual work is needed, with the same calculated figures: when, not only how much.
   opportunities: AssessmentOpportunity[];
+  // Kept AI-found signals and DEMO scenarios for the week; unconfirmed or dismissed ones are left out.
+  signals: AssessmentSignal[];
+  // Shifts FairShift suggests for the open gap, cut with the location's own shift-length rules.
+  suggestions: { ref: string; date: string; start: string; end: string; minutes: number; headcount: number }[];
 };
 export type AssessmentInput = {
   inputVersion: typeof AI_INPUT_VERSION;
@@ -59,7 +70,7 @@ export type AssessmentInput = {
   rankedGapDays: { locationKey: string; date: string; casualGapMinutes: number }[];
   locations: AssessmentLocation[];
 };
-export type PreparedInput = { input: AssessmentInput; locationKeys: Record<string, string>; fingerprint: string; evidenceThrough: string | null; hasEvidence: boolean };
+export type PreparedInput = { input: AssessmentInput; locationKeys: Record<string, string>; signalKeys: Record<string, string>; suggestionKeys: Record<string, string>; fingerprint: string; evidenceThrough: string | null; hasEvidence: boolean };
 
 const weekday = (date: string) => WEEKDAYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7];
 
@@ -74,7 +85,25 @@ function commercialInput(context: OutletStaffing["commercial"]): AssessmentLocat
   };
 }
 
-function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation {
+const clock = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+function signalInput(outlet: OutletStaffing, nextRef: () => string, signalKeys: Record<string, string>): AssessmentSignal[] {
+  const local = outlet.localIntelligence;
+  if (!local || local.status === "UNAVAILABLE" || !outlet.days.length) return [];
+  const first = outlet.days[0].planningDate, last = outlet.days[outlet.days.length - 1].planningDate;
+  return [...local.signals].filter(signal => signal.validFrom <= last && signal.validTo >= first && signal.use !== "UNCONFIRMED" && signal.use !== "DISMISSED")
+    .sort((a, b) => a.validFrom.localeCompare(b.validFrom) || a.key.localeCompare(b.key)).map(signal => {
+      const changes = local.days.flatMap(day => day.blocks.filter(block => block.applied.includes(signal.key)).map(block => ({ date: day.date, start: clock(block.start), end: clock(block.end), bps: block.bps })));
+      const changedDays = local.days.filter(day => day.blocks.some(block => block.applied.includes(signal.key)));
+      const state: AssessmentSignal["state"] = signal.use === "APPLIED" ? (changedDays.length && changedDays.every(day => day.state === "ACCEPTED") ? "APPLIED_TO_STAFFING" : "PROPOSED")
+        : signal.use === "LISTED" ? "LISTED" : signal.use === "ALERT" ? "ALERT" : signal.use === "ATTENDANCE_RISK" ? "ATTENDANCE_RISK" : "NOTED";
+      const ref = nextRef();
+      signalKeys[ref] = signal.key;
+      return { ref, type: signal.effectType as AssessmentSignal["type"], direction: (signal.direction as AssessmentSignal["direction"]) ?? null, band: (signal.sizeBand as AssessmentSignal["band"]) ?? null, severity: signal.severity,
+        from: signal.validFrom, to: signal.validTo, synthetic: !!signal.demo, state, changes };
+    });
+}
+
+function locationInput(key: string, outlet: OutletStaffing, signals: AssessmentSignal[] = [], suggestions: AssessmentLocation["suggestions"] = []): AssessmentLocation {
   const evidence = outlet.evidence && {
     source: outlet.evidence.source, kind: outlet.evidence.kind,
     synthetic: isSyntheticSource(outlet.evidence.source),
@@ -98,7 +127,7 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
   if (days.some(day => day.support === "LOW")) flags.push("LOW_SUPPORT_DAYS");
   const week = outlet.totals && (({ expectedMilliTransactions, ...rest }) => ({ ...rest, expectedTransactions: transactionCount(expectedMilliTransactions) }))(outlet.totals);
   const opportunities = outletOpportunities(outlet).map((row): AssessmentOpportunity => ({ date: row.localDate, start: row.windowStart, end: row.windowEnd, state: row.state, expectedTransactions: row.expectedTransactions, lowerTransactions: row.lowerTransactions, upperTransactions: row.upperTransactions, requiredMinutes: row.requiredMinutes, regularMinutes: row.regularMinutes, allocatedCasualMinutes: row.allocatedCasualMinutes, remainingCasualMinutes: row.remainingCasualMinutes }));
-  return { key, currency: outlet.currency, workloadPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week, commercial: commercialInput(outlet.commercial), days, opportunities };
+  return { key, currency: outlet.currency, workloadPolicyVersion: outlet.policy?.version ?? null, evidence, regularCoverageSet: outlet.regularCoverage !== null, flags, week, commercial: commercialInput(outlet.commercial), days, opportunities, signals, suggestions };
 }
 
 // Deterministic: the same planning evidence always yields the same input and
@@ -106,7 +135,12 @@ function locationInput(key: string, outlet: OutletStaffing): AssessmentLocation 
 export function prepareAssessmentInput(staffing: Pick<WeeklyStaffing, "methodVersion" | "workloadMethodVersion" | "outlets">, scope: AssessmentInput["scope"]): PreparedInput {
   const outlets = [...staffing.outlets].sort((a, b) => a.outletId.localeCompare(b.outletId));
   const locationKeys = Object.fromEntries(outlets.map((outlet, i) => [`L${i + 1}`, outlet.outletId]));
-  const locations = outlets.map((outlet, i) => locationInput(`L${i + 1}`, outlet));
+  const signalKeys: Record<string, string> = {};
+  let counter = 0;
+  const suggestionKeys: Record<string, string> = {};
+  let blocks = 0;
+  const locations = outlets.map((outlet, i) => locationInput(`L${i + 1}`, outlet, signalInput(outlet, () => `S${++counter}`, signalKeys),
+    suggestShifts(outlet).map(row => { const ref = `B${++blocks}`; suggestionKeys[ref] = `${outlet.outletId}|${row.key}`; return { ref, date: row.date, start: clock(row.start), end: clock(row.end), minutes: row.minutes, headcount: row.headcount }; })));
   const first = locations[0]?.days[0]?.date;
   const aligned = !!first && locations.every(location => location.days[0]?.date === first);
   const input: AssessmentInput = {
@@ -118,7 +152,7 @@ export function prepareAssessmentInput(staffing: Pick<WeeklyStaffing, "methodVer
   };
   const through = locations.flatMap(location => location.evidence ? [location.evidence.dataThrough] : []).sort();
   return {
-    input, locationKeys,
+    input, locationKeys, signalKeys, suggestionKeys,
     // The task is part of the fingerprint: changed instructions supersede older assessments.
     fingerprint: createHash("sha256").update(canonicalJson({ input, locationKeys, instructions: ASSESSMENT_INSTRUCTIONS })).digest("hex"),
     evidenceThrough: through[0] ?? null,
@@ -140,6 +174,10 @@ export const assessmentOutputSchema = z.object({
     evidence: z.array(z.object({ metric: z.enum(EVIDENCE_METRICS), value: z.number().int() }).strict()).min(1).max(4),
     action: z.enum(PRIORITY_ACTIONS),
     actionNote: prose(240),
+    // The short window on that date ("HH:MM–HH:MM", one of the location's opportunities), and the
+    // signals behind it, by reference.
+    window: z.string().nullable(),
+    signalRefs: z.array(z.string().regex(/^S\d{1,3}$/)).max(3),
   }).strict()).max(8),
   constraints: z.array(z.object({
     type: z.enum(CONSTRAINT_TYPES),
@@ -148,6 +186,8 @@ export const assessmentOutputSchema = z.object({
   }).strict()).max(10),
   signalCommentary: prose(500),
   commercialImplication: prose(700),
+  // The suggested shifts in the order to approve them, each with why; never a booking or a worker.
+  suggestionOrder: z.array(z.object({ ref: z.string().regex(/^B\d{1,3}$/), reason: prose(200) }).strict()).max(20),
 }).strict();
 export type StaffingAssessment = z.infer<typeof assessmentOutputSchema>;
 
@@ -158,15 +198,18 @@ export function assessmentJsonSchema(input: AssessmentInput) {
   const keys = input.locations.map(location => location.key);
   const dates = [...new Set(input.locations.flatMap(location => location.days.map(day => day.date)))];
   const nullableEnum = (values: string[]) => ({ anyOf: [{ type: "string", enum: values }, { type: "null" }] });
+  const windows = [...new Set(input.locations.flatMap(location => location.opportunities.map(row => windowOf(row))))];
+  const refs = input.locations.flatMap(location => location.signals.map(signal => signal.ref));
+  const suggestionRefs = input.locations.flatMap(location => location.suggestions.map(row => row.ref));
   return {
     type: "object", additionalProperties: false,
-    required: ["schemaVersion", "summary", "priorities", "constraints", "signalCommentary", "commercialImplication"],
+    required: ["schemaVersion", "summary", "priorities", "constraints", "signalCommentary", "commercialImplication", "suggestionOrder"],
     properties: {
       schemaVersion: { type: "string", enum: [AI_OUTPUT_SCHEMA_VERSION] },
       summary: { type: "string" },
       priorities: { type: "array", items: {
         type: "object", additionalProperties: false,
-        required: ["rank", "locationKey", "date", "severity", "category", "reason", "evidence", "action", "actionNote"],
+        required: ["rank", "locationKey", "date", "severity", "category", "reason", "evidence", "action", "actionNote", "window", "signalRefs"],
         properties: {
           rank: { type: "integer" },
           locationKey: { type: "string", enum: keys },
@@ -177,6 +220,8 @@ export function assessmentJsonSchema(input: AssessmentInput) {
           evidence: { type: "array", items: { type: "object", additionalProperties: false, required: ["metric", "value"], properties: { metric: { type: "string", enum: [...EVIDENCE_METRICS] }, value: { type: "integer" } } } },
           action: { type: "string", enum: [...PRIORITY_ACTIONS] },
           actionNote: { type: "string" },
+          window: windows.length ? nullableEnum(windows) : { type: "null" },
+          signalRefs: refs.length ? { type: "array", items: { type: "string", enum: refs } } : { type: "array", maxItems: 0, items: { type: "string" } },
         },
       } },
       constraints: { type: "array", items: {
@@ -185,9 +230,14 @@ export function assessmentJsonSchema(input: AssessmentInput) {
       } },
       signalCommentary: { type: "string" },
       commercialImplication: { type: "string" },
+      suggestionOrder: suggestionRefs.length
+        ? { type: "array", items: { type: "object", additionalProperties: false, required: ["ref", "reason"], properties: { ref: { type: "string", enum: suggestionRefs }, reason: { type: "string" } } } }
+        : { type: "array", maxItems: 0, items: { type: "object", additionalProperties: false, required: ["ref", "reason"], properties: { ref: { type: "string" }, reason: { type: "string" } } } },
     },
   };
 }
+
+export const windowOf = (row: Pick<AssessmentOpportunity, "start" | "end">) => `${row.start}–${row.end}`;
 
 export type ValidationFailure = "SCHEMA" | "UNKNOWN_REFERENCE" | "NUMBER_MISMATCH" | "NUMBER_IN_TEXT" | "INCONSISTENT" | "RANKING";
 export type ValidationResult = { ok: true; assessment: StaffingAssessment } | { ok: false; code: ValidationFailure; detail: string };
@@ -212,7 +262,10 @@ export function validateAssessment(raw: unknown, input: AssessmentInput): Valida
   const locations = new Map(input.locations.map(location => [location.key, location]));
   const fail = (code: ValidationFailure, detail: string): ValidationResult => ({ ok: false, code, detail });
 
-  const texts = [assessment.summary, assessment.signalCommentary, assessment.commercialImplication, ...assessment.priorities.flatMap(p => [p.reason, p.actionNote]), ...assessment.constraints.map(c => c.note)];
+  const texts = [assessment.summary, assessment.signalCommentary, assessment.commercialImplication, ...assessment.priorities.flatMap(p => [p.reason, p.actionNote]), ...assessment.constraints.map(c => c.note), ...assessment.suggestionOrder.map(row => row.reason)];
+  const known = new Set(input.locations.flatMap(location => location.suggestions.map(row => row.ref)));
+  if (assessment.suggestionOrder.some(row => !known.has(row.ref))) return { ok: false, code: "UNKNOWN_REFERENCE", detail: "suggestion" };
+  if (new Set(assessment.suggestionOrder.map(row => row.ref)).size !== assessment.suggestionOrder.length) return { ok: false, code: "RANKING", detail: "repeated suggestion" };
   for (const text of texts) {
     // Location tokens such as [[L2]] are references, not figures.
     if (/\d/.test(text.replace(/\[\[L\d+\]\]/g, ""))) return fail("NUMBER_IN_TEXT", "prose contains a number");
@@ -241,6 +294,13 @@ export function validateAssessment(raw: unknown, input: AssessmentInput): Valida
       : evidenceValue(location, p.date, "requiredMinutes") !== null;
     if (!consistent) return fail("INCONSISTENT", `${p.category} at ${p.locationKey} ${p.date ?? "week"}`);
     if (p.action === "FILL_SHIFTS" && !((gap ?? 0) > 0)) return fail("INCONSISTENT", `FILL_SHIFTS without a gap at ${p.locationKey}`);
+    // A window is one of this location's casual-need windows on that date; a signal is this
+    // location's and covers that date.
+    if (p.window !== null && (p.date === null || !location.opportunities.some(row => row.date === p.date && windowOf(row) === p.window))) return fail("UNKNOWN_REFERENCE", `window ${p.window}`);
+    for (const ref of p.signalRefs) {
+      const signal = location.signals.find(row => row.ref === ref);
+      if (!signal || (p.date !== null && (signal.from > p.date || signal.to < p.date))) return fail("UNKNOWN_REFERENCE", `signal ${ref} at ${p.locationKey} ${p.date ?? "week"}`);
+    }
   }
 
   // Dated gap priorities follow the calculated order from its start: none is skipped
@@ -279,6 +339,16 @@ own service capacity and minimum cover, its trading hours, and existing coverage
 Forecast sales are separate commercial context and do not set staffing. You cannot
 change demand, capacity, minimum cover or coverage. "opportunities" lists the time
 windows in which casual work is needed: use them to say when pressure falls.
+"signals" lists what AI found around each location (or, where synthetic is true, a DEMO
+scenario FairShift made for the demonstration), by reference only. A DEMAND signal moves
+expected transactions in fixed bands, and only once a manager accepts it
+(state APPLIED_TO_STAFFING) or as a proposal (PROPOSED); "changes" shows the hours it
+moves. CAPACITY signals (can the location open) and ACCESS signals (can people get there)
+never change demand: they are risks to plan around.
+
+This is the briefing a manager reads first. For each location with a casual gap, say which
+days and hours are short, why (the expected transactions in those hours against regular
+cover, and any signal that bears on them), and what to do first.
 
 Explain what deserves staffing attention in the planning week and why:
 - summary: the shape of the week in plain operational language: where and when
@@ -293,6 +363,16 @@ Explain what deserves staffing attention in the planning week and why:
   Each reason must say why the day matters operationally, not restate the figure. Do
   not describe a day's position ("largest", "third") except as rankedGapDays shows it.
   Where useful, include a day or location that needs no action (ADEQUATELY_COVERED);
+  For a dated priority, give the window: the short hours on that date, exactly as one of the
+  location's opportunity windows ("HH:MM–HH:MM"), or null if none applies. Give signalRefs:
+  the references of up to three of that location's signals that bear on the date (none if
+  none do); say in the reason how each matters, in words. A synthetic signal is a DEMO
+  scenario: call it that, never a real event or an AI finding;
+- suggestionOrder: "suggestions" are the shifts FairShift cut from each location's open gap
+  with its own shift-length rules. Put them in the order a manager should approve them
+  (most pressing first, at most twenty), each with a short reason in words: which gap it
+  covers and why it matters then. You only order and explain: you never create a shift,
+  change its times or headcount, or choose who is offered it;
 - constraints: material limits on the evidence, such as stale or synthetic history,
   missing regular coverage, unusually high casual requirement, concentrated demand,
   or days already adequately covered. State each once: use a null locationKey when it

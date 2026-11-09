@@ -7,6 +7,7 @@ import { loadStoredContext, resolveOutletContext, UNAVAILABLE_CONTEXT, type Appl
 import { SCENARIO_ADJUSTMENT_BPS } from "@/server/intelligence/demand-context-policy";
 import { commercialContext, consolidateCommercial, type CommercialContext, type WorkRate } from "@/server/intelligence/commerce-labour";
 import { LOOKBACK_DAYS, shiftDate, startOfLocalDay, type SalesSource } from "@/server/intelligence/forecast";
+import { loadShiftRules, type ShiftRules } from "@/server/scheduling/shift-rules";
 import { loadTransactionSlots, referenceDatasetOf } from "@/server/intelligence/sales-history";
 import { getWeeklyForecast, type OutletWeeklyForecast } from "@/server/intelligence/weekly";
 import { loadLocalIntelligence, resolveLocalIntelligence, UNAVAILABLE_LOCAL, type LocalApplied, type LocalDay, type OutletLocalIntelligence, type StoredLocalIntelligence } from "@/server/intelligence/local-intelligence-service";
@@ -61,6 +62,8 @@ export type OutletStaffing = {
   // Always set by the planning week; absent only on a hand-built record.
   demandContext?: OutletDemandContext;
   localIntelligence?: OutletLocalIntelligence;
+  // The location's shift-length rules, for suggested shifts; null when it has none.
+  shiftRules?: ShiftRules | null;
 };
 
 // What a week needs for one location, once read from storage.
@@ -167,6 +170,10 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
   let local: StoredLocalIntelligence | null = null;
   try { local = await loadLocalIntelligence(db, scope.organisationId, outletIds, firstDate, lastDate, now); }
   catch { console.error("Local intelligence unavailable; planning continues from the baseline."); }
+  // Suggested shifts need the rules; without them a location simply has no suggestions.
+  let shiftRules = new Map<string, ShiftRules>();
+  try { shiftRules = await loadShiftRules(db, scope.organisationId, outletIds); }
+  catch { console.error("Shift rules unavailable; no shifts are suggested."); }
   const result: OutletStaffing[] = [];
   for (const outlet of weekly.outlets) {
     const selected = outlet.selection.status === "SELECTED" ? outlet.selection : null;
@@ -179,7 +186,7 @@ export async function getWeeklyStaffing(db: DatabaseSession, scope: Scope, now =
       policies: policyRows, slots, dataset, allocated: allocatedRows.filter(row => row.outletId === outlet.outletId),
     };
     const rates = rateRows.filter(row => row.outletId === outlet.outletId);
-    result.push(withDemandContext(scope.organisationId, outlet, inputs, rates, stored, local, now));
+    result.push({ ...withDemandContext(scope.organisationId, outlet, inputs, rates, stored, local, now), shiftRules: shiftRules.get(outlet.outletId) ?? null });
   }
   return { methodVersion: STAFFING_METHOD_VERSION, workloadMethodVersion: WORKLOAD_FORECAST_METHOD_VERSION, generatedAt: now.toISOString(), outlets: result, consolidated: consolidate(result), commercial: consolidateCommercial(result) };
 }

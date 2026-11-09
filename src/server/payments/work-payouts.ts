@@ -347,7 +347,7 @@ export async function submitWorkPayout(db: Database, paypal: PayoutClientSource,
 // hold-releasing, manager as approver of record, on this audit basis.
 export const CASUAL_APPROVER_BASIS = {
   MANAGER_CONFIRMED_COMPLETION: "Manager confirmation at preauthorised fixed terms (DEC-SA-011)",
-  MANAGER_RELEASED_HOLD: "Manager released a Pay Agent hold on work confirmed at preauthorised fixed terms (DEC-SA-011)",
+  MANAGER_RELEASED_HOLD: "Owner released a Pay Agent hold on work confirmed at preauthorised fixed terms, with a written reason (DEC-SA-011; FS-APPROVER-DEC-001 as amended 9 November 2026)",
 } as const;
 
 export type ConfirmedWorkAuthority = {
@@ -378,7 +378,11 @@ export async function submitConfirmedWorkPayout(db: Database, paypal: PayoutClie
       approvedAmountMinor: finalPayableMinor(locked), approvedCurrencyCode: locked.currencyCode, updatedAt: new Date(),
     }).where(and(eq(workPayables.id, locked.id), eq(workPayables.status, "PENDING_REVIEW"))).returning();
     if (!approved) throw new Error("Payable approval changed concurrently.");
+    // A released hold: the AI finding and the Owner's written reason go into the approval record.
+    const [hold] = authority.basis === "MANAGER_RELEASED_HOLD" ? await tx.select({ reasonCode: payAgentEvents.reasonCode, summary: payAgentEvents.summary, checks: payAgentEvents.checks, ownerReason: payAgentEvents.resolutionNote, resolvedBy: payAgentEvents.resolvedBy })
+      .from(payAgentEvents).where(eq(payAgentEvents.id, authority.payAgentEventId)) : [];
     await audit(tx, actor, "PAYABLE_APPROVED", "work_payable", approved.id, approved.id, {
+      ...(hold ? { holdFinding: { reasonCode: hold.reasonCode, summary: hold.summary, checks: hold.checks }, ownerReason: hold.ownerReason, releasedBy: hold.resolvedBy } : {}),
       basis: authority.basis, authorisedBy: authority.authorisedBy, payAgentEventId: authority.payAgentEventId,
       approverOfRecord: authority.authorisedBy, approverDecision: "FS-APPROVER-DEC-001", approverBasis: CASUAL_APPROVER_BASIS[authority.basis],
       approvedAmountMinor: approved.approvedAmountMinor, approvedCurrencyCode: approved.approvedCurrencyCode, baseAmountMinor: approved.baseAmountMinor, incentiveAmountMinor: approved.incentiveAmountMinor,

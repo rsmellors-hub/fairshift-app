@@ -18,7 +18,7 @@ const UNAVAILABLE: Record<Extract<WageExplanationResult, { state: "UNAVAILABLE" 
   PROVIDER_FAILED: "The AI explanation couldn’t be generated. The check above is unchanged.",
   REJECTED_OUTPUT: "The AI’s answer didn’t meet FairShift’s rules (for example, it stated a figure), so it isn’t shown. The check above is unchanged.",
   INVALID_RATE: "Enter a valid hourly rate first.",
-  DEMO: "AI explanations are turned off in the public demo.",
+  DEMO: "Simulated in the public demo: no AI request is made.",
 };
 
 // Words only: the model explains FairShift's check and can't state a figure or change anything.
