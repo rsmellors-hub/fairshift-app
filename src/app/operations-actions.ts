@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "@/app/revalidate";
 import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
+import { acknowledgeWageNotChecked } from "@/server/scheduling/wage-acknowledgement";
 import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
 import { assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
@@ -75,6 +76,11 @@ export async function createPolicyAction(form: FormData) {
     const incentive = { incentiveTargetMinor: optionalAmount("incentiveTarget"), incentiveBonusMinor: optionalAmount("incentiveBonus") };
     return createWorkPolicy(getDatabase(), earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", ...incentive } : { earningsModel, rateMinor: value, ...incentive }, field(form, "name"),scope);
   });
+}
+// Day 6, Step 3a: the Owner's audited acknowledgement that the minimum wage isn't checked at this location.
+export async function acknowledgeWageNotCheckedAction(form: FormData) {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies", () => acknowledgeWageNotChecked(getDatabase(), scope, field(form, "confirmed") === "yes"));
 }
 export async function createRequirementAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});

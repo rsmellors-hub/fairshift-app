@@ -66,14 +66,23 @@ export const UK_MINIMUM_WAGE_REFERENCE: readonly WageReferenceRow[] = PERIODS.fl
 // there isn't checked or enforced. Northern Ireland isn't assumed: its source couldn't be read.
 export type WageJurisdiction =
   | { jurisdiction: "ENGLAND"; country: string }
+  // Day 6, Step 3a (Owner instruction, 9 November 2026): each business's own country rule sets the floor,
+  // South Africa included: its national minimum wage per ordinary hour (src/server/domain/sa-wage-reference.ts).
+  | { jurisdiction: "SOUTH_AFRICA"; country: string }
   | { jurisdiction: null; country: string | null; reason: "COUNTRY_NOT_STATED" | "NO_REFERENCE_FOR_COUNTRY" | "NATION_NOT_VERIFIED" | "OUTSIDE_DEMO_JURISDICTION" };
 const DEMO_JURISDICTION_COUNTRIES = new Set(["england", "united kingdom", "uk", "gb", "great britain"]);
 const OUTSIDE_DEMO_UK_NATIONS = new Set(["scotland", "wales"]);
+const SOUTH_AFRICA_COUNTRIES = new Set(["south africa", "za", "rsa", "republic of south africa"]);
+// South Africa's rule (the only rate FairShift holds for it): R30.23 per ordinary hour, binding from
+// 1 March 2026, compared through 28 February 2027 because the next adjustment wasn't final when checked.
+// Kept here, not imported, so this module stays dependency-free; sa-wage-reference.ts cites the source.
+const SOUTH_AFRICA_FLOOR = { rateMinor: 3023, currencyCode: "ZAR", validFrom: "2026-03-01", validTo: "2027-02-28", name: "South African National Minimum Wage" } as const;
 export function wageJurisdiction(input: { locationCountry?: string | null; organisationCountry?: string | null }): WageJurisdiction {
   const country = input.locationCountry?.trim() ? input.locationCountry.trim() : input.organisationCountry?.trim() || null;
   if (!country) return { jurisdiction: null, country: null, reason: "COUNTRY_NOT_STATED" };
   const key = country.toLowerCase();
   if (DEMO_JURISDICTION_COUNTRIES.has(key)) return { jurisdiction: "ENGLAND", country };
+  if (SOUTH_AFRICA_COUNTRIES.has(key)) return { jurisdiction: "SOUTH_AFRICA", country };
   if (OUTSIDE_DEMO_UK_NATIONS.has(key)) return { jurisdiction: null, country, reason: "OUTSIDE_DEMO_JURISDICTION" };
   if (key === "northern ireland") return { jurisdiction: null, country, reason: "NATION_NOT_VERIFIED" };
   return { jurisdiction: null, country, reason: "NO_REFERENCE_FOR_COUNTRY" };
@@ -116,6 +125,9 @@ export type WageCheck = {
   // True where the demo floor applies. There, only RATE_CHECKED terms can be offered.
   enforced: boolean;
   version: typeof WAGE_REFERENCE_VERSION;
+  // The floor's currency and name, from the country rule that applies.
+  floorCurrency: string | null;
+  floorName: string | null;
 };
 
 // Exact comparison of pay per hour with a rate, in integers: hourly rate, or a fixed amount over the scheduled time.
@@ -128,16 +140,26 @@ function compare(terms: Exclude<WageTerms, { earningsModel: "COMMISSION" }>, rat
 // No worker facts are taken: no age or apprenticeship path can lower the floor.
 export function checkWage(input: { jurisdiction: WageJurisdiction; date: string; currencyCode: string; terms: WageTerms }): WageCheck {
   const { jurisdiction, date, terms } = input;
+  if (jurisdiction.jurisdiction === "SOUTH_AFRICA") {
+    const inForce = ISO_DATE.test(date) && SOUTH_AFRICA_FLOOR.validFrom <= date && date <= SOUTH_AFRICA_FLOOR.validTo;
+    const za = (status: WageCheckStatus, reason: WageCheckReason): WageCheck => ({ status, reason, date, jurisdiction, period: null, floorMinor: inForce ? SOUTH_AFRICA_FLOOR.rateMinor : null, enforced: true, version: WAGE_REFERENCE_VERSION, floorCurrency: "ZAR", floorName: SOUTH_AFRICA_FLOOR.name });
+    if (terms.earningsModel === "COMMISSION") return za("NOT_CHECKABLE", "VARIABLE_PAY");
+    if (!inForce) return za("REFERENCE_UNAVAILABLE", "NO_REFERENCE_FOR_DATE");
+    if (input.currencyCode !== SOUTH_AFRICA_FLOOR.currencyCode) return za("NOT_CHECKABLE", "CURRENCY_MISMATCH");
+    if (!Number.isSafeInteger(terms.rateMinor) || terms.rateMinor < 0 || (terms.earningsModel === "DAILY" && !(Number.isSafeInteger(terms.durationMs) && terms.durationMs > 0))) return za("NOT_CHECKABLE", "INVALID_TERMS");
+    return compare(terms, SOUTH_AFRICA_FLOOR.rateMinor) >= 0 ? za("RATE_CHECKED", "MEETS_DEMO_MINIMUM") : za("BELOW_DEMO_MINIMUM", "BELOW_DEMO_MINIMUM");
+  }
   const enforced = jurisdiction.jurisdiction === "ENGLAND";
   const period = enforced ? ratesInForce(date) : null;
   const floorMinor = period?.rates.find(row => row.category === DEMO_WAGE_POLICY.category)?.rateMinor ?? null;
-  const result = (status: WageCheckStatus, reason: WageCheckReason): WageCheck => ({ status, reason, date, jurisdiction, period, floorMinor, enforced, version: WAGE_REFERENCE_VERSION });
+  const result = (status: WageCheckStatus, reason: WageCheckReason): WageCheck => ({ status, reason, date, jurisdiction, period, floorMinor, enforced, version: WAGE_REFERENCE_VERSION, floorCurrency: enforced ? "GBP" : null, floorName: enforced ? DEMO_WAGE_POLICY.label : null });
+  // Day 6, Step 3a: commission casual terms guarantee no pay per hour, so they are never offered, anywhere.
+  if (terms.earningsModel === "COMMISSION") return result("NOT_CHECKABLE", "VARIABLE_PAY");
   if (jurisdiction.jurisdiction === null && jurisdiction.reason === "OUTSIDE_DEMO_JURISDICTION") return result("OUTSIDE_DEMO_SCOPE", "OUTSIDE_DEMO_JURISDICTION");
   if (!enforced) return result("REFERENCE_UNAVAILABLE", "NO_JURISDICTION");
   // Where the floor applies but can't be established, nothing is shown as checked or offered.
   if (floorMinor === null) return result("REFERENCE_UNAVAILABLE", "NO_REFERENCE_FOR_DATE");
   if (input.currencyCode !== "GBP") return result("NOT_CHECKABLE", "CURRENCY_MISMATCH");
-  if (terms.earningsModel === "COMMISSION") return result("NOT_CHECKABLE", "VARIABLE_PAY");
   if (!Number.isSafeInteger(terms.rateMinor) || terms.rateMinor < 0 || (terms.earningsModel === "DAILY" && !(Number.isSafeInteger(terms.durationMs) && terms.durationMs > 0)))
     return result("NOT_CHECKABLE", "INVALID_TERMS");
   return compare(terms, floorMinor) >= 0 ? result("RATE_CHECKED", "MEETS_DEMO_MINIMUM") : result("BELOW_DEMO_MINIMUM", "BELOW_DEMO_MINIMUM");
@@ -152,16 +174,20 @@ export function termsForWageCheck(terms: { earningsModel: string; rateMinor: num
   return null;
 }
 
-// Where the demo floor applies, only checked terms are offered. Elsewhere FairShift holds no
-// reference, says so, and leaves the existing behaviour unchanged.
-export const wageAllowsOffer = (check: WageCheck) => !check.enforced || check.status === "RATE_CHECKED";
+// Day 6, Step 3a: where FairShift holds no wage rule for the location's country or the shift's date,
+// the minimum wage is not checked. Such shifts are offered only after the Owner has acknowledged that
+// for the location (audited; see wage-acknowledgement.ts). Terms below a floor, commission, and terms
+// that can't be read as pay per hour are never offered.
+export const wageNotChecked = (check: WageCheck) => check.status === "REFERENCE_UNAVAILABLE" || check.status === "OUTSIDE_DEMO_SCOPE";
+export const wageAllowsOffer = (check: WageCheck, ownerAcknowledgedNotChecked = false) =>
+  check.status === "RATE_CHECKED" || (wageNotChecked(check) && ownerAcknowledgedNotChecked);
 
 export const WAGE_STATUS_LABEL: Record<WageCheckStatus, string> = {
   RATE_CHECKED: "Rate checked",
   BELOW_DEMO_MINIMUM: "Below FairShift demo minimum",
-  REFERENCE_UNAVAILABLE: "Statutory reference unavailable",
+  REFERENCE_UNAVAILABLE: "Minimum wage not checked",
   NOT_CHECKABLE: "Pay can’t be checked",
-  OUTSIDE_DEMO_SCOPE: "Outside demo jurisdiction",
+  OUTSIDE_DEMO_SCOPE: "Minimum wage not checked",
 };
 
 // For a fixed amount: how long a shift it covers at the given hourly rate, in whole minutes.
@@ -172,6 +198,14 @@ export function minutesCovered(fixedMinor: number, hourlyMinor: number) {
 // Deterministic words for a check. Figures are formatted by the caller's money function.
 export function wageCheckExplanation(check: WageCheck, money: (minor: number) => string): string {
   const floor = check.floorMinor === null ? "" : money(check.floorMinor);
+  if (check.jurisdiction.jurisdiction === "SOUTH_AFRICA") switch (check.reason) {
+    case "MEETS_DEMO_MINIMUM": return `At or above ${floor} an hour, the ${check.floorName} in force on ${check.date}.`;
+    case "BELOW_DEMO_MINIMUM": return `Below ${floor} an hour, the ${check.floorName} in force on ${check.date}, so shifts can’t be created or offered on these terms.`;
+    case "NO_REFERENCE_FOR_DATE": return `Minimum wage not checked: FairShift holds no verified South African minimum wage for ${check.date}. Shifts are offered here only after the Owner acknowledges that under Compensation.`;
+    case "CURRENCY_MISMATCH": return "These terms aren’t in rand, so they can’t be checked against the South African minimum wage and can’t be offered here.";
+    case "VARIABLE_PAY": return "Commission has no guaranteed hourly pay, so it can’t be checked against the minimum wage and can’t be offered.";
+    default: return "These terms can’t be read as pay per hour, so they can’t be offered here.";
+  }
   switch (check.reason) {
     case "MEETS_DEMO_MINIMUM":
       return `At or above ${floor} an hour, the 21-and-over rate in force on ${check.date}, which is the FairShift demo minimum.`;
@@ -179,18 +213,18 @@ export function wageCheckExplanation(check: WageCheck, money: (minor: number) =>
       return `Below ${floor} an hour, the 21-and-over rate in force on ${check.date}. FairShift’s demo policy uses that rate for every shift, so shifts can’t be created or offered on these terms.`;
     case "NO_JURISDICTION":
       return check.jurisdiction.jurisdiction === null && check.jurisdiction.reason === "NATION_NOT_VERIFIED"
-        ? "FairShift’s UK reference hasn’t been verified for Northern Ireland, so pay here isn’t checked."
+        ? "Minimum wage not checked: FairShift’s UK reference hasn’t been verified for Northern Ireland. Shifts are offered here only after the Owner acknowledges that under Compensation."
         : check.jurisdiction.jurisdiction === null && check.jurisdiction.reason === "COUNTRY_NOT_STATED"
-          ? "This location has no country recorded, so FairShift can’t tell which minimum wage applies."
-          : "FairShift holds a minimum wage reference for the UK only, so pay here isn’t checked.";
+          ? "Minimum wage not checked: this location has no country recorded, so FairShift can’t tell which minimum wage applies. Shifts are offered here only after the Owner acknowledges that under Compensation."
+          : `Minimum wage not checked: FairShift holds no minimum wage rule for ${check.jurisdiction.country ?? "this country"}. Shifts are offered here only after the Owner acknowledges that under Compensation.`;
     case "OUTSIDE_DEMO_JURISDICTION":
-      return "FairShift’s demo minimum applies to England, the demonstration jurisdiction, so pay here isn’t checked or enforced.";
+      return "Minimum wage not checked: FairShift’s UK minimum applies to England, the demonstration jurisdiction. Shifts are offered here only after the Owner acknowledges that under Compensation.";
     case "NO_REFERENCE_FOR_DATE":
-      return `FairShift’s reference has no verified rates for ${check.date}, so no minimum can be confirmed and shifts can’t be offered for that date.`;
+      return `Minimum wage not checked: FairShift’s reference has no verified rates for ${check.date}. Shifts are offered here only after the Owner acknowledges that under Compensation.`;
     case "CURRENCY_MISMATCH":
       return "These terms aren’t in pounds, so they can’t be checked against the demo minimum and can’t be offered here.";
     case "VARIABLE_PAY":
-      return "Commission has no guaranteed hourly pay, so it can’t be checked against the demo minimum and can’t be offered here.";
+      return "Commission has no guaranteed hourly pay, so it can’t be checked against a minimum wage and can’t be offered.";
     case "INVALID_TERMS":
       return "These terms can’t be read as pay per hour, so they can’t be offered here.";
   }

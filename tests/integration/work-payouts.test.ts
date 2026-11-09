@@ -25,6 +25,9 @@ import { OwnerWorkspace } from "@/app/owner/workspace";
 import { approvePayableAction, confirmWorkAction, refreshPayoutAction, sendPayoutAction } from "@/app/operations-actions";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID } from "@/server/constants";
 import { createActivatedTeamMember } from "../helpers/workers";
+import { fixtureHourlyRate } from "../helpers/pay-agent";
+import { ownerAcknowledgesWageNotChecked } from "../helpers/legacy-commission";
+import { wageJurisdiction } from "@/server/domain/statutory-wage";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -55,13 +58,16 @@ async function company(db: Db, locations = 1, country = "United Kingdom") {
   await db.insert(outlets).values(rows);
   const scopes: Scope[] = [];
   for (const row of rows) scopes.push({ userId: await user(db), organisationId, locationId: row.id, role: "MANAGER", organisationName: "Independent company", locationName: row.name });
+  // Where FairShift holds no wage rule for the country, the Owner has acknowledged that (Day 6, Step 3a).
+  if (wageJurisdiction({ organisationCountry: country }).jurisdiction === null) for (const scope of scopes) await ownerAcknowledgesWageNotChecked(db, scope);
   return { organisationId, scopes };
 }
 // Shift → offer → acceptance → allocation, through the normal operations.
 async function allocatedWork(db: Db, manager: Scope, { paymentEmail = "casual.sandbox@example.test" as string | null } = {}) {
   const [department] = await createDepartment(db, `Sales floor ${randomUUID().slice(0, 6)}`, manager);
-  // £13.00 an hour: at or above the FairShift demo minimum for these dates (FS-WAGE-INTEL-DEC-002).
-  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual terms", manager);
+  // £13.00 an hour, or R39.00 in South Africa: at or above the floor in force for these dates
+  // (FS-WAGE-INTEL-DEC-002; the South African National Minimum Wage since Day 6).
+  const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY", rateMinor: await fixtureHourlyRate(db, manager) }, "Casual terms", manager);
   const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, manager);
   const { worker } = await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, manager);
   const workerScope: Scope = { ...manager, userId: await user(db), workerId: worker.id, role: "TEAM_MEMBER" };
@@ -874,15 +880,15 @@ describe("South African operating currency and the provider payout-currency gate
       const c = await company(t.db, 1, "South Africa");
       const manager = c.scopes[0];
       const { policy, shift, offer, worker } = await allocatedWork(t.db, manager);
-      expect(policy).toMatchObject({ currencyCode: "ZAR", rateMinor: 1_300 });
-      expect(shift).toMatchObject({ currencyCode: "ZAR", expectedEarningsMinor: 7_800 });
-      expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ currencyCode: "ZAR", rateMinor: 1_300, expectedEarningsMinor: 7_800, acknowledged: true });
+      expect(policy).toMatchObject({ currencyCode: "ZAR", rateMinor: 3_900 });
+      expect(shift).toMatchObject({ currencyCode: "ZAR", expectedEarningsMinor: 23_400 });
+      expect((await t.db.select().from(workAcceptances))[0].snapshot).toMatchObject({ currencyCode: "ZAR", rateMinor: 3_900, expectedEarningsMinor: 23_400, acknowledged: true });
       // Only this independently created tenant exists: no seeded demo company is needed.
       expect(await t.db.select().from(organisations)).toHaveLength(1);
       const { payable } = await confirmWork(t.db, offer.id, manager);
-      expect(payable).toMatchObject({ workerId: worker.id, currencyCode: "ZAR", baseAmountMinor: 7_800, status: "PENDING_REVIEW" });
+      expect(payable).toMatchObject({ workerId: worker.id, currencyCode: "ZAR", baseAmountMinor: 23_400, status: "PENDING_REVIEW" });
       const approved = await approveWorkPayable(t.db, manager, payable!.id);
-      expect(approved).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "ZAR" });
+      expect(approved).toMatchObject({ status: "APPROVED", approvedAmountMinor: 23_400, approvedCurrencyCode: "ZAR" });
 
       const paypal = fakePayPal();
       // No approved ZAR→USD demo rate is configured (DEC-SA-012 leaves it unrecorded), so the
@@ -894,7 +900,7 @@ describe("South African operating currency and the provider payout-currency gate
       expect(await payoutsOf(t.db)).toHaveLength(0);
       expect(await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_RESERVED"))).toHaveLength(0);
       // The obligation is preserved exactly as approved.
-      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "ZAR" });
+      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 23_400, approvedCurrencyCode: "ZAR" });
       await expect(refreshWorkPayout(t.db, paypal, manager, payable!.id)).rejects.toThrow("No payout has been sent");
 
       // The Manager action reports the refusal truthfully rather than as an error or a payment.
@@ -914,7 +920,7 @@ describe("South African operating currency and the provider payout-currency gate
     try {
       const manager = (await company(t.db, 1, "South Africa")).scopes[0];
       const [department] = await createDepartment(t.db, "Floor", manager);
-      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Casual terms", manager);
+      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 3_900 }, "Casual terms", manager);
       await t.db.update(workPolicies).set({ currencyCode: "GBP" }).where(eq(workPolicies.id, policy.id));
       await expect(createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 1 }, manager)).rejects.toMatchObject({ feedback: "policy-currency" });
     } finally { await t.close(); }
@@ -965,7 +971,7 @@ describe("South African operating currency and the provider payout-currency gate
       await approveWorkPayable(t.db, manager, payable.id);
       const [reservation] = await t.db.insert(workPayouts).values({
         id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
-        amountMinor: 7_800, currencyCode: currency, providerCurrency: currency, providerAmountMinor: 7_800, recipient: "casual.sandbox@example.test", ...payoutSenderIds(payable.id),
+        amountMinor: payable.baseAmountMinor, currencyCode: currency, providerCurrency: currency, providerAmountMinor: payable.baseAmountMinor, recipient: "casual.sandbox@example.test", ...payoutSenderIds(payable.id),
         status: "SUBMITTING", requestedBy: manager.userId, reservedAt: new Date(), updatedAt: new Date(),
       }).returning();
       const [held] = await t.db.update(workPayouts).set({ status: "RECONCILIATION_REQUIRED" }).where(eq(workPayouts.id, reservation.id)).returning();
@@ -1054,7 +1060,7 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
       expect(paypal.createPayout).not.toHaveBeenCalled();
       expect(await payoutsOf(t.db)).toHaveLength(0);
       // The approved ZAR payable is untouched and simply stays recorded and unpaid.
-      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 7_800, approvedCurrencyCode: "ZAR" });
+      expect((await t.db.select().from(workPayables))[0]).toMatchObject({ status: "APPROVED", approvedAmountMinor: 23_400, approvedCurrencyCode: "ZAR" });
     } finally { await t.close(); }
   });
 
@@ -1066,14 +1072,14 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
       const paypal = fakePayPal();
       const { payout, submitted } = await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(submitted).toBe(true);
-      // Entitlement stays ZAR; the provider leg is R78.00 floored to $4.20, frozen with its rate.
-      expect(payout).toMatchObject({ currencyCode: "ZAR", amountMinor: 7_800, providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}`, status: "PROCESSING", paidAt: null });
+      // Entitlement stays ZAR; the provider leg is R234.00 floored to $12.62, frozen with its rate.
+      expect(payout).toMatchObject({ currencyCode: "ZAR", amountMinor: 23_400, providerCurrency: "USD", providerAmountMinor: 1_262, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}`, status: "PROCESSING", paidAt: null });
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
-      expect(paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "4.20", currency: "USD" }));
+      expect(paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "12.62", currency: "USD" }));
       // The worker sees the deterministic breakdown: ZAR earned, USD sent, the rate and its source.
       const workspace = await getWorkerWorkspace(t.db, workerScope);
       const seen = workspace.assignments.find(row => row.payout?.id === payout.id)?.payout;
-      expect(seen).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 420, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
+      expect(seen).toMatchObject({ amountMinor: 23_400, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 1_262, fxRateMicros: 18_540_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
       expect(seen?.status).not.toBe("PAID"); // no fabricated success before a genuine provider SUCCESS
     } finally { await t.close(); }
   });
@@ -1092,8 +1098,8 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
       await seedTestFxRate(t.db, TEST_QUOTE_1850); // a re-conversion would give a different amount
       const second = await submitWorkPayout(t.db, paypal, manager, payable.id);
       expect(second.submitted).toBe(true);
-      expect(second.payout).toMatchObject({ providerAmountMinor: 420, providerCurrency: "USD", fxRateMicros: 18_540_000 });
-      expect(createPayout).toHaveBeenLastCalledWith(expect.objectContaining({ amount: "4.20", currency: "USD" }));
+      expect(second.payout).toMatchObject({ providerAmountMinor: 1_262, providerCurrency: "USD", fxRateMicros: 18_540_000 });
+      expect(createPayout).toHaveBeenLastCalledWith(expect.objectContaining({ amount: "12.62", currency: "USD" }));
       // The frozen provider facts cannot be mutated directly either.
       await expect(t.db.update(workPayouts).set({ providerAmountMinor: 780, fxRateMicros: 10_000_000 }).where(eq(workPayouts.id, second.payout.id)))
         .rejects.toMatchObject({ cause: expect.objectContaining({ message: expect.stringMatching(/immutable/) }) });

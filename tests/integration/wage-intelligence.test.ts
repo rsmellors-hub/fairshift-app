@@ -17,6 +17,7 @@ import { finalPayableMinor } from "@/server/domain/work-payable";
 import { createPolicyAction, createRequirementAction, offerAssignmentAction } from "@/app/operations-actions";
 import { explainWageCheck } from "@/server/intelligence/wage-explanation";
 import { wageJurisdiction } from "@/server/domain/statutory-wage";
+import { acknowledgeWageNotChecked } from "@/server/scheduling/wage-acknowledgement";
 import type { StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { ManagerWorkspace } from "@/app/manager/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
@@ -41,6 +42,10 @@ async function user(db: Db) {
   return { id, email };
 }
 // England is the confirmed demonstration jurisdiction (FS-WAGE-INTEL-DEC-002).
+// Terms stored before the floor was checked when terms are saved (Day 6, Step 3a): written directly.
+async function olderTerms(db: Db, scope: { locationId: string }, earningsModel: "HOURLY" | "DAILY", rateMinor: number, name: string) {
+  return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name, earningsModel, rateMinor, currencyCode: "GBP" }).returning();
+}
 async function business(db: Db, country = "England", locations = ["Leeds Briggate"]) {
   const organisationId = randomUUID();
   await db.insert(organisations).values({ id: organisationId, name: "Reference Cafés", country });
@@ -82,7 +87,8 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
     try {
       const c = await business(t.db);
       pages(t.db);
-      const [existing] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_200 }, "Existing casual", c.ownerScope);
+      // Terms set before the floor was checked when terms are saved (Day 6): stored, never changed.
+      const [existing] = await olderTerms(t.db, c.ownerScope, "HOURLY", 1_200, "Existing casual");
       expect(await act(c.ownerScope, createPolicyAction, { name: "Owner's own", earningsModel: "HOURLY", rate: "13.40" })).toContain("status=saved");
       const before = await t.db.select().from(workPolicies).orderBy(workPolicies.name);
       expect(before.find(row => row.name === "Owner's own")!.rateMinor).toBe(1_340);
@@ -106,8 +112,10 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       const c = await business(t.db, "South Africa");
       pages(t.db);
       const page = decode(await render(c.ownerScope, () => OwnerWorkspace({ area: "policies" })));
-      expect(page).toContain("Statutory reference unavailable");
-      expect(page).toContain("holds a verified minimum wage reference for the UK only");
+      // Day 6, Step 3a: South Africa's own rule now applies, with its source.
+      expect(page).toContain("South African National Minimum Wage · today");
+      expect(page).toContain("R30.23 an hour");
+      expect(page).toContain("gov.za");
       expect(page).not.toContain("Prefilled with");
     } finally { await t.close(); }
   });
@@ -119,7 +127,8 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       pages(t.db);
       const manager = await c.manager();
       const [department] = await createDepartment(t.db, "Floor", c.ownerScope);
-      const policy = async (rateMinor: number, earningsModel: "HOURLY" | "DAILY" = "HOURLY") => (await createWorkPolicy(t.db, { earningsModel, rateMinor }, `Terms ${rateMinor} ${earningsModel}`, c.ownerScope))[0];
+      // Stored terms, including some below today's floor from before it was checked on saving (Day 6).
+      const policy = async (rateMinor: number, earningsModel: "HOURLY" | "DAILY" = "HOURLY") => (await olderTerms(t.db, c.ownerScope, earningsModel, rateMinor, `Terms ${rateMinor} ${earningsModel}`))[0];
       const shift = (policyId: string, at: Date, length = 8) => createRequirement(t.db, { departmentId: department.id, policyId, ...hours(at, length), requiredHeadcount: 1 }, manager);
       const [twelve, between, adult2026, youth, daily] = [await policy(1_200), await policy(1_250), await policy(1_271), await policy(1_085), await policy(9_600, "DAILY")];
 
@@ -131,10 +140,10 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       await expect(shift(youth.id, APRIL)).rejects.toMatchObject({ feedback: "wage-below-minimum" });
       // A fixed amount is checked per hour: £96 over 8 hours is £12.00 an hour.
       await expect(shift(daily.id, APRIL, 8)).rejects.toMatchObject({ feedback: "wage-below-minimum" });
-      // 11. Where no verified rate exists for the date, nothing is created.
-      await expect(shift(adult2026.id, new Date("2028-04-10T09:00:00Z"))).rejects.toMatchObject({ feedback: "wage-reference-unavailable" });
-      const [commission] = await createWorkPolicy(t.db, { earningsModel: "COMMISSION", commissionBps: 1_000, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" }, "Commission", c.ownerScope);
-      await expect(shift(commission.id, APRIL)).rejects.toMatchObject({ feedback: "wage-not-checkable" });
+      // 11. Where no verified rate exists for the date, nothing is created without the Owner's acknowledgement.
+      await expect(shift(adult2026.id, new Date("2028-04-10T09:00:00Z"))).rejects.toMatchObject({ feedback: "wage-not-checked" });
+      // Commission casual terms are refused when written (Day 6, Step 3a).
+      await expect(createWorkPolicy(t.db, { earningsModel: "COMMISSION", commissionBps: 1_000, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" }, "Commission", c.ownerScope)).rejects.toMatchObject({ feedback: "policy-commission" });
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
 
       // 3. £12.50 is above the March floor and below the April floor; £12.71 meets April's exactly.
@@ -177,11 +186,10 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
 
   it.each([
     // FS-HACK-SA-SUBMISSION-001: the SA minimum wage reference is shown instead, and never enforced.
-    { country: "South Africa", currency: "ZAR", badge: "Below minimum wage reference" },
     // Same GOV.UK rates, but outside the approved England demo scope: behaviour as before this package.
-    { country: "Scotland", currency: "GBP", badge: "Outside demo jurisdiction" },
-    { country: "Wales", currency: "GBP", badge: "Outside demo jurisdiction" },
-  ])("11. leaves locations outside the England demo scope unchanged: $country", async ({ country, currency, badge }) => {
+    { country: "Scotland", currency: "GBP", badge: "Minimum wage not checked" },
+    { country: "Wales", currency: "GBP", badge: "Minimum wage not checked" },
+  ])("11. marks locations outside the England demo scope as not checked, offered after the Owner acknowledges it: $country", async ({ country, currency, badge }) => {
     const t = await createTestDatabase();
     try {
       const c = await business(t.db, country);
@@ -189,6 +197,9 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       const manager = await c.manager(), worker = await c.worker(manager);
       const [department] = await createDepartment(t.db, "Floor", c.ownerScope);
       const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 500 }, "Local", c.ownerScope);
+      // Day 6, Step 3a: the minimum wage isn't checked here, so nothing is offered until the Owner acknowledges that.
+      await expect(createRequirement(t.db, { departmentId: department.id, policyId: policy.id, ...hours(APRIL, 8), requiredHeadcount: 1 }, manager)).rejects.toMatchObject({ feedback: "wage-not-checked" });
+      await acknowledgeWageNotChecked(t.db, c.ownerScope, true);
       const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, ...hours(APRIL, 8), requiredHeadcount: 1 }, manager);
       expect(shift).toMatchObject({ currencyCode: currency, rateMinor: 500 });
       expect(await offerAssignment(t.db, shift.id, worker.workerId!, manager)).toMatchObject({ status: "OFFERED" });
@@ -303,6 +314,21 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       expect(events.map(row => row.action).filter(action => action.startsWith("WAGE_"))).toEqual(["WAGE_EXPLANATION_GENERATED", "WAGE_EXPLANATION_REJECTED"]);
       expect(JSON.stringify(events)).not.toContain("twenty-one and over on that date");
       expect((await t.db.select().from(workPolicies)).map(row => row.rateMinor)).toEqual([1_271]);
+    } finally { await t.close(); }
+  });
+});
+
+// Day 6, Step 3a: South Africa's own floor is enforced on terms and shifts, with the floor shown.
+describe("country wage rule: South Africa", () => {
+  it("refuses pay terms and shifts below R30.23 an hour, showing the floor", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await business(t.db, "South Africa");
+      pages(t.db);
+      await expect(createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 500 }, "Local", c.ownerScope)).rejects.toMatchObject({ feedback: "policy-below-wage-floor", message: expect.stringContaining("R30.23 an hour, the South African National Minimum Wage") });
+      expect(await act(c.ownerScope, createPolicyAction, { name: "Too low", earningsModel: "HOURLY", rate: "20.00" })).toContain("status=policy-below-wage-floor");
+      const [ok] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 4_500 }, "Demo terms", c.ownerScope);
+      expect(ok.rateMinor).toBe(4_500);
     } finally { await t.close(); }
   });
 });

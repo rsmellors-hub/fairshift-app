@@ -82,7 +82,7 @@ describe("authenticated HTTP action boundary",()=>{
     const i=await inviteMember(t.db,o.scope,{role:"TEAM_MEMBER",email,firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
     const u=await registerIdentity(t.db,{email,password});const m=await redeemInvitation(t.db,u.id,{token:i.token});joins.push({u,m});
    }
-   const [d]=await createDepartment(t.db,"Sales",o.scope),[p]=await createWorkPolicy(t.db,{earningsModel:"DAILY",rateMinor:10000},"Daily",o.scope);
+   const [d]=await createDepartment(t.db,"Sales",o.scope),[p]=await createWorkPolicy(t.db,{earningsModel:"DAILY",rateMinor:30000},"Daily",o.scope);
    const shift=await createRequirement(t.db,{departmentId:d.id,policyId:p.id,startsAt:new Date("2027-01-01T08:00Z"),endsAt:new Date("2027-01-01T14:00Z"),requiredHeadcount:2},o.scope);
    const offer=await offerAssignment(t.db,shift.id,joins[1].m.workerId!,o.scope);
    jar.set("fairshift_session",await issueSession(t.db,joins[0].u.id));

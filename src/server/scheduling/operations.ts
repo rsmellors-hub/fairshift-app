@@ -8,7 +8,8 @@ import { expectedWorkEarnings, policyInput } from "@/server/domain/work-terms";
 import { resolveLocationCurrency } from "@/server/domain/currency";
 import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAcceptedTerms } from "@/server/domain/work-payable";
 import { localDate } from "@/server/intelligence/forecast";
-import { checkWage, termsForWageCheck, wageAllowsOffer, wageJurisdiction } from "@/server/domain/statutory-wage";
+import { checkWage, termsForWageCheck, wageAllowsOffer, wageCheckExplanation, wageJurisdiction, wageNotChecked } from "@/server/domain/statutory-wage";
+import { wageNotCheckedAcknowledgement } from "@/server/scheduling/wage-acknowledgement";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import { auditActor } from "@/server/auth/audit-actor";
@@ -38,15 +39,16 @@ export async function locationWageJurisdiction(db: DatabaseSession, outlet: type
 // FS-WAGE-INTEL-DEC-001 / -DEC-002: where the demo wage floor applies, a shift is created and offered
 // only on terms checked against the 21-and-over rate in force on its local date. Terms below it, terms
 // that can't be checked, and dates without a verified rate are all refused here, whatever the UI shows.
-// Locations outside the reference keep their existing behaviour.
+// Since Day 6, Step 3a, where no wage rule is held for the country or the date, the minimum wage is not
+// checked and shifts are offered only after the Owner's audited acknowledgement for the location.
 async function assertWageAllowsOffer(db: DatabaseSession, outlet: typeof outlets.$inferSelect, shift: { earningsModel: string; rateMinor: number | null; currencyCode: string; startsAt: Date; endsAt: Date }) {
   const jurisdiction = await locationWageJurisdiction(db, outlet);
   const terms = termsForWageCheck(shift, shift) ?? { earningsModel: "HOURLY" as const, rateMinor: -1 };
   const check = checkWage({ jurisdiction, date: localDate(shift.startsAt, outlet.timezone), currencyCode: shift.currencyCode, terms });
-  if (wageAllowsOffer(check)) return;
-  if (check.status === "BELOW_DEMO_MINIMUM") throw new UserFacingError("wage-below-minimum", "This pay is below the FairShift demo minimum for the shift's date, so it can't be offered.");
-  if (check.status === "REFERENCE_UNAVAILABLE") throw new UserFacingError("wage-reference-unavailable", "FairShift has no verified minimum wage for the shift's date, so it can't be offered.");
-  throw new UserFacingError("wage-not-checkable", "This pay can't be checked against the FairShift demo minimum, so it can't be offered here.");
+  if (wageAllowsOffer(check, wageNotChecked(check) && !!await wageNotCheckedAcknowledgement(db, { organisationId: outlet.organisationId, locationId: outlet.id }, jurisdiction))) return;
+  if (check.status === "BELOW_DEMO_MINIMUM") throw new UserFacingError("wage-below-minimum", `This pay is below the ${check.floorName ?? "wage floor"} for the shift's date, so it can't be offered.`);
+  if (wageNotChecked(check)) throw new UserFacingError("wage-not-checked", "Minimum wage not checked: FairShift holds no minimum wage rule for this location's country or the shift's date, and the Owner hasn't acknowledged that, so it can't be offered.");
+  throw new UserFacingError("wage-not-checkable", "This pay can't be checked against a minimum wage, so it can't be offered.");
 }
 const teamInput = z.object({ firstName: z.string().trim().min(1).max(100), surname: z.string().trim().min(1).max(100), telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/), email: z.string().trim().email().max(254) });
 export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope) {
@@ -68,7 +70,14 @@ export async function createWorkPolicy(db: Database, input: unknown, name: strin
   // An optional target and fixed bonus, together and positive, on fixed-pay terms only.
   const { incentiveTargetMinor: target = null, incentiveBonusMinor: bonus = null } = input as { incentiveTargetMinor?: number | null; incentiveBonusMinor?: number | null };
   const validAmount = (value: number) => Number.isSafeInteger(value) && value > 0;
+  // Day 6, Step 3a: hourly terms below the country's wage floor in force today are refused, with the floor shown.
+  if (terms.earningsModel === "HOURLY" && terms.rateMinor !== undefined && terms.rateMinor !== null) {
+    const check = checkWage({ jurisdiction: await locationWageJurisdiction(db, outlet), date: localDate(new Date(), outlet.timezone), currencyCode: await locationCurrency(db, outlet), terms: { earningsModel: "HOURLY", rateMinor: terms.rateMinor } });
+    if (check.status === "BELOW_DEMO_MINIMUM") throw new UserFacingError("policy-below-wage-floor", wageCheckExplanation(check, minor => `${check.floorCurrency === "ZAR" ? "R" : check.floorCurrency === "GBP" ? "£" : `${check.floorCurrency} `}${(minor / 100).toFixed(2)}`));
+  }
   if ((target !== null || bonus !== null) && (target === null || bonus === null || !validAmount(target) || !validAmount(bonus) || terms.earningsModel === "COMMISSION")) throw new UserFacingError("policy-incentive", "A sales target and bonus must both be set, on hourly or daily terms.");
+  // Day 6, Step 3a: commission casual terms guarantee no pay per hour, so they can't be set.
+  if (terms.earningsModel === "COMMISSION") throw new UserFacingError("policy-commission", "Casual terms must pay by the hour or a fixed amount per shift. Commission-only terms can't be set, because they can't be checked against a minimum wage.");
   return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, incentiveTargetMinor: target, incentiveBonusMinor: bonus, currencyCode: await locationCurrency(db, outlet) }).returning();
 }
 // Payout state shown to managers; the stored recipient address is not needed to review it.
@@ -109,8 +118,9 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
   const availability = workerIds.length ? await db.select({ workerId: workerAvailability.workerId, isoWeekday: workerAvailability.isoWeekday, state: workerAvailability.state }).from(workerAvailability).where(inArray(workerAvailability.workerId, workerIds)) : [];
   // Each payable's latest Pay Agent event, as the manager's view of it (DEC-SA-011).
   const agentEvents = await latestPayAgentEvents(db, scope, payables.map(row => row.payable.id));
+  const jurisdiction = await locationWageJurisdiction(db, outlet);
   const payablesWithAgent = payables.map(row => { const event = agentEvents.get(row.payable.id); return { ...row, payAgent: event ? toPayAgentEventView(event) : null }; });
-  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables: payablesWithAgent, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone, wageJurisdiction: await locationWageJurisdiction(db, outlet) };
+  return { team, departments: departmentRows, policies, requirements, offers, paymentIssues, payables: payablesWithAgent, availability, currency: await locationCurrency(db, outlet), timezone: outlet.timezone, wageJurisdiction: jurisdiction, wageAcknowledgement: await wageNotCheckedAcknowledgement(db, scope, jurisdiction) };
 }
 // The planning location's time zone: the only basis for reading a Manager's local times.
 export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {

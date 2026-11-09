@@ -191,7 +191,8 @@ describe("opportunity to allocation, across roles", () => {
       const c = await business(t.db, { timezone, country });
       pages(t.db);
       const manager = await c.manager(), worker = await c.worker(manager);
-      const pay = await terms(t.db, c.ownerScope);
+      // R39.00 in South Africa, at or above the National Minimum Wage on that date.
+      const pay = await terms(t.db, c.ownerScope, country === "South Africa" ? 3_900 : 1_300);
       const end = wall.replace("T10:00", "T12:00");
       expect(await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "1", startsAt: wall, endsAt: end })).toContain("status=saved");
       const [shift] = (await getOperations(t.db, manager)).requirements;
@@ -218,7 +219,7 @@ describe("opportunity to allocation, across roles", () => {
       expect(await create("", "")).toContain("status=time-invalid");
       expect(await create("2026-01-19T12:00", "2026-01-19T10:00")).toContain("status=invalid-duration");
       expect(await create("2026-01-19T12:00", "2026-01-19T12:00")).toContain("status=invalid-duration");
-      const [uneven] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_001 }, "Uneven", c.ownerScope);
+      const [uneven] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_301 }, "Uneven", c.ownerScope);
       expect(await create("2026-01-19T10:00", "2026-01-19T10:07", uneven.id)).toContain("status=earnings-not-whole");
       expect(await create("2026-01-19T10:00", "2026-01-19T12:00", randomUUID())).toContain("status=error");
       expect((await getOperations(t.db, manager)).requirements).toEqual([]);
@@ -236,7 +237,10 @@ describe("opportunity to allocation, across roles", () => {
       const window = { startsAt: future(0), endsAt: future(8), requiredHeadcount: 1 };
       await expect(createRequirement(t.db, { ...window, departmentId: pay.department.id, policyId: foreign.policy.id }, manager)).rejects.toThrow(/unavailable/);
       await expect(createRequirement(t.db, { ...window, departmentId: pay.department.id, policyId: pay.policy.id }, york)).rejects.toThrow(/unavailable/);
-      const [zero] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 0 }, "Unpaid", c.ownerScope);
+      // Unpaid terms are refused when written (below the wage floor); terms that became unpaid later are refused when used.
+      await expect(createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 0 }, "Unpaid", c.ownerScope)).rejects.toMatchObject({ feedback: "policy-below-wage-floor" });
+      const [zero] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 1_300 }, "Unpaid", c.ownerScope);
+      await t.db.update(workPolicies).set({ rateMinor: 0 }).where(eq(workPolicies.id, zero.id));
       await expect(createRequirement(t.db, { ...window, departmentId: pay.department.id, policyId: zero.id }, manager)).rejects.toMatchObject({ feedback: "policy-rate" });
       await t.db.update(workPolicies).set({ currencyCode: "USD" }).where(eq(workPolicies.id, pay.policy.id));
       await expect(createRequirement(t.db, { ...window, departmentId: pay.department.id, policyId: pay.policy.id }, manager)).rejects.toMatchObject({ feedback: "policy-currency" });

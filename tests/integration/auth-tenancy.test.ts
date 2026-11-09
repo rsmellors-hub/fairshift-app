@@ -33,8 +33,8 @@ async function join(db:DB,scope:Awaited<ReturnType<typeof owner>>["scope"],email
  return {user,invite,m,scope:await resolveScope(db,user.id,m.id)};
 }
 async function requirement(db:DB,scope:Awaited<ReturnType<typeof owner>>["scope"]) {
- const [d]=await createDepartment(db,"Sales",scope),[p]=await createWorkPolicy(db,{earningsModel:"DAILY",rateMinor:15000},"Daily",scope);
- return createRequirement(db,{departmentId:d.id,policyId:p.id,startsAt:new Date("2026-01-10T08:00:00Z"),endsAt:new Date("2026-01-10T14:00:00Z"),requiredHeadcount:2},scope);
+ const [d]=await createDepartment(db,"Sales",scope),[p]=await createWorkPolicy(db,{earningsModel:"DAILY",rateMinor:30000},"Daily",scope);
+ return createRequirement(db,{departmentId:d.id,policyId:p.id,startsAt:new Date("2026-10-10T08:00:00Z"),endsAt:new Date("2026-10-10T14:00:00Z"),requiredHeadcount:2},scope);
 }
 describe("authenticated Owner-originated tenancy",()=>{
  it("registers identity without authority, verifies mailbox, bootstraps organisation and manages hashed sessions",async()=>{
@@ -130,7 +130,7 @@ describe("authenticated Owner-originated tenancy",()=>{
    await expect(offerAssignment(t.db,shift.id,a.scope.workerId!,foreign.scope)).rejects.toThrow();
    await savePayoutDestination(t.db,a.scope,"mine@example.test");
    expect((await workerWorkspace(t.db,b.scope)).profile?.paypalPayoutEmail).toBeNull();
-   await changeAssignment(t.db,o.scope,shift.id,{startsAt:new Date("2026-01-11T08:00:00Z"),endsAt:new Date("2026-01-11T14:00:00Z")});
+   await changeAssignment(t.db,o.scope,shift.id,{startsAt:new Date("2026-10-11T08:00:00Z"),endsAt:new Date("2026-10-11T14:00:00Z")});
    await expect(workerRespond(t.db,a.scope,oa.id,1,"ACCEPTED",true)).rejects.toThrow(/changed/);
    await workerRespond(t.db,a.scope,oa.id,2,"ACCEPTED",true);await allocateAssignment(t.db,oa.id,o.scope);
    vi.useRealTimers();
@@ -154,7 +154,7 @@ describe("authenticated Owner-originated tenancy",()=>{
    expect((await markNotificationRead(t.db,a.user.id,invitationNotice.id,false)).readAt).toBeNull();
    const shift=await requirement(t.db,o.scope);await offerAssignment(t.db,shift.id,a.scope.workerId!,o.scope);
    let notices=await listNotifications(t.db,a.user.id);expect(notices.filter(n=>n.kind === "SHIFT_OFFER")).toHaveLength(1);
-   await changeAssignment(t.db,o.scope,shift.id,{startsAt:new Date("2026-01-11T08:00:00Z"),endsAt:new Date("2026-01-11T14:00:00Z")});
+   await changeAssignment(t.db,o.scope,shift.id,{startsAt:new Date("2026-10-11T08:00:00Z"),endsAt:new Date("2026-10-11T14:00:00Z")});
    await t.db.update(shifts).set({updatedAt:new Date()}).where(eq(shifts.id,shift.id));
    notices=await listNotifications(t.db,a.user.id);expect(notices.filter(n=>n.kind === "SHIFT_CHANGED")).toHaveLength(1);
    await changeAssignment(t.db,o.scope,shift.id,{cancel:true});

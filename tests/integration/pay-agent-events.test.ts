@@ -69,7 +69,7 @@ describe("durable Pay Agent event on manager confirmation", () => {
   it("creates no event when no payable is produced, and keeps the confirmation audit", async () => {
     const t = await createTestDatabase();
     try {
-      // Commission can be offered only outside the demo wage reference (see work-payables tests).
+      // Commission terms made before Day 6, Step 3a (written directly by the fixture) still confirm, with no payable.
       const manager = (await payAgentCompany(t.db, { country: "South Africa" })).scopes[0];
       const work = await confirmedWork(t.db, manager, { commission: true });
       expect(work).toMatchObject({ payable: null, payableState: "ATTRIBUTION_REQUIRED", payAgentEvent: null });
@@ -136,7 +136,7 @@ describe("confirmed-work evidence reader", () => {
       const manager = (await payAgentCompany(t.db, { country: "South Africa" })).scopes[0];
       const work = await confirmedWork(t.db, manager, { paymentEmail: "visible.destination@example.test" });
       const evidence = (await loadConfirmedWork(t.db, manager, work.payable!.id))!;
-      expect(evidence.payable).toMatchObject({ currencyCode: "ZAR", baseAmountMinor: 7_800, finalAmountMinor: 7_800 });
+      expect(evidence.payable).toMatchObject({ currencyCode: "ZAR", baseAmountMinor: 23_400, finalAmountMinor: 23_400 });
       const view = modelView(evidence);
       const keys: string[] = [], values: unknown[] = [];
       const walk = (value: unknown) => {
@@ -147,7 +147,7 @@ describe("confirmed-work evidence reader", () => {
       walk(view);
       for (const key of keys) for (const hidden of ["amount", "currency", "rate", "recipient", "email", "name", "merchant", "funding", "worker", "user", "confirmedby"]) expect(key).not.toContain(hidden);
       for (const value of values) {
-        expect([7_800, 1_300, 78, 13]).not.toContain(value);
+        expect([23_400, 3_900, 234, 39]).not.toContain(value);
         if (typeof value === "string") {
           expect(value).not.toContain("@");
           for (const hidden of [work.worker.displayName, work.worker.email, "ZAR", work.worker.id, manager.userId]) expect(value).not.toBe(hidden);

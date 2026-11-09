@@ -17,18 +17,18 @@ import { getDatabase } from "@/server/db/client";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { getOwnerWorkspace as scopedGetOwnerWorkspace, getWorkerWorkspace as scopedGetWorkerWorkspace } from "@/server/product/workspace";
 import { organisations, outlets, shifts, workers, users, memberships, subscriptions } from "@/server/db/schema";
-import { createTeamAction, createPolicyAction, createRequirementAction, respondAssignmentAction } from "@/app/operations-actions";
-import { getOperations as scopedGetOperations, offerAssignment as scopedOfferAssignment } from "@/server/scheduling/operations";
+import { createTeamAction, createPolicyAction, respondAssignmentAction } from "@/app/operations-actions";
+import { getOperations as scopedGetOperations } from "@/server/scheduling/operations";
 import { publishDemoShift } from "@/server/scheduling/demo";
 import { ensureDemoCasualWorker } from "@/server/scheduling/demo";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
 import { createTestDatabase } from "../helpers/database";
+import { legacyCommissionOffer, legacyCommissionShift } from "../helpers/legacy-commission";
 const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const getOwnerWorkspace = (db: Db) => scopedGetOwnerWorkspace(db, DEMO_ORGANISATION_ID);
 const getWorkerWorkspace = (db: Db) => scopedGetWorkerWorkspace(db, { ...demoScope, workerId: DEMO_CASUAL_WORKER_ID });
 const getOperations = (db: Db) => scopedGetOperations(db, demoScope);
-const offerAssignment = (db: Db, shiftId: string, workerId: string) => scopedOfferAssignment(db, shiftId, workerId, demoScope);
 
 vi.mock("@/server/auth/request", () => ({
  requireScope:vi.fn(async (roles:string[])=>({userId:"90000000-0000-4000-8000-000000000001",organisationId:"10000000-0000-4000-8000-000000000001",locationId:"20000000-0000-4000-8000-000000000001",workerId:roles.includes("TEAM_MEMBER") ? "30000000-0000-4000-8000-000000000001":undefined,role:roles.includes("TEAM_MEMBER") ? "TEAM_MEMBER":"OWNER",organisationName:"Demo",locationName:"Rosebank Kitchen"})),
@@ -125,13 +125,14 @@ describe("functional product workspaces", () => {
       expect(teamHtml).toContain("Prepared · not sent");
       expect(teamHtml).not.toContain('name="payoutEmail"');
       expect(teamHtml).not.toContain("Worker Pool");
-      await expect(createPolicyAction(form({name:"Commission policy",earningsModel:"COMMISSION",rate:"5"}))).rejects.toThrow("REDIRECT:/owner/policies?status=saved");
+      // Commission casual terms are refused when written (Day 6, Step 3a).
+      await expect(createPolicyAction(form({name:"Commission policy",earningsModel:"COMMISSION",rate:"5"}))).rejects.toThrow("REDIRECT:/owner/policies?status=policy-commission");
       const demo = await publishDemoShift(t.db);
       ops = await getOperations(t.db);
       const departmentId = ops.departments[0].id;
-      await expect(createRequirementAction(form({ departmentId, policyId:ops.policies[0].id, headcount:"2", startsAt:"2026-12-01T10:00", endsAt:"2026-12-01T16:00", planDate:"2026-12-01" }))).rejects.toThrow("REDIRECT:/manager/fill?date=2026-12-01&status=saved");
-      const requirement = (await getOperations(t.db)).requirements.find(r => r.policyId === ops.policies[0].id)!;
-      const offer = await offerAssignment(t.db, requirement.id, demo.worker.id);
+      // Commission terms made before that rule are still shown to the worker with their basis, here written directly.
+      const { shift: requirement } = await legacyCommissionShift(t.db, demoScope, { departmentId, startsAt: new Date("2026-12-01T10:00:00Z"), endsAt: new Date("2026-12-01T16:00:00Z"), requiredHeadcount: 2 });
+      const offer = await legacyCommissionOffer(t.db, requirement.id, demo.worker.id);
       const shiftsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"shifts"}));
       const commissionArticle = shiftsHtml.split("<article").find(a => a.includes("% commission"))!;
       expect(commissionArticle).toContain("of sales recorded to you");

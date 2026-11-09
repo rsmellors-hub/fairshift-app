@@ -254,7 +254,7 @@ describe("Pay Agent settlement gates", () => {
       expect(await s.event()).toMatchObject({ decision: "SETTLE", dryRun: true });
       expect(s.paypal.createPayout).not.toHaveBeenCalled();
       expect(await s.payouts()).toHaveLength(0);
-      expect(await s.payable()).toMatchObject({ currencyCode: "ZAR", baseAmountMinor: 7_800, status: "PENDING_REVIEW" });
+      expect(await s.payable()).toMatchObject({ currencyCode: "ZAR", baseAmountMinor: 23_400, status: "PENDING_REVIEW" });
     } finally { await s.t.close(); }
   });
 
@@ -311,8 +311,9 @@ describe("Pay Agent settlement gates", () => {
     try {
       const rate = await seedTestFxRate(s.t.db, TEST_QUOTE_1850);
       expect(await s.run()).toMatchObject({ status: "SETTLEMENT_SUBMITTED" });
-      expect((await s.payouts())[0]).toMatchObject({ amountMinor: 7_800, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 421, fxRateMicros: 18_500_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
-      expect(s.paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "4.21", currency: "USD" }));
+      // R234.00 (6 hours at the R39.00 fixture rate) at 18.50 rand to the dollar: $12.64, rounded down.
+      expect((await s.payouts())[0]).toMatchObject({ amountMinor: 23_400, currencyCode: "ZAR", providerCurrency: "USD", providerAmountMinor: 1_264, fxRateMicros: 18_500_000, fxRateSource: `ECB_EUROFXREF_DAILY:${rate.rateDate}` });
+      expect(s.paypal.createPayout).toHaveBeenCalledWith(expect.objectContaining({ amount: "12.64", currency: "USD" }));
     } finally { await s.t.close(); }
   });
 });

@@ -14,13 +14,13 @@ export function WageStatusBadge({ check }: { check: WageCheck }) {
 export const longDay = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 
 export function wageExplanation(check: WageCheck) {
-  return wageCheckExplanation({ ...check, date: longDay(check.date) }, minor => money(minor, "GBP"));
+  return wageCheckExplanation({ ...check, date: longDay(check.date) }, minor => money(minor, check.floorCurrency ?? "GBP"));
 }
 
 // One line saying what was checked and why, with its status.
 export function WageCheckLine({ check, compact = false }: { check: WageCheck; compact?: boolean }) {
   return <p className={`wage-check wage-check-${check.status.toLowerCase().replaceAll("_", "-")}`} role="status">
-    <WageStatusBadge check={check} /> <span>{compact && check.status === "RATE_CHECKED" ? `At or above the FairShift demo minimum (the 21-and-over rate) for ${longDay(check.date)}.` : wageExplanation(check)}</span>
+    <WageStatusBadge check={check} /> <span>{compact && check.status === "RATE_CHECKED" ? `At or above the ${check.jurisdiction.jurisdiction === "SOUTH_AFRICA" ? check.floorName : "FairShift demo minimum (the 21-and-over rate)"} for ${longDay(check.date)}.` : wageExplanation(check)}</span>
   </p>;
 }
 

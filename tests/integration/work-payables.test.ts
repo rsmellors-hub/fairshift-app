@@ -19,6 +19,7 @@ import { WorkerWorkspace } from "@/app/worker/workspace";
 import { OwnerWorkspace } from "@/app/owner/workspace";
 import { confirmWorkAction } from "@/app/operations-actions";
 import { createActivatedTeamMember } from "../helpers/workers";
+import { legacyCommissionOffer, legacyCommissionShift, ownerAcknowledgesWageNotChecked } from "../helpers/legacy-commission";
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn(), requireFinancialScope: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ getDatabase: vi.fn() }));
@@ -283,14 +284,20 @@ describe("confirmed work and authoritative base payables", () => {
   it("confirms commission work without creating a payable, since no verified attribution exists", async () => {
     const t = await createTestDatabase();
     try {
-      // Commission has no guaranteed hourly pay, so it can't be offered where the FairShift demo minimum applies.
+      // Commission has no guaranteed hourly pay, so it can't be checked against a minimum wage or set as terms.
       const england = (await company(t.db)).scopes[0];
-      await expect(terms(t.db, england, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" })).rejects.toMatchObject({ feedback: "wage-not-checkable" });
-      // Outside the wage reference, existing commission behaviour is unchanged.
-      const manager = (await company(t.db, 1, "South Africa")).scopes[0];
-      const { shift } = await terms(t.db, manager, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" });
-      expect(shift).toMatchObject({ currencyCode: "ZAR", expectedEarningsMinor: null });
-      const { offer } = await allocated(t.db, manager, shift.id);
+      await expect(terms(t.db, england, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" })).rejects.toMatchObject({ feedback: "policy-commission" });
+      // Since Day 6, Step 3a commission casual terms are refused everywhere, when written.
+      const manager = (await company(t.db, 1, "United States")).scopes[0];
+      await expect(createWorkPolicy(t.db, { earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" }, "Commission", manager)).rejects.toMatchObject({ feedback: "policy-commission" });
+      // Commission work made before that rule still confirms, with no payable until attribution is verified.
+      const [department] = await createDepartment(t.db, "Sales floor", manager);
+      const { shift } = await legacyCommissionShift(t.db, manager, { departmentId: department.id, startsAt: at(0), endsAt: at(6), requiredHeadcount: 3 });
+      expect(shift).toMatchObject({ currencyCode: "USD", expectedEarningsMinor: null });
+      const worker = await member(t.db, manager);
+      const offer = await legacyCommissionOffer(t.db, shift.id, worker.id);
+      await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true, manager);
+      await allocateAssignment(t.db, offer.id, manager);
       for (let attempt = 0; attempt < 2; attempt++) expect(await confirmWork(t.db, offer.id, manager)).toMatchObject({ payable: null, payableState: "ATTRIBUTION_REQUIRED" });
       expect((await t.db.select().from(workAllocations))[0].confirmedAt).toBeInstanceOf(Date);
       expect(await payableCount(t.db)).toBe(0);
@@ -308,7 +315,7 @@ describe("confirmed work and authoritative base payables", () => {
       const overnight = await terms(t.db, manager, HOURLY_13, new Date("2026-10-24T22:00:00Z"), new Date("2026-10-25T06:00:00Z"));
       expect((await confirmWork(t.db, (await allocated(t.db, manager, overnight.shift.id)).offer.id, manager)).payable).toMatchObject({ baseAmountMinor: 10_400 });
       // Terms that do not resolve to whole minor units are refused before they can be offered.
-      await expect(terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_201 }, at(100), at(100.25))).rejects.toThrow(/whole cents/);
+      await expect(terms(t.db, manager, { earningsModel: "HOURLY", rateMinor: 1_301 }, at(100), at(100.25))).rejects.toThrow(/whole cents/);
     } finally { await t.close(); }
   });
 
@@ -356,6 +363,8 @@ describe("confirmed work and authoritative base payables", () => {
     const t = await createTestDatabase();
     try {
       const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
+      // No wage rule is held for this location's country, so the Owner has acknowledged that (Day 6, Step 3a).
+      await ownerAcknowledgesWageNotChecked(t.db, demoScope);
       const [policy] = await createWorkPolicy(t.db, HOURLY_13, "Demo hourly", demoScope);
       expect(policy.currencyCode).toBe("USD");
       const [department] = await createDepartment(t.db, "Kitchen", demoScope);

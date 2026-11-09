@@ -1,8 +1,9 @@
 import type { WageJurisdiction, WageTerms } from "@/server/domain/statutory-wage";
 
-// South African national minimum wage reference: a small indicator that compares an offered hourly
-// rate with the published rate per ordinary hour. It never blocks an offer, never changes a wage,
-// payable or payout, and is not a compliance check. It doesn't decide whether anyone is an employee
+// South African national minimum wage reference: compares an offered hourly rate with the published
+// rate per ordinary hour. Since Day 6, Step 3a (Owner instruction, 9 November 2026) the same floor is
+// enforced by the shared wage check (statutory-wage.ts): pay below it is not created or offered. It never
+// changes a wage, payable or payout, and is not a compliance check. It doesn't decide whether anyone is an employee
 // or an independent contractor, and casual work in FairShift isn't assumed to be employee payroll.
 // It has no server or React dependencies, so every page shows exactly the same comparison.
 
@@ -31,8 +32,8 @@ export type SaWageIndicator = {
   offeredHourlyMinor: number | null;
   referenceMinor: number;
   version: typeof SA_WAGE_REFERENCE_VERSION;
-  // Always false: this indicator never stops a shift being created or offered.
-  blocking: false;
+  // True when the pay is below the floor: the shared wage check refuses such a shift.
+  blocking: boolean;
 };
 
 const SOUTH_AFRICA = new Set(["south africa", "za", "rsa", "republic of south africa"]);
@@ -43,7 +44,7 @@ export const isSouthAfricanJurisdiction = (jurisdiction: WageJurisdiction | null
 export function saWageIndicator(input: { country: string | null; date: string; currencyCode: string; terms: WageTerms | null }): SaWageIndicator {
   const { date, terms } = input;
   const result = (status: SaWageIndicatorStatus, reason: SaWageIndicatorReason, offeredHourlyMinor: number | null = null): SaWageIndicator =>
-    ({ status, reason, date, offeredHourlyMinor, referenceMinor: SA_NATIONAL_MINIMUM_WAGE.rateMinor, version: SA_WAGE_REFERENCE_VERSION, blocking: false });
+    ({ status, reason, date, offeredHourlyMinor, referenceMinor: SA_NATIONAL_MINIMUM_WAGE.rateMinor, version: SA_WAGE_REFERENCE_VERSION, blocking: status === "BELOW_REFERENCE" });
   if (!isSouthAfrica(input.country)) return result("NOT_COMPARED", "NOT_SOUTH_AFRICA");
   if (input.currencyCode !== SA_NATIONAL_MINIMUM_WAGE.currencyCode) return result("NOT_COMPARED", "CURRENCY_NOT_ZAR");
   if (!terms) return result("NOT_COMPARED", "INVALID_TERMS");
@@ -64,7 +65,7 @@ export const SA_WAGE_STATUS_LABEL: Record<SaWageIndicatorStatus, string> = {
   ABOVE_REFERENCE: "Above minimum wage reference",
   EQUAL_TO_REFERENCE: "Equal to minimum wage reference",
   BELOW_REFERENCE: "Below minimum wage reference",
-  NOT_COMPARED: "Not compared",
+  NOT_COMPARED: "Minimum wage not checked",
 };
 
 const DISCLAIMER = "A reference comparison only: it isn’t a legal compliance check and doesn’t decide employment status.";
@@ -77,13 +78,13 @@ export function saWageIndicatorExplanation(indicator: SaWageIndicator, money: (m
   switch (indicator.status) {
     case "ABOVE_REFERENCE": return `Offered ${offered}, above ${reference}, ${nmw}. ${DISCLAIMER}`;
     case "EQUAL_TO_REFERENCE": return `Offered ${offered}, equal to ${reference}, ${nmw}. ${DISCLAIMER}`;
-    case "BELOW_REFERENCE": return `Offered ${offered}, below ${reference}, ${nmw}. The shift can still be offered; check the terms. ${DISCLAIMER}`;
+    case "BELOW_REFERENCE": return `Offered ${offered}, below ${reference}, ${nmw}, so it can’t be created or offered. ${DISCLAIMER}`;
     case "NOT_COMPARED":
       switch (indicator.reason) {
         case "VARIABLE_PAY": return "Commission has no fixed hourly pay, so it isn’t compared with the minimum wage reference.";
         case "CURRENCY_NOT_ZAR": return "These terms aren’t in rand, so they aren’t compared with the South African minimum wage reference.";
-        case "DATE_BEFORE_REFERENCE": return `FairShift’s reference starts on 1 March 2026, so ${offered ?? "this pay"} isn’t compared for an earlier date.`;
-        case "DATE_NOT_CHECKED": return `FairShift hasn’t checked the minimum wage for dates from 1 March 2027, so ${offered ?? "this pay"} isn’t compared.`;
+        case "DATE_BEFORE_REFERENCE": return `FairShift’s reference starts on 1 March 2026, so ${offered ?? "this pay"} isn’t compared for an earlier date. Shifts are offered then only after the Owner acknowledges that under Compensation.`;
+        case "DATE_NOT_CHECKED": return `FairShift hasn’t checked the minimum wage for dates from 1 March 2027, so ${offered ?? "this pay"} isn’t compared. Shifts are offered then only after the Owner acknowledges that under Compensation.`;
         case "NOT_SOUTH_AFRICA": return "This location isn’t in South Africa, so the South African reference doesn’t apply.";
         default: return "These terms can’t be read as pay per hour, so they aren’t compared.";
       }

@@ -396,3 +396,19 @@ When the Pay Agent holds a casual settlement, only the Owner can release or reje
 ```
 
 **Effect on earlier records.** Amends FS-APPROVER-DEC-001 ("Automatic casual settlements keep the confirming (or hold-releasing) manager as approver of record") for held settlements only: a hold is released or rejected by the Owner, with a written reason either way. Unheld settlements are unchanged.
+
+### Owner instruction, 10 November 2026 — wage floors, "Minimum wage not checked" and commission terms (Day 6, Step 3a)
+
+**Decision date:** 10 November 2026. **Status:** OWNER INSTRUCTION (Ryan), given in the Day 6 session. Recorded verbatim.
+
+```text
+Step 3a: confirm the "no wage rule recorded for this country/date" case shows "Minimum wage not checked" and requires an audited Owner acknowledgement (as asked earlier), and that commission casual terms are refused.
+```
+
+**As implemented (not a further decision).**
+
+- Pay below the wage floor of the location's country, for the shift's date, is refused when terms are written (hourly) and when a shift is created or offered, with the floor shown. South Africa's National Minimum Wage (R30.23 an hour, 1 March 2026 to 28 February 2027) is enforced alongside the England demo minimum.
+- Where FairShift holds no wage rule for the location's country, or no verified rate for the shift's date, the status is "Minimum wage not checked". Shifts are created and offered there only after the Owner acknowledges that for the location, under Compensation. The acknowledgement is an append-only audit row (`WAGE_NOT_CHECKED_ACKNOWLEDGED`) with the Owner, the time, the country and the statement, and it lapses if the location's country changes. It never lets pay below a known floor through.
+- Commission casual terms are refused when written, in every country, and commission shifts made earlier are refused when created or offered. Commission work already accepted keeps flowing to confirmation, with no payable until attribution is verified.
+
+The agent could find no earlier record of the acknowledgement requirement in this session or the repository. It was implemented from this instruction.

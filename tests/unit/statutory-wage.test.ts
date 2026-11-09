@@ -36,19 +36,22 @@ describe("jurisdiction: the approved England demo scope", () => {
   it("applies the demo minimum to England and to plain UK country values, location country first", () => {
     for (const country of ["England", " england ", "United Kingdom", "UK", "GB", "great britain"]) expect(wageJurisdiction({ locationCountry: country }).jurisdiction).toBe("ENGLAND");
     expect(wageJurisdiction({ locationCountry: null, organisationCountry: "United Kingdom" }).jurisdiction).toBe("ENGLAND");
-    expect(wageJurisdiction({ locationCountry: "South Africa", organisationCountry: "United Kingdom" })).toMatchObject({ jurisdiction: null, reason: "NO_REFERENCE_FOR_COUNTRY" });
+    // Day 6, Step 3a: South Africa has its own country rule; a country FairShift holds none for has no reference.
+    expect(wageJurisdiction({ locationCountry: "South Africa", organisationCountry: "United Kingdom" })).toMatchObject({ jurisdiction: "SOUTH_AFRICA" });
+    expect(wageJurisdiction({ locationCountry: "Kenya", organisationCountry: "United Kingdom" })).toMatchObject({ jurisdiction: null, reason: "NO_REFERENCE_FOR_COUNTRY" });
   });
-  it("keeps Scotland and Wales outside the demo scope: nothing is checked or enforced there", () => {
+  it("keeps Scotland and Wales outside the demo scope: not checked, offered only after the Owner acknowledges it", () => {
     for (const country of ["Scotland", "Wales", " wales "]) {
       const jurisdiction = wageJurisdiction({ locationCountry: country, organisationCountry: "England" });
       expect(jurisdiction).toMatchObject({ jurisdiction: null, reason: "OUTSIDE_DEMO_JURISDICTION" });
       for (const rate of [100, 800, 1500]) {
         const result = checkWage({ jurisdiction, date: "2026-11-04", currencyCode: "GBP", terms: hourly(rate) });
         expect(result).toMatchObject({ status: "OUTSIDE_DEMO_SCOPE", reason: "OUTSIDE_DEMO_JURISDICTION", enforced: false, period: null, floorMinor: null });
-        expect(wageAllowsOffer(result)).toBe(true);
+        expect(wageAllowsOffer(result)).toBe(false);
+        expect(wageAllowsOffer(result, true)).toBe(true);
       }
     }
-    expect(WAGE_STATUS_LABEL.OUTSIDE_DEMO_SCOPE).toBe("Outside demo jurisdiction");
+    expect(WAGE_STATUS_LABEL.OUTSIDE_DEMO_SCOPE).toBe("Minimum wage not checked");
     expect(wageCheckExplanation(checkWage({ jurisdiction: wageJurisdiction({ locationCountry: "Scotland" }), date: "2026-11-04", currencyCode: "GBP", terms: hourly(800) }), gbp)).toContain("applies to England");
   });
   it("doesn't assume a reference it hasn't verified, or a country it wasn't given", () => {
@@ -137,13 +140,14 @@ describe("11. missing or unsupported reference information", () => {
     for (const row of notCheckable) { expect(row.status).toBe("NOT_CHECKABLE"); expect(wageAllowsOffer(row)).toBe(false); }
     expect(termsForWageCheck({ earningsModel: "DAILY", rateMinor: 9_600 })).toBeNull();
   });
-  it("leaves locations outside the reference unchanged, and says no reference applies", () => {
-    for (const jurisdiction of [wageJurisdiction({ locationCountry: "South Africa" }), wageJurisdiction({ locationCountry: "Northern Ireland" }), wageJurisdiction({})]) {
+  it("marks locations outside the reference as not checked, offered only after the Owner acknowledges it", () => {
+    for (const jurisdiction of [wageJurisdiction({ locationCountry: "Kenya" }), wageJurisdiction({ locationCountry: "Northern Ireland" }), wageJurisdiction({})]) {
       const result = checkWage({ jurisdiction, date: "2026-11-04", currencyCode: "USD", terms: hourly(1) });
       expect(result).toMatchObject({ status: "REFERENCE_UNAVAILABLE", reason: "NO_JURISDICTION", enforced: false });
-      expect(wageAllowsOffer(result)).toBe(true);
+      expect(wageAllowsOffer(result)).toBe(false);
+      expect(wageAllowsOffer(result, true)).toBe(true);
     }
-    expect(WAGE_STATUS_LABEL.REFERENCE_UNAVAILABLE).toBe("Statutory reference unavailable");
+    expect(WAGE_STATUS_LABEL.REFERENCE_UNAVAILABLE).toBe("Minimum wage not checked");
   });
 });
 
@@ -163,5 +167,20 @@ describe("bounded AI wage explanation contract", () => {
     expect(input.jurisdiction).toBe("ENGLAND");
     expect(JSON.stringify(input)).not.toContain('"England"');
     expect(JSON.stringify(input)).not.toMatch(/United Kingdom|Leeds|name|email/i);
+  });
+});
+
+// Day 6, Step 3a (Owner instruction, 9 November 2026): the floor comes from each business's country rule.
+describe("South Africa's country rule", () => {
+  const za = wageJurisdiction({ locationCountry: "South Africa" });
+  it("enforces R30.23 an hour from 1 March 2026, in rand, and refuses what can't be checked", () => {
+    expect(checkWage({ jurisdiction: za, date: "2026-11-10", currencyCode: "ZAR", terms: hourly(3_023) })).toMatchObject({ status: "RATE_CHECKED", enforced: true, floorMinor: 3_023, floorCurrency: "ZAR", floorName: "South African National Minimum Wage" });
+    const below = checkWage({ jurisdiction: za, date: "2026-11-10", currencyCode: "ZAR", terms: hourly(3_022) });
+    expect(below).toMatchObject({ status: "BELOW_DEMO_MINIMUM" });
+    expect(wageAllowsOffer(below)).toBe(false);
+    expect(wageCheckExplanation(below, minor => `R${(minor / 100).toFixed(2)}`)).toContain("Below R30.23 an hour, the South African National Minimum Wage");
+    expect(wageAllowsOffer(checkWage({ jurisdiction: za, date: "2026-11-10", currencyCode: "USD", terms: hourly(9_000) }))).toBe(false);
+    expect(wageAllowsOffer(checkWage({ jurisdiction: za, date: "2026-11-10", currencyCode: "ZAR", terms: { earningsModel: "COMMISSION" } }))).toBe(false);
+    expect(checkWage({ jurisdiction: za, date: "2027-03-01", currencyCode: "ZAR", terms: hourly(9_000) })).toMatchObject({ status: "REFERENCE_UNAVAILABLE", reason: "NO_REFERENCE_FOR_DATE" });
   });
 });

@@ -137,7 +137,7 @@ describe("FS-HACK-SA-SUBMISSION-001: South African reference business", () => {
     } finally { await t.close(); }
   });
 
-  it("shows the R30.23 reference beside ZAR terms but never blocks them, and leaves earnings calculation unchanged", async () => {
+  it("enforces the R30.23 floor on ZAR terms and leaves earnings calculation unchanged", async () => {
     const t = await createTestDatabase();
     try {
       const c = await business(t.db);
@@ -148,21 +148,106 @@ describe("FS-HACK-SA-SUBMISSION-001: South African reference business", () => {
       const worker = await resolveScope(t.db, casual.userId, casual.membershipId);
       const [department] = await createDepartment(t.db, "Floor", sandton);
       const jurisdiction = wageJurisdiction({ locationCountry: "South Africa", organisationCountry: "South Africa" });
-      const cases = [{ day: 10, rateMinor: 4_500, status: "ABOVE_REFERENCE" }, { day: 11, rateMinor: 3_023, status: "EQUAL_TO_REFERENCE" }, { day: 12, rateMinor: 2_500, status: "BELOW_REFERENCE" }];
-      for (const { day, rateMinor, status } of cases) {
+      // Day 6, Step 3a: South Africa's own rule is the floor (R30.23 an hour from 1 March 2026), enforced.
+      expect(jurisdiction).toMatchObject({ jurisdiction: "SOUTH_AFRICA" });
+      for (const { day, rateMinor, status } of [{ day: 10, rateMinor: 4_500, status: "ABOVE_REFERENCE" }, { day: 11, rateMinor: 3_023, status: "EQUAL_TO_REFERENCE" }]) {
         const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor }, `Hourly ${rateMinor}`, sandton);
         expect(policy.currencyCode).toBe("ZAR");
-        // 8 hours, 09:00–17:00 local time, 10–12 November 2026.
+        // 8 hours, 09:00–17:00 local time, 10–11 November 2026.
         const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date(`2026-11-${day}T07:00:00Z`), endsAt: new Date(`2026-11-${day}T15:00:00Z`), requiredHeadcount: 1 }, manager);
         expect(shift).toMatchObject({ currencyCode: "ZAR", rateMinor, expectedEarningsMinor: rateMinor * 8, guaranteedBasePayMinor: rateMinor * 8 });
         const terms = termsForWageCheck(shift, shift);
         expect(saWageIndicator({ country: jurisdiction.country, date: shift.shiftDate, currencyCode: shift.currencyCode, terms })).toMatchObject({ status, offeredHourlyMinor: rateMinor, referenceMinor: 3_023, blocking: false });
-        // No UK floor governs South Africa: the existing check isn't enforced there.
-        const uk = checkWage({ jurisdiction, date: shift.shiftDate, currencyCode: shift.currencyCode, terms: terms! });
-        expect(uk).toMatchObject({ enforced: false, floorMinor: null });
-        expect(wageAllowsOffer(uk)).toBe(true);
+        const check = checkWage({ jurisdiction, date: shift.shiftDate, currencyCode: shift.currencyCode, terms: terms! });
+        expect(check).toMatchObject({ enforced: true, floorMinor: 3_023, floorCurrency: "ZAR", status: "RATE_CHECKED" });
+        expect(wageAllowsOffer(check)).toBe(true);
         expect(await offerAssignment(t.db, shift.id, worker.workerId!, manager)).toMatchObject({ status: "OFFERED" });
       }
+      // Below the floor: the terms are refused with the floor shown, and a shift on older below-floor terms can't be made.
+      await expect(createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 2_500 }, "Hourly 2500", sandton)).rejects.toMatchObject({ feedback: "policy-below-wage-floor", message: expect.stringContaining("R30.23 an hour, the South African National Minimum Wage") });
+      const [legacy] = await t.db.insert(workPolicies).values({ id: randomUUID(), outletId: sandton.locationId, name: "Older terms", earningsModel: "HOURLY", rateMinor: 2_500, currencyCode: "ZAR" }).returning();
+      await expect(createRequirement(t.db, { departmentId: department.id, policyId: legacy.id, startsAt: new Date("2026-11-12T07:00:00Z"), endsAt: new Date("2026-11-12T15:00:00Z"), requiredHeadcount: 1 }, manager)).rejects.toMatchObject({ feedback: "wage-below-minimum", message: expect.stringContaining("South African National Minimum Wage") });
+      expect(await t.db.select().from(workPayables).where(eq(workPayables.organisationId, ORG))).toHaveLength(0);
+      expect(await t.db.select({ id: workPayouts.id }).from(workPayouts).innerJoin(workPayables, eq(workPayables.id, workPayouts.payableId)).where(eq(workPayables.organisationId, ORG))).toHaveLength(0);
+
+      // A second company under the same name is refused before any write.
+      await t.db.update(organisations).set({ name: "Renamed" }).where(eq(organisations.id, ORG));
+      await t.db.insert(organisations).values({ id: randomUUID(), name: "Jacaranda Table Demo", country: "South Africa" });
+      await expect(provisionSaReferenceBusiness(t.db, RANGE, NOW)).rejects.toThrow("refusing to create a second reference business");
+      expect(await t.db.select().from(outlets).where(eq(outlets.organisationId, ORG))).toHaveLength(5);
+    } finally { await t.close(); }
+  });
+
+  it("feeds the existing forecast and staffing for all five locations, holiday week included, without a holiday effect", async () => {
+    const t = await createTestDatabase();
+    try {
+      await provisionSaReferenceBusiness(t.db, RANGE, NOW);
+      const owner: Scope = { userId: randomUUID(), organisationId: ORG, locationId: SA_REFERENCE_LOCATIONS[0].id, role: "OWNER", organisationName: "Jacaranda Table Demo", locationName: "Rosebank", demo: { persona: "OWNER", group: "sa-test" } };
+      const staffing = await getWeeklyStaffing(t.db, owner, NOW);
+      expect(staffing.outlets).toHaveLength(5);
+      for (const outlet of staffing.outlets) {
+        expect(outlet).toMatchObject({ currency: "ZAR", timezone: "Africa/Johannesburg", regularCoverage: "REFERENCE", tradingHours: "REFERENCE",
+          policy: { ...SA_REFERENCE_WORKLOAD_POLICY, source: "REFERENCE", level: "ORGANISATION" }, evidence: { source: "REFERENCE", kind: "HISTORICAL", dataThrough: "2026-10-31", dataset: SA_REFERENCE_DATASET.version } });
+        expect(outlet.days.map(day => day.planningDate)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08"]);
+        // The election holiday is forecast from history like any Wednesday: open, with demand and cover.
+        const holiday = outlet.days.find(day => day.planningDate === "2026-11-04")!;
+        expect(holiday.requiredMinutes).toBeGreaterThan(0);
+        expect(holiday.regularMinutes).toBe(2 * 12 * 60);
+      }
+      expect(await getWeeklyStaffing(t.db, owner, NOW)).toEqual(staffing);
+    } finally { await t.close(); }
+  });
+
+  it("keeps Owner, Manager and casual worker access to the right locations, and worker pools apart", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await business(t.db);
+      // The Owner reaches every location.
+      for (const row of SA_REFERENCE_LOCATIONS) expect((await c.at(row.code)).locationId).toBe(row.id);
+      const sandton = await c.at("SA02"), rosebank = await c.at("SA01");
+      const manager = await c.invite("MANAGER", sandton);
+      expect((await resolveScope(t.db, manager.userId, manager.membershipId)).locationId).toBe(sandton.locationId);
+      await expect(resolveScope(t.db, manager.userId, manager.membershipId, rosebank.locationId)).rejects.toBeInstanceOf(AccessError);
+      const managerScope = await resolveScope(t.db, manager.userId, manager.membershipId);
+      const casual = await c.invite("TEAM_MEMBER", managerScope);
+      const worker = await resolveScope(t.db, casual.userId, casual.membershipId);
+      expect(worker).toMatchObject({ role: "TEAM_MEMBER", locationId: sandton.locationId });
+      const [record] = await t.db.select().from(workers).where(eq(workers.id, worker.workerId!));
+      expect(record).toMatchObject({ workerType: "CASUAL", locationId: sandton.locationId, organisationId: ORG });
+      // Pools are per location: Sandton's casual isn't in Rosebank's pool and can't be offered its work.
+      expect((await getOperations(t.db, sandton)).team.map(row => row.worker.id)).toEqual([worker.workerId]);
+      expect((await getOperations(t.db, rosebank)).team).toHaveLength(0);
+      const [department] = await createDepartment(t.db, "Floor", rosebank);
+      const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 4_500 }, "Casual hourly", rosebank);
+      const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-11-10T07:00:00Z"), endsAt: new Date("2026-11-10T15:00:00Z"), requiredHeadcount: 1 }, rosebank);
+      await expect(offerAssignment(t.db, shift.id, worker.workerId!, rosebank)).rejects.toThrow();
+      // The provisioned locations hold no foreign organisation's people.
+      expect(await t.db.select().from(workers).where(inArray(workers.locationId, SA_REFERENCE_LOCATIONS.map(row => row.id)))).toHaveLength(1);
+    } finally { await t.close(); }
+  });
+
+  it("enforces the R30.23 floor on ZAR terms and leaves earnings calculation unchanged", async () => {
+    const t = await createTestDatabase();
+    try {
+      const c = await business(t.db);
+      const sandton = await c.at("SA02");
+      const invited = await c.invite("MANAGER", sandton);
+      const manager = await resolveScope(t.db, invited.userId, invited.membershipId);
+      const casual = await c.invite("TEAM_MEMBER", manager);
+      const worker = await resolveScope(t.db, casual.userId, casual.membershipId);
+      const [department] = await createDepartment(t.db, "Floor", sandton);
+      const jurisdiction = wageJurisdiction({ locationCountry: "South Africa", organisationCountry: "South Africa" });
+      // Day 6, Step 3a: South Africa's own rule is the floor (R30.23 an hour from 1 March 2026), enforced.
+      for (const { day, rateMinor, status } of [{ day: 10, rateMinor: 4_500, status: "ABOVE_REFERENCE" }, { day: 11, rateMinor: 3_023, status: "EQUAL_TO_REFERENCE" }]) {
+        const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor }, `Hourly ${rateMinor}`, sandton);
+        const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date(`2026-11-${day}T07:00:00Z`), endsAt: new Date(`2026-11-${day}T15:00:00Z`), requiredHeadcount: 1 }, manager);
+        expect(shift).toMatchObject({ currencyCode: "ZAR", rateMinor, expectedEarningsMinor: rateMinor * 8, guaranteedBasePayMinor: rateMinor * 8 });
+        const terms = termsForWageCheck(shift, shift);
+        expect(saWageIndicator({ country: jurisdiction.country, date: shift.shiftDate, currencyCode: shift.currencyCode, terms })).toMatchObject({ status, offeredHourlyMinor: rateMinor, referenceMinor: 3_023, blocking: false });
+        expect(wageAllowsOffer(checkWage({ jurisdiction, date: shift.shiftDate, currencyCode: shift.currencyCode, terms: terms! }))).toBe(true);
+        expect(await offerAssignment(t.db, shift.id, worker.workerId!, manager)).toMatchObject({ status: "OFFERED" });
+      }
+      await expect(createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 2_500 }, "Hourly 2500", sandton)).rejects.toMatchObject({ feedback: "policy-below-wage-floor" });
       expect(await t.db.select().from(workPayables).where(eq(workPayables.organisationId, ORG))).toHaveLength(0);
     } finally { await t.close(); }
   });

@@ -9,6 +9,7 @@ import { getAllocationSchedule as scopedGetAllocationSchedule } from "@/server/s
 import { getWorkerWorkspace as scopedGetWorkerWorkspace } from "@/server/product/workspace";
 import { publishDemoShift, getDemoWorkerShift, DEMO_SHIFT_TERMS } from "@/server/scheduling/demo";
 import { activateWorker, createActivatedTeamMember } from "../helpers/workers";
+import { legacyCommissionOffer, legacyCommissionShift, ownerAcknowledgesWageNotChecked } from "../helpers/legacy-commission";
 
 const member = { firstName: "Sam", surname: "Taylor", telephone: "+27111234567", email: "sam@example.test" };
 const scope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
@@ -25,8 +26,13 @@ const getAllocationSchedule = (db: Db) => scopedGetAllocationSchedule(db, scope)
 const getWorkerWorkspace = (db: Db) => scopedGetWorkerWorkspace(db, { ...scope, workerId: DEMO_CASUAL_WORKER_ID });
 async function setup(db: Awaited<ReturnType<typeof createTestDatabase>>["db"], model: "HOURLY" | "DAILY" | "COMMISSION" = "HOURLY", headcount = 2) {
   const [department] = await createDepartment(db, "Mobile & Computing");
-  const [policy] = await createWorkPolicy(db, model === "COMMISSION" ? { earningsModel: model, commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" } : { earningsModel: model, rateMinor: model === "DAILY" ? 15000 : 2000 }, "Approved terms");
-  const requirement = await createRequirement(db, {departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-01-10T08:00:00Z"), endsAt: new Date("2026-01-10T14:00:00Z"), requiredHeadcount: headcount});
+  const window = { startsAt: new Date("2026-01-10T08:00:00Z"), endsAt: new Date("2026-01-10T14:00:00Z") };
+  // Commission terms can no longer be written or offered (Day 6, Step 3a); older ones still flow through.
+  if (model === "COMMISSION") { const { policy, shift } = await legacyCommissionShift(db, scope, { departmentId: department.id, ...window, requiredHeadcount: headcount }); return { department, policy, requirement: shift }; }
+  // The legacy demo location's country has no wage rule FairShift holds, so the Owner has acknowledged that.
+  await ownerAcknowledgesWageNotChecked(db, scope);
+  const [policy] = await createWorkPolicy(db, { earningsModel: model, rateMinor: model === "DAILY" ? 15000 : 2000 }, "Approved terms");
+  const requirement = await createRequirement(db, {departmentId: department.id, policyId: policy.id, ...window, requiredHeadcount: headcount});
   return { department, policy, requirement };
 }
 describe("operating workflows and audited work terms", () => {
@@ -97,7 +103,7 @@ describe("operating workflows and audited work terms", () => {
       try {
         const {requirement} = await setup(t.db, model);
         const {worker} = await createActivatedTeamMember(t.db, member);
-        const offer = await offerAssignment(t.db, requirement.id, worker.id);
+        const offer = model === "COMMISSION" ? await legacyCommissionOffer(t.db, requirement.id, worker.id) : await offerAssignment(t.db, requirement.id, worker.id);
         await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true);
         expect(requirement.expectedEarningsMinor).toBe(model === "DAILY" ? 15000 : null);
         const [accepted] = await t.db.select().from(workAcceptances);
@@ -154,7 +160,7 @@ describe("operating workflows and audited work terms", () => {
     try {
       const {requirement} = await setup(t.db, "COMMISSION");
       const {worker} = await createActivatedTeamMember(t.db, member);
-      const offer = await offerAssignment(t.db, requirement.id, worker.id);
+      const offer = await legacyCommissionOffer(t.db, requirement.id, worker.id);
       await respondToAssignment(t.db, worker.id, offer.id, 1, "ACCEPTED", true);
       await t.db.update(shifts).set({updatedAt:new Date()}).where(eq(shifts.id, requirement.id));
       expect((await t.db.select().from(shifts).where(eq(shifts.id,requirement.id)))[0].termsVersion).toBe(1);

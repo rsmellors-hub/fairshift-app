@@ -11,6 +11,8 @@ import { organisations, outlets, subscriptions, users, workers } from "@/server/
 import { allocateAssignment, confirmWork, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { entitled } from "./onboarding";
 import { createActivatedTeamMember } from "./workers";
+import { legacyCommissionOffer, legacyCommissionShift, ownerAcknowledgesWageNotChecked } from "./legacy-commission";
+import { wageJurisdiction } from "@/server/domain/statutory-wage";
 
 // Pay Agent fixtures built only through the normal FairShift operations: a tenant, preauthorised
 // terms, an offer the worker accepts, an allocation and the manager's confirmation. Synthetic
@@ -43,19 +45,34 @@ export async function payAgentCompany(db: Database, options: { country?: string;
 
 export type WorkOptions = { paymentEmail?: string | null; incentive?: boolean; commission?: boolean; startsAt?: Date; endsAt?: Date };
 
+// Fixture hourly rates at or above each country's wage floor (Day 6, Step 3a): £13.00 in the UK (floor
+// £12.71 from April 2026) and R39.00 in South Africa (floor R30.23), three times the UK figure so expected
+// amounts scale exactly. Test values, not recommendations.
+export const FIXTURE_RATE = { GBP: 1_300, ZAR: 3_900 } as const;
+export async function fixtureHourlyRate(db: Database, scope: Pick<Scope, "organisationId">) {
+  const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, scope.organisationId));
+  return organisation?.country === "South Africa" ? FIXTURE_RATE.ZAR : FIXTURE_RATE.GBP;
+}
+
 // Shift with preauthorised terms → offer → the worker's acceptance → allocation.
 export async function allocatedWork(db: Database, manager: Scope, options: WorkOptions = {}) {
   const [department] = await createDepartment(db, `Floor ${randomUUID().slice(0, 6)}`, manager);
-  const terms = options.commission
-    ? { earningsModel: "COMMISSION" as const, commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES" as const }
-    : { earningsModel: "HOURLY" as const, rateMinor: 1_300, ...(options.incentive ? { incentiveTargetMinor: 50_000, incentiveBonusMinor: 2_000 } : {}) };
-  const [policy] = await createWorkPolicy(db, terms, "Casual terms", manager);
-  const shift = await createRequirement(db, { departmentId: department.id, policyId: policy.id, startsAt: options.startsAt ?? workAt(0), endsAt: options.endsAt ?? workAt(6), requiredHeadcount: 1 }, manager);
+  const window = { startsAt: options.startsAt ?? workAt(0), endsAt: options.endsAt ?? workAt(6) };
+  const [organisation] = await db.select({ country: organisations.country }).from(organisations).where(eq(organisations.id, manager.organisationId));
+  // Where FairShift holds no wage rule for the country, the Owner has acknowledged that (Day 6, Step 3a).
+  if (wageJurisdiction({ organisationCountry: organisation?.country }).jurisdiction === null) await ownerAcknowledgesWageNotChecked(db, manager);
+  // Commission terms can no longer be written or offered; ones made before that rule still flow through.
+  const { policy, shift } = options.commission
+    ? await legacyCommissionShift(db, manager, { departmentId: department.id, ...window })
+    : await (async () => {
+      const [policy] = await createWorkPolicy(db, { earningsModel: "HOURLY" as const, rateMinor: await fixtureHourlyRate(db, manager), ...(options.incentive ? { incentiveTargetMinor: 50_000, incentiveBonusMinor: 2_000 } : {}) }, "Casual terms", manager);
+      return { policy, shift: await createRequirement(db, { departmentId: department.id, policyId: policy.id, ...window, requiredHeadcount: 1 }, manager) };
+    })();
   const { worker } = await createActivatedTeamMember(db, { firstName: "Casual", surname: `Worker ${++n}`, telephone: "+441132000000", email: `casual${n}@example.test` }, manager);
   const workerScope: Scope = { ...manager, userId: await testUser(db), workerId: worker.id, role: "TEAM_MEMBER" };
   await db.update(workers).set({ userId: workerScope.userId }).where(eq(workers.id, worker.id));
   if (options.paymentEmail !== null) await savePayoutDestination(db, workerScope, options.paymentEmail ?? "casual.sandbox@example.test");
-  const offer = await offerAssignment(db, shift.id, worker.id, manager);
+  const offer = options.commission ? await legacyCommissionOffer(db, shift.id, worker.id) : await offerAssignment(db, shift.id, worker.id, manager);
   await respondToAssignment(db, worker.id, offer.id, 1, "ACCEPTED", true, manager);
   await allocateAssignment(db, offer.id, manager);
   return { offer, worker, workerScope, policy, shift };

@@ -346,7 +346,7 @@ describe("boundaries", () => {
       await expect(t.db.update(workPayables).set({ incentiveRequired: false }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       await expect(t.db.update(workPayables).set({ status: "APPROVED", approvedAt: new Date(), approvedBy: s.manager.userId, approvedAmountMinor: 10_400, approvedCurrencyCode: "GBP" }).where(eq(workPayables.id, payable.id))).rejects.toThrow();
       // A policy can't mix a bonus with commission, or set half of one.
-      for (const input of [{ earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", incentiveTargetMinor: 100, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 0, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_200, incentiveTargetMinor: 100, incentiveBonusMinor: -1 }]) {
+      for (const input of [{ earningsModel: "COMMISSION", commissionBps: 500, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", incentiveTargetMinor: 100, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 0, incentiveBonusMinor: 100 }, { earningsModel: "HOURLY", rateMinor: 1_300, incentiveTargetMinor: 100, incentiveBonusMinor: -1 }]) {
         await expect(createWorkPolicy(t.db, input, "Bad", s.c.ownerScope)).rejects.toMatchObject({ feedback: "policy-incentive" });
       }
     } finally { await t.close(); }
@@ -378,16 +378,18 @@ describe("no knowledge of any particular business", () => {
   it("uses the location's own currency and clock", async () => {
     const t = await createTestDatabase();
     try {
+      // Inside the period the South African National Minimum Wage reference covers, at R39.00 an hour.
+      vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
       const c = await business(t.db, { country: "South Africa", timezone: "Africa/Johannesburg", locations: ["Sandton"] });
-      const manager = await c.manager(), worker = await c.worker(manager), pay = await terms(t.db, c.ownerScope), workerCode = await code(t.db, worker.workerId!);
+      const manager = await c.manager(), worker = await c.worker(manager), pay = await terms(t.db, c.ownerScope, { rate: 3_900 }), workerCode = await code(t.db, worker.workerId!);
       const currency = pay.policy.currencyCode;
-      const { allocation, offer } = await bookedShift(t.db, manager, worker, pay);
-      vi.setSystemTime(AFTER);
+      const { allocation, offer } = await bookedShift(t.db, manager, worker, pay, "2026-10-19T07:00:00Z", "2026-10-19T15:00:00Z");
+      vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
       await confirmWork(t.db, offer.id, manager);
       // 11:30 in Johannesburg, written with its own offset, is the same instant as 09:30Z.
-      expect(await importAttributedSales(t.db, manager, csv(["T1", workerCode, "2026-01-19T11:30:00+02:00", "700.00", currency]))).toMatchObject({ imported: 1 });
+      expect(await importAttributedSales(t.db, manager, csv(["T1", workerCode, "2026-10-19T11:30:00+02:00", "700.00", currency]))).toMatchObject({ imported: 1 });
       const wrong = currency === "GBP" ? "USD" : "GBP";
-      expect((await importAttributedSales(t.db, manager, csv(["T2", workerCode, "2026-01-19T12:00:00+02:00", "1.00", wrong]))).rejected[0].reason).toBe("WRONG_CURRENCY");
+      expect((await importAttributedSales(t.db, manager, csv(["T2", workerCode, "2026-10-19T12:00:00+02:00", "1.00", wrong]))).rejected[0].reason).toBe("WRONG_CURRENCY");
       expect(await confirmWorkPerformance(t.db, manager, allocation.id, { count: 1, minor: 70_000 })).toMatchObject({ currencyCode: currency, earnedMinor: 2_500 });
     } finally { await t.close(); }
   });

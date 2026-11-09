@@ -21,7 +21,7 @@ function policyTerms(policy: PolicyOption) {
 
 // Times are typed as wall-clock at the work location. The preview uses the same time
 // and earnings rules the server applies, and the server decides again on submit.
-export function RequirementForm({ action, departments, policies, timeZone, locationName, defaults, context, wageJurisdiction }: {
+export function RequirementForm({ action, departments, policies, timeZone, locationName, defaults, context, wageJurisdiction, wageAcknowledged = false }: {
   action: (form: FormData) => void | Promise<void>;
   departments: { id: string; name: string }[];
   policies: PolicyOption[];
@@ -30,6 +30,8 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
   defaults: { departmentId?: string; startsAt: string; endsAt: string; headcount: number };
   context: React.ReactNode;
   wageJurisdiction: WageJurisdiction;
+  // The Owner has acknowledged that the minimum wage isn't checked at this location (Day 6, Step 3a).
+  wageAcknowledged?: boolean;
 }) {
   const [policyId, setPolicyId] = useState(policies[0]?.id ?? "");
   const [startsAt, setStartsAt] = useState(defaults.startsAt);
@@ -78,6 +80,6 @@ export function RequirementForm({ action, departments, policies, timeZone, locat
       {terms.sa ? <SaWageIndicatorLine indicator={terms.sa} /> : terms.check ? <WageCheckLine check={terms.check} /> : null}
     </div> : null}
     <p className="form-span note">Pay comes from the Owner&apos;s work policy and can&apos;t be changed here. The bonus is paid only if the worker&apos;s own sales reach the target. Tips aren&apos;t part of these terms: they follow the Owner&apos;s tip policy. Creating this doesn&apos;t offer it to anyone yet.</p>
-    <button className="primary-button" disabled={!!terms?.check && !wageAllowsOffer(terms.check)}>Create shift</button>
+    <button className="primary-button" disabled={!!terms?.check && !wageAllowsOffer(terms.check, wageAcknowledged)}>Create shift</button>
   </form>;
 }

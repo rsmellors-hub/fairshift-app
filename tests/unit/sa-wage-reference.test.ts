@@ -11,7 +11,7 @@ describe("South African national minimum wage reference indicator", () => {
     expect(SA_NATIONAL_MINIMUM_WAGE).toMatchObject({ rateMinor: 3_023, currencyCode: "ZAR", validFrom: "2026-03-01" });
     expect(sa(hourly(4_500))).toMatchObject({ status: "ABOVE_REFERENCE", offeredHourlyMinor: 4_500, referenceMinor: 3_023, blocking: false });
     expect(sa(hourly(3_023))).toMatchObject({ status: "EQUAL_TO_REFERENCE", blocking: false });
-    expect(sa(hourly(3_022))).toMatchObject({ status: "BELOW_REFERENCE", blocking: false });
+    expect(sa(hourly(3_022))).toMatchObject({ status: "BELOW_REFERENCE", blocking: true });
     expect(sa(hourly(3_023), "2026-03-01")).toMatchObject({ status: "EQUAL_TO_REFERENCE" });
   });
 
@@ -36,7 +36,7 @@ describe("South African national minimum wage reference indicator", () => {
   it("says it is a reference comparison, never a compliance or employment-status finding, and never a block", () => {
     const below = saWageIndicatorExplanation(sa(hourly(2_500)), money);
     expect(below).toContain("Offered R25.00 an hour, below R30.23 an hour");
-    expect(below).toContain("can still be offered");
+    expect(below).toContain("can’t be created or offered");
     for (const text of [below, saWageIndicatorExplanation(sa(hourly(4_500)), money)]) {
       expect(text).toContain("isn’t a legal compliance check");
       expect(text).toContain("doesn’t decide employment status");
