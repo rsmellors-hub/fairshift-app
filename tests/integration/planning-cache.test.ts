@@ -7,6 +7,7 @@ import type { Scope } from "@/server/auth/access";
 import { memberships, organisations, outlets, subscriptions, users } from "@/server/db/schema";
 import { planningChanged } from "@/server/intelligence/planning-cache";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { JOBS, runDueJobs } from "@/server/scheduler/feeds";
 
 // Day 6, Step 2: the demo business's computed week is reused between requests while nothing it reads has
 // changed, and recalculated after any write made through FairShift. Other businesses are never cached.
@@ -54,6 +55,17 @@ describe("planning cache", () => {
       // Another database never sees this one's week.
       const other = await createTestDatabase();
       try { await expect(getWeeklyStaffing(other.db, scope, NOW)).resolves.toMatchObject({ outlets: [] }); } finally { await other.close(); }
+    } finally { await close(); }
+  });
+
+  it("keeps the week through scheduler passes that change nothing it reads", async () => {
+    const { db, close } = await createTestDatabase();
+    try {
+      const { scope } = await business(db, true);
+      const first = await getWeeklyStaffing(db, scope, NOW);
+      // Cache warming and offer rounds with nothing to open leave planning data as it was.
+      await runDueJobs(db, { now: () => NOW, demoOrganisationIds: [scope.organisationId], aiSchedule: false }, JOBS.filter(job => job.key === "cache:demo" || job.key === "offers:rounds"));
+      expect(await getWeeklyStaffing(db, scope, new Date(NOW.getTime() + 1_000))).toBe(first);
     } finally { await close(); }
   });
 

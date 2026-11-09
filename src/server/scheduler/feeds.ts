@@ -9,6 +9,7 @@ import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { planningChanged } from "@/server/intelligence/planning-cache";
 import { demoConfig } from "@/server/demo/config";
 import { ECB_DAILY_URL, ECB_FEED, fetchEcbDailyQuote, recordEcbQuote } from "@/server/fx/reference-rates";
 import { getLocalDiscoveryProvider, type LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -141,14 +142,16 @@ export const JOBS: readonly Job[] = [
     run: async (db, deps) => {
       const config = demoConfig();
       const booked: string[] = [];
+      let changed = false;
       for (const organisationId of deps.demoOrganisationIds) {
         const [worker] = config?.organisationId === organisationId ? await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, organisationId))) : [];
         // The demo business's shift-length and hours rules (Owner decisions, 9 November 2026), once.
-        await ensureDemoRules(db, organisationId);
+        const seeded = await ensureDemoRules(db, organisationId);
         const booking = await ensureDemoBooking(db, { organisationId, workerId: worker?.workerId ?? null, now: deps.now() });
         if (booking) booked.push(booking.date);
+        changed ||= seeded.shiftRulesAdded > 0 || seeded.payTermsAdded > 0 || !!booking?.created;
       }
-      return { ok: true, detail: { booked } };
+      return { ok: true, detail: { booked, planningChanged: changed } };
     } },
   // "What to staff first" (Day 6, Step 1h): the AI briefing for the demo business and each of its
   // locations, so it is there when anyone opens the page. A briefing is generated only when the
@@ -181,7 +184,7 @@ export const JOBS: readonly Job[] = [
     } },
   // FS-OFFER-ORDER-DEC-001: when a first offer round's window closes with places open, round 2 opens.
   { key: "offers:rounds", intervalMs: 5 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
-    run: async (db, deps) => ({ ok: true, detail: await advanceOfferRounds(db, deps.demoOrganisationIds, deps.now()) }) },
+    run: async (db, deps) => { const result = await advanceOfferRounds(db, deps.demoOrganisationIds, deps.now()); return { ok: true, detail: { ...result, planningChanged: result.opened > 0 } }; } },
   // Day 6, Step 2: keeps the demo business's planning week warm in this server's cache, so the first
   // visitor after a restart doesn't wait for months of history to be aggregated. Reads only.
   { key: "cache:demo", intervalMs: 15 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
@@ -256,6 +259,9 @@ export async function runDueJobs(db: Database, deps: SchedulerDeps, jobs: readon
     const finished = deps.now();
     await db.update(scheduledJobs).set({ leaseUntil: null, lastFinishedAt: finished, ...(result.ok ? { lastSuccessAt: finished, lastFailureCode: null } : { lastFailureCode: result.code ?? "FAILED" }), lastResult: result.detail ?? {} })
       .where(eq(scheduledJobs.job, job.key));
+    // Jobs that write what the planning week reads tell the planning cache (planning-cache.ts); a job can
+    // say it changed nothing. Reads-only jobs (cache warming, the AI briefing, ECB rates) never do.
+    if (PLANNING_JOBS.has(job.key) && result.detail?.planningChanged !== false) planningChanged();
     results.push({ key: job.key, outcome: "RAN", ok: result.ok, code: result.code ?? null });
   }
   return results;
@@ -285,6 +291,8 @@ export async function warmDemoPlanning(db: Database, organisationIds: readonly s
   }
   return warmed;
 }
+
+const PLANNING_JOBS: ReadonlySet<JobKey> = new Set(["holidays:ZA", "weather:demo", "intel:recheck", "intel:daily", "intel:disruptions", "track:daily", "demo:booking", "offers:rounds"]);
 
 let started = false;
 // From src/instrumentation.ts. Never blocks the server from starting.

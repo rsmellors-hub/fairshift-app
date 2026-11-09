@@ -93,12 +93,13 @@ const sumTotals = (rows: readonly Totals[]): Totals => rows.reduce((sum, row) =>
 const provenance = <T,>(rows: ReadonlyMap<number, T & { source: string }>) => !rows.size ? null : [...rows.values()].some(row => row.source === "CONFIGURED") ? "CONFIGURED" as const : "REFERENCE" as const;
 
 // Pure assembly of one outlet's planning week from its forecast and workload inputs.
-export function outletStaffing(organisationId: string, forecast: OutletWeeklyForecast, inputs: WorkloadInputs, rates?: readonly WorkRate[]): OutletStaffing {
+// onlyDate: work out that one planning day only (a preview needs nothing else); the week's totals then
+// cover that day alone and aren't used.
+export function outletStaffing(organisationId: string, forecast: OutletWeeklyForecast, inputs: WorkloadInputs, rates?: readonly WorkRate[], onlyDate?: string): OutletStaffing {
   const selected = forecast.selection.status === "SELECTED" ? forecast.selection : null;
   const policy = resolveWorkloadPolicy(inputs.policies, forecast.outletId);
   const firstDate = shiftDate(forecast.today, 1);
-  const days = Array.from({ length: 7 }, (_, i): StaffingDay => {
-    const planningDate = shiftDate(firstDate, i);
+  const days = Array.from({ length: 7 }, (_, i) => shiftDate(firstDate, i)).filter(date => !onlyDate || date === onlyDate).map((planningDate): StaffingDay => {
     const commercial = forecast.days.find(day => day.targetDate === planningDate)?.forecast ?? null;
     const weekday = isoWeekday(planningDate);
     const build = (demandAdjustmentBps?: number, demandAdjustmentPeriod?: TradingWindow | null, blockAdjustmentsBps?: ReadonlyMap<number, number>): Omit<StaffingDay, "context" | "local"> => {
@@ -223,7 +224,7 @@ function withDemandContext(organisationId: string, forecast: OutletWeeklyForecas
   }
   const localPreview = (day: LocalDay): LocalDay["preview"] => {
     if (!day.adjusted.length) return null;
-    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, localAccepted: new Map([[day.date, { decisionId: "", blocks: new Map(day.adjusted.map(block => [block.start, block.bps])) }]]) }).days.find(row => row.planningDate === day.date);
+    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, localAccepted: new Map([[day.date, { decisionId: "", blocks: new Map(day.adjusted.map(block => [block.start, block.bps])) }]]) }, undefined, day.date).days.find(row => row.planningDate === day.date);
     return adjusted ? { expectedMilliTransactions: adjusted.expectedMilliTransactions, requiredMinutes: adjusted.requiredMinutes, casualGapMinutes: adjusted.casualGapMinutes, blocks: adjusted.blocks } : null;
   };
   const localView: OutletLocalIntelligence = { ...local, days: local.days.map(day => ({ ...day, preview: localPreview(day) })) };
@@ -231,7 +232,7 @@ function withDemandContext(organisationId: string, forecast: OutletWeeklyForecas
   const final = context.accepted.size || local.accepted.size ? outletStaffing(organisationId, forecast, { ...inputs, accepted: context.accepted, localAccepted: local.accepted }, rates) : baseline;
   const previewOf = (day: ContextDay): ContextDay["preview"] => {
     if (!day.proposal || day.state === "NO_SIGNAL") return null;
-    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, accepted: new Map([[day.date, { scenario: day.proposal.scenario, adjustmentBps: SCENARIO_ADJUSTMENT_BPS[day.proposal.scenario], period: day.proposal.period, decisionId: "", proposalId: day.proposal.id, policyVersion: "", citedSignalIds: [] }]]) }).days.find(row => row.planningDate === day.date);
+    const adjusted = outletStaffing(organisationId, forecast, { ...inputs, accepted: new Map([[day.date, { scenario: day.proposal.scenario, adjustmentBps: SCENARIO_ADJUSTMENT_BPS[day.proposal.scenario], period: day.proposal.period, decisionId: "", proposalId: day.proposal.id, policyVersion: "", citedSignalIds: [] }]]) }, undefined, day.date).days.find(row => row.planningDate === day.date);
     return adjusted ? { expectedMilliTransactions: adjusted.expectedMilliTransactions, requiredMinutes: adjusted.requiredMinutes, casualGapMinutes: adjusted.casualGapMinutes, blocks: adjusted.blocks } : null;
   };
   return { ...final, demandContext: { ...context, days: context.days.map(day => ({ ...day, preview: previewOf(day) })) }, localIntelligence: localView };
