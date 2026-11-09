@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne } from "drizzle-orm";
 import type { Database } from "@/server/db/client";
 import { localIntelligenceOutcomes, localIntelligenceRuns, localIntelligenceSignals, outlets, outletTradingHours, saleTransactions } from "@/server/db/schema";
 import { localDate, shiftDate, LOOKBACK_DAYS } from "@/server/intelligence/forecast";
@@ -32,7 +32,7 @@ export async function recordTrackRecord(db: Database, target: { organisationId: 
   const yesterday = shiftDate(localDate(now, outlet.timezone), -1), earliest = shiftDate(yesterday, -(LOOK_BACK_DAYS - 1));
   const runs = await db.select({ id: localIntelligenceRuns.id }).from(localIntelligenceRuns).where(and(eq(localIntelligenceRuns.outletId, outlet.id), eq(localIntelligenceRuns.status, "COMPLETED"), gte(localIntelligenceRuns.windowTo, earliest)));
   if (!runs.length) return { recorded: 0, waiting: 0 };
-  const rows = await db.select().from(localIntelligenceSignals).where(and(inArray(localIntelligenceSignals.runId, runs.map(row => row.id)), eq(localIntelligenceSignals.status, "ACCEPTED"), eq(localIntelligenceSignals.effectType, "DEMAND"))).orderBy(desc(localIntelligenceSignals.createdAt));
+  const rows = await db.select().from(localIntelligenceSignals).where(and(inArray(localIntelligenceSignals.runId, runs.map(row => row.id)), eq(localIntelligenceSignals.status, "ACCEPTED"), ne(localIntelligenceSignals.sourceCheck, "RESTRICTED"), eq(localIntelligenceSignals.effectType, "DEMAND"))).orderBy(desc(localIntelligenceSignals.createdAt));
   const latest = new Map<string, typeof rows[number]>();
   for (const row of rows) if (!latest.has(row.signalKey)) latest.set(row.signalKey, row);
   const done = new Set((await db.select({ key: localIntelligenceOutcomes.signalKey, date: localIntelligenceOutcomes.targetDate }).from(localIntelligenceOutcomes).where(eq(localIntelligenceOutcomes.outletId, outlet.id))).map(row => `${row.key}|${row.date}`));

@@ -191,6 +191,68 @@ describe("local intelligence", () => {
     await close();
   });
 
+  it("shows a finding on a restricted page as unconfirmed, never applies it, and admits it on the two-hourly recheck only once the page answers", async () => {
+    const { db, close } = await createTestDatabase();
+    const { organisationId, outletId, scope } = await saBusiness(db);
+    const LOCKED = "https://locked.example.com/expo";
+    const model = provider(() => [found({ name: "Fixture expo behind a bot wall", sourceUrl: LOCKED })]);
+    const locked = vi.fn(async (url: string): Promise<SourceCheck> => url === LOCKED ? { outcome: "RESTRICTED", httpStatus: 403 } : { outcome: "REACHABLE", httpStatus: 200 });
+    const outcome = await runLocalDiscovery(db, { organisationId, outletId }, { kind: "DAILY", trigger: "SCHEDULE", provider: model, checkSource: locked, now: NOW });
+    expect(outcome.run!.counts).toMatchObject({ found: 1, accepted: 0, unconfirmed: 1, rejected: 0 });
+    const signalOf = async () => (await outletOf(db, scope)).localIntelligence!.signals.find(row => row.name === "Fixture expo behind a bot wall")!;
+    const friday = async () => (await outletOf(db, scope)).localIntelligence!.days.find(row => row.date === FRIDAY)!;
+    expect(await signalOf()).toMatchObject({ status: "UNCONFIRMED", use: "UNCONFIRMED", sourceCheck: "RESTRICTED" });
+    expect((await signalOf()).serverNote).toContain("Source page restricted (HTTP 403)");
+    expect((await friday()).adjusted).toEqual([]);
+
+    // Still restricted two hours later: nothing changes, and it's checked again on the next pass.
+    expect(await recheckUnreachableSources(db, [organisationId], locked, new Date(NOW.getTime() + 2 * 3_600_000))).toEqual({ checked: 1, admitted: 0 });
+    expect(await recheckUnreachableSources(db, [organisationId], locked, new Date(NOW.getTime() + 4 * 3_600_000))).toEqual({ checked: 1, admitted: 0 });
+    expect(await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.runId, outcome.run!.id))).toHaveLength(1);
+    expect((await signalOf()).use).toBe("UNCONFIRMED");
+
+    // The page answers: the finding is admitted with a note, and only now shapes the forecast.
+    const open = vi.fn(async (): Promise<SourceCheck> => ({ outcome: "REACHABLE", httpStatus: 200 }));
+    expect(await recheckUnreachableSources(db, [organisationId], open, new Date(NOW.getTime() + 6 * 3_600_000))).toEqual({ checked: 1, admitted: 1 });
+    expect(await signalOf()).toMatchObject({ status: "ACCEPTED", use: "APPLIED", sourceCheck: "REACHABLE" });
+    expect((await signalOf()).serverNote).toContain("the page answered");
+    expect((await friday()).adjusted.length).toBeGreaterThan(0);
+    expect((await db.select().from(localIntelligenceRuns).where(eq(localIntelligenceRuns.id, outcome.run!.id)))[0].counts).toMatchObject({ accepted: 1, unconfirmed: 0, rechecked: 1 });
+    // Once accepted on a reachable page, it isn't checked again.
+    expect(await recheckUnreachableSources(db, [organisationId], open, new Date(NOW.getTime() + 8 * 3_600_000))).toEqual({ checked: 0, admitted: 0 });
+    expect(model.discover).toHaveBeenCalledTimes(1);
+    await close();
+  });
+
+  it("reads a finding stored as accepted on a restricted page as unconfirmed, and records it so on the next recheck", async () => {
+    const { db, close } = await createTestDatabase();
+    const { organisationId, outletId, scope } = await saBusiness(db);
+    const outcome = await runLocalDiscovery(db, { organisationId, outletId }, { kind: "DAILY", trigger: "SCHEDULE", provider: provider(() => [found()]), checkSource: pages(), now: NOW });
+    const [kept] = await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.runId, outcome.run!.id));
+    // As the 8 November 2026 Sandton finding was stored: accepted although its page answered HTTP 403.
+    await db.insert(localIntelligenceSignals).values({ ...kept, id: randomUUID(), signalKey: "lis_legacy_restricted", name: "Fixture legacy restricted expo", sourceUrl: "https://legacy.example.com/expo", sourceCheck: "RESTRICTED", sourceHttpStatus: 403,
+      serverNote: "The source refused an automated check, but the search had opened it." });
+    await db.update(localIntelligenceRuns).set({ counts: { found: 2, accepted: 2, unconfirmed: 0, rejected: 0 } }).where(eq(localIntelligenceRuns.id, outcome.run!.id));
+    const legacyOf = async () => (await outletOf(db, scope)).localIntelligence!.signals.find(row => row.name === "Fixture legacy restricted expo")!;
+    // Read now as unconfirmed, with the restricted reason, and never applied; the reachable finding still is.
+    expect(await legacyOf()).toMatchObject({ status: "UNCONFIRMED", use: "UNCONFIRMED" });
+    expect((await legacyOf()).serverNote).toContain("Source page restricted (HTTP 403)");
+    const friday = (await outletOf(db, scope)).localIntelligence!.days.find(row => row.date === FRIDAY)!;
+    expect(friday.adjusted.every(block => block.applied.length === 1 && !block.applied.includes("lis_legacy_restricted"))).toBe(true);
+
+    const still = vi.fn(async (): Promise<SourceCheck> => ({ outcome: "RESTRICTED", httpStatus: 403 }));
+    expect(await recheckUnreachableSources(db, [organisationId], still, new Date(NOW.getTime() + 2 * 3_600_000))).toEqual({ checked: 1, admitted: 0 });
+    const rows = await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.signalKey, "lis_legacy_restricted"));
+    expect(rows.map(row => row.status).sort()).toEqual(["ACCEPTED", "UNCONFIRMED"]);
+    expect(rows.find(row => row.status === "UNCONFIRMED")!.serverNote).toContain("Source page restricted (HTTP 403)");
+    expect((await db.select().from(localIntelligenceRuns).where(eq(localIntelligenceRuns.id, outcome.run!.id)))[0].counts).toMatchObject({ accepted: 1, unconfirmed: 1, rechecked: 1 });
+    // The unconfirmed row is now the one checked; a further restricted answer records nothing new.
+    expect(await recheckUnreachableSources(db, [organisationId], still, new Date(NOW.getTime() + 4 * 3_600_000))).toEqual({ checked: 1, admitted: 0 });
+    expect(await db.select().from(localIntelligenceSignals).where(eq(localIntelligenceSignals.signalKey, "lis_legacy_restricted"))).toHaveLength(2);
+    expect((await legacyOf()).use).toBe("UNCONFIRMED");
+    await close();
+  });
+
   it("puts South African public holidays into the context from the live feed, and labels the fallback", async () => {
     const { db, close } = await createTestDatabase();
     const { organisationId, outletId, scope } = await saBusiness(db);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  applyLocalAdjustment, blockAdjustments, buildDiscoveryInput, discoveryJsonSchema, DISCOVERY_INSTRUCTIONS, impactScore, locationProfileSchema, MAX_BLOCK_ADJUSTMENT_BPS, signalKey, sourceDecision, validateDiscoveryOutput,
+  applyLocalAdjustment, blockAdjustments, buildDiscoveryInput, discoveryJsonSchema, DISCOVERY_INSTRUCTIONS, impactScore, locationProfileSchema, MAX_BLOCK_ADJUSTMENT_BPS, signalKey, sourceDecision, storedSignalStatus, validateDiscoveryOutput,
   type AppliableSignal, type DiscoveredSignal,
 } from "@/server/intelligence/local-intelligence-contract";
 import { consultedBy, createSourceChecker, normaliseUrl, publicHttpsUrl, siteOf } from "@/server/intelligence/local-intelligence-sources";
@@ -43,7 +43,13 @@ describe("local intelligence contract", () => {
   it("shows unconfirmed signals but never applies them", () => {
     expect(sourceDecision(signal({ sourceTier: "UNCONFIRMED" }), { outcome: "REACHABLE", consulted: true }).status).toBe("UNCONFIRMED");
     expect(sourceDecision(signal(), { outcome: "REACHABLE", consulted: false }).status).toBe("UNCONFIRMED");
-    expect(sourceDecision(signal(), { outcome: "RESTRICTED", consulted: true }).status).toBe("ACCEPTED");
+    // A page that refuses FairShift's check is unconfirmed even when the search opened it.
+    expect(sourceDecision(signal(), { outcome: "RESTRICTED", consulted: true, httpStatus: 403 })).toMatchObject({ status: "UNCONFIRMED", rejection: null, note: expect.stringContaining("Source page restricted (HTTP 403)") });
+    expect(sourceDecision(signal(), { outcome: "RESTRICTED", consulted: true, httpStatus: 401 }).note).toContain("Source page restricted (HTTP 401)");
+    expect(sourceDecision(signal({ sourceTier: "OFFICIAL" }), { outcome: "RESTRICTED", consulted: true, httpStatus: 403 }).status).toBe("UNCONFIRMED");
+    // A row stored as accepted on a restricted page reads as unconfirmed; any other row reads as stored.
+    expect(storedSignalStatus({ status: "ACCEPTED", sourceCheck: "RESTRICTED", sourceHttpStatus: 403, serverNote: "old" })).toEqual({ status: "UNCONFIRMED", note: expect.stringContaining("Source page restricted (HTTP 403)") });
+    expect(storedSignalStatus({ status: "ACCEPTED", sourceCheck: "REACHABLE", sourceHttpStatus: 200, serverNote: null })).toEqual({ status: "ACCEPTED", note: null });
     expect(sourceDecision(signal(), { outcome: "REACHABLE", consulted: true }).status).toBe("ACCEPTED");
     const unconfirmed: AppliableSignal = { key: "a", status: "UNCONFIRMED", effectType: "DEMAND", direction: "UP", sizeBand: "MODERATE", validFrom: "2026-11-14", validTo: "2026-11-14", startMinute: null, endMinute: null, shiftBlocks: [], impact: 999 };
     const result = blockAdjustments("2026-11-14", [{ start: 720, end: 780 }], [unconfirmed]);

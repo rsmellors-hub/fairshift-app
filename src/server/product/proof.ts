@@ -7,6 +7,7 @@ import { getLiveFeedStatus } from "@/server/intelligence/live-feeds";
 import { isDemoOrganisation } from "@/server/demo/organisation";
 import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
 import { payoutRefusal } from "@/server/domain/payout-refusal";
+import { storedSignalStatus } from "@/server/intelligence/local-intelligence-contract";
 
 // The Proof panel: what a judge can check is real, for the demonstration organisation only. Read-only,
 // and it holds no secret, token, recipient or contact detail: provider identifiers, statuses, AI
@@ -53,7 +54,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
   const runIds = runs.map(row => row.id);
   const signals = runIds.length ? await db.select({ id: localIntelligenceSignals.id, runId: localIntelligenceSignals.runId, name: localIntelligenceSignals.name, category: localIntelligenceSignals.category, otherLabel: localIntelligenceSignals.otherLabel,
     effectType: localIntelligenceSignals.effectType, status: localIntelligenceSignals.status, rejectionCode: localIntelligenceSignals.rejectionCode, sourceUrl: localIntelligenceSignals.sourceUrl, sourceTier: localIntelligenceSignals.sourceTier, sourceCheck: localIntelligenceSignals.sourceCheck,
-    consultedInSearch: localIntelligenceSignals.consultedInSearch, reasoning: localIntelligenceSignals.reasoning, validFrom: localIntelligenceSignals.validFrom, validTo: localIntelligenceSignals.validTo })
+    sourceHttpStatus: localIntelligenceSignals.sourceHttpStatus, serverNote: localIntelligenceSignals.serverNote, consultedInSearch: localIntelligenceSignals.consultedInSearch, reasoning: localIntelligenceSignals.reasoning, validFrom: localIntelligenceSignals.validFrom, validTo: localIntelligenceSignals.validTo })
     .from(localIntelligenceSignals).where(and(eq(localIntelligenceSignals.organisationId, organisationId), inArray(localIntelligenceSignals.runId, runIds))) : [];
   const nameOf = (id: string | null) => locations.find(row => row.id === id)?.name ?? "—";
   return {
@@ -61,7 +62,8 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
     payouts: payouts.map(({ lastError, ...row }) => ({ ...row, kind: row.kind ? "TIP" as const : "WORK" as const, refusal: payoutRefusal({ status: row.status, paypalBatchId: row.paypalBatchId, lastError }) })),
     subscription: subscription[0] ? { ...subscription[0], fixture: subscription[0].providerId === LOCAL_SUBSCRIPTION_FIXTURE, plan: currentPlanTerms(subscription[0]) } : null,
     payAgent, tipAgent, proposals, assessments,
-    runs: runs.map(run => ({ ...run, signals: signals.filter(signal => signal.runId === run.id) })),
+    // A signal shows how it reads now: one stored as accepted on a restricted page is unconfirmed.
+    runs: runs.map(run => ({ ...run, signals: signals.filter(signal => signal.runId === run.id).map(signal => ({ ...signal, status: storedSignalStatus(signal).status })) })),
     // A forecast older than six hours, or whose last fetch failed, is stale.
     weather: weather.filter(row => row.feed === "WEATHER").map(row => ({ ...row, stale: !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= 6 * 3_600_000 || !!row.lastFailureCode })),
     events: weather.filter(row => row.feed === "EVENTS"),

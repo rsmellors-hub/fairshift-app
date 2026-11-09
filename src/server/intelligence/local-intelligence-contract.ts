@@ -247,12 +247,26 @@ export const signalKey = (signal: Pick<DiscoveredSignal, "category" | "effectTyp
 // How a source page answered FairShift's own check, and whether the model's search had opened it.
 export type SourceOutcome = "REACHABLE" | "RESTRICTED" | "NOT_FOUND" | "UNREACHABLE" | "INVALID";
 export type SignalStatus = "ACCEPTED" | "UNCONFIRMED" | "REJECTED";
-export function sourceDecision(signal: Pick<DiscoveredSignal, "sourceTier">, check: { outcome: SourceOutcome; consulted: boolean; reason?: "CERTIFICATE" | "TIMEOUT" | "NETWORK" }): { status: SignalStatus; rejection: RejectionCode | null; note: string | null } {
+export function sourceDecision(signal: Pick<DiscoveredSignal, "sourceTier">, check: { outcome: SourceOutcome; consulted: boolean; reason?: "CERTIFICATE" | "TIMEOUT" | "NETWORK"; httpStatus?: number | null }): { status: SignalStatus; rejection: RejectionCode | null; note: string | null } {
   if (check.outcome === "INVALID" || check.outcome === "NOT_FOUND" || check.outcome === "UNREACHABLE") return { status: "REJECTED", rejection: "SOURCE_UNREACHABLE",
     note: check.outcome === "NOT_FOUND" ? "The source page wasn’t found." : check.outcome === "INVALID" ? "The source isn’t a public secure web page." : check.reason === "CERTIFICATE" ? "The source page’s security certificate couldn’t be verified, so FairShift couldn’t confirm the page." : check.reason === "TIMEOUT" ? "The source page didn’t answer in time." : "The source page couldn’t be reached." };
   if (!check.consulted) return { status: "UNCONFIRMED", rejection: null, note: "The source isn’t among the pages the search opened, so it’s shown but not applied." };
-  if (check.outcome === "RESTRICTED") return signal.sourceTier === "UNCONFIRMED" ? { status: "UNCONFIRMED", rejection: null, note: null } : { status: "ACCEPTED", rejection: null, note: "The source refused an automated check, but the search had opened it." };
+  // A page that refuses FairShift's own check is unconfirmed, whatever the search saw: shown, never
+  // applied, and checked again on the two-hourly recheck.
+  if (check.outcome === "RESTRICTED") return { status: "UNCONFIRMED", rejection: null, note: restrictedNote(check.httpStatus) };
   return signal.sourceTier === "UNCONFIRMED" ? { status: "UNCONFIRMED", rejection: null, note: null } : { status: "ACCEPTED", rejection: null, note: null };
+}
+
+export function restrictedNote(httpStatus: number | null | undefined) {
+  const answer = httpStatus === 429 ? "Source page refused the check (HTTP 429, too many requests)." : `Source page restricted${httpStatus ? ` (HTTP ${httpStatus})` : ""}.`;
+  return `${answer} It’s shown but not applied until FairShift can open the page; it’s checked again every two hours.`;
+}
+
+// How a stored signal reads now. Before 9 November 2026 a finding on a restricted page could be stored
+// as accepted; signals are never edited, so such a row is read as unconfirmed, never applied.
+export function storedSignalStatus(row: { status: string; sourceCheck: string; sourceHttpStatus: number | null; serverNote: string | null }): { status: SignalStatus; note: string | null } {
+  if (row.status === "ACCEPTED" && row.sourceCheck === "RESTRICTED") return { status: "UNCONFIRMED", note: restrictedNote(row.sourceHttpStatus) };
+  return { status: row.status as SignalStatus, note: row.serverNote };
 }
 
 // Deterministic impact order: band, then confidence, then source tier, then key.

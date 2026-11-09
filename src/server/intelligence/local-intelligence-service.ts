@@ -11,7 +11,7 @@ import type { DiscoveryResponse, LocalDiscoveryProvider } from "@/server/integra
 import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 import {
   blockAdjustments, buildDiscoveryInput, CATEGORY_LABEL, DISCOVERY_INSTRUCTIONS, discoveryJsonSchema, DISRUPTION_CATEGORIES, impactScore, LOCAL_INTEL_OUTPUT_VERSION, LOCAL_INTEL_POLICY_VERSION,
-  locationProfileSchema, signalKey, sourceDecision, validateDiscoveryOutput, type AppliableSignal, type BlockAdjustment, type InfluenceCategory, type LocationProfile, type ProfileSource, type RunKind, type SignalStatus,
+  locationProfileSchema, restrictedNote, signalKey, sourceDecision, storedSignalStatus, validateDiscoveryOutput, type AppliableSignal, type BlockAdjustment, type InfluenceCategory, type LocationProfile, type ProfileSource, type RunKind, type SignalStatus,
 } from "@/server/intelligence/local-intelligence-contract";
 import { consultedBy, type SourceCheck, type SourceChecker } from "@/server/intelligence/local-intelligence-sources";
 import { blockRisks, capacityAlerts, type BlockRisk } from "@/server/intelligence/disruptions";
@@ -104,7 +104,7 @@ export async function runLocalDiscovery(db: Database, target: { organisationId: 
         const signal = candidate.signal!;
         const check = candidate.rejection ? null : await options.checkSource(signal.sourceUrl).catch((): SourceCheck => ({ outcome: "UNREACHABLE", httpStatus: null, reason: "NETWORK" }));
         const seen = consultedBy(signal.sourceUrl, consulted);
-        const decision: { status: SignalStatus; rejection: string | null; note: string | null } = candidate.rejection ? { status: "REJECTED", rejection: candidate.rejection, note: candidate.detail } : sourceDecision(signal, { outcome: check!.outcome, consulted: seen.exact || seen.site, reason: check!.reason });
+        const decision: { status: SignalStatus; rejection: string | null; note: string | null } = candidate.rejection ? { status: "REJECTED", rejection: candidate.rejection, note: candidate.detail } : sourceDecision(signal, { outcome: check!.outcome, consulted: seen.exact || seen.site, reason: check!.reason, httpStatus: check!.httpStatus });
         return { signal, check, seen, decision };
       });
       rows = checked.map(({ signal, check, seen, decision }) => ({
@@ -170,31 +170,52 @@ export async function discoverWithRetryRule(db: Database, target: { organisation
 // signal rejected only because its page couldn't be reached is checked once more, later, with no model
 // call. If the page answers now, a new row records the same finding with the new check and a note
 // saying so; the rejected row stays exactly as it was. A second failure is final.
+// A page that refused the check (restricted, HTTP 401/403/429) is different: its finding stays
+// unconfirmed and is checked on every pass while its run is current, and admitted only once the page
+// answers. A finding stored as accepted on a restricted page, before that rule, gets an unconfirmed row
+// the first time it's checked and the page still doesn't answer.
 export async function recheckUnreachableSources(db: Database, organisationIds: readonly string[], checkSource: SourceChecker, now = new Date()) {
   if (!organisationIds.length) return { checked: 0, admitted: 0 };
   const runs = await db.select().from(localIntelligenceRuns).where(and(inArray(localIntelligenceRuns.organisationId, [...organisationIds]), eq(localIntelligenceRuns.status, "COMPLETED"), gte(localIntelligenceRuns.createdAt, new Date(now.getTime() - 2 * 86_400_000))));
   const current = [...new Set(runs.map(row => row.outletId))].flatMap(outletId => currentRuns(runs.filter(row => row.outletId === outletId)));
   if (!current.length) return { checked: 0, admitted: 0 };
   const rows = await db.select().from(localIntelligenceSignals).where(inArray(localIntelligenceSignals.runId, current.map(row => row.id)));
-  const candidates = rows.filter(row => row.status === "REJECTED" && row.rejectionCode === "SOURCE_UNREACHABLE" && !rows.some(other => other.runId === row.runId && other.signalKey === row.signalKey && other.status !== "REJECTED"));
-  if (!candidates.length) return { checked: 0, admitted: 0 };
-  const attempted = new Set((await db.select({ id: auditEvents.entityId }).from(auditEvents).where(and(eq(auditEvents.action, "LOCAL_INTELLIGENCE_SOURCE_RECHECKED"), inArray(auditEvents.entityId, candidates.map(row => row.id))))).map(row => row.id));
+  const unreachable = rows.filter(row => row.status === "REJECTED" && row.rejectionCode === "SOURCE_UNREACHABLE" && !rows.some(other => other.runId === row.runId && other.signalKey === row.signalKey && other.status !== "REJECTED"));
+  // Each finding's latest kept row; a restricted one that could be accepted once its page answers is due.
+  const latest = new Map<string, SignalRow>();
+  for (const row of rows) if (row.status !== "REJECTED") { const key = `${row.runId}|${row.signalKey}`, seen = latest.get(key); if (!seen || row.createdAt > seen.createdAt) latest.set(key, row); }
+  const restricted = [...latest.values()].filter(row => row.sourceCheck === "RESTRICTED" && row.consultedInSearch !== "NO" && row.sourceTier !== "UNCONFIRMED");
+  if (!unreachable.length && !restricted.length) return { checked: 0, admitted: 0 };
+  const attempted = new Set(unreachable.length ? (await db.select({ id: auditEvents.entityId }).from(auditEvents).where(and(eq(auditEvents.action, "LOCAL_INTELLIGENCE_SOURCE_RECHECKED"), inArray(auditEvents.entityId, unreachable.map(row => row.id))))).map(row => row.id) : []);
+  const due = [...unreachable.filter(row => !attempted.has(row.id)).map(row => ({ row, wasRestricted: false })), ...restricted.map(row => ({ row, wasRestricted: true }))];
+  const stamp = `${now.toISOString().slice(0, 16).replace("T", " ")} UTC`;
   let checked = 0, admitted = 0;
-  for (const row of candidates.filter(candidate => !attempted.has(candidate.id))) {
+  for (const { row, wasRestricted } of due) {
     const check = await checkSource(row.sourceUrl).catch((): SourceCheck => ({ outcome: "UNREACHABLE", httpStatus: null, reason: "NETWORK" }));
-    const decision = sourceDecision({ sourceTier: row.sourceTier as DiscoveredSignalTier }, { outcome: check.outcome, consulted: row.consultedInSearch !== "NO", reason: check.reason });
+    const decision = sourceDecision({ sourceTier: row.sourceTier as DiscoveredSignalTier }, { outcome: check.outcome, consulted: row.consultedInSearch !== "NO", reason: check.reason, httpStatus: check.httpStatus });
     checked++;
+    // The new row to record, if anything changed, and its effect on the run's counts.
+    let next: { status: SignalStatus; note: string | null; counts: Record<string, number> } | null = null;
+    if (!wasRestricted) {
+      if (decision.status !== "REJECTED") next = { status: decision.status, counts: { [decision.status === "ACCEPTED" ? "accepted" : "unconfirmed"]: 1, rejected: -1, rechecked: 1 },
+        note: check.outcome === "RESTRICTED" ? `FairShift’s first check of this page failed; it checked again on ${stamp}. ${decision.note}` : `FairShift’s first check of this page failed; it checked again on ${stamp} and the page answered.${decision.note ? ` ${decision.note}` : ""}` };
+    } else if (decision.status === "ACCEPTED") {
+      next = { status: "ACCEPTED", note: `FairShift’s earlier check of this page was refused; it checked again on ${stamp} and the page answered.`, counts: row.status === "ACCEPTED" ? { rechecked: 1 } : { accepted: 1, unconfirmed: -1, rechecked: 1 } };
+    } else if (row.status === "ACCEPTED") {
+      next = { status: "UNCONFIRMED", counts: { accepted: -1, unconfirmed: 1, rechecked: 1 },
+        note: check.outcome === "RESTRICTED" ? restrictedNote(check.httpStatus) : `FairShift checked this page again on ${stamp}. ${decision.note} It’s shown but not applied.` };
+    }
     await db.transaction(async tx => {
-      if (decision.status !== "REJECTED") {
-        await tx.insert(localIntelligenceSignals).values({ ...row, id: randomUUID(), status: decision.status, rejectionCode: null, sourceCheck: check.outcome, sourceHttpStatus: check.httpStatus, createdAt: now,
-          serverNote: `FairShift’s first check of this page failed; it checked again on ${now.toISOString().slice(0, 16).replace("T", " ")} UTC and the page answered.${decision.note ? ` ${decision.note}` : ""}` });
+      if (next) {
+        await tx.insert(localIntelligenceSignals).values({ ...row, id: randomUUID(), status: next.status, rejectionCode: null, sourceCheck: check.outcome, sourceHttpStatus: check.httpStatus, createdAt: now, serverNote: next.note });
         const [run] = await tx.select({ counts: localIntelligenceRuns.counts }).from(localIntelligenceRuns).where(eq(localIntelligenceRuns.id, row.runId));
-        const counts = (run?.counts ?? {}) as Record<string, number>;
-        await tx.update(localIntelligenceRuns).set({ counts: { ...counts, [decision.status === "ACCEPTED" ? "accepted" : "unconfirmed"]: (counts[decision.status === "ACCEPTED" ? "accepted" : "unconfirmed"] ?? 0) + 1, rejected: Math.max(0, (counts.rejected ?? 0) - 1), rechecked: (counts.rechecked ?? 0) + 1 } }).where(eq(localIntelligenceRuns.id, row.runId));
-        admitted++;
+        const counts = { ...(run?.counts ?? {}) as Record<string, number> };
+        for (const [key, change] of Object.entries(next.counts)) counts[key] = Math.max(0, (counts[key] ?? 0) + change);
+        await tx.update(localIntelligenceRuns).set({ counts }).where(eq(localIntelligenceRuns.id, row.runId));
+        if (!wasRestricted || next.status === "ACCEPTED") admitted++;
       }
       await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: row.organisationId, outletId: row.outletId, action: "LOCAL_INTELLIGENCE_SOURCE_RECHECKED", entityType: "local_intelligence_signal", entityId: row.id,
-        correlationId: `local-intelligence:${row.outletId}`, metadata: { outcome: check.outcome, httpStatus: check.httpStatus, reason: check.reason ?? null, status: decision.status } });
+        correlationId: `local-intelligence:${row.outletId}`, metadata: { outcome: check.outcome, httpStatus: check.httpStatus, reason: check.reason ?? null, status: next?.status ?? decision.status, restricted: wasRestricted } });
     });
   }
   return { checked, admitted };
@@ -281,13 +302,15 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
     // A later short-notice run speaks for its own categories.
     .filter(row => !(disruptions && daily && row.runId === daily.id && DISRUPTION_CATEGORIES.includes(row.category as InfluenceCategory)));
   const unique = new Map<string, SignalRow>();
-  for (const row of [...rows].sort((a, b) => byRun.get(b.runId)!.createdAt.getTime() - byRun.get(a.runId)!.createdAt.getTime())) if (row.status !== "REJECTED" && !unique.has(row.signalKey)) unique.set(row.signalKey, row);
+  // The latest run first and, within a run, the latest row: a recheck's row replaces the one it rechecked.
+  for (const row of [...rows].sort((a, b) => byRun.get(b.runId)!.createdAt.getTime() - byRun.get(a.runId)!.createdAt.getTime() || b.createdAt.getTime() - a.createdAt.getTime())) if (row.status !== "REJECTED" && !unique.has(row.signalKey)) unique.set(row.signalKey, row);
   const base = [...unique.values()].map(row => {
     const run = byRun.get(row.runId)!;
-    return { key: row.signalKey, status: row.status as SignalStatus, effectType: row.effectType, direction: row.direction, sizeBand: row.sizeBand, validFrom: row.validFrom, validTo: row.validTo, startMinute: row.startMinute, endMinute: row.endMinute,
+    const stored = storedSignalStatus(row);
+    return { key: row.signalKey, status: stored.status, effectType: row.effectType, direction: row.direction, sizeBand: row.sizeBand, validFrom: row.validFrom, validTo: row.validTo, startMinute: row.startMinute, endMinute: row.endMinute,
       shiftBlocks: row.shiftBlocks as string[], impact: row.impact, id: row.id, runId: row.runId, category: row.category, categoryLabel: row.category === "OTHER" ? row.otherLabel ?? "Other" : CATEGORY_LABEL[row.category as InfluenceCategory] ?? row.category,
       otherLabel: row.otherLabel, name: row.name, dateCertainty: row.dateCertainty, roles: row.roles as string[], severity: row.severity, closureLikely: row.closureLikely, confidence: row.confidence, sourceTier: row.sourceTier, reasoning: row.reasoning,
-      sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, sourceCheck: row.sourceCheck, consultedInSearch: row.consultedInSearch, serverNote: row.serverNote, rejectionCode: row.rejectionCode,
+      sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, sourceCheck: row.sourceCheck, consultedInSearch: row.consultedInSearch, serverNote: stored.note, rejectionCode: row.rejectionCode,
       responseId: run.providerResponseId, model: run.model, responseModel: run.responseModel, foundAt: run.completedAt ?? run.createdAt };
   });
   const days: LocalDay[] = input.days.map(day => {
