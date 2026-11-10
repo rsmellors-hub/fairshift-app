@@ -253,6 +253,13 @@
       "when": 1794297992930,
       "tag": "0035_people_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794302166181,
+      "tag": "0036_pay_term_versions",
+      "breakpoints": true
     }
   ]
 }

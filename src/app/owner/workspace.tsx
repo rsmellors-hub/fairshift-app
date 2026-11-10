@@ -28,6 +28,11 @@ import { localDate } from "@/server/intelligence/forecast";
 import { checkWage } from "@/server/domain/statutory-wage";
 import { PolicyForm } from "@/app/owner/policy-form";
 import { PeoplePanel } from "@/app/components/people-panel";
+import { HoursRuleSettings, PolicyRevision, ShiftRulesSettings } from "@/app/owner/rules-settings";
+import { BusinessSettings } from "@/app/owner/business-settings";
+import { loadHoursRule, loadShiftRules } from "@/server/scheduling/shift-rules";
+import { organisations } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 import { listPeople } from "@/server/people/people";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
@@ -103,6 +108,8 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   if (area === "locations") { try { staffing = await getWeeklyStaffing(getDatabase(), scope, new Date()); } catch { staffing = null; } }
   const people = area === "workforce" ? await listPeople(getDatabase(), scope) : [];
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
+  const rulesView = area === "policies" ? { shift: (await loadShiftRules(getDatabase(), scope.organisationId, [scope.locationId])).get(scope.locationId) ?? null, hours: await loadHoursRule(getDatabase(), scope.organisationId) } : null;
+  const business = area === "settings" ? (await getDatabase().select().from(organisations).where(eq(organisations.id, scope.organisationId)))[0] ?? null : null;
   const staffingConfiguration = area === "policies" ? await getStaffingConfiguration(getDatabase(),scope) : null;
   let tipView: Awaited<ReturnType<typeof getOwnerTipView>> | null = null;
   if (area === "tips") { try { tipView = await getOwnerTipView(getDatabase(), scope); } catch { tipView = null; } }
@@ -139,7 +146,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       <WageReferencePanel jurisdiction={operations.wageJurisdiction} today={today} locationName={scope.locationName} currency={operations.currency} acknowledgement={operations.wageAcknowledgement} />
       <section className="panel" id="compensation"><h2>Compensation · {scope.locationName}</h2>
         <p className="panel-lede">Hourly or daily terms for shifts here. Later changes don’t affect work a worker has already accepted.</p>
-        {operations.policies.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Work policies at this location</caption><thead><tr><th scope="col">Terms</th><th scope="col">Basis</th><th scope="col">Pay</th><th scope="col">Minimum wage check · today</th></tr></thead><tbody>{operations.policies.map(p => <tr key={p.id}><th scope="row">{p.name}</th><td data-label="Basis">{p.earningsModel === "HOURLY" ? "Hourly" : p.earningsModel === "DAILY" ? "Daily, fixed for the shift" : "Commission"}</td><td data-label="Pay"><strong>{p.earningsModel === "COMMISSION" ? `${(p.commissionBps ?? 0)/100}% · verified attributed sales` : `${money(p.rateMinor!, p.currencyCode)} / ${p.earningsModel === "HOURLY" ? "hour" : "day"}`}</strong></td><td data-label="Minimum wage check" className="wage-cell"><PolicyWageCell policy={p} jurisdiction={operations.wageJurisdiction} today={today} /></td></tr>)}</tbody></table></div> : <p>No terms set yet, so managers can’t create shifts here.</p>}
+        {operations.policies.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Work policies at this location</caption><thead><tr><th scope="col">Terms</th><th scope="col">Basis</th><th scope="col">Pay</th><th scope="col">Minimum wage check · today</th></tr></thead><tbody>{operations.policies.map(p => <tr key={p.id}><th scope="row">{p.name}<PolicyRevision policy={p} disabled={!!scope.demo} /></th><td data-label="Basis">{p.earningsModel === "HOURLY" ? "Hourly" : p.earningsModel === "DAILY" ? "Daily, fixed for the shift" : "Commission"}</td><td data-label="Pay"><strong>{p.earningsModel === "COMMISSION" ? `${(p.commissionBps ?? 0)/100}% · verified attributed sales` : `${money(p.rateMinor!, p.currencyCode)} / ${p.earningsModel === "HOURLY" ? "hour" : "day"}`}</strong></td><td data-label="Minimum wage check" className="wage-cell"><PolicyWageCell policy={p} jurisdiction={operations.wageJurisdiction} today={today} /></td></tr>)}</tbody></table></div> : <p>No terms set yet, so managers can’t create shifts here.</p>}
         <WageBelowNotice count={belowMinimum} />
       </section>
       <section className="panel" id="work-policies"><h2>Incentives · {scope.locationName}</h2>
@@ -147,6 +154,8 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
         {operations.policies.some(p => p.incentiveTargetMinor) ? <ul className="incentive-list">{operations.policies.filter(p => p.incentiveTargetMinor).map(p => <li key={p.id}><span>{p.name}</span><strong>Reach {money(p.incentiveTargetMinor!, p.currencyCode)} attributed sales <span aria-hidden="true">→</span> earn {money(p.incentiveBonusMinor!, p.currencyCode)} bonus</strong></li>)}</ul> : <p>No incentive set yet.</p>}
         <details className="disclosure-inline" open={!operations.policies.length}><summary>Create new terms</summary><PolicyForm action={createPolicyAction} currency={operations.currency} jurisdiction={operations.wageJurisdiction} today={today} explainAction={configuration.aiConfigured && !scope.demo ? explainWageAction : null} /></details>
       </section>
+      <ShiftRulesSettings rules={rulesView?.shift ?? null} locationName={scope.locationName} disabled={!!scope.demo} />
+      <HoursRuleSettings rule={rulesView?.hours ?? null} disabled={!!scope.demo} />
     </> : null}
     {area === "policies" && staffingConfiguration ? <StaffingConfiguration configuration={staffingConfiguration} locationName={scope.locationName} /> : null}
     {area === "policies" && operations ? <>
@@ -162,7 +171,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
         <div className="record-row"><span><strong>Square Sandbox</strong><small>{!connectionsAvailable ? "Connection status could not be loaded." : connections.some(row => row.provider === "SQUARE") ? `${connections.filter(row => row.provider === "SQUARE").length} of ${active.length} active locations connected.` : "No location is connected."} <Link href="/owner/reporting">Manage sales sources</Link></small></span><StatusBadge tone={commerceConnectionsConfigured() && squareSandboxCredentials() ? "success" : "warning"}>{commerceConnectionsConfigured() && squareSandboxCredentials() ? "Available" : "Not set up"}</StatusBadge></div>
         <p className="note">Every sales record keeps its source. Reference, imported, Square Sandbox and PayPal Sandbox history are never combined.</p>
       </section>
-      <section className="panel"><h2>Business</h2><p>{scope.organisationName} · {locations.length} {locations.length === 1 ? "location" : "locations"}</p></section>
+      {business ? <BusinessSettings business={business} locationCount={locations.length} disabled={!!scope.demo} /> : null}
     </> : null}
   </>;
 }

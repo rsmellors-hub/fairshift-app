@@ -58,7 +58,7 @@ export async function ensureDemoBooking(db: Database, input: { organisationId: s
     const session = tx as unknown as Database;
     const [department] = await tx.select().from(departments).where(and(eq(departments.outletId, rosebank), eq(departments.name, DEMO_BOOKING.department))).limit(1);
     const departmentId = department?.id ?? (await createDepartment(session, DEMO_BOOKING.department, site))[0].id;
-    const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.outletId, rosebank), eq(workPolicies.name, DEMO_BOOKING.policy), eq(workPolicies.earningsModel, "HOURLY"),
+    const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.outletId, rosebank), eq(workPolicies.name, DEMO_BOOKING.policy), isNull(workPolicies.supersededAt), eq(workPolicies.earningsModel, "HOURLY"),
       eq(workPolicies.rateMinor, DEMO_BOOKING.rateMinor), eq(workPolicies.currencyCode, "ZAR"), isNull(workPolicies.incentiveTargetMinor))).limit(1);
     const policyId = policy?.id ?? (await createWorkPolicy(session, { earningsModel: "HOURLY", rateMinor: DEMO_BOOKING.rateMinor }, DEMO_BOOKING.policy, site))[0].id;
     const shift = await createRequirement(session, { departmentId, policyId, startsAt: new Date(dayStart + DEMO_BOOKING.startMinute * 60_000), endsAt: new Date(dayStart + DEMO_BOOKING.endMinute * 60_000), requiredHeadcount: 1 }, site);

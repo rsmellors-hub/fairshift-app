@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte, sql, isNull } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, departments, offerRounds, outlets, shiftOffers, shifts, workers, workPayables, workPolicies } from "@/server/db/schema";
@@ -138,7 +138,7 @@ export async function roundsForShifts(db: DatabaseSession, scope: Pick<Scope, "o
 export async function suggestionContext(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "locationId">, suggestions: readonly SuggestedShift[]) {
   const [departmentRows, policyRows] = await Promise.all([
     db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.outletId, scope.locationId)).orderBy(asc(departments.name)),
-    db.select({ id: workPolicies.id, name: workPolicies.name, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor }).from(workPolicies).where(eq(workPolicies.outletId, scope.locationId)).orderBy(asc(workPolicies.name)),
+    db.select({ id: workPolicies.id, name: workPolicies.name, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor }).from(workPolicies).where(and(eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt))).orderBy(asc(workPolicies.name)),
   ]);
   const approved = new Map<string, { shiftId: string; rounds: { round: number; closesAt: Date | null; offered: number }[]; accepted: number; headcount: number }>();
   const matches = await Promise.all(suggestions.map(async suggestion => ({ suggestion, shift: (await approvedShiftFor(db, scope, suggestion))[0] })));

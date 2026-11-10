@@ -11,6 +11,7 @@ import { labelledMoney, maskedEmail } from "@/app/components/format";
 import { EarlierEvidenceLabel } from "@/app/demo/demo-bar";
 import { ActionFeedback, currencyTotals, dateTime, money, payableBasis, PaymentBadge, WorkerPaymentBadge, WorkspaceUnavailable } from "@/app/components/workspace-ui";
 import { saveDemoPayoutDestinationAction } from "@/app/scheduling-actions";
+import { updateOwnDetailsAction } from "@/app/settings-actions";
 import { saveAvailabilityAction } from "@/app/operations-actions";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase } from "@/server/db/client";
@@ -160,7 +161,12 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       {payments.length ? payments.map((row) => <article className="panel" key={row.shift.id}><h2>{shiftWhen(row.shift.startsAt, row.shift.endsAt, timezone).date} · {money(row.incentive?.earnedAmountMinor ?? 0, row.shift.currencyCode)} incentive</h2><PaymentBadge status={row.incentive?.status} />{row.incentive?.paidAt ? <p>Confirmed paid on {dateTime(row.incentive.paidAt, timezone)}.</p> : null}{row.incentive?.status === "FAILED" ? <p>Your payment needs attention. Ask your manager to review its status.</p> : null}</article>) : null}
     </> : null}
     {area === "profile" ? <>
-      <section className="panel"><h2>{profile?.displayName ?? "Casual worker"}</h2><p>{scope.locationName}</p></section>
+      <section className="panel" id="your-details"><h2>{profile?.displayName ?? "Casual worker"}</h2><p>{scope.locationName}</p>
+        {scope.demo ? null : <details className="disclosure-inline"><summary>Edit your details</summary><form action={updateOwnDetailsAction} className="workspace-form form-grid">
+          <label>First name<input name="firstName" defaultValue={profile?.firstName ?? ""} maxLength={100} required /></label>
+          <label>Surname<input name="surname" defaultValue={profile?.surname ?? ""} maxLength={100} required /></label>
+          <label>Phone (optional)<input name="telephone" type="tel" defaultValue={profile?.telephone ?? ""} maxLength={30} /></label>
+          <button className="secondary-button">Save details</button><p className="form-span note">Your email is how you sign in; ask your manager if it needs changing.</p></form></details>}</section>
       <nav className="profile-links" aria-label="Profile"><Link href="/worker/availability"><span>Availability</span><small>The days you can work</small></Link><Link href="/account"><span>Account and notifications</span><small>Sign out, notices</small></Link></nav>
       <section className="panel" id="payment-settings"><h2>Payment settings</h2><p>{profile?.paypalPayoutEmail ? `Payment details added: ${maskedEmail(profile.paypalPayoutEmail)}` : "Payment setup incomplete. Add your payment details before your approved earnings can be sent."}</p><form action={saveDemoPayoutDestinationAction} className="workspace-form"><label>{profile?.paypalPayoutEmail ? "New PayPal email" : "PayPal payout email"}<input name="payoutEmail" type="email" autoComplete="email" maxLength={254} required /></label><label>Type it again<input name="confirmPayoutEmail" type="email" autoComplete="off" maxLength={254} required /></label>{profile?.paypalPayoutEmail ? <label>Your FairShift password<input name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required /></label> : null}<button className="primary-button" type="submit">{profile?.paypalPayoutEmail ? "Change PayPal email" : "Save payment settings"}</button></form><p className="note">Saved for your profile across shifts. Saving details does not send a payment, and FairShift has not checked this email with PayPal, so please make sure it’s right.{profile?.paypalPayoutEmail ? " Changing it needs your password and is recorded. Payments already being sent still go to the email they were prepared with; the new email is used for payments prepared after the change." : ""}</p></section>
     </> : null}

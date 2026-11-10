@@ -95,8 +95,21 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved" };
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved" };
 const FEEDBACK: Record<string, string> = {
+  "person-exists": "Someone with this email is already in this business. Resend or revoke their invitation instead.",
+  "person-one-location": "A casual worker belongs to one location. Choose one.",
+  "person-has-shifts": "This worker has upcoming accepted shifts. Reassign them before deactivating.",
+  "person-confirm": "Tick the box to confirm the deactivation.",
+  "location-last": "This is your only active location, so it can't be deactivated.",
+  "location-has-shifts": "This location has upcoming shifts. Cancel or finish them before deactivating it.",
+  "location-plan-limit": "Your plan's location limit is reached, so this location can't be reactivated.",
+  "location-confirm": "Tick the box to confirm the deactivation.",
+  "shift-rules-invalid": "Shift lengths must be in quarter-hours from 1 to 16 hours, with the shortest ≤ the usual ≤ the longest.",
+  "hours-rule-invalid": "Set an average of 1 to 80 hours a week over 1 to 52 weeks.",
+  "business-invalid": "Enter the business name, street address, city and postal code.",
+  "details-invalid": "Enter your first name, surname and a valid phone number (or leave the phone blank).",
+  "policy-unavailable": "These pay terms were already replaced. Reload the page and try again.",
   "payout-email-mismatch": "The two email addresses don't match, so nothing was saved.",
   "payout-email-invalid": "Enter a valid PayPal email. Nothing was saved.",
   "payout-email-unchanged": "That's already your PayPal email, so nothing changed.",

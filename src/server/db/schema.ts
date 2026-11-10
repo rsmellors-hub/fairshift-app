@@ -542,6 +542,11 @@ export const workPolicies = pgTable("work_policies", {
   incentiveTargetMinor: bigint("incentive_target_minor", { mode: "number" }),
   incentiveBonusMinor: bigint("incentive_bonus_minor", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Day 6 (10 Nov 2026): editing pay terms writes a new dated version; the old one is kept, marked
+  // superseded, and no longer offered. Shifts copy their terms, so accepted work never changes.
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  replacesPolicyId: uuid("replaces_policy_id"),
 }, (t) => [check("work_policy_currency_check", sql`${t.currencyCode} ~ '^[A-Z]{3}$'`), check("work_policy_incentive_check", sql`(${t.incentiveTargetMinor} is null and ${t.incentiveBonusMinor} is null) or (
   ${t.incentiveTargetMinor} is not null and ${t.incentiveBonusMinor} is not null and ${t.incentiveTargetMinor} between 1 and 9007199254740991 and ${t.incentiveBonusMinor} between 1 and 9007199254740991 and ${t.earningsModel} in ('HOURLY', 'DAILY')
 )`), check("work_policy_terms_check", sql`(

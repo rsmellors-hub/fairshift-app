@@ -1,6 +1,6 @@
 import { tokenHash } from "@/server/auth/identity";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, getTableColumns, inArray, lt, gt, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNull, lt, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { departments, organisations, outlets, workers, workerAvailability, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
@@ -80,6 +80,23 @@ export async function createWorkPolicy(db: Database, input: unknown, name: strin
   if (terms.earningsModel === "COMMISSION") throw new UserFacingError("policy-commission", "Casual terms must pay by the hour or a fixed amount per shift. Commission-only terms can't be set, because they can't be checked against a minimum wage.");
   return db.insert(workPolicies).values({ id: randomUUID(), outletId: scope.locationId, name: z.string().trim().min(1).max(100).parse(name), ...terms, incentiveTargetMinor: target, incentiveBonusMinor: bonus, currencyCode: await locationCurrency(db, outlet) }).returning();
 }
+// Day 6 (10 Nov 2026): editing pay terms writes a new dated version with the same checks as new terms
+// (wage floor, incentive, no commission) and marks the old one superseded. Shifts copied their terms
+// when they were created, so nothing already offered or accepted changes. Audited.
+export async function reviseWorkPolicy(db: Database, policyId: string, input: unknown, name: string, scope: OperatingScope & { userId?: string; role?: string }) {
+  return db.transaction(async tx => {
+    const [current] = await tx.select().from(workPolicies).where(and(eq(workPolicies.id, z.uuid().parse(policyId)), eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt))).for("update");
+    if (!current) throw new UserFacingError("policy-unavailable", "These pay terms were already replaced or aren't at this location.");
+    const [next] = await createWorkPolicy(tx as unknown as Database, input, name, scope);
+    const now = new Date();
+    await tx.update(workPolicies).set({ replacesPolicyId: current.id, effectiveFrom: now }).where(eq(workPolicies.id, next.id));
+    await tx.update(workPolicies).set({ supersededAt: now }).where(eq(workPolicies.id, current.id));
+    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, outletId: scope.locationId, action: "PAY_TERMS_REVISED", entityType: "work_policy", entityId: next.id,
+      correlationId: `pay-terms:${current.id}:${next.id}`, metadata: { actorUserId: scope.userId ?? null, actorRole: scope.role ?? "OWNER", previousPolicyId: current.id, previous: { earningsModel: current.earningsModel, rateMinor: current.rateMinor, incentiveTargetMinor: current.incentiveTargetMinor, incentiveBonusMinor: current.incentiveBonusMinor, name: current.name },
+        next: { earningsModel: next.earningsModel, rateMinor: next.rateMinor, incentiveTargetMinor: next.incentiveTargetMinor, incentiveBonusMinor: next.incentiveBonusMinor, name: next.name } } });
+    return { ...next, replacesPolicyId: current.id, effectiveFrom: now };
+  });
+}
 // Payout state shown to managers; the stored recipient address is not needed to review it.
 type PayoutColumns = ReturnType<typeof getTableColumns<typeof workPayouts>>;
 const managerPayoutColumns = (() => {
@@ -94,7 +111,8 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
     .leftJoin(teamInvitations, eq(teamInvitations.workerId, workers.id))
     .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(workers.workerType, "CASUAL")));
   const departmentRows = await db.select().from(departments).where(eq(departments.outletId, scope.locationId));
-  const policies = await db.select().from(workPolicies).where(eq(workPolicies.outletId, scope.locationId));
+  // Current pay terms only: a superseded version is kept for the record but never offered again.
+  const policies = await db.select().from(workPolicies).where(and(eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt)));
   const requirements = await db.select().from(shifts).where(eq(shifts.outletId, scope.locationId));
   const offers = await db.select({ offer: shiftOffers, workerName: workers.displayName, allocation: workAllocations, acceptance: workAcceptances })
     .from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))
@@ -131,7 +149,7 @@ export async function createRequirement(db: Database, input: { departmentId: str
   return db.transaction(async (tx) => {
     const outlet = await location(tx, scope);
     const [department] = await tx.select().from(departments).where(and(eq(departments.id, input.departmentId), eq(departments.outletId, scope.locationId)));
-    const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.id, input.policyId), eq(workPolicies.outletId, scope.locationId)));
+    const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.id, input.policyId), eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt)));
     if (!department || !policy) throw new Error("Department or work policy unavailable.");
     if (policy.currencyCode !== await locationCurrency(tx, outlet)) throw new UserFacingError("policy-currency", "This work policy is not in this location's currency.");
     if (policy.earningsModel !== "COMMISSION" && !(policy.rateMinor && policy.rateMinor > 0)) throw new UserFacingError("policy-rate", "This work policy has no pay rate.");

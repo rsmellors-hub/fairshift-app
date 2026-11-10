@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, isNull } from "drizzle-orm";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { DatabaseSession } from "@/server/db/client";
 import { demoCapacityScenario } from "@/server/demo/capacity-scenario";
@@ -169,7 +169,7 @@ async function computeWeeklyStaffing(db: DatabaseSession, scope: Scope, now: Dat
         lt(shifts.startsAt, to), gt(shifts.endsAt, from))),
     // The location's own terms price its gap; there is no default rate.
     db.select({ outletId: workPolicies.outletId, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor, currencyCode: workPolicies.currencyCode })
-      .from(workPolicies).where(inArray(workPolicies.outletId, outletIds)),
+      .from(workPolicies).where(and(inArray(workPolicies.outletId, outletIds), isNull(workPolicies.supersededAt))),
   ]);
   // The contextual layer falls back to the baseline: if it can't be read, planning still works.
   const firstDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 1)).sort()[0], lastDate = weekly.outlets.map(outlet => shiftDate(outlet.today, 7)).sort().at(-1)!;

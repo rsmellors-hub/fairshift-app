@@ -28,7 +28,7 @@ export async function getLocationWorkspace(db: DatabaseSession) {
 }
 
 export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"organisationId"|"locationId"|"workerId">) {
-  const [profile] = await db.select({ displayName: workers.displayName, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode, wantsMoreHours: workers.wantsMoreHours })
+  const [profile] = await db.select({ displayName: workers.displayName, firstName: workers.firstName, surname: workers.surname, telephone: workers.telephone, paypalPayoutEmail: workers.paypalPayoutEmail, attributionCode: workers.attributionCode, wantsMoreHours: workers.wantsMoreHours })
     .from(workers).where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId))).limit(1);
   // Deliberately exclude team revenue, transaction data, provider IDs and other workers.
   const rows = await db.select({

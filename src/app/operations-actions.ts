@@ -5,7 +5,7 @@ import { revalidatePath } from "@/app/revalidate";
 import { getDatabase } from "@/server/db/client";
 import { getConfigurationStatus } from "@/server/config/env";
 import { acknowledgeWageNotChecked } from "@/server/scheduling/wage-acknowledgement";
-import { createDepartment, createWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
+import { createDepartment, createWorkPolicy, reviseWorkPolicy, createRequirement, locationTimezone, offerAssignment, allocateAssignment, confirmWork } from "@/server/scheduling/operations";
 import { assertSandboxFinancialScope } from "@/server/config/deployment";
 import { UserFacingError } from "@/server/domain/errors";
 import { confirmWorkPerformance, importAttributedSales } from "@/server/performance/attribution";
@@ -58,24 +58,31 @@ export async function createDepartmentAction(form: FormData) {
   const scope=await requireScope(["OWNER"]);
   return perform("/owner/policies", () => createDepartment(getDatabase(), field(form, "name"),scope));
 }
+// Pay terms from the Owner's form, in minor units. Shared by new terms and revisions.
+function policyFromForm(form: FormData) {
+  const earningsModel = field(form, "earningsModel");
+  const rate = field(form, "rate");
+  if (!/^\d{1,10}(\.\d{1,2})?$/.test(rate)) throw new Error("Enter a valid rate or percentage.");
+  const [whole, fraction = ""] = rate.split(".");
+  const value = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  const optionalAmount = (name: string) => {
+    const text = field(form, name).trim();
+    if (!text) return null;
+    if (!/^\d{1,10}(\.\d{1,2})?$/.test(text)) throw new UserFacingError("policy-incentive", "Enter a valid amount.");
+    const [units, cents = ""] = text.split(".");
+    return Number(units) * 100 + Number(cents.padEnd(2, "0"));
+  };
+  const incentive = { incentiveTargetMinor: optionalAmount("incentiveTarget"), incentiveBonusMinor: optionalAmount("incentiveBonus") };
+  return earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", ...incentive } : { earningsModel, rateMinor: value, ...incentive };
+}
 export async function createPolicyAction(form: FormData) {
   const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => {
-    const earningsModel = field(form, "earningsModel");
-    const rate = field(form, "rate");
-    if (!/^\d{1,10}(\.\d{1,2})?$/.test(rate)) throw new Error("Enter a valid rate or percentage.");
-    const [whole, fraction = ""] = rate.split(".");
-    const value = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-    const optionalAmount = (name: string) => {
-      const text = field(form, name).trim();
-      if (!text) return null;
-      if (!/^\d{1,10}(\.\d{1,2})?$/.test(text)) throw new UserFacingError("policy-incentive", "Enter a valid amount.");
-      const [units, cents = ""] = text.split(".");
-      return Number(units) * 100 + Number(cents.padEnd(2, "0"));
-    };
-    const incentive = { incentiveTargetMinor: optionalAmount("incentiveTarget"), incentiveBonusMinor: optionalAmount("incentiveBonus") };
-    return createWorkPolicy(getDatabase(), earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", ...incentive } : { earningsModel, rateMinor: value, ...incentive }, field(form, "name"),scope);
-  });
+  return perform("/owner/policies", () => createWorkPolicy(getDatabase(), policyFromForm(form), field(form, "name"), scope));
+}
+// Day 6, item 3: editing pay terms writes a new dated version; accepted shifts keep their terms.
+export async function revisePolicyAction(form: FormData) {
+  const scope=await requireScope(["OWNER"]);
+  return perform("/owner/policies#compensation", () => reviseWorkPolicy(getDatabase(), field(form, "policyId"), policyFromForm(form), field(form, "name"), scope));
 }
 // Day 6, Step 3a: the Owner's audited acknowledgement that the minimum wage isn't checked at this location.
 export async function acknowledgeWageNotCheckedAction(form: FormData) {
