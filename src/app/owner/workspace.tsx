@@ -91,7 +91,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   if (area === "proof") {
     let proof = null;
     try { proof = await getProofPanel(getDatabase(), scope); } catch { return <WorkspaceUnavailable />; }
-    return <><PageHeader eyebrow={scope.organisationName} title="Proof" description="Provider and AI evidence you can check, with what is synthetic said plainly. Read-only." /><ProofPanelView data={proof} /></>;
+    return <><PageHeader eyebrow={scope.organisationName} title="PayPal & AI records" description="Provider and AI evidence you can check, with its sources and what each check looked at. Read-only." /><ProofPanelView data={proof} /></>;
   }
   const subscription=await subscriptionFor(getDatabase(),scope);
   let data;

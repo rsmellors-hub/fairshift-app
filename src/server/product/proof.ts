@@ -9,7 +9,7 @@ import { SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
 import { payoutRefusal } from "@/server/domain/payout-refusal";
 import { storedSignalStatus } from "@/server/intelligence/local-intelligence-contract";
 
-// The Proof panel: what a judge can check is real, for the demonstration organisation only. Read-only,
+// PayPal & AI records (the Proof panel): what an Owner can check is real, for their own business. Read-only,
 // and it holds no secret, token, recipient or contact detail: provider identifiers, statuses, AI
 // response identifiers with their decisions, AI-found sources with what was searched, feed times, and
 // which data is synthetic.
@@ -26,7 +26,9 @@ function currentPlanTerms(row: { planId: string | null; tier: string | null; bil
 }
 
 export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "role">, now = new Date()) {
-  if (scope.role !== "OWNER" || !isDemoOrganisation(scope.organisationId)) return null;
+  // Every business's Owner sees its own records (design, 10 Nov 2026: "PayPal & AI records"); everything
+  // below is read by organisation. Only the demo business carries the synthetic-data notes.
+  if (scope.role !== "OWNER") return null;
   const organisationId = scope.organisationId;
   const locations = await db.select({ id: outlets.id, name: outlets.name, timezone: outlets.timezone }).from(outlets).where(eq(outlets.organisationId, organisationId)).orderBy(outlets.name);
   const ids = locations.map(row => row.id);
@@ -70,6 +72,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
     outcomes, feeds,
     // The fictional demo business shows the DEMO capacity scenario (src/server/demo/capacity-scenario.ts).
     demoScenario: organisationId === SA_REFERENCE_ORGANISATION.id,
+    demo: isDemoOrganisation(organisationId),
   };
 }
 export type ProofPanel = NonNullable<Awaited<ReturnType<typeof getProofPanel>>>;

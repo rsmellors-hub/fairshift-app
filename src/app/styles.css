@@ -399,7 +399,7 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .product-shell-worker .page-header { margin-bottom: 12px; }
 .product-shell-worker .page-header h1 { font-size: 26px; }
 .product-shell-worker .panel { padding: 16px; }
-.worker-bottom-nav { position: fixed; z-index: 20; inset: auto 0 0 0; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px 6px max(4px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
+.worker-bottom-nav { position: fixed; z-index: 20; inset: auto 0 0 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 4px 6px max(4px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
 .worker-bottom-nav .product-nav-item { display: contents; }
 .worker-bottom-nav a { display: flex; align-items: center; justify-content: center; min-height: 48px; color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; }
 .worker-bottom-nav a[aria-current="page"] { color: var(--primary-strong); font-weight: 750; box-shadow: inset 0 2px var(--primary); }

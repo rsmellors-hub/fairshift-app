@@ -9,6 +9,7 @@ import { subscriptions, workPayouts } from "@/server/db/schema";
 import type { LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
 import { runLocalDiscovery } from "@/server/intelligence/local-intelligence-service";
 import { approveWorkPayable } from "@/server/payments/work-payouts";
+import { recordsCsv } from "@/server/product/records-csv";
 import { getProofPanel, LOCAL_SUBSCRIPTION_FIXTURE } from "@/server/product/proof";
 import { ProofPanelView } from "@/app/owner/proof-panel";
 import { labelledMoney, rand } from "@/app/components/format";
@@ -93,10 +94,19 @@ describe("Proof panel", () => {
     const html = renderToStaticMarkup(ProofPanelView({ data: proof }));
     for (const shown of ["PPBDEMOBATCH", "resp_demo_fixture", "local runtime fixture, not a PayPal subscription", "UK (GBP) Sandbox seller", "Synthetic", "Fictional", "Measured against synthetic history"]) expect(html).toContain(shown);
     for (const hidden of ["PPBOTHERBATCH", "resp_other_fixture", "demo.recipient@example.test", "other.recipient@example.test", "FSWP-B-", "Bearer", "sk-"]) expect(html).not.toContain(hidden);
-    // Another organisation, and anyone but the Owner, get nothing.
-    expect(await getProofPanel(db, { organisationId: other.organisationId, role: "OWNER" }, NOW)).toBeNull();
+    // Another business's Owner sees only that business's records (design, 10 Nov 2026), without the demo's
+    // synthetic-data notes; anyone but the Owner gets nothing.
+    const theirs = await getProofPanel(db, { organisationId: other.organisationId, role: "OWNER" }, NOW);
+    expect(theirs?.demo).toBe(false);
+    const theirHtml = renderToStaticMarkup(ProofPanelView({ data: theirs }));
+    expect(theirHtml).toContain("PPBOTHERBATCH");
+    for (const hidden of ["PPBDEMOBATCH", "resp_demo_fixture", "other.recipient@example.test", "What is synthetic"]) expect(theirHtml).not.toContain(hidden);
+    const csv = recordsCsv(theirs!);
+    expect(csv.split("\r\n")[0]).toContain('"record","created_at"');
+    expect(csv).toContain("PPBOTHERBATCH");
+    for (const hidden of ["PPBDEMOBATCH", "other.recipient@example.test", "demo.recipient@example.test"]) expect(csv).not.toContain(hidden);
     expect(await getProofPanel(db, { organisationId: demo.organisationId, role: "MANAGER" }, NOW)).toBeNull();
-    expect(renderToStaticMarkup(ProofPanelView({ data: null }))).toContain("for the demonstration organisation only");
+    expect(renderToStaticMarkup(ProofPanelView({ data: null }))).toContain("shown to the Owner of this business");
     await close();
   });
 });

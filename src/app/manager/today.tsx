@@ -3,6 +3,7 @@ import { labourHours } from "@/app/components/staffing";
 import { busiestDay, fillHref } from "@/app/manager/plan-week";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { money } from "@/app/components/format";
+import { confirmWorkAction } from "@/app/operations-actions";
 import type { getOperations } from "@/server/scheduling/operations";
 import type { OutletStaffing } from "@/server/intelligence/staffing";
 
@@ -30,7 +31,6 @@ export function ManagerToday({ today, now, timezone, staffing, requirements, off
     ...stuck.map(row => ({ key: `stuck-${row.payable.id}`, title: `${row.workerName}: payment needs attention`, detail: "It has not been confirmed as paid.", href: "/manager/review#base-payables", cta: "Review payment", urgent: true })),
     ...paymentIssues.map(issue => ({ key: `issue-${issue.id}`, title: `${issue.workerName} · ${shortDay(issue.shiftDate)}`, detail: issue.status === "FAILED" ? "Payment needs attention" : "Incentive awaiting approval", href: "/manager/review#incentive-review", cta: "Review payment", urgent: issue.status === "FAILED" })),
     ...toAllocate.map(row => ({ key: `allocate-${row.offer.id}`, title: `${row.workerName} accepted`, detail: `Finalise the allocation for ${shortDay(shiftOf(row.offer.shiftId).shiftDate)}.`, href: "/manager/allocations", cta: "Finalise" })),
-    ...toConfirm.map(row => ({ key: `confirm-${row.offer.id}`, title: `Confirm ${row.workerName}’s shift`, detail: `${shortDay(shiftOf(row.offer.shiftId).shiftDate)} has finished.`, href: "/manager/review#confirm-work", cta: "Review completed work" })),
     ...salesToCheck.map(row => ({ key: `sales-${row.payable.id}`, title: `Check ${row.workerName}’s sales`, detail: `Needed before the total for ${shortDay(row.shiftDate)} is known.`, href: "/manager/review#performance", cta: "Check sales" })),
     ...toApprove.map(row => ({ key: `approve-${row.payable.id}`, title: `Approve ${money(finalPayableMinor(row.payable), row.payable.currencyCode)} for ${row.workerName}`, detail: `Shift on ${shortDay(row.shiftDate)}.`, href: "/manager/review#base-payables", cta: "Review" })),
     ...toSend.map(row => ({ key: `send-${row.payable.id}`, title: `Send ${row.workerName}’s approved pay`, detail: `Shift on ${shortDay(row.shiftDate)}. Approved, not yet sent to PayPal.`, href: "/manager/review#base-payables", cta: "Pay with PayPal" })),
@@ -39,7 +39,22 @@ export function ManagerToday({ today, now, timezone, staffing, requirements, off
   ];
   const working = offers.filter(row => row.allocation?.state === "ALLOCATED" && shiftOf(row.offer.shiftId).shiftDate === today).sort((a, b) => shiftOf(a.offer.shiftId).startsAt.getTime() - shiftOf(b.offer.shiftId).startsAt.getTime());
   const next = staffing ? busiestDay(staffing.days) : null;
+  // Design (Manager · Today, 10 Nov 2026): numbered things to do, confirming work in place, and anything
+  // that could stop the location trading tomorrow (early notice is the Owner's to send).
+  const closures = (staffing?.localIntelligence?.alerts ?? []).filter(signal => signal.closureLikely);
+  const hours = (start: Date, end: Date) => { const h = (end.getTime() - start.getTime()) / 3_600_000; return Number.isInteger(h) ? String(h) : h.toFixed(1); };
   return <>
+    {toConfirm.length ? <section className="panel" id="confirm-work-today" aria-labelledby="confirm-today-title"><h2 id="confirm-today-title">1 · Confirm work</h2>
+      <ul className="action-list">{toConfirm.map(row => { const shift = shiftOf(row.offer.shiftId); const rate = shift.rateMinor ?? null;
+        return <li key={row.offer.id}><span><strong>{row.workerName} worked {time(shift.startsAt, timezone)}–{time(shift.endsAt, timezone)}</strong><small>{shortDay(shift.shiftDate)} · {shift.earningsModel === "HOURLY" && rate ? `${hours(shift.startsAt, shift.endsAt)} h × ${money(rate, shift.currencyCode)} = ` : ""}{money(shift.expectedEarningsMinor ?? shift.guaranteedBasePayMinor, shift.currencyCode)} from the accepted terms</small></span>
+          <form action={confirmWorkAction}><input type="hidden" name="offerId" value={row.offer.id} /><input type="hidden" name="confirmed" value="yes" /><button className="primary-button">Confirm {hours(shift.startsAt, shift.endsAt)} h</button></form></li>; })}</ul>
+      <p className="note">Confirming records that the scheduled work was done. The Pay Agent checks it before payout; nobody edits the amount.</p></section> : null}
+    {closures.length ? <section className="panel" aria-labelledby="tell-early-title"><h2 id="tell-early-title">{toConfirm.length ? "2" : "1"} · Tell someone early</h2>
+      {closures.map(signal => { const booked = offers.filter(row => row.allocation?.state === "ALLOCATED" && shiftOf(row.offer.shiftId).shiftDate >= signal.validFrom && shiftOf(row.offer.shiftId).shiftDate <= signal.validTo);
+        return <article className="requirement" key={signal.id}><h3>{signal.name}</h3><p className="note">{shortDay(signal.validFrom)}{signal.validTo !== signal.validFrom ? ` – ${shortDay(signal.validTo)}` : ""} · closure likely</p>
+          {booked.length ? <ul>{booked.map(row => { const shift = shiftOf(row.offer.shiftId); return <li key={row.offer.id}>{row.workerName} · {shortDay(shift.shiftDate)} · {time(shift.startsAt, timezone)}–{time(shift.endsAt, timezone)} · booked</li>; })}</ul> : <p className="note">Nobody is booked then.</p>}
+          <p className="note">The Owner sends early notice from Today; it cancels nothing and changes no pay.</p></article>; })}
+    </section> : null}
     <section className="overview-strip">
       <div><span>Uncovered places</span><strong>{uncovered.reduce((sum, row) => sum + Math.max(0, row.requiredHeadcount - coverage(row.id)), 0)}</strong></div>
       <div><span>Awaiting response</span><strong>{awaiting.length}</strong></div>
