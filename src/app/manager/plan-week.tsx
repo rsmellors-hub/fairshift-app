@@ -2,7 +2,8 @@ import Link from "next/link";
 import { labourHours, STAFFING_UNAVAILABLE } from "@/app/components/staffing";
 import type { OutletStaffing, StaffingDay } from "@/server/intelligence/staffing";
 
-const STEPS = [["plan", "Forecast"], ["fill", "Fill"], ["allocations", "Allocate"], ["review", "Review"]] as const;
+// The design's names (10 Nov 2026): Plan, Fill shifts, Schedule, Pay.
+const STEPS = [["plan", "Plan"], ["fill", "Fill shifts"], ["allocations", "Schedule"], ["review", "Pay"]] as const;
 export type JourneyStep = typeof STEPS[number][0];
 
 // The Manager's route through the week: each page is one decision on it.

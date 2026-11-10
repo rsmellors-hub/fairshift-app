@@ -5,8 +5,9 @@ import { money, scheduledHours } from "@/app/components/format";
 import { availabilityForShift, shiftWeekdays } from "@/server/scheduling/worker-pool";
 import { checkWage, termsForWageCheck, UK_MINIMUM_WAGE_SOURCE, type WageJurisdiction } from "@/server/domain/statutory-wage";
 import { SaWageIndicatorLine, saIndicatorFor } from "@/app/components/wage-check";
+import { cancellationTerms } from "@/server/scheduling/shift-labels";
 
-type Row = { shift: { id: string; roleName: string; shiftDate: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
+type Row = { shift: { cancellationPercent?: number | null; cancellationWindowMinutes?: number | null; id: string; roleName: string; shiftDate: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
   offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null;
   offerRound?: { round: number; criteria: string; closesAt: Date | null } | null };
 
@@ -70,6 +71,7 @@ function Earn({ shift, detailed = false, wage }: { shift: Row["shift"]; detailed
     <section className="pay-block pay-block-final" aria-label="Final earnings"><h4>Final earnings</h4>
       <p>Set after the shift: a manager or the Owner confirms the work, and FairShift works out your pay from these terms and checks it. It’s paid to your PayPal account in US dollars, converted from rand at the European Central Bank rate locked when the payment is reserved.</p>
     </section>
+    <p className="pay-line"><strong>Cancellation pay</strong> {cancellationTerms({ cancellationPercent: shift.cancellationPercent ?? null, cancellationWindowMinutes: shift.cancellationWindowMinutes ?? null }) ?? "No cancellation-pay rule was set when this shift was made."}</p>
     <p className="note">Holiday pay isn’t calculated in FairShift and isn’t included in these amounts; ask your manager how it’s handled. FairShift doesn’t handle tax.</p>
     {wage ? <WageNote shift={shift} wage={wage} /> : null}
   </div>;

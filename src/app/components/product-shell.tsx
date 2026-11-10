@@ -6,6 +6,8 @@ export type ProductNavItem = {
   href?: string;
   // Starts a labelled group in the side navigation.
   group?: string;
+  // A count shown beside the label, read from the same records the page shows (design, 10 Nov 2026).
+  count?: number;
 };
 
 export function FairShiftBrand({ compact = false, href = "/" }: { compact?: boolean; href?: string }) {

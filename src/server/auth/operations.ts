@@ -1,3 +1,5 @@
+import { requestPayoutChange } from "@/server/worker/payout-destination";
+import { passOnAfterDecline } from "@/server/scheduling/shift-suggestions";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -33,7 +35,10 @@ export async function workerRespond(db:Database,scope:Scope,offerId:string,versi
   const [target]=await db.select({outletId:shifts.outletId}).from(shiftOffers).innerJoin(shifts,eq(shifts.id,shiftOffers.shiftId)).innerJoin(outlets,eq(outlets.id,shifts.outletId))
     .where(and(eq(shiftOffers.id,offerId),eq(shiftOffers.workerId,scope.workerId!),eq(outlets.organisationId,scope.organisationId)));
   if(!target || !(await workerLocationIds(db,scope.workerId!)).includes(target.outletId)) throw new Error("Offer unavailable.");
-  return respondToAssignment(db,scope.workerId!,offerId,version,response,acknowledged,{organisationId:scope.organisationId,locationId:target.outletId});
+  const result=await respondToAssignment(db,scope.workerId!,offerId,version,response,acknowledged,{organisationId:scope.organisationId,locationId:target.outletId});
+  // A decline passes the shift to the next people (round 2) once round 1 has no one left to answer.
+  if(response==="DECLINED") await passOnAfterDecline(db,{organisationId:scope.organisationId,locationId:target.outletId},result.shiftId).catch(()=>undefined);
+  return result;
 }
 // Day 6, Step 3b: the worker's PayPal payout destination. Adding the first one needs the address typed
 // twice; changing an existing one also needs the worker's current password (rate-limited). Every save
@@ -86,7 +91,8 @@ export async function changePayoutDestination(db: Database, scope: Scope, input:
   await consumeLimit(db, `payout-destination:${scope.userId}`, 5);
   const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, scope.userId));
   if (!user || !input.password || !await checkPassword(input.password, user.passwordHash)) throw new UserFacingError("payout-password", "Your password wasn't accepted, so your PayPal email wasn't changed.");
-  return writePayoutDestination(db, scope, current.email, parsed.data);
+  // Design, 10 Nov 2026: a change also needs the link sent to the new address; payouts pause until then.
+  return { ...current, pending: await requestPayoutChange(db, scope, { id: current.id, email: current.email }, parsed.data) };
 }
 
 // A worker's own weekly availability, Monday..Sunday. Null clears a day to not provided.

@@ -13,6 +13,7 @@ import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone
 import { requireFinancialScope, requireScope } from "@/server/auth/request";
 import { saveWorkerAvailability, workerRespond } from "@/server/auth/operations";
 import { dispatchWorkerEmails } from "@/server/notifications/service";
+import { dispatchLocationWorkerEmails } from "@/server/worker/inbox";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
@@ -162,7 +163,11 @@ export async function releasePayAgentHoldAction(form: FormData) {
 // The Owner keeps a Pay Agent hold, with a reason kept on record; the worker is told it's being checked.
 export async function keepPayAgentHoldAction(form: FormData) {
   const scope=await requireFinancialScope(["OWNER","MANAGER"]);
-  return perform("/settlements", () => keepPayAgentHold(getDatabase(), scope, field(form, "eventId"), field(form, "reason")));
+  return perform("/settlements", async () => {
+    const db = getDatabase();
+    await keepPayAgentHold(db, scope, field(form, "eventId"), field(form, "reason"));
+    await dispatchLocationWorkerEmails(db, getEmailAdapter(), scope).catch(() => undefined);
+  });
 }
 // A manager's rejection of a Pay Agent hold, with a reason: the payable stays unpaid.
 export async function rejectPayAgentHoldAction(form: FormData) {

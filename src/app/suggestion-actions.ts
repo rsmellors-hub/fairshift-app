@@ -9,6 +9,8 @@ import { UserFacingError } from "@/server/domain/errors";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { approveSuggestedShift } from "@/server/scheduling/shift-suggestions";
 import { suggestShifts } from "@/server/scheduling/shift-rules";
+import { getEmailAdapter } from "@/server/notifications/email";
+import { dispatchLocationWorkerEmails } from "@/server/worker/inbox";
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 
@@ -24,6 +26,8 @@ export async function approveSuggestedShiftAction(form: FormData) {
       const result = await approveSuggestedShift(db, scope, { key: field(form, "key"), departmentId: field(form, "departmentId"), policyId: field(form, "policyId") },
         async () => (await getWeeklyStaffing(db, scope, new Date())).outlets.find(row => row.outletId === scope.locationId) ?? null);
       outcome = result.round === 1 ? "suggestion-round-1" : "suggestion-round-2";
+      // Each offer is in the worker's Inbox; send the emails now (a failure leaves them pending).
+      await dispatchLocationWorkerEmails(db, getEmailAdapter(), scope).catch(() => undefined);
     } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
   }
   for (const role of ["manager", "owner", "worker"]) revalidatePath(`/${role}`, "layout");
@@ -47,6 +51,7 @@ export async function approveAllSuggestedShiftsAction(form: FormData) {
         catch (error) { if (!(error instanceof UserFacingError)) throw error; }
       }
       outcome = sent ? "suggestions-sent" : "suggestion-approved";
+      if (sent) await dispatchLocationWorkerEmails(db, getEmailAdapter(), scope).catch(() => undefined);
     } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
   }
   for (const role of ["manager", "owner", "worker"]) revalidatePath(`/${role}`, "layout");

@@ -2,12 +2,14 @@ import { resendInvitationAction, revokeInvitationAction } from "@/app/auth-actio
 import { requireScope } from "@/server/auth/request";
 import type { Scope } from "@/server/auth/access";
 import Link from "next/link";
+import { labelledMoney } from "@/app/components/format";
 import { DataLabel, PageHeader, StatePanel, StatusBadge } from "@/app/components/product-ui";
 import { ActionFeedback, currencyTotals, money, PayableBadge, payableBasis, payableLabel, scheduledHours, ShiftTerms, WorkspaceUnavailable, dateTime } from "@/app/components/workspace-ui";
 import { getLocationPerformance, type ImportRejection } from "@/server/performance/attribution";
 import { basePayableFromAcceptedTerms, finalPayableMinor } from "@/server/domain/work-payable";
 import { confirmPerformanceAction, importAttributedSalesAction } from "@/app/operations-actions";
 import { createRequirementAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction } from "@/app/operations-actions";
+import { PayQueries, WorkerMessages } from "@/app/manager/worker-records";
 import { PayAgentPanel } from "@/app/manager/pay-agent-panel";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
@@ -85,7 +87,7 @@ function shiftSaIndicator(shift: Parameters<typeof shiftWageCheck>[0], jurisdict
 export const managerAreas = ["plan", "fill", "allocations", "team", "review"] as const;
 export type ManagerArea = "overview" | typeof managerAreas[number];
 
-export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, local, importResult, financialScope, financialOnly = false, team: teamFilter }: { area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; local?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean; team?: string }) {
+export async function ManagerWorkspace({ area, status, date, window: requestedWindow, department, ai, context, local, importResult, financialScope, financialOnly = false, team: teamFilter, thread }: { thread?: string; area: ManagerArea; status?: string; date?: string; window?: string; department?: string; ai?: string; context?: string; local?: string; importResult?: string; financialScope?: Scope; financialOnly?: boolean; team?: string }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=financialScope ?? await requireScope(["OWNER","MANAGER"]);
   // Opening the plan brings weather and listed events up to date when they're due: in the background
@@ -153,6 +155,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
     {area === "team" ? <>
       <section className="panel"><h2>Worker pool · {team.length}</h2>{isDemoOrganisation(scope.organisationId) ? <p><DataLabel kind="demo">Fictional demo staff</DataLabel> These workers are fictional, made for the demonstration.</p> : null}{team.length ? <div className="table-frame"><table className="data-table worker-pool-table"><caption className="visually-hidden">Workers at this location</caption><thead><tr><th scope="col">Name</th><th scope="col">Availability</th><th scope="col">Shifts</th><th scope="col">Pay &amp; sales readiness</th><th scope="col">FairShift account</th></tr></thead><tbody>{team.map(({worker, invitation}) => { const days = availability.filter(row => row.workerId === worker.id && row.state === "AVAILABLE").map(row => DAY[row.isoWeekday - 1]); const open = offers.filter(o => o.offer.workerId === worker.id && o.offer.status === "OFFERED").length, booked = offers.filter(o => o.offer.workerId === worker.id && o.allocation?.state === "ALLOCATED" && requirements.find(r => r.id === o.offer.shiftId)!.endsAt > now).length; return <tr key={worker.id}><th scope="row">{worker.displayName}<small>{worker.email ?? worker.telephone ?? ""}</small><small>Sales attribution code {worker.attributionCode}</small></th><td data-label="Availability">{days.length ? days.join(" ") : "No availability set"}</td><td data-label="Shifts">{open || booked ? `${open} awaiting response · ${booked} booked` : "None"}</td><td data-label="Payment details">{worker.paypalPayoutEmail ? "Saved" : "Not added yet"}{squareConnected ? <small>{mappedWorkers.has(worker.id) ? "Mapped to a Square team member" : "Not mapped to Square: sales won’t count"}</small> : null}</td><td data-label="FairShift account">{worker.userId ? "Active" : invitation ? INVITATION[invitation.state] ?? "Invited" : "Existing profile"}{invitation && !["REDEEMED","REVOKED"].includes(invitation.state) ? <div className="button-row"><form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Resend invite</button></form><form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id}/><button className="secondary-button">Revoke invite</button></form></div>:null}</td></tr>; })}</tbody></table></div> : <StatePanel title="No workers yet"><p>Add the casual workers who fill your gaps. They appear here and can then be offered shifts.</p></StatePanel>}</section>
       {await (async () => { const people = (await listPeople(getDatabase(), scope)).filter(person => person.role === "TEAM_MEMBER"); return <LocationTeam people={people} location={{ id: scope.locationId, name: scope.locationName }} otherLocations={[]} owner={false} filter={teamFilter && teamFilter in TEAM_FILTERS ? teamFilter as TeamFilter : "everyone"} basePath="/manager/team" timezone={timezone} disabled={!!scope.demo} previewHref="/manager/invitation-preview" />; })()}
+      {await WorkerMessages({ scope, thread, timezone })}
     </> : null}
     {area === "team" && !scope.demo ? await SquarePanel({ scope, team: team.filter(row => row.worker.status === "ACTIVE").map(row => ({ id: row.worker.id, displayName: row.worker.displayName })) }) : null}
     {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context, local) : null}
@@ -204,6 +207,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       {/* Design (OwnerPay): Needs you · Payouts · Tips. Tips are kept per location on the Owner's tips page. */}
       <nav className="page-tabs" aria-label="Pay"><a href="#needs-you">Needs you</a><a href="#payouts">Payouts</a>{scope.role === "OWNER" ? <Link href="/owner/tips">Tips</Link> : null}</nav>
       <span id="needs-you" />
+      {await PayQueries({ scope, timezone })}
       {financialOnly ? <section className="panel" id="confirm-work"><h2>Confirm completed work</h2>
         {financialConfirmationCandidates.length ? financialConfirmationCandidates.map(row => { const shift = requirements.find(item => item.id === row.offer.shiftId)!; return <article className="requirement" key={row.offer.id}>
           <h3>{row.workerName} · {dayLabel(shift.startsAt, timezone)} · {timeRange(shift.startsAt, shift.endsAt, timezone)}</h3>
@@ -275,7 +279,7 @@ function RecentPayouts({ rows, timezone }: { rows: { id: string; workerName: str
       <tbody>{recent.map(({ id, workerName, shiftDate, payout }) => <tr key={id}>
         <td data-label="Person · shift">{workerName} · {longDate(shiftDate)}</td>
         <td data-label="Amount" className="money">{money(payout.amountMinor, payout.currencyCode)}</td>
-        <td data-label="Sent to PayPal Sandbox">{money(payout.providerAmountMinor, payout.providerCurrency)}{payout.fxRateMicros ? <small> at {(payout.fxRateMicros / 1_000_000).toFixed(4)} {payout.currencyCode} per {payout.providerCurrency} (ECB)</small> : null}</td>
+        <td data-label="Sent to PayPal Sandbox">{payout.providerCurrency === payout.currencyCode ? money(payout.providerAmountMinor, payout.providerCurrency) : labelledMoney(payout.providerAmountMinor, payout.providerCurrency)}{payout.fxRateMicros ? <small> at {(payout.fxRateMicros / 1_000_000).toFixed(4)} {payout.currencyCode} per {payout.providerCurrency} (ECB)</small> : null}</td>
         <td data-label="Batch"><code>{payout.paypalBatchId ?? payout.senderBatchId}</code><small> · sent {dateTime(payout.createdAt, timezone)}</small></td>
         <td data-label="Status">{PAYOUT_STATE[payout.status] ?? payout.status}</td>
       </tr>)}</tbody></table></div>

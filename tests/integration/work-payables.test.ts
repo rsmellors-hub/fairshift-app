@@ -399,7 +399,7 @@ describe("confirmed work and authoritative base payables", () => {
       expect(shiftsHtml).toContain("£13.00 an hour × 6 hours");
       expect(shiftsHtml).toContain("£78.00");
       noDollars(shiftsHtml);
-      let earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
+      let earnings = await render(workerScope, () => WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("£78.00 expected");
       expect(earnings).toContain("Awaiting work confirmation");
       expect(earnings).not.toContain("<h3>Earned</h3>");
@@ -430,7 +430,7 @@ describe("confirmed work and authoritative base payables", () => {
       expect(review).not.toContain("payout with PayPal");
       noDollars(review);
       noPayment(review);
-      earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
+      earnings = await render(workerScope, () => WorkerWorkspace({ area: "pay" }));
       for (const text of ["<h3>Earned</h3>", "£78.00", "£13.00/hour × 6 hours scheduled", "Awaiting approval", "Awaiting approval", "shows as Paid only after PayPal confirms it"]) expect(earnings).toContain(text);
       noDollars(earnings);
       noPayment(earnings);

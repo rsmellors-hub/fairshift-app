@@ -127,7 +127,7 @@ describe("work to approved final payable", () => {
       for (const text of ["None imported yet", "Not complete yet", "Imported · not provider-verified", "Confirm sales results first", "Sales results needed"]) expect(review).toContain(text);
       expect(review).not.toContain("Approve £");
       expect(await act(manager, approvePayableAction, { payableId: payable!.id })).toContain("status=performance-required");
-      expect((await render(worker, () => WorkerWorkspace({ area: "earnings" })))).toContain("aren’t final yet");
+      expect((await render(worker, () => WorkerWorkspace({ area: "pay" })))).toContain("aren’t final yet");
       // Import through the Manager action, then confirm.
       expect(await act(manager, importAttributedSalesAction, { rows: csv(["T1", workerCode, "2026-01-19T10:00:00Z", "400.00", "GBP"], ["T2", workerCode, "2026-01-19T16:59:59Z", "300.00", "GBP"]) })).toContain("importResult=2.0.0");
       review = await render(manager, () => ManagerWorkspace({ area: "review" }));
@@ -157,7 +157,7 @@ describe("work to approved final payable", () => {
       expect(await refreshWorkPayout(t.db, adapter, manager, approved.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
       expect(await render(c.ownerScope, () => OwnerWorkspace({ area: "payments" }))).toContain("£129.00");
       // The Worker sees their own result; held is not paid.
-      const earnings = await render(worker, () => WorkerWorkspace({ area: "earnings" }));
+      const earnings = await render(worker, () => WorkerWorkspace({ area: "pay" }));
       for (const text of ["Your sales", "£700.00", "£650.00", "reached", "Base earnings", "£104.00", "Bonus earned", "£25.00", "Total earnings", "£129.00", "Action required", "haven’t been checked by a sales provider"]) expect(earnings).toContain(text);
       expect(earnings).not.toMatch(/T1|T2|Zettle|VERIFIED/);
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
@@ -187,7 +187,7 @@ describe("work to approved final payable", () => {
       await expect(confirmWorkPerformance(t.db, s.manager, allocation.id, { count: 0, minor: 0 })).rejects.toThrow("Work unavailable");
       expect((await importAttributedSales(t.db, s.manager, csv(["T1", s.code, "2026-01-19T10:00:00Z", "5.00", "GBP"]), AFTER)).rejected[0].reason).toBe("NO_MATCHING_SHIFT");
       expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ approvedAmountMinor: 10_400 });
-      expect(await render(s.worker, () => WorkerWorkspace({ area: "earnings" }))).not.toContain("Bonus");
+      expect(await render(s.worker, () => WorkerWorkspace({ area: "pay" }))).not.toContain("Bonus");
     } finally { await t.close(); }
   });
 });
@@ -199,7 +199,7 @@ describe("evidence truthfulness", () => {
       const s = await setup(t.db); pages(t.db);
       const { payable, allocation } = await finishedWork(t.db, s);
       await expect(approveWorkPayable(t.db, s.manager, payable.id)).rejects.toMatchObject({ feedback: "performance-required" });
-      const pending = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+      const pending = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
       expect(pending).toContain("Not known yet");
       expect(pending).not.toContain("Your sales value");
       expect(pending).not.toContain("Total earnings");
@@ -207,7 +207,7 @@ describe("evidence truthfulness", () => {
       await confirmWorkPerformance(t.db, s.manager, allocation.id, { count: 0, minor: 0 });
       expect(await t.db.select().from(workPerformanceResults)).toEqual([expect.objectContaining({ salesCount: 0, salesMinor: 0, earnedMinor: 0 })]);
       expect(await approveWorkPayable(t.db, s.manager, payable.id)).toMatchObject({ incentiveAmountMinor: 0, approvedAmountMinor: 10_400 });
-      const earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+      const earnings = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
       for (const text of ["Your sales", "not reached", "Total earnings", "£104.00"]) expect(earnings).toContain(text);
     } finally { await t.close(); }
   });
@@ -277,13 +277,13 @@ describe("evidence truthfulness", () => {
       expect(await confirmWorkPerformance(t.db, s.manager, b.allocation.id, of(b))).toMatchObject({ earnedMinor: 0, workerId: s.worker.workerId });
       // One shift confirmed, one not: each shows its own state, and only its own figures.
       pages(t.db);
-      let page = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+      let page = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
       expect(page.match(/Your sales value/g)).toHaveLength(1);
       expect(page.match(/aren’t final yet/g)).toHaveLength(1);
       expect(page).toContain("£10.00");
       expect(page).not.toContain("£700.00");
       expect(await confirmWorkPerformance(t.db, s.manager, a.allocation.id, of(a))).toMatchObject({ earnedMinor: 2_500, workerId: s.worker.workerId });
-      page = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+      page = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
       expect(page.match(/Your sales value/g)).toHaveLength(2);
       for (const text of ["£10.00", "£700.00"]) expect(page).toContain(text);
       expect(page).not.toContain("£20.00");
@@ -322,7 +322,7 @@ describe("boundaries", () => {
       await confirmWorkPerformance(t.db, leeds, first.allocation.id, { count: 2, minor: 70_100 });
       await confirmWorkPerformance(t.db, leeds, second.allocation.id, { count: 1, minor: 3_300 });
       // Each Worker sees only their own figures; no transaction ID or code appears.
-      const pageA = await render(a, () => WorkerWorkspace({ area: "earnings" })), pageB = await render(b, () => WorkerWorkspace({ area: "earnings" }));
+      const pageA = await render(a, () => WorkerWorkspace({ area: "pay" })), pageB = await render(b, () => WorkerWorkspace({ area: "pay" }));
       expect(pageA).toContain("£701.00"); expect(pageA).not.toContain("£33.00");
       expect(pageB).toContain("£33.00"); expect(pageB).not.toContain("£701.00");
       for (const page of [pageA, pageB]) expect(page).not.toMatch(/A1|B1|P1|FS-[0-9A-F]{8}|Leeds store revenue/);

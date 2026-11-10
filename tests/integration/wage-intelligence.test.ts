@@ -221,11 +221,13 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
       const bonusShift = await createRequirement(t.db, { departmentId: department.id, policyId: bonus.id, ...hours(APRIL, 8), requiredHeadcount: 1 }, manager);
       const plainShift = await createRequirement(t.db, { departmentId: department.id, policyId: plain.id, ...hours(new Date("2026-04-22T09:00:00Z"), 6), requiredHeadcount: 1 }, manager);
       await offerAssignment(t.db, bonusShift.id, worker.workerId!, manager);
-      await offerAssignment(t.db, plainShift.id, worker.workerId!, manager);
+      const plainOffer = await offerAssignment(t.db, plainShift.id, worker.workerId!, manager);
 
+      // Offers are selectable cards (design, 10 Nov 2026): the soonest is selected first, and choosing
+      // another shows its full terms.
       const page = decode(await render(worker, () => WorkerWorkspace({ area: "shifts" })));
-      const cards = page.split("<article").slice(1);
-      const bonusCard = cards.find(card => card.includes("Monday 20 April"))!, plainCard = cards.find(card => card.includes("Wednesday 22 April"))!;
+      const other = decode(await render(worker, () => WorkerWorkspace({ area: "shifts", offer: plainOffer.id })));
+      const bonusCard = page.split("<article").slice(1).find(card => card.includes("Monday 20 April"))!, plainCard = other.split("<article").slice(1).find(card => card.includes("Wednesday 22 April"))!;
       // 13. Guaranteed base pay, with where, when, how long and the hourly wage.
       for (const text of ["Leeds Briggate", "10:00 to 18:00", "8 hours", "Guaranteed base pay", "£104.00", "£13.00 an hour × 8 hours", "at or above the 21-and-over National Living Wage for this date", "Accept shift"]) expect(bonusCard).toContain(text);
       // 14. Variable earnings are labelled as not guaranteed, with no tip or holiday-pay amount invented.
@@ -251,14 +253,14 @@ describe("FS-WAGE-INTEL-DEC-002: the adult demo minimum for England shifts", () 
 
       // Before approval the total is not presented as final: the Pay Agent's plain status says the
       // earnings are recorded, not paid or approved (DEC-SA-011 needs no second approval to say so).
-      let earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
+      let earnings = decode(await render(worker, () => WorkerWorkspace({ area: "pay" })));
       expect(earnings).toContain("Earnings recorded");
       expect(earnings).toContain("Your earnings are recorded from the terms you accepted.");
       expect(earnings).not.toContain("Final earnings");
       expect(earnings).toContain("shown separately below. FairShift doesn’t calculate holiday pay or handle tax.");
       expect(earnings).not.toMatch(/approves them and sends|any bonus you earned|National Insurance/);
       await approveWorkPayable(t.db, manager, payable!.id);
-      earnings = decode(await render(worker, () => WorkerWorkspace({ area: "earnings" })));
+      earnings = decode(await render(worker, () => WorkerWorkspace({ area: "pay" })));
       expect(earnings).toContain("Final earnings");
       expect(earnings).toContain("£76.26");
       expect(earnings).not.toContain("Checked by FairShift before it’s paid");

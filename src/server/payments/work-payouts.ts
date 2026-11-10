@@ -1,3 +1,5 @@
+import { paidNotice } from "@/server/worker/paid-notice";
+import { PayoutsPausedError, payoutsPaused } from "@/server/worker/payout-destination";
 import { assertSandboxBusiness, assertSandboxFinancialScope } from "@/server/config/deployment";
 import { assertSandboxPayoutLimits } from "@/server/payments/sandbox-limits";
 import { UserFacingError } from "@/server/domain/errors";
@@ -251,6 +253,8 @@ async function recordCreateOutcome(db: DatabaseSession, scope: PayoutActor, payo
   await audit(db, scope, "PAYOUT_PROVIDER_RESPONSE", "work_payout", updated.id, obligationOf(updated), {
     mode, status: updated.status, paypalBatchId: updated.paypalBatchId, paypalStatus: updated.paypalStatus, error: values.lastError ?? null,
   });
+  // Paid ✓ only on PayPal item SUCCESS: the worker is told once, in the app and by email.
+  if (updated.status === "PAID" && payout.status !== "PAID") await paidNotice(db, updated);
   return updated;
 }
 
@@ -290,6 +294,8 @@ export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, inp
   payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
   // Daily Sandbox guardrails for each business (Owner decision 10 Nov 2026); a resend was already counted.
   if (!input.existing) await assertSandboxPayoutLimits(db, scope.organisationId, providerLeg);
+  // A PayPal email change waiting for its confirmation link pauses new payouts to that worker (design, 10 Nov 2026).
+  if (!input.existing && await payoutsPaused(db, input.workerId)) throw new PayoutsPausedError();
   // A payout already reserved keeps the address it was reserved with (Day 6, Step 3b): a later change
   // to the worker's PayPal email affects only payouts reserved after it.
   const [worker] = input.existing ? [{ email: input.existing.recipient }] : await db.select({ email: workers.paypalPayoutEmail }).from(workers)
@@ -438,6 +444,8 @@ async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: Pa
     if (updated.status !== payout.status || (amountError && (payout.lastError as { code?: string } | null)?.code !== amountError)) {
       await audit(db, scope, "PAYOUT_STATUS_UPDATED", "work_payout", updated.id, obligationOf(updated), { from: payout.status, to: updated.status, paypalStatus: updated.paypalStatus, paypalBatchStatus: updated.paypalBatchStatus, amountError });
     }
+    // Paid ✓ only on PayPal item SUCCESS: the worker is told once, in the app and by email.
+    if (updated.status === "PAID" && payout.status !== "PAID") await paidNotice(db, updated);
     return updated;
   }
 

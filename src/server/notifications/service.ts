@@ -34,7 +34,7 @@ export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:s
   const {notification:n,delivery:d} = row;
   // The public demo's activity never becomes email.
   if (n.organisationId && n.organisationId === demoConfig()?.organisationId) return;
-  if (!secureHref && ["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD"].includes(n.kind)) return;
+  if (!secureHref && ["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD","PAYOUT_EMAIL_CONFIRM"].includes(n.kind)) return;
   const [claimed] = await db.update(notificationDeliveries).set({status:"SENDING",attemptedAt:new Date(),failureCode:null})
     .where(and(eq(notificationDeliveries.id,d.id),inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED","FAILED"]))).returning();
   if (!claimed) return;
@@ -65,6 +65,6 @@ export async function dispatchWorkerEmails(db:Database,adapter:EmailAdapter,work
  for (const row of rows) await dispatchNotification(db,adapter,row.id);
 }
 export async function dispatchPendingEmails(db:Database,adapter:EmailAdapter) {
- const rows=await db.select({id:notifications.id}).from(notifications).innerJoin(notificationDeliveries,eq(notificationDeliveries.notificationId,notifications.id)).where(and(inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED"]),notInArray(notifications.kind,["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD"]))).limit(100);
+ const rows=await db.select({id:notifications.id}).from(notifications).innerJoin(notificationDeliveries,eq(notificationDeliveries.notificationId,notifications.id)).where(and(inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED"]),notInArray(notifications.kind,["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD","PAYOUT_EMAIL_CONFIRM"]))).limit(100);
  for (const row of rows) await dispatchNotification(db,adapter,row.id);
 }

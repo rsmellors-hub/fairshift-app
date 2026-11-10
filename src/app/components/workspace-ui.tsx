@@ -95,7 +95,7 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved", "person-removed": "Removed from this location; history kept", "invitation-revoked": "Invitation revoked", "trading-saved": "Trading hours saved", "staffing-saved": "Staffing and offers saved", "role-added": "Role added", "pay-version-saved": "New pay version saved", "tip-settings-saved": "Card tips saved", "pin-confirmed": "Pin confirmed", "sample-history-created": "Sample history added (synthetic)", "csv-imported": "Sales imported" };
+const DONE: Record<string, string> = { "payout-email-pending": "Check your new PayPal email: we sent a link to confirm it. Payouts are paused until you do", "payout-change-cancelled": "Change cancelled. Payouts go to your confirmed PayPal email", "pay-query-sent": "Question sent. The Owner answers in your Inbox", "pay-query-answered": "Answer sent to the worker", "message-sent": "Message sent", "pay-hold-kept": "Kept on hold. The worker is told the payment is being checked", "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved", "person-removed": "Removed from this location; history kept", "invitation-revoked": "Invitation revoked", "trading-saved": "Trading hours saved", "staffing-saved": "Staffing and offers saved", "role-added": "Role added", "pay-version-saved": "New pay version saved", "tip-settings-saved": "Card tips saved", "pin-confirmed": "Pin confirmed", "sample-history-created": "Sample history added (synthetic)", "csv-imported": "Sales imported" };
 const FEEDBACK: Record<string, string> = {
   "venue-invalid": "Enter the venue’s name, street address, city, type, seats, bills per person per hour and the minimum on the floor.",
   "sample-needs-venue": "Add the venue type and seats first, so the sample matches your venue.",
@@ -129,6 +129,15 @@ const FEEDBACK: Record<string, string> = {
   "payout-email-invalid": "Enter a valid PayPal email. Nothing was saved.",
   "payout-email-unchanged": "That's already your PayPal email, so nothing changed.",
   "payout-password": "Your password wasn't accepted, so your PayPal email wasn't changed.",
+  "payouts-paused": "This person changed their PayPal email and hasn't confirmed it yet, so payouts are paused until they do. Nothing was sent.",
+  "payout-link-invalid": "This link has expired or was already used. Ask for a new one from your Profile.",
+  "pay-query-topic": "Choose what your question is about. Nothing was sent.",
+  "pay-query-message": "Write your question in up to 1,000 characters. Nothing was sent.",
+  "pay-query-unavailable": "That question or shift's pay isn't available.",
+  "pay-query-open": "You've already asked about this shift. You'll get the answer in your Inbox.",
+  "pay-query-answer": "Write an answer of up to 1,000 characters. Nothing was sent.",
+  "message-length": "Write a message of up to 1,000 characters. Nothing was sent.",
+  "pay-agent-keep-reason": "Give a reason for keeping this payment held, in up to 500 characters.",
   "payout-change-needs-confirmation": "Changing your PayPal email needs your password. Nothing was changed.",
   "commerce-not-configured": "Commerce connections are not configured in this environment.",
   "commerce-location": "That location is not available.",
@@ -220,6 +229,6 @@ export function ActionFeedback({ status, saved = "Changes saved" }: { status?: s
   if (!status) return null;
   const done = status === "saved" ? saved : status === "demo-reset" ? "Demo restored" : DONE[status];
   return <StatePanel title={done ?? "Action could not be completed"} tone={done ? "success" : "warning"}>
-    {status !== "saved" ? <p>{FEEDBACK[status] ?? "Reload this page and check the current state before trying again. No payment confirmation is implied."}</p> : null}
+    {status !== "saved" && (FEEDBACK[status] || !done) ? <p>{FEEDBACK[status] ?? "Reload this page and check the current state before trying again. No payment confirmation is implied."}</p> : null}
   </StatePanel>;
 }

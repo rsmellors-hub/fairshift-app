@@ -486,7 +486,7 @@ describe("payment truthfulness and downstream regression", () => {
       expect(profile).toContain("has not checked this email with PayPal");
       expect(profile).not.toContain("attribution");
       expect(profile).toContain("/account");
-      expect(await render(worker, () => WorkerWorkspace({ area: "earnings" }))).not.toMatch(/sandbox|incentive/i);
+      expect(await render(worker, () => WorkerWorkspace({ area: "pay" }))).not.toMatch(/sandbox|incentive/i);
       for (const page of [home, profile]) for (const claim of [/verified/i, /ready to receive/i, /casey\.paypal/]) expect(page).not.toMatch(claim);
     } finally { await t.close(); }
   });
@@ -520,7 +520,7 @@ describe("payment truthfulness and downstream regression", () => {
       expect(await refreshWorkPayout(t.db, adapter, manager, payable!.id)).toMatchObject({ status: "PROCESSING", paypalStatus: "ONHOLD", paidAt: null });
       expect(await t.db.select().from(workPayouts)).toHaveLength(1);
       // The worker sees a plain state and a next step, with no provider code and no Paid.
-      const earnings = await render(worker, () => WorkerWorkspace({ area: "earnings" }));
+      const earnings = await render(worker, () => WorkerWorkspace({ area: "pay" }));
       for (const text of ["Action required", "PayPal is holding this payment", "check your PayPal account", "Base pay", "£104.00"]) expect(earnings).toContain(text);
       expect(earnings).not.toContain("PENDING_RECIPIENT");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
@@ -553,7 +553,9 @@ describe("payment truthfulness and downstream regression", () => {
         await offerAssignment(t.db, shift.id, worker.workerId!, manager);
       }
       const page = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
-      expect(page.match(/New offer</g)).toHaveLength(2);
+      // Both offers are listed as selectable cards; the selected one shows its full terms (design, 10 Nov 2026).
+      expect(page.match(/class="offer-pick( selected)?"/g)).toHaveLength(2);
+      expect(page.match(/New offer</g)).toHaveLength(1);
       for (const text of ["£3.25", "£1,234,567.89", "Weekend visual merchandising", "Northern Quarter"]) expect(page).toContain(text);
       expect(await render(worker, () => WorkerWorkspace({ area: "home" }))).toContain("You have 2 new shift offers");
       const availability = await render(worker, () => WorkerWorkspace({ area: "availability" }));

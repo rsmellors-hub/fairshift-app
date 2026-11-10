@@ -1793,3 +1793,66 @@ export const offerRounds = pgTable("offer_rounds", {
   index("offer_rounds_scope_idx").on(t.organisationId, t.outletId, t.openedAt),
   check("offer_rounds_round_check", sql`${t.round} in (1, 2)`),
 ]);
+
+// --- Worker app (design, 10 Nov 2026, section 6) ------------------------------------------------------
+
+// A worker's change of PayPal email waits for a link sent to the new address. Until it's confirmed (or
+// cancelled, or it expires) FairShift sends no new payout to that worker: payouts are paused, never sent
+// to an address nobody has confirmed. Only the token's hash is stored.
+export const payoutDestinationChanges = pgTable("payout_destination_changes", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  newEmail: text("new_email").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("payout_destination_changes_token_unique").on(t.tokenHash),
+  uniqueIndex("payout_destination_changes_open_unique").on(t.workerId).where(sql`${t.confirmedAt} is null and ${t.cancelledAt} is null`),
+  check("payout_destination_changes_final_check", sql`${t.confirmedAt} is null or ${t.cancelledAt} is null`),
+]);
+
+// Messages between a worker and the managers of one location (design: Inbox). Plain text, never edited.
+export const workerMessages = pgTable("worker_messages", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  authorUserId: uuid("author_user_id").notNull().references(() => users.id),
+  fromWorker: boolean("from_worker").notNull(),
+  body: text("body").notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("worker_messages_thread_idx").on(t.workerId, t.outletId, t.createdAt),
+  check("worker_messages_body_check", sql`char_length(${t.body}) between 1 and 1000`),
+]);
+
+// A worker's question about one shift's pay (design: "Query this shift's pay"). The Pay Agent's triage
+// is a summary of what was already recorded for that payable; the Owner answers. Nobody changes an
+// amount here: a query only ever carries text.
+export const payQueries = pgTable("pay_queries", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  payableId: uuid("payable_id").notNull().references(() => workPayables.id, { onDelete: "restrict" }),
+  topic: text("topic").notNull(),
+  message: text("message").notNull(),
+  triage: jsonb("triage").notNull(),
+  status: text("status").notNull().default("OPEN"),
+  answer: text("answer"),
+  answeredBy: uuid("answered_by").references(() => users.id),
+  answeredAt: timestamp("answered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("pay_queries_open_unique").on(t.payableId).where(sql`${t.status} = 'OPEN'`),
+  check("pay_queries_topic_check", sql`${t.topic} in ('HOURS', 'AMOUNT', 'TIPS', 'NOT_RECEIVED', 'OTHER')`),
+  check("pay_queries_message_check", sql`char_length(${t.message}) between 1 and 1000`),
+  check("pay_queries_status_check", sql`(${t.status} = 'OPEN' and ${t.answer} is null and ${t.answeredAt} is null)
+    or (${t.status} = 'ANSWERED' and char_length(${t.answer}) between 1 and 1000 and ${t.answeredBy} is not null and ${t.answeredAt} is not null)`),
+]);

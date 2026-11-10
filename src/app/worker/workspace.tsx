@@ -19,18 +19,42 @@ import { SquareLiveRefresh } from "@/app/components/square-live-refresh";
 import { getSquareFreshness } from "@/server/commerce/square-connection";
 import { getWorkerTips } from "@/server/tips/view";
 import { formatMinute } from "@/server/tips/policy";
+import { markInboxRead, workerInbox } from "@/server/worker/inbox";
+import { pendingPayoutChange } from "@/server/worker/payout-destination";
+import { workerCancellations } from "@/server/worker/cancellations";
+import { WorkerInbox } from "@/app/worker/inbox";
+import { HomeStrip, OfferPicker, ShiftsMonth, ShiftsList } from "@/app/worker/home-and-shifts";
+import { cancelPayoutChangeAction } from "@/app/worker-actions";
+import { signOutAction } from "@/app/auth-actions";
 
-export const workerAreas = ["shifts", "earnings", "availability", "profile"] as const;
+// Monday-to-Sunday in the location's time zone.
+const WEEKDAY: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+const localDay = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+function sameWeek(date: Date, now: Date, timeZone: string) {
+  const offset = WEEKDAY[new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone }).format(now)] ?? 0;
+  const monday = Date.parse(`${localDay(now, timeZone)}T00:00:00Z`) - offset * 86_400_000;
+  const day = Date.parse(`${localDay(date, timeZone)}T00:00:00Z`);
+  return day >= monday && day < monday + 7 * 86_400_000;
+}
+export const workerAreas = ["shifts", "pay", "inbox", "availability", "profile"] as const;
 export type WorkerArea = "home" | typeof workerAreas[number];
 
-export async function WorkerWorkspace({ area, status }: { area: WorkerArea; status?: string }) {
+export async function WorkerWorkspace({ area, status, view, offer: selectedOffer }: { area: WorkerArea; status?: string; view?: string; offer?: string }) {
   if (!getConfigurationStatus().databaseConfigured) return <WorkspaceUnavailable />;
   const scope=await requireScope(["TEAM_MEMBER"]);
   let data;
   try { data = await workerWorkspace(getDatabase(),scope); } catch { return <WorkspaceUnavailable />; }
   let tips: Awaited<ReturnType<typeof getWorkerTips>> = { pooled: [], shiftPayMinor: 0, currencyCode: null };
-  if (area === "earnings") { try { tips = await getWorkerTips(getDatabase(), scope); } catch { /* tips are shown only when they can be read */ } }
+  if (area === "pay") { try { tips = await getWorkerTips(getDatabase(), scope); } catch { /* tips are shown only when they can be read */ } }
   const { profile, availability, timezone, targets } = data;
+  // Inbox (design, 10 Nov 2026): read on Home (newest unread first) and on the Inbox, which marks them read.
+  let inbox: Awaited<ReturnType<typeof workerInbox>> | null = null;
+  if (area === "home" || area === "inbox") { try { inbox = await workerInbox(getDatabase(), scope); } catch { inbox = null; } }
+  if (area === "inbox" && inbox && !scope.demo) { try { await markInboxRead(getDatabase(), scope); } catch { /* shown as unread until next time */ } }
+  let pendingChange: Awaited<ReturnType<typeof pendingPayoutChange>> = null;
+  if (area === "profile" && scope.workerId) { try { pendingChange = await pendingPayoutChange(getDatabase(), scope.workerId); } catch { pendingChange = null; } }
+  let cancellations: Awaited<ReturnType<typeof workerCancellations>> = new Map();
+  if (area === "shifts" && scope.workerId) { try { cancellations = await workerCancellations(getDatabase(), scope); } catch { /* shown without the details */ } }
   // A demo reset closes shifts rather than deleting their evidence, so demo views leave them out.
   const assignments = scope.demo ? data.assignments.filter(row => row.shift.status !== "CANCELLED") : data.assignments;
   if (!timezone) return <WorkspaceUnavailable />;
@@ -79,7 +103,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       {agentStatus ? <p className="note" role="status">{WORKER_PAY_STATUS_NOTE[agentStatus]}</p> : null}
       {row.payAgentHoldSummary ? <p className="note">Why it&rsquo;s held: {row.payAgentHoldSummary}</p> : null}
       {row.payAgentChecklist?.length ? <ul className="pay-agent-checklist" aria-label="Pay Agent checks">{row.payAgentChecklist.map(item => <li key={item.text}><span aria-hidden="true">{item.ok ? "✓" : "⚠"}</span> {item.ok ? null : <span className="visually-hidden">Concern: </span>}{item.text}</li>)}</ul> : null}
-      <p className="note">{scope.locationName} · {when.time}</p>
+      <p className="note">{scope.locationName} · {when.time} · <Link href={`/worker/pay/${payable.id}`}>This shift’s pay and questions →</Link></p>
       <dl className="earning-sum">
         <div><dt>Base pay<small>{payableBasis(payable)}</small></dt><dd>{amount(payable.baseAmountMinor)}</dd></div>
         {payable.incentiveRequired ? <div><dt>Bonus{bonusUnknown ? null : <small>{payable.incentiveAmountMinor! > 0 ? "Target reached" : "Target not reached"}</small>}</dt><dd>{bonusUnknown ? "Not known yet" : `+ ${amount(payable.incentiveAmountMinor!)}`}</dd></div> : null}
@@ -94,12 +118,20 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       {payable.incentiveRequired ? <details className="disclosure-inline"><summary>Sales on this shift</summary><WorkerPerformance payable={payable} performance={row.performance} shift={row.shift} /></details> : null}
     </article>;
   };
-  const title = { home: `Hi${profile ? `, ${profile.displayName.split(" ")[0]}` : ""}`, shifts: "Your shifts", earnings: "Your earnings", availability: "Your availability", profile: "Your profile" }[area];
+  const title = { home: `Hi${profile ? `, ${profile.displayName.split(" ")[0]}` : ""}`, shifts: "Your shifts", pay: "Your pay", inbox: "Inbox", availability: "Your availability", profile: "Your profile" }[area];
   return <>
     <PageHeader eyebrow={scope.locationName} title={title} />
     {isDemoOrganisation(scope.organisationId) ? <p className="note"><DataLabel kind="demo">Fictional demo staff</DataLabel> A fictional staff account at a fictional venue, made for the demonstration.</p> : null}
     <ActionFeedback status={status} saved={area === "shifts" ? "Response saved" : "Changes saved"} />
     {area === "home" ? <>
+      {inbox && inbox.notices.some(notice => !notice.readAt) ? <section className="worker-section" aria-labelledby="home-inbox"><h2 id="home-inbox">New in your Inbox</h2>
+        <ul className="inbox-list">{inbox.notices.filter(notice => !notice.readAt).slice(0, 3).map(notice => <li key={notice.id} className="inbox-new"><Link href={notice.href.startsWith("/") ? notice.href : "/worker/inbox"}><strong>{notice.title}</strong></Link></li>)}</ul>
+        <p><Link href="/worker/inbox">Open your Inbox →</Link></p></section> : null}
+      {offersNow.length ? <Link className="panel offers-card" href="/worker/shifts#offers"><strong>{offersNow.length} open {offersNow.length === 1 ? "offer" : "offers"}</strong><span>Choose one to see the pay, the wage check, the tip rule and the terms →</span></Link> : null}
+      {(() => { const week = accepted.filter(row => row.shift.status !== "CANCELLED" && sameWeek(row.shift.startsAt, now, timezone));
+        const total = currencyTotals(week.map(row => ({ amountMinor: row.payable ? finalPayableMinor(row.payable) : row.shift.earningsModel === "COMMISSION" ? 0 : row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, currencyCode: row.shift.currencyCode })));
+        return <section className="worker-section" aria-labelledby="home-week-pay"><h2 id="home-week-pay">This week’s pay</h2><Link className="money-summary" href="/worker/pay"><span>{total ? `${total} from ${week.length} ${week.length === 1 ? "shift" : "shifts"} you accepted (Mon–Sun)` : "No accepted shifts this week yet"}</span></Link></section>; })()}
+      <HomeStrip rows={assignments} kindOf={kindOf} timezone={timezone} now={now} />
       {onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null : null}
       {offersNow.length ? <section className="worker-section" aria-labelledby="home-offers"><h2 id="home-offers">{offersNow.length === 1 ? "You have a new shift offer" : `You have ${offersNow.length} new shift offers`}</h2>{card(offersNow[0])}{offersNow.length > 1 ? <p><Link href="/worker/shifts">See all offers →</Link></p> : null}</section> : null}
       {!onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null : null}
@@ -107,19 +139,26 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       {upcoming.length ? <section className="worker-section" aria-labelledby="home-upcoming"><h2 id="home-upcoming">Your next shift</h2>{card(upcoming[0])}{upcoming.length > 1 ? <p><Link href="/worker/shifts">See all your shifts →</Link></p> : null}</section> : null}
       {!offersNow.length && !waiting.length && !upcoming.length ? <StatePanel title="Nothing needs you right now"><p>When a manager offers you work, it appears here with what you’ll earn.</p></StatePanel> : null}
       {!profile?.paypalPayoutEmail ? <StatePanel title="Payment setup incomplete" tone="warning"><p>Add your payment details before your approved earnings can be sent. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}
-      <section className="worker-section" aria-labelledby="home-money"><h2 id="home-money">Your money</h2><Link className="money-summary" href="/worker/earnings"><span>{[paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ") || "What you’ve earned and how payment is going."}</span><span aria-hidden="true">→</span></Link></section>
+      <section className="worker-section" aria-labelledby="home-money"><h2 id="home-money">Your money</h2><Link className="money-summary" href="/worker/pay"><span>{[paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ") || "What you’ve earned and how payment is going."}</span><span aria-hidden="true">→</span></Link></section>
       {!availability.length ? <p className="note"><Link href="/worker/availability">Tell your manager which days you can work</Link></p> : null}
     </> : null}
-    {area === "shifts" ? assignments.length ? <>
+    {area === "shifts" ? <nav className="page-tabs" aria-label="Shifts view"><Link href="/worker/shifts" aria-current={view !== "month" && view !== "list" ? "page" : undefined}>To do</Link><Link href="/worker/shifts?view=month" aria-current={view === "month" ? "page" : undefined}>Month</Link><Link href="/worker/shifts?view=list" aria-current={view === "list" ? "page" : undefined}>List</Link></nav> : null}
+    {area === "shifts" && view === "month" ? <section className="panel"><ShiftsMonth rows={assignments} kindOf={kindOf} timezone={timezone} now={now} /></section> : null}
+    {area === "shifts" && view === "list" ? <section className="panel"><ShiftsList rows={assignments} kindOf={kindOf} timezone={timezone} cancellations={cancellations} /></section> : null}
+    {area === "shifts" && view !== "month" && view !== "list" ? assignments.length ? <>
       {!profile?.paypalPayoutEmail && (offersNow.length || waiting.length || upcoming.length) && !scope.demo ? <StatePanel title="Add your PayPal email" tone="warning"><p>Do it now so your pay isn’t held up after the shift. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}
       {onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift targets">{liveRefresh}{targetCards}</section> : null : null}
-      {offersNow.length ? <section className="worker-section" aria-labelledby="shifts-offers"><h2 id="shifts-offers">New offers</h2>{offersNow.map(card)}</section> : null}
+      {offersNow.length ? (() => { const chosen = offersNow.find(row => row.offer.id === selectedOffer) ?? offersNow[0];
+        return <section className="worker-section" id="offers" aria-labelledby="shifts-offers"><h2 id="shifts-offers">{offersNow.length} open {offersNow.length === 1 ? "offer" : "offers"}</h2>
+          {offersNow.length > 1 ? <OfferPicker rows={offersNow} selected={chosen.offer.id} timezone={timezone} basePath="/worker/shifts" /> : null}{card(chosen)}
+          <p className="note">Accepting checks for clashes with work you’ve already accepted. If you decline, the shift passes to the next person.</p></section>; })() : null}
       {!onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift targets">{liveRefresh}{targetCards}</section> : null : null}
       {waiting.length ? <section className="worker-section" aria-labelledby="shifts-waiting"><h2 id="shifts-waiting">Waiting for your manager</h2>{waiting.map(card)}</section> : null}
       {upcoming.length ? <section className="worker-section" aria-labelledby="shifts-upcoming"><h2 id="shifts-upcoming">You’re booked</h2>{upcoming.map(card)}</section> : null}
       {!offersNow.length && !waiting.length && !upcoming.length ? <StatePanel title="Nothing to do right now"><p>New offers will appear here with what you’ll earn.</p></StatePanel> : null}
       {earlier.length ? <details className="worker-section"><summary>Earlier and closed shifts · {earlier.length}</summary>{earlier.map(card)}</details> : null}
     </> : <StatePanel title="No shift offers yet"><p>When a manager offers you work, you’ll see where, when and what you’ll earn here.</p></StatePanel> : null}
+    {area === "inbox" ? inbox ? <WorkerInbox inbox={inbox} timezone={timezone} locationName={scope.locationName} demo={!!scope.demo} /> : <WorkspaceUnavailable /> : null}
     {area === "availability" ? <section className="panel" aria-labelledby="availability-title"><h2 id="availability-title">When can you work?</h2>
       <p>The days you can usually work at {scope.locationName}. You don’t need to give a reason, and you can still decline any offer.</p>
       <form action={saveAvailabilityAction} className="stack-form">
@@ -133,7 +172,7 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
       </form>
       <p className="note">If you choose Unavailable, your manager can’t offer you shifts that day. Not set means they may still offer you work, and you decide then.</p>
     </section> : null}
-    {area === "earnings" ? <>
+    {area === "pay" ? <>
       <section aria-labelledby="work-earnings-title"><h2 id="work-earnings-title" className="visually-hidden">Work earnings</h2>
         <div className="earnings-strip">
           <div><span>Earned</span><strong>{payableTotal || "None"}</strong><small>Awaiting approval</small></div>
@@ -168,7 +207,9 @@ export async function WorkerWorkspace({ area, status }: { area: WorkerArea; stat
           <label>Phone (optional)<input name="telephone" type="tel" defaultValue={profile?.telephone ?? ""} maxLength={30} /></label>
           <button className="secondary-button">Save details</button><p className="form-span note">Your email is how you sign in; ask your manager if it needs changing.</p></form></details>}</section>
       <nav className="profile-links" aria-label="Profile"><Link href="/worker/availability"><span>Availability</span><small>The days you can work</small></Link><Link href="/account"><span>Account and notifications</span><small>Sign out, notices</small></Link></nav>
-      <section className="panel" id="payment-settings"><h2>Payment settings</h2><p>{profile?.paypalPayoutEmail ? `Payment details added: ${maskedEmail(profile.paypalPayoutEmail)}` : "Payment setup incomplete. Add your payment details before your approved earnings can be sent."}</p><form action={saveDemoPayoutDestinationAction} className="workspace-form"><label>{profile?.paypalPayoutEmail ? "New PayPal email" : "PayPal payout email"}<input name="payoutEmail" type="email" autoComplete="email" maxLength={254} required /></label><label>Type it again<input name="confirmPayoutEmail" type="email" autoComplete="off" maxLength={254} required /></label>{profile?.paypalPayoutEmail ? <label>Your FairShift password<input name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required /></label> : null}<button className="primary-button" type="submit">{profile?.paypalPayoutEmail ? "Change PayPal email" : "Save payment settings"}</button></form><p className="note">Saved for your profile across shifts. Saving details does not send a payment, and FairShift has not checked this email with PayPal, so please make sure it’s right.{profile?.paypalPayoutEmail ? " Changing it needs your password and is recorded. Payments already being sent still go to the email they were prepared with; the new email is used for payments prepared after the change." : ""}</p></section>
+      <section className="panel" id="payment-settings"><h2>Payment settings</h2><p>{profile?.paypalPayoutEmail ? `Payment details added: ${maskedEmail(profile.paypalPayoutEmail)}` : "Payment setup incomplete. Add your payment details before your approved earnings can be sent."}</p><form action={saveDemoPayoutDestinationAction} className="workspace-form"><label>{profile?.paypalPayoutEmail ? "New PayPal email" : "PayPal payout email"}<input name="payoutEmail" type="email" autoComplete="email" maxLength={254} required /></label><label>Type it again<input name="confirmPayoutEmail" type="email" autoComplete="off" maxLength={254} required /></label>{profile?.paypalPayoutEmail ? <label>Your FairShift password<input name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required /></label> : null}<button className="primary-button" type="submit">{profile?.paypalPayoutEmail ? "Change PayPal email" : "Save payment settings"}</button></form><p className="note">Saved for your profile across shifts. Saving details does not send a payment, and FairShift has not checked this email with PayPal, so please make sure it’s right.{profile?.paypalPayoutEmail ? " Changing it needs your password, then a link we email to the new address. Until you use that link, FairShift pauses new payouts to you. Payments already being sent still go to the email they were prepared with." : ""}</p>
+        {pendingChange ? <StatePanel title="Payouts paused" tone="warning"><p>We emailed a link to {pendingChange.newEmail}. Use it before {dateTime(pendingChange.expiresAt, timezone)} to confirm your new PayPal email; until then FairShift won’t send you new payouts.</p><form action={cancelPayoutChangeAction}><button className="secondary-button">Cancel this change</button></form></StatePanel> : null}</section>
+      {scope.demo ? null : <form action={signOutAction}><button className="secondary-button">Sign out</button></form>}
     </> : null}
   </>;
 }

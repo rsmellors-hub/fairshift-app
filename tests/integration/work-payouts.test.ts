@@ -337,7 +337,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       await workerChangesPayoutEmail(t.db, workerScope, "changed@example.test");
       // Audited with masked addresses only, counting the reserved payout it leaves alone.
       const [changed] = await t.db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_DESTINATION_CHANGED"));
-      expect(changed.metadata).toMatchObject({ actorUserId: workerScope.userId, previous: "c•••@example.test", next: "c•••@example.test", reconfirmed: "PASSWORD_AND_REPEATED_ADDRESS", reservedPayoutsUnchanged: 1 });
+      expect(changed.metadata).toMatchObject({ actorUserId: workerScope.userId, previous: "c•••@example.test", next: "c•••@example.test", reconfirmed: "PASSWORD_REPEATED_ADDRESS_AND_EMAIL_LINK", reservedPayoutsUnchanged: 1 });
       expect(JSON.stringify(changed.metadata)).not.toMatch(/casual\.sandbox@|changed@/);
       // The resend goes to the address the payout was reserved with.
       const second = await submitWorkPayout(t.db, paypal, manager, payable.id);
@@ -567,7 +567,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).not.toMatch(/>\s*Paid\s*</);
 
       // Approved, not sent: the worker sees approval, not payment.
-      let earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
+      let earnings = await render(workerScope, () => WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Approved");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
 
@@ -582,7 +582,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).toContain("Processing");
       expect(review).toContain("Check payment status");
       expect(review).not.toMatch(/>\s*Paid\s*</);
-      earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
+      earnings = await render(workerScope, () => WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Processing");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
 
@@ -592,7 +592,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).not.toContain("casual.sandbox@example.test");
 
       // N: the worker sees their own paid status, without provider internals or other workers.
-      earnings = await render(workerScope, () => WorkerWorkspace({ area: "earnings" }));
+      earnings = await render(workerScope, () => WorkerWorkspace({ area: "pay" }));
       for (const text of [">Paid<", "£78.00", "paid to your PayPal account", "Europe/London"]) expect(earnings).toContain(text);
       for (const hidden of ["PPI-7", "PPT-7", "PPB", "casual.sandbox@example.test", otherWorker.worker.displayName]) expect(earnings).not.toContain(hidden);
       expect(await render(workerScope, () => WorkerWorkspace({ area: "home" }))).toContain("£78.00 paid");
@@ -630,7 +630,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       for (const text of ["Processing · on hold at PayPal", "accept the payment in their PayPal account", "PENDING_RECIPIENT_NON_HOLDING_CURRENCY_PAYMENT_PREFERENCE"]) expect(review).toContain(text);
       expect(review).not.toMatch(/>\s*Paid\s*</);
       vi.mocked(requireScope).mockResolvedValue(workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("check your PayPal account to accept it");
       expect(earnings).not.toContain("PENDING_RECIPIENT");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
@@ -669,7 +669,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).not.toMatch(/>\s*Paid\s*</);
 
       vi.mocked(requireScope).mockResolvedValue(workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       for (const text of [">Not paid<", "Refused by PayPal: Currency is not supported. Nothing has been paid.", "nothing has reached your PayPal account"]) expect(earnings).toContain(text);
       for (const hidden of ["VALIDATION_ERROR", "dbg-refused", "items[0]", ">Sent to PayPal<"]) expect(earnings).not.toContain(hidden);
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
@@ -708,7 +708,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).toContain("PayPal did not complete this payment. Nothing has been paid.");
       expect(review).not.toContain("Refused by PayPal");
       vi.mocked(requireScope).mockResolvedValue(workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Your payment needs attention: ask your manager to review it.");
       expect(earnings).not.toContain("Refused by PayPal");
       expect(JSON.stringify((await getWorkerWorkspace(t.db, workerScope)).assignments)).toContain('"refusal":null');
@@ -735,7 +735,7 @@ describe("manager approval and PayPal payout of confirmed work", () => {
       expect(review).toContain("Payment details required.");
       expect(review).not.toContain("payout with PayPal");
       vi.mocked(requireScope).mockResolvedValue(workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Payment details required");
       expect(earnings).toContain("/worker/profile");
     } finally { await t.close(); }

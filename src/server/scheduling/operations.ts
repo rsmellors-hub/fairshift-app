@@ -1,3 +1,5 @@
+import { noticeToWorker } from "@/server/worker/inbox";
+import { cancellationDue, formatMinor, payLabel, shiftLabel } from "@/server/scheduling/shift-labels";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, getTableColumns, inArray, isNull, lt, gt, sql } from "drizzle-orm";
 import { worksAt } from "@/server/people/worker-locations";
@@ -200,6 +202,9 @@ export async function offerAssignment(db: Database, shiftId: string, workerId: s
     if (accepted >= shift.requiredHeadcount) throw new UserFacingError("shift-filled", "This shift has been filled.");
     if (!options.round && existing.filter((o) => ["OFFERED", "ACCEPTED"].includes(o.status)).length >= shift.requiredHeadcount) throw new Error("Requirement has no unoffered places. Capacity policy requires review.");
     const [offer] = await tx.insert(shiftOffers).values({ id: randomUUID(), shiftId, workerId }).returning();
+    // Design, 10 Nov 2026: every offer is in the worker's Inbox and emailed.
+    await noticeToWorker(tx, { workerId, kind: "SHIFT_OFFER", eventKey: `offer:${offer.id}`, entityId: offer.id, title: `Shift offer: ${shiftLabel(shift, (await location(tx, scope)).timezone)}`,
+      body: `${shift.roleName} · ${payLabel(shift)}. Open FairShift to see the full terms, including cancellation pay, and accept or decline.`, href: "/worker/shifts#offers", replace: true });
     return offer;
   });
 }
@@ -244,6 +249,8 @@ export async function allocateAssignment(db: Database, offerId: string, scope:Op
     const [acceptance] = await tx.select().from(workAcceptances).where(and(eq(workAcceptances.offerId, offerId), eq(workAcceptances.termsVersion, shift.termsVersion)));
     if (!acceptance) throw new Error("Current terms require acceptance.");
     const [row] = await tx.insert(workAllocations).values({ id: randomUUID(), offerId, acceptanceId: acceptance.id }).onConflictDoUpdate({ target: workAllocations.offerId, set: { acceptanceId: acceptance.id, state: "ALLOCATED" } }).returning();
+    await noticeToWorker(tx, { workerId: offer.workerId, kind: "SHIFT_BOOKED", eventKey: `booked:${row.id}:${shift.termsVersion}`, entityId: offer.id, title: `You're booked: ${shiftLabel(shift, (await location(tx, scope)).timezone)}`,
+      body: `${shift.roleName} · ${payLabel(shift)}. Your manager confirmed you for this shift.`, href: "/worker/shifts" });
     return row;
   });
 }
@@ -342,7 +349,18 @@ export async function changeAssignment(db:Database,scope:OperatingScope,id:strin
    const incentives=await tx.select({id:shiftIncentives.id}).from(shiftIncentives).where(eq(shiftIncentives.shiftId,id));
    const allocations=reviewed.length ? await tx.select().from(workAllocations).where(inArray(workAllocations.id,reviewed.map(r=>r.id))) : [];
    if (incentives.length || allocations.some(a=>a.confirmedAt)) throw new Error("Reviewed work cannot be cancelled.");
-   await tx.update(shifts).set({status:"CANCELLED",updatedAt:new Date()}).where(eq(shifts.id,id));
+   const cancelledAt=new Date();
+   // Read who was booked first: the cancellation's trigger closes their offers.
+   const people=await tx.select({offerId:shiftOffers.id,workerId:shiftOffers.workerId}).from(shiftOffers).where(and(eq(shiftOffers.shiftId,id),eq(shiftOffers.status,"ACCEPTED")));
+   await tx.update(shifts).set({status:"CANCELLED",updatedAt:cancelledAt}).where(eq(shifts.id,id));
+   // Who cancelled, when, under which rule and what cancellation pay the shift's terms set (design, 10 Nov
+   // 2026). The amount is recorded from the terms; FairShift doesn't pay cancellation pay automatically.
+   const due=cancellationDue(shift,cancelledAt);
+   await tx.insert(auditEvents).values({id:randomUUID(),organisationId:scope.organisationId,outletId:scope.locationId,action:"SHIFT_CANCELLED",entityType:"shift",entityId:id,correlationId:`shift:${id}`,
+     metadata:{actorUserId:(scope as {userId?:string}).userId ?? null,actorRole:(scope as {role?:string}).role ?? null,cancelledAt:cancelledAt.toISOString(),cancellationPercent:shift.cancellationPercent,cancellationWindowMinutes:shift.cancellationWindowMinutes,dueMinor:due,currencyCode:shift.currencyCode,workerIds:people.map(p=>p.workerId)}});
+   const label=shiftLabel(shift,(await location(tx,scope)).timezone);
+   for (const person of people) await noticeToWorker(tx,{workerId:person.workerId,kind:"SHIFT_CANCELLED",eventKey:`shift:${id}:${shift.termsVersion}:SHIFT_CANCELLED:${person.workerId}`,replace:true,entityId:id,title:`Shift cancelled: ${label}`,
+     body:due!==null&&due>0?`Your manager cancelled this shift within ${Math.round((shift.cancellationWindowMinutes??0)/60)} h of its start. Under its terms, ${shift.cancellationPercent}% of the shift's pay (${formatMinor(due,shift.currencyCode)}) is due to you as cancellation pay; ask your manager how it will be paid.`:`Your manager cancelled this shift.${shift.cancellationPercent!==null?" It was cancelled outside the cancellation-pay window, so no cancellation pay is due.":""}`,href:"/worker/shifts"});
   } else {
    const terms=policyInput.parse(shift.earningsModel === "COMMISSION" ? shift : {...shift,rateMinor:shift.rateMinor ?? shift.guaranteedBasePayMinor});
    const expected=expectedWorkEarnings(terms,input.startsAt,input.endsAt);

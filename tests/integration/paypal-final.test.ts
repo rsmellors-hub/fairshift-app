@@ -266,7 +266,7 @@ describe("Square-attributed earnings to a PayPal payout", () => {
     expect(paypal.createPayout).toHaveBeenCalledTimes(1);
     expect(await db.select().from(auditEvents).where(eq(auditEvents.action, "PAYOUT_STATUS_UPDATED"))).toHaveLength(1);
     expect(await render(j.manager, () => ManagerWorkspace({ area: "review" }))).toContain("could not match PayPal");
-    expect(await render(j.worker, () => WorkerWorkspace({ area: "earnings" }))).not.toContain("PayPal confirmed");
+    expect(await render(j.worker, () => WorkerWorkspace({ area: "pay" }))).not.toContain("PayPal confirmed");
   }));
 
   it("a later mismatch takes back a paid state rather than leaving it standing", () => withDb(async db => {
@@ -292,18 +292,18 @@ describe("Square-attributed earnings to a PayPal payout", () => {
     const j = await journey(db), payable = await j.confirmedSales(), paypal = fakePayPal();
     await approveWorkPayable(db, j.manager, payable.id);
     await submitWorkPayout(db, paypal, j.manager, payable.id);
-    const processing = await render(j.worker, () => WorkerWorkspace({ area: "earnings" }));
+    const processing = await render(j.worker, () => WorkerWorkspace({ area: "pay" }));
     expect(processing).toContain("Processing");
     expect(processing).not.toContain("PayPal confirmed");
     await refreshWorkPayout(db, paypal, j.manager, payable.id);
-    const page = await render(j.worker, () => WorkerWorkspace({ area: "earnings" }));
+    const page = await render(j.worker, () => WorkerWorkspace({ area: "pay" }));
     for (const text of ["£96.00", "£25.00", "£121.00", "Paid", "PayPal confirmed"]) expect(page).toContain(text);
     for (const text of ["PPB-1", "PPI-1", "PPT-1", "casey.sandbox@example.test"]) expect(page).not.toContain(text);
     const colleague = await j.c.invite("TEAM_MEMBER", j.manager);
-    const theirs = await render(colleague, () => WorkerWorkspace({ area: "earnings" }));
+    const theirs = await render(colleague, () => WorkerWorkspace({ area: "pay" }));
     expect(theirs).not.toContain("£121.00");
     const stranger = await business(db), strangerOwner = await stranger.ownerAt(0), strangerWorker = await stranger.invite("TEAM_MEMBER", strangerOwner);
-    expect(await render(strangerWorker, () => WorkerWorkspace({ area: "earnings" }))).not.toContain("£121.00");
+    expect(await render(strangerWorker, () => WorkerWorkspace({ area: "pay" }))).not.toContain("£121.00");
     const review = await render(j.manager, () => ManagerWorkspace({ area: "review" }));
     expect(review).toMatch(/Square Sandbox attributed sales/);
     // Every provider reference stays on the page, in the stacked reference panel.

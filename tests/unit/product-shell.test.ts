@@ -12,7 +12,7 @@ import { getConfigurationStatus } from "@/server/config/env";
 
 vi.mock("@/server/auth/request",()=>({requireScope:async()=>({organisationName:"Demo",locationName:"Rosebank Kitchen"}),requireOperator:async()=>({id:"operator"})}));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/worker/earnings" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/worker/pay" }));
 
 describe("shared product shell", () => {
   it("links all manager functions inside the manager workspace", async () => {
@@ -35,8 +35,8 @@ describe("shared product shell", () => {
     expect(html).toContain('aria-label="Worker navigation"');
     expect(html).toContain('aria-label="Worker mobile navigation"');
     expect(html).toContain('href="/worker"');
-    for (const area of ["shifts", "earnings", "profile"]) expect(html).toContain(`href="/worker/${area}"`);
-    expect(html).toContain('aria-current="page" href="/worker/earnings"');
+    for (const area of ["shifts", "inbox", "pay", "profile"]) expect(html).toContain(`href="/worker/${area}"`);
+    expect(html).toContain('aria-current="page" href="/worker/pay"');
     expect(html).not.toContain('aria-current="page" href="/worker"');
     expect(html).not.toContain('href="/manager');
   });

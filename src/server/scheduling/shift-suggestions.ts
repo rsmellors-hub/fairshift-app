@@ -85,6 +85,20 @@ async function openSecondRound(db: Database, scope: OperatingScope, shiftId: str
   return { round: 2, offered: result.offered.length };
 }
 
+// A decline passes the shift on (design, 10 Nov 2026): once everyone offered it in round 1 has answered
+// and places are still open, round 2 opens at once instead of waiting for round 1's window to close.
+// Shifts offered by hand (no rounds) are left to the manager.
+export async function passOnAfterDecline(db: Database, scope: OperatingScope, shiftId: string, now = new Date()) {
+  const rounds = await db.select({ round: offerRounds.round }).from(offerRounds).where(and(eq(offerRounds.shiftId, shiftId), eq(offerRounds.organisationId, scope.organisationId)));
+  if (!rounds.some(row => row.round === 1) || rounds.some(row => row.round === 2)) return { opened: false };
+  const [shift] = await db.select({ status: shifts.status, startsAt: shifts.startsAt, headcount: shifts.requiredHeadcount }).from(shifts).where(and(eq(shifts.id, shiftId), eq(shifts.outletId, scope.locationId)));
+  if (!shift || shift.status !== "PUBLISHED" || shift.startsAt <= now) return { opened: false };
+  const offers = await db.select({ status: shiftOffers.status }).from(shiftOffers).where(eq(shiftOffers.shiftId, shiftId));
+  if (offers.some(row => row.status === "OFFERED") || offers.filter(row => row.status === "ACCEPTED").length >= shift.headcount) return { opened: false };
+  await openSecondRound(db, scope, shiftId, now, "Everyone offered it in round 1 declined, so it passed to the next people.");
+  return { opened: true };
+}
+
 // Scheduler: when a first round's window has closed and the shift still has places, round 2 opens.
 export async function advanceOfferRounds(db: Database, organisationIds: readonly string[], now = new Date()) {
   if (!organisationIds.length) return { opened: 0 };

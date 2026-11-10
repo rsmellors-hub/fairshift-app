@@ -664,7 +664,7 @@ describe("Square tip evidence", () => {
     expect(await confirmWorkPerformance(db, s.manager, work.allocation.id, { count: 2, minor: 20_000 })).toMatchObject({ salesMinor: 20_000, earnedMinor: 2_500 });
     expect(await approveWorkPayable(db, s.manager, payable!.id)).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 2_500, approvedAmountMinor: 12_900 });
     // Neither the tip nor sales including it reach a worker's pages.
-    const home = await render(s.worker, () => WorkerWorkspace({ area: "home" })), earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+    const home = await render(s.worker, () => WorkerWorkspace({ area: "home" })), earnings = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
     for (const html of [home, earnings]) expect(html).not.toMatch(/£15\.00|£215\.00|£135\.00|£144\.00/);
     // Square tip evidence is not an allocation (FS-TIP-DEC-002 allocates only imported, policy-bound
     // tip rows): the worker sees no tip line from it, and the earnings say tips are shown separately.
@@ -979,7 +979,7 @@ describe("what the pages say", () => {
     review = await render(s.manager, () => ManagerWorkspace({ area: "review" }));
     for (const text of ["Square Sandbox attributed sales", "Confirmed for payment", "£104.00", "£25.00 · target reached", "£129.00"]) expect(review).toContain(text);
     expect((await db.select().from(workPayables))[0]).toMatchObject({ baseAmountMinor: 10_400, incentiveAmountMinor: 2_500 });
-    const earnings = await render(s.worker, () => WorkerWorkspace({ area: "earnings" }));
+    const earnings = await render(s.worker, () => WorkerWorkspace({ area: "pay" }));
     for (const text of ["Square Sandbox payments carrying your team-member identity", "£129.00"]) expect(earnings).toContain(text);
     expect(earnings).not.toMatch(/haven’t been checked by a sales provider|£777/);
     expect(earnings).not.toMatch(STRONGER_CLAIMS);

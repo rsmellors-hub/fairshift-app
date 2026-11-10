@@ -164,7 +164,7 @@ export async function keepPayAgentHold(db: Database, scope: ManagerScope, eventI
     // One notice per hold: keeping it again records the new reason but doesn't message the worker twice.
     const sent = person ? await notify(db, { id: randomUUID(), organisationId: scope.organisationId, userId: person.userId, workerId: person.id, recipientEmail: person.email,
       eventKey: `pay-hold-kept:${event.id}`, kind: "PAYMENT_BEING_CHECKED", entityId: event.payableId, title: "Your payment is being checked",
-      body: "Your manager is checking this shift's pay before it's sent. Nothing about the amount has changed; you'll hear as soon as it's decided.", href: "/worker/earnings" }) : null;
+      body: "Your manager is checking this shift's pay before it's sent. Nothing about the amount has changed; you'll hear as soon as it's decided.", href: `/worker/pay/${event.payableId}` }) : null;
     return { eventId: event.id, notified: !!sent };
   }, () => "KEPT");
 }

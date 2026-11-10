@@ -147,7 +147,7 @@ describe("functional product workspaces", () => {
       expect(commissionArticle).toContain('value="ACCEPTED" disabled=""');
       await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED"}))).rejects.toThrow("status=error");
       await expect(respondAssignmentAction(form({offerId:offer.id,termsVersion:"1",response:"ACCEPTED",acknowledged:"yes"}))).rejects.toThrow("status=saved");
-      const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"earnings"}));
+      const earningsHtml = renderToStaticMarkup(await WorkerWorkspace({area:"pay"}));
       expect(earningsHtml).toContain("Commission awaiting verified attributed sales");
       const filtered = renderToStaticMarkup(await ManagerWorkspace({area:"fill",date:"2026-12-01",department:departmentId}));
       expect(filtered).toContain("2 needed");

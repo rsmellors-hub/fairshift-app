@@ -10,7 +10,7 @@ import { getOwnerOverview, ownerForecastSummary, ownerStaffingSummary, type Owne
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { getTodayNeeds, type TodayNeeds } from "@/server/product/owner-today";
-const needs: TodayNeeds = { suggestions: { count: 0, locations: [] }, held: 0, heldAt: null, unconfirmed: { count: 0, amountMinor: 0, currency: null, at: null }, invitations: { count: 0, firstSent: null, firstExpiry: null }, failedPayouts: 0, failedAt: null, offers: { open: 0, accepted: 0, nextClose: null } };
+const needs: TodayNeeds = { suggestions: { count: 0, locations: [] }, held: 0, heldAt: null, unconfirmed: { count: 0, amountMinor: 0, currency: null, at: null }, invitations: { count: 0, firstSent: null, firstExpiry: null }, failedPayouts: 0, failedAt: null, queries: 0, queriesAt: null, offers: { open: 0, accepted: 0, nextClose: null } };
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));

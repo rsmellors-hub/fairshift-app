@@ -266,7 +266,7 @@ describe("what managers and workers see", () => {
       for (const text of ["Pay Agent", "Held for the Owner", "Hold for the Owner · Confirmation delay", "Confirmation was recorded long after the shift ended.", "resp_test_1", "Release as calculated", "Reject payment", "Resolve the Pay Agent&#x27;s hold to continue."]) expect(review).toContain(text);
       expect(review).not.toContain("Approve £78.00");
       vi.mocked(requireScope).mockResolvedValue(work.workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Under review");
       expect(earnings).toContain("The business owner is reviewing this payment.");
       // Day 6, Step 1g: the worker sees the plain explanation and the checklist for their own pay, never codes or model detail.
@@ -290,7 +290,7 @@ describe("what managers and workers see", () => {
       // No button names payment before a payout exists (the existing work-payables guard).
       expect(review).not.toMatch(/<button[^>]*>[^<]*\bPay\b/);
       vi.mocked(requireScope).mockResolvedValue(work.workerScope);
-      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));
+      const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "pay" }));
       expect(earnings).toContain("Pay pending");
       expect(earnings).not.toMatch(/>\s*Paid\s*</);
       expect(earnings).not.toContain("DRY_RUN_ELIGIBLE");

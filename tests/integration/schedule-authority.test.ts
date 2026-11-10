@@ -243,7 +243,7 @@ describe("Manager pages", () => {
 });
 
 describe("what the Worker sees of their shift", () => {
-  const view = async (db: Db, scope: Scope, area: "home" | "shifts" | "earnings") => { page(db, scope); return renderToStaticMarkup(await WorkerWorkspace({ area })); };
+  const view = async (db: Db, scope: Scope, area: "home" | "shifts" | "pay") => { page(db, scope); return renderToStaticMarkup(await WorkerWorkspace({ area })); };
   it("shows their own target and truthful progress: none yet isn't zero, and reaching it isn't a confirmed bonus", () => withDb(async db => {
     const s = await setup(db), shift = await s.shift(), other = await s.c.worker(s.manager, "Other");
     await allocated(db, s, shift.id);
@@ -271,7 +271,7 @@ describe("what the Worker sees of their shift", () => {
     const s = await setup(db), shift = await s.shift(), offer = await allocated(db, s, shift.id);
     vi.setSystemTime(new Date("2026-01-20T12:00:00Z"));
     await confirmWork(db, offer.id, s.manager);
-    const page1 = await view(db, s.worker, "earnings");
+    const page1 = await view(db, s.worker, "pay");
     for (const text of [">Earned<", ">Pending<", "Paid so far", "Base pay", "£104.00", "Not known yet", "so far", "Awaiting approval"]) expect(page1).toContain(text);
     expect(page1).not.toMatch(/>\s*Paid\s*</);
   }));

@@ -859,3 +859,40 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .page-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--line, #ddd); }
 .page-tabs a { padding: 8px 14px; text-decoration: none; border-bottom: 2px solid transparent; }
 .page-tabs a:hover, .page-tabs a:focus-visible { border-bottom-color: currentColor; }
+
+/* Worker app (design, 10 Nov 2026): badge, Inbox, chat, offers, week strip, Month | List. */
+.nav-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--accent, #1f5f4a); color: #fff; font-size: 0.75em; font-weight: 600; }
+.inbox-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.inbox-list li { padding: 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; }
+.inbox-list li.inbox-new { border-left: 4px solid var(--accent, #1f5f4a); }
+.inbox-list a { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; text-decoration: none; }
+.inbox-list p { margin: 4px 0 0; color: var(--muted, #555); }
+.inbox-kind { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, #555); }
+.chat-thread { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.chat-thread li { max-width: 80%; padding: 8px 12px; border-radius: 12px; background: var(--surface-2, #f2f1ee); }
+.chat-thread li.chat-mine { justify-self: end; background: var(--accent-soft, #e3efe9); }
+.chat-thread p { margin: 0; white-space: pre-wrap; }
+.chat-thread small { color: var(--muted, #555); }
+.quick-messages { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip-button { font: inherit; font-size: 0.9em; padding: 6px 12px; border: 1px solid var(--line, #ccc); border-radius: 999px; background: none; color: inherit; cursor: pointer; }
+.offers-card { display: grid; gap: 4px; text-decoration: none; }
+.week-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.week-strip li { display: grid; gap: 2px; padding: 6px 4px; border: 1px solid var(--line, #ddd); border-radius: 8px; text-align: center; min-width: 0; }
+.week-strip li.has-shift { border-color: var(--accent, #1f5f4a); }
+.week-strip small, .month-day small { display: block; font-size: 0.7em; overflow-wrap: anywhere; }
+.strip-booked { color: var(--success, #1f6b3a); } .strip-offer { color: var(--accent, #1f5f4a); } .strip-cancelled { color: var(--warning, #8a5a00); text-decoration: line-through; } .strip-worked, .strip-waiting { color: var(--muted, #555); }
+.offer-picker { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.offer-pick { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; padding: 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; text-decoration: none; }
+.offer-pick.selected { border: 2px solid var(--accent, #1f5f4a); }
+.shift-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.shift-list li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line, #eee); }
+.shift-list li div { display: grid; gap: 2px; min-width: 0; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.month-head { font-size: 0.75em; text-align: center; color: var(--muted, #555); }
+.month-day { min-height: 52px; padding: 3px; border: 1px solid var(--line, #eee); border-radius: 6px; min-width: 0; }
+.month-day.has-shift { border-color: var(--accent, #1f5f4a); }
+.thread-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.thread-list a { display: flex; gap: 8px; align-items: baseline; text-decoration: none; padding: 8px 10px; border: 1px solid var(--line, #ddd); border-radius: 8px; }
+.thread-list a[aria-current] { border-color: var(--accent, #1f5f4a); }
+.payout-detail { margin-top: 12px; }
+@media (max-width: 480px) { .offer-pick { grid-template-columns: 1fr; } .chat-thread li { max-width: 92%; } }

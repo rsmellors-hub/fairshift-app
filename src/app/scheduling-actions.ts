@@ -1,4 +1,6 @@
 "use server";
+import { dispatchNotification } from "@/server/notifications/service";
+import { getEmailAdapter } from "@/server/notifications/email";
 
 import { requireScope } from "@/server/auth/request";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
@@ -86,14 +88,17 @@ export async function refreshDemoIncentivePayoutAction(formData: FormData) {
 export async function saveDemoPayoutDestinationAction(formData: FormData) {
   const scope=await requireScope(["TEAM_MEMBER"]);
   const field = (name: string) => String(formData.get(name) ?? "");
+  let pending = false;
   if (!getConfigurationStatus().databaseConfigured) redirect("/worker/profile?status=error#payment-settings");
   try {
-    await changePayoutDestination(getDatabase(), scope, { email: field("payoutEmail"), confirmEmail: field("confirmPayoutEmail"), password: field("currentPassword") || undefined });
+    const result = await changePayoutDestination(getDatabase(), scope, { email: field("payoutEmail"), confirmEmail: field("confirmPayoutEmail"), password: field("currentPassword") || undefined });
+    // A change is confirmed from a link emailed to the new address; send it now (the link is never stored).
+    if (result && "pending" in result && result.pending) { pending = true; await dispatchNotification(getDatabase(), getEmailAdapter(), result.pending.notificationId, result.pending.secureLink); }
   } catch (error) {
     redirect(`/worker/profile?status=${error instanceof UserFacingError ? error.feedback : "error"}#payment-settings`);
   }
   for (const workspace of ["/manager", "/worker", "/owner", "/operator"]) revalidatePath(workspace, "layout");
-  redirect("/worker/profile?status=payout-email-saved#payment-settings");
+  redirect(`/worker/profile?status=${pending ? "payout-email-pending" : "payout-email-saved"}#payment-settings`);
 }
 async function demoAuthority(worker=false) {
   const scope=await requireScope(worker ? ["TEAM_MEMBER"] : ["OWNER","MANAGER"]);
