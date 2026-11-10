@@ -10,7 +10,8 @@ import { inviteMember } from "@/server/auth/tenancy";
 import { getDatabase } from "@/server/db/client";
 import { commerceConnections, commerceWorkerIdentities, identityTokens, memberships, notifications, organisations, outlets, subscriptions, users, workers } from "@/server/db/schema";
 import { getOwnerSetup } from "@/server/product/owner-setup";
-import { redeemInvitationAction, registerAction, signInAction } from "@/app/auth-actions";
+import { registerAction, signInAction } from "@/app/auth-actions";
+import { joinByInvitation } from "../helpers/invite-flow";
 import Invite from "@/app/invite/page";
 import Register from "@/app/register/page";
 import SignIn from "@/app/sign-in/page";
@@ -57,7 +58,8 @@ describe("invited people reach their invitation", () => {
     expect(await outcome(() => registerAction(form({ email: "casey@example.test", password, next: "invite" })))).toBe("REDIRECT:/invite");
     expect((await db.select().from(notifications).where(eq(notifications.kind, "VERIFY_EMAIL")))).toHaveLength(0);
     expect(renderToStaticMarkup(await Invite({ searchParams: Promise.resolve({}) }))).toContain("casey@example.test");
-    expect(await outcome(() => redeemInvitationAction(form({ token })))).toMatch(/^REDIRECT:/);
+    // Joining completes only with the person's own details (Day 6, 10 Nov 2026).
+    expect(await joinByInvitation(token)).toBe("REDIRECT:/worker");
     const [user] = await db.select().from(users).where(eq(users.email, "casey@example.test"));
     expect(user.emailVerifiedAt).not.toBeNull();
     expect((await db.select().from(memberships).where(eq(memberships.userId, user.id)))[0]).toMatchObject({ role: "TEAM_MEMBER", organisationId: b.organisationId });

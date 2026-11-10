@@ -12,7 +12,8 @@ import { registerIdentity, signIn, issueSession, createIdentityToken, redeemIden
 import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE, DEMO_COOKIE } from "@/server/auth/request";
 import { demoConfig } from "@/server/demo/config";
 import { isDemoAccount } from "@/server/demo/session";
-import { ensureCustomerOrganisation, inviteMember, redeemInvitation, revokeInvitation } from "@/server/auth/tenancy";
+import { ensureCustomerOrganisation, inviteMember, revokeInvitation } from "@/server/auth/tenancy";
+import { membershipDestination } from "@/server/auth/destination";
 import { notify, dispatchNotification, markNotificationRead, dispatchOperationalEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { startSubscription, refreshSubscription } from "@/server/billing/service";
@@ -20,7 +21,7 @@ import { planSelection } from "@/server/billing/plans";
 import { createLocation } from "@/server/billing/locations";
 import { getSubscriptionAdapter } from "@/server/billing/paypal";
 import { completeWorkplace, savePersonalDetails, saveBusinessDetails } from "@/server/auth/onboarding";
-import { organisationEntitled, ownerDestination, workplaceComplete } from "@/server/billing/entitlement";
+import { organisationEntitled, ownerDestination } from "@/server/billing/entitlement";
 import { workplaceDetails, workplaceErrors, type WorkplaceFormState } from "@/lib/workplace";
 const personalKeys=["title","firstName","surname","position","telephone"];
 const businessKeys=["name","businessAddress","city","province","postalCode","country"];
@@ -113,7 +114,7 @@ export async function checkSubscriptionStatusAction():Promise<{destination:strin
 }
 export async function createLocationAction(form:FormData) {
  const scope=await requireScope(["OWNER"]);
- try {await createLocation(getDatabase(),scope,{name:field(form,"name")}); planningChanged();} catch (error) {
+ try {await createLocation(getDatabase(),scope,{name:field(form,"name"),address:field(form,"address"),city:field(form,"city"),postalCode:field(form,"postalCode")}); planningChanged();} catch (error) {
    const message=error instanceof UserFacingError || error instanceof Error && /plan allows|entitlement needs configuration/.test(error.message) ? (error as Error).message : "The location could not be added.";
    redirect(`/owner/locations?status=${encodeURIComponent(message)}`);
  }
@@ -140,13 +141,6 @@ export async function inviteAction(form:FormData) {
   await dispatchNotification(getDatabase(),getEmailAdapter(),result.notificationId,`/invite#${result.token}`);
  } catch {redirect(`${path}?status=error`);}
  redirect(`${path}?status=saved`);
-}
-export async function redeemInvitationAction(form:FormData) {
- const {user}=await requireIdentity();
- let id:string;
- try {await consumeLimit(getDatabase(),`redeem:${user.id}`);id=(await redeemInvitation(getDatabase(),user.id,{token:field(form,"token")})).id;} catch {redirect("/invite?status=error");}
- const member=await selectMembership(id);
- redirect(await membershipDestination(member));
 }
 export async function revokeInvitationAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);
@@ -191,12 +185,6 @@ export async function resendInvitationAction(form:FormData) {
  redirect(`${path}?status=saved`);
 }
 
-async function membershipDestination(member:{organisationId:string;role:string}) {
- if (member.role === "OWNER") return ownerDestination(getDatabase(),member.organisationId);
- if (!await organisationEntitled(getDatabase(),member.organisationId)) return "/account?status=subscription-required";
- if (!await workplaceComplete(getDatabase(),member.organisationId)) return "/account?status=setup-required";
- return member.role === "OWNER" ? "/owner":member.role === "MANAGER" ? "/manager":"/worker";
-}
 export async function savePersonalAction(form:FormData) {
  const {user}=await requireIdentity();
  const scope=await requireOwnerCustomer();

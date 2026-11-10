@@ -14,7 +14,8 @@ import { requireFinancialScope,requireScope,requireMembershipScope,requireOperat
 import { createPolicyAction,createRequirementAction,respondAssignmentAction,saveAvailabilityAction } from "@/app/operations-actions";
 import { createDepartment,createWorkPolicy,createRequirement,offerAssignment } from "@/server/scheduling/operations";
 import { users,shiftOffers,memberships,subscriptions,outlets,organisations } from "@/server/db/schema";
-import { registerAction,redeemInvitationAction,signOutAction,completeWorkplaceAction,verifyEmailAction,signInAction,createLocationAction } from "@/app/auth-actions";
+import { joinByInvitation } from "../helpers/invite-flow";
+import { registerAction,signOutAction,completeWorkplaceAction,verifyEmailAction,signInAction,createLocationAction } from "@/app/auth-actions";
 import OwnerLayout from "@/app/owner/layout";
 import OwnerPage from "@/app/owner/page";
 import { OwnerWorkspace, ownerAreas } from "@/app/owner/workspace";
@@ -66,7 +67,7 @@ describe("authenticated HTTP action boundary",()=>{
    await expect(registerAction(form({...personal,email:"join@example.test",password,role:"OWNER",organisationId:o.o.organisationId}))).rejects.toThrow("REDIRECT:/check-email");
    const [u]=await t.db.select().from(users).where(eq(users.email,"join@example.test"));
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);
-   await expect(redeemInvitationAction(form({token:invitation.token,role:"OWNER",locationId:randomUUID()}))).rejects.toThrow("REDIRECT:/worker");
+   expect(await joinByInvitation(invitation.token)).toBe("REDIRECT:/worker");
    expect(await requireScope(["TEAM_MEMBER"])).toMatchObject({userId:u.id,role:"TEAM_MEMBER",locationId:o.o.locationId});
    await expect(createPolicyAction(form({name:"Escalation",rate:"5",earningsModel:"DAILY"}))).rejects.toThrow("REDIRECT:/account");
    await expect(requireOperator()).rejects.toThrow(/denied/);
@@ -225,7 +226,7 @@ describe("subscription gate at real application boundaries",()=>{
    for(const i of invites) {
     const u=await registerIdentity(t.db,{email:i.invitation.email,password});
     jar.set("fairshift_session",await issueSession(t.db,u.id));
-    await expect(redeemInvitationAction(form({token:i.token,role:"OWNER"}))).rejects.toThrow("REDIRECT:/account?status=subscription-required");
+    expect(await joinByInvitation(i.token,i.invitation.role === "MANAGER" ? {firstName:"Sam",surname:"Taylor",telephone:""} : undefined)).toBe("REDIRECT:/account?status=subscription-required");
     const role=i.invitation.role as "MANAGER"|"TEAM_MEMBER";
     const scope=await requireMembershipScope([role]);expect(scope.organisationId).toBe(o.o.organisationId);
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/account");
@@ -249,7 +250,7 @@ describe("subscription gate at real application boundaries",()=>{
     }
     const html=renderToStaticMarkup(await Account({searchParams:Promise.resolve({status:"subscription-required"})}));
     expect(html).toContain("Contact your Owner");expect(html).not.toContain("Open workspace");
-    await expect(redeemInvitationAction(form({token:i.token}))).rejects.toThrow("REDIRECT:/invite?status=error");
+    expect(await joinByInvitation(i.token)).toBe("REDIRECT:/invite?status=invitation-unavailable");
    }
    jar.set("fairshift_session",await issueSession(t.db,o.u.id));
    await expect(inviteMember(t.db,o.scope,{role:"MANAGER",email:"blocked@example.test",...personal})).rejects.toThrow(/active organisation subscription/);

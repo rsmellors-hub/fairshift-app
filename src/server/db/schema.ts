@@ -560,6 +560,10 @@ export const teamInvitations = pgTable("team_invitations", {
   redeemedBy: uuid("redeemed_by").references(() => users.id), redeemedAt: timestamp("redeemed_at", {withTimezone:true}),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", {withTimezone:true}).notNull().defaultNow(),
+  // Day 6 (FS-PEOPLE 10 Nov 2026): who was invited, as the inviter typed it (no home address is ever
+  // asked for), and the batch when one Manager is invited to several locations at once.
+  firstName: text("first_name"), surname: text("surname"), telephone: text("telephone"),
+  batchId: uuid("batch_id"),
 }, t => [uniqueIndex("team_invitation_token_unique").on(t.token),
   check("invitation_hashed_token_check",sql`${t.token} ~ '^[0-9a-f]{64}$'`),
   check("team_invitation_role_check", sql`${t.role} in ('MANAGER','TEAM_MEMBER')`),

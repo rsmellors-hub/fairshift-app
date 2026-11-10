@@ -20,6 +20,7 @@ import { DemoFloorPolicy, longDay, WageSource } from "@/app/components/wage-chec
 import { getWorkOutcomes } from "@/server/intelligence/commerce-labour";
 import { isSyntheticSource } from "@/server/intelligence/forecast";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { LocationSettings } from "@/app/owner/location-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -87,5 +88,6 @@ export default async function OwnerLocationPage({ params }: { params: Promise<{ 
         {outcomes?.length ? <p className="note">A ratio of recorded figures, not a measure of what the shift caused: those sales may have happened anyway. {outlet.currency && outlet.commercial?.recent ? `For scale, this location’s latest seven days of chosen evidence total ${wholeMoney(outlet.commercial.recent.salesMinor, outlet.currency)}.` : ""}</p> : null}
       </section>
     </>}
+  <LocationSettings location={location} disabled={!!scope.demo} />
   </div></div>;
 }

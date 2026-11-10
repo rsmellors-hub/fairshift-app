@@ -1,9 +1,12 @@
 import { requireEntitlement } from "@/server/billing/entitlement";
 import { randomUUID } from "node:crypto";
-import { and, eq, lt, inArray } from "drizzle-orm";
+import { and, eq, lt, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import type { Database } from "@/server/db/client";
-import { memberships, organisations, outlets, subscriptions, users, workers, teamInvitations, notifications } from "@/server/db/schema";
+import type { Database, DatabaseSession } from "@/server/db/client";
+import { auditEvents, memberships, organisations, outlets, subscriptions, users, workers, teamInvitations, notifications } from "@/server/db/schema";
+import { UserFacingError } from "@/server/domain/errors";
+import { invitationSubject, invitationText } from "@/server/notifications/templates";
+import { auditActor } from "./audit-actor";
 import { assertRole, resolveScope, type Scope } from "./access";
 import { newToken, tokenHash, consumeLimit } from "./identity";
 import { notify } from "@/server/notifications/service";
@@ -24,11 +27,34 @@ export async function ensureCustomerOrganisation(db:Database,userId:string,prefe
     return membership;
   });
 }
+// Adds a person by invitation (Day 6, Owner decision 10 Nov 2026): name, email, optional phone, role and
+// work location(s); never a home address. A casual worker belongs to one location; a Manager may be
+// invited to several at once (one invitation per location, sharing a batch, redeemed together). The
+// person is "Invited — not yet signed up" until they open the link and complete sign-up themselves.
+// The Owner invites anyone to any location; a Manager invites casual workers to their own location only.
+const inviteInput = z.object({role:z.enum(["MANAGER","TEAM_MEMBER"]),email:z.string().trim().toLowerCase().email().max(254),firstName:z.string().trim().min(1).max(100),surname:z.string().trim().min(1).max(100),
+  telephone:z.union([z.literal(""),z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/)]).optional(),locationIds:z.array(z.uuid()).min(1).max(20).optional()}).strict();
+
+export const inviterName = (user: { firstName?: string | null; surname?: string | null; name?: string | null; email: string }) =>
+  [user.firstName, user.surname].filter(Boolean).join(" ") || user.name || user.email;
+
+async function invitationContent(tx: DatabaseSession, organisationId: string, inviterId: string, role: "MANAGER" | "TEAM_MEMBER", outletIds: string[], expiresAt: Date) {
+  const [organisation] = await tx.select({ name: organisations.name }).from(organisations).where(eq(organisations.id, organisationId));
+  const [inviter] = await tx.select().from(users).where(eq(users.id, inviterId));
+  const places = await tx.select({ id: outlets.id, name: outlets.name, timezone: outlets.timezone }).from(outlets).where(and(eq(outlets.organisationId, organisationId), inArray(outlets.id, outletIds)));
+  const ordered = outletIds.map(id => places.find(row => row.id === id)!).filter(Boolean);
+  const email = { business: organisation?.name ?? "", inviter: inviter ? inviterName(inviter) : "Your employer", role, locations: ordered.map(row => row.name), expiresAt, timezone: ordered[0]?.timezone };
+  return { title: invitationSubject(email), body: invitationText(email) };
+}
+
 export async function inviteMember(db:Database,scope:Scope,input:unknown) {
   assertRole(scope,["OWNER","MANAGER"]);
- await requireEntitlement(db,scope.organisationId);
-  const value = z.object({role:z.enum(["MANAGER","TEAM_MEMBER"]),email:z.string().trim().toLowerCase().email().max(254),firstName:z.string().trim().min(1).max(100),surname:z.string().trim().min(1).max(100),telephone:z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/)}).strict().parse(input);
+  await requireEntitlement(db,scope.organisationId);
+  const value = inviteInput.parse(input);
   if (value.role === "MANAGER") assertRole(scope,["OWNER"]);
+  const locationIds = [...new Set(value.locationIds ?? [scope.locationId])];
+  if (value.role === "TEAM_MEMBER" && locationIds.length !== 1) throw new UserFacingError("person-one-location", "A casual worker belongs to one location.");
+  if (scope.role === "MANAGER" && locationIds.some(id => id !== scope.locationId)) throw new Error("Access denied.");
   await consumeLimit(db,`invite:${scope.userId}:${scope.organisationId}`,50);
   const token=newToken();
   return db.transaction(async tx => {
@@ -39,16 +65,29 @@ export async function inviteMember(db:Database,scope:Scope,input:unknown) {
     await resolveScope(tx,scope.userId,authority.id,scope.locationId,["OWNER","MANAGER"]);
     const [user] = await tx.select().from(users).where(eq(users.id,scope.userId));
     if (!user?.emailVerifiedAt) throw new Error("Verify your email first.");
+    const places = await tx.select({ id: outlets.id }).from(outlets).where(and(eq(outlets.organisationId,scope.organisationId),eq(outlets.active,true),inArray(outlets.id,locationIds)));
+    if (places.length !== locationIds.length) throw new Error("Location unavailable.");
+    const telephone = value.telephone ? value.telephone : null;
     let workerId:string|null=null;
     if (value.role === "TEAM_MEMBER") {
       const existing = await tx.select().from(workers).where(and(eq(workers.organisationId,scope.organisationId),eq(workers.email,value.email))).for("update");
-      if (existing.length) throw new Error("A team record already exists for this email. Review its invitation.");
-      const [worker] = await tx.insert(workers).values({id:randomUUID(),organisationId:scope.organisationId,locationId:scope.locationId,firstName:value.firstName,surname:value.surname,telephone:value.telephone,email:value.email,displayName:`${value.firstName} ${value.surname}`,workerType:"CASUAL"}).returning();
+      if (existing.length) throw new UserFacingError("person-exists", "Someone with this email is already in this business. Resend or revoke their invitation instead.");
+      const [worker] = await tx.insert(workers).values({id:randomUUID(),organisationId:scope.organisationId,locationId:locationIds[0],firstName:value.firstName,surname:value.surname,telephone,email:value.email,displayName:`${value.firstName} ${value.surname}`,workerType:"CASUAL"}).returning();
       workerId=worker.id;
+    } else {
+      const pending = await tx.select({ id: teamInvitations.id }).from(teamInvitations).where(and(eq(teamInvitations.organisationId,scope.organisationId),eq(teamInvitations.email,value.email),eq(teamInvitations.role,"MANAGER"),inArray(teamInvitations.state,["CREATED_NOT_SENT","SENT","DELIVERY_FAILED"]),inArray(teamInvitations.outletId,locationIds)));
+      if (pending.length) throw new UserFacingError("person-exists", "This person already has an open invitation for that location. Resend or revoke it instead.");
     }
-    const [invitation] = await tx.insert(teamInvitations).values({id:randomUUID(),workerId,organisationId:scope.organisationId,outletId:scope.locationId,email:value.email,role:value.role,token:tokenHash(token),createdBy:scope.userId}).returning();
-    const notification=await notify(tx,{id:randomUUID(),organisationId:scope.organisationId,recipientEmail:value.email,eventKey:`invitation:${invitation.id}:${tokenHash(token)}`,kind:value.role === "MANAGER" ? "MANAGER_INVITATION":"TEAM_INVITATION",entityId:invitation.id,title:"You’re invited to FairShift",body:`You have been invited to ${scope.organisationName} at ${scope.locationName} as ${value.role === "MANAGER" ? "a Manager":"a Team Member"}. Sign in with this email to review and redeem your invitation. This invitation expires in seven days.`,href:"/account"});
-    return {invitation,notificationId:notification!.id,token};
+    const batchId = randomUUID(), expiresAt = new Date(Date.now()+7*86400_000);
+    const rows = locationIds.map((outletId, i) => ({id:randomUUID(),workerId,organisationId:scope.organisationId,outletId,email:value.email,role:value.role,token:tokenHash(i === 0 ? token : newToken()),createdBy:scope.userId,expiresAt,
+      firstName:value.firstName,surname:value.surname,telephone,batchId}));
+    const created = await tx.insert(teamInvitations).values(rows).returning();
+    const invitation = created.find(row => row.token === tokenHash(token))!;
+    const content = await invitationContent(tx, scope.organisationId, scope.userId, value.role, locationIds, expiresAt);
+    const notification=await notify(tx,{id:randomUUID(),organisationId:scope.organisationId,recipientEmail:value.email,eventKey:`invitation:${invitation.id}:${tokenHash(token)}`,kind:value.role === "MANAGER" ? "MANAGER_INVITATION":"TEAM_INVITATION",entityId:invitation.id,title:content.title,body:content.body,href:"/invite"});
+    await tx.insert(auditEvents).values({id:randomUUID(),organisationId:scope.organisationId,outletId:locationIds[0],action:"PERSON_INVITED",entityType:"team_invitation",entityId:invitation.id,correlationId:`invitation:${batchId}`,
+      metadata:{...auditActor(scope),role:value.role,locationIds,workerId,invitationIds:created.map(row=>row.id)}});
+    return {invitation,invitations:created,notificationId:notification!.id,token};
   });
 }
 export async function redeemInvitation(db:Database,userId:string,input:unknown) {
@@ -68,6 +107,16 @@ export async function redeemInvitation(db:Database,userId:string,input:unknown) 
     }
     const [membership] = await tx.insert(memberships).values({id:randomUUID(),userId,organisationId:invitation.organisationId,outletId:invitation.outletId,workerId:invitation.workerId,role:invitation.role,invitationId:invitation.id}).returning();
     await tx.update(teamInvitations).set({state:"REDEEMED",redeemedBy:userId,redeemedAt:new Date()}).where(eq(teamInvitations.id,invitation.id));
+    // A Manager invited to several locations at once joins all of them with this one link.
+    if (invitation.batchId && invitation.role === "MANAGER") {
+      const siblings = await tx.select().from(teamInvitations).where(and(eq(teamInvitations.batchId,invitation.batchId),eq(teamInvitations.organisationId,invitation.organisationId),eq(teamInvitations.email,invitation.email!),inArray(teamInvitations.state,["CREATED_NOT_SENT","SENT","DELIVERY_FAILED"]))).for("update");
+      for (const sibling of siblings) {
+        const [place] = await tx.select({id:outlets.id}).from(outlets).where(and(eq(outlets.id,sibling.outletId!),eq(outlets.active,true)));
+        if (!place) continue;
+        await tx.insert(memberships).values({id:randomUUID(),userId,organisationId:invitation.organisationId,outletId:sibling.outletId,workerId:null,role:"MANAGER",invitationId:sibling.id});
+        await tx.update(teamInvitations).set({state:"REDEEMED",redeemedBy:userId,redeemedAt:new Date()}).where(eq(teamInvitations.id,sibling.id));
+      }
+    }
     // Possession of the invitation proves control of the invited mailbox.
     await tx.update(users).set({emailVerifiedAt:user.emailVerifiedAt ?? new Date()}).where(eq(users.id,userId));
     await tx.update(notifications).set({userId}).where(and(eq(notifications.organisationId,invitation.organisationId),eq(notifications.recipientEmail,user.email)));
@@ -77,9 +126,15 @@ export async function redeemInvitation(db:Database,userId:string,input:unknown) 
 export async function revokeInvitation(db:Database,scope:Scope,id:string) {
   assertRole(scope,["OWNER","MANAGER"]);
  await requireEntitlement(db,scope.organisationId);
-  const [row]=await db.select().from(teamInvitations).where(and(eq(teamInvitations.id,id),eq(teamInvitations.organisationId,scope.organisationId),eq(teamInvitations.outletId,scope.locationId)));
+  const [row]=await db.select().from(teamInvitations).where(and(eq(teamInvitations.id,id),eq(teamInvitations.organisationId,scope.organisationId),scope.role === "OWNER" ? undefined : eq(teamInvitations.outletId,scope.locationId)));
   if (!row || row.state === "REDEEMED" || (scope.role === "MANAGER" && row.role !== "TEAM_MEMBER")) throw new Error("Invitation unavailable.");
-  await db.update(teamInvitations).set({state:"REVOKED"}).where(and(eq(teamInvitations.id,id),eq(teamInvitations.state,row.state)));
+  await db.transaction(async tx => {
+    await tx.update(teamInvitations).set({state:"REVOKED"}).where(and(eq(teamInvitations.id,id),eq(teamInvitations.state,row.state)));
+    if (row.batchId) await tx.update(teamInvitations).set({state:"REVOKED"}).where(and(eq(teamInvitations.batchId,row.batchId),inArray(teamInvitations.state,["CREATED_NOT_SENT","SENT","DELIVERY_FAILED","EXPIRED"])));
+    // A casual worker who never signed up is no longer offered work or listed as available.
+    if (row.workerId) await tx.update(workers).set({status:"INACTIVE",updatedAt:new Date()}).where(and(eq(workers.id,row.workerId),isNull(workers.userId)));
+    await tx.insert(auditEvents).values({id:randomUUID(),organisationId:scope.organisationId,outletId:row.outletId,action:"INVITATION_REVOKED",entityType:"team_invitation",entityId:id,correlationId:`invitation:${id}:revoked`,metadata:{...auditActor(scope),previousState:row.state,workerId:row.workerId}});
+  });
 }
 export async function resendInvitation(db:Database,scope:Scope,id:string) {
  assertRole(scope,["OWNER","MANAGER"]);
@@ -87,10 +142,15 @@ export async function resendInvitation(db:Database,scope:Scope,id:string) {
  await consumeLimit(db,`invite-resend:${scope.userId}:${scope.organisationId}`,10);
  const token=newToken();
  return db.transaction(async tx=>{
-  const [i]=await tx.select().from(teamInvitations).where(and(eq(teamInvitations.id,id),eq(teamInvitations.organisationId,scope.organisationId),eq(teamInvitations.outletId,scope.locationId))).for("update");
+  const [i]=await tx.select().from(teamInvitations).where(and(eq(teamInvitations.id,id),eq(teamInvitations.organisationId,scope.organisationId),scope.role === "OWNER" ? undefined : eq(teamInvitations.outletId,scope.locationId))).for("update");
   if (!i || !i.email || ["REDEEMED","REVOKED"].includes(i.state) || (scope.role === "MANAGER" && i.role !== "TEAM_MEMBER")) throw new Error("Invitation unavailable.");
-  await tx.update(teamInvitations).set({token:tokenHash(token),state:"CREATED_NOT_SENT",expiresAt:new Date(Date.now()+7*86400_000)}).where(eq(teamInvitations.id,id));
-  const n=await notify(tx,{id:randomUUID(),organisationId:scope.organisationId,recipientEmail:i.email,eventKey:`invitation:${id}:${tokenHash(token)}`,kind:i.role === "MANAGER" ? "MANAGER_INVITATION":"TEAM_INVITATION",entityId:id,title:"Your FairShift invitation",body:`Join ${scope.organisationName} at ${scope.locationName}. This replaces your earlier invitation link and expires in seven days.`,href:"/account"});
+  const expiresAt=new Date(Date.now()+7*86400_000);
+  await tx.update(teamInvitations).set({token:tokenHash(token),state:"CREATED_NOT_SENT",expiresAt}).where(eq(teamInvitations.id,id));
+  const batch=i.batchId ? await tx.select({outletId:teamInvitations.outletId}).from(teamInvitations).where(and(eq(teamInvitations.batchId,i.batchId),inArray(teamInvitations.state,["CREATED_NOT_SENT","SENT","DELIVERY_FAILED","EXPIRED"]))) : [];
+  if (i.batchId) await tx.update(teamInvitations).set({expiresAt,state:"CREATED_NOT_SENT"}).where(and(eq(teamInvitations.batchId,i.batchId),eq(teamInvitations.state,"EXPIRED")));
+  const content=await invitationContent(tx,scope.organisationId,scope.userId,i.role as "MANAGER"|"TEAM_MEMBER",[...new Set([i.outletId!,...batch.map(row=>row.outletId!)])],expiresAt);
+  const n=await notify(tx,{id:randomUUID(),organisationId:scope.organisationId,recipientEmail:i.email,eventKey:`invitation:${id}:${tokenHash(token)}`,kind:i.role === "MANAGER" ? "MANAGER_INVITATION":"TEAM_INVITATION",entityId:id,title:content.title,body:`${content.body}\n\nThis replaces any earlier invitation link.`,href:"/invite"});
+  await tx.insert(auditEvents).values({id:randomUUID(),organisationId:scope.organisationId,outletId:i.outletId,action:"INVITATION_RESENT",entityType:"team_invitation",entityId:id,correlationId:`invitation:${id}:${Date.now()}`,metadata:{...auditActor(scope),previousState:i.state}});
   return {token,notificationId:n!.id};
  });
 }

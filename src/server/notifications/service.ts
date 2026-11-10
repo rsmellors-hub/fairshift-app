@@ -1,3 +1,4 @@
+import { brandedHtml } from "@/server/notifications/templates";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import type { Database, DatabaseSession } from "@/server/db/client";
@@ -29,7 +30,11 @@ export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:s
     .where(and(eq(notificationDeliveries.id,d.id),inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED","FAILED"]))).returning();
   if (!claimed) return;
   let result:Awaited<ReturnType<EmailAdapter["send"]>>;
-  try {result = await adapter.send({to:d.destination,subject:`FairShift · ${n.title}`,text:`${n.body}\n\n${applicationOrigin()}${secureHref ?? n.href}\n\nFairShift`,idempotencyKey:`notification/${n.id}`});}
+  // Invitations use their own subject ("<Business> invited you to FairShift"); every email has a
+  // plain-text and a branded HTML version of the same words.
+  const invitation=["MANAGER_INVITATION","TEAM_INVITATION"].includes(n.kind), link=`${applicationOrigin()}${secureHref ?? n.href}`;
+  try {result = await adapter.send({to:d.destination,subject:invitation ? n.title : `FairShift · ${n.title}`,text:`${n.body}\n\n${link}\n\nFairShift`,
+    html:brandedHtml({heading:n.title,text:n.body,link,action:invitation ? "Accept invitation and sign up" : "Open FairShift"}),idempotencyKey:`notification/${n.id}`});}
   catch {
     await db.update(notificationDeliveries).set({status:"UNKNOWN",failureCode:"EMAIL_UNCONFIRMED"}).where(eq(notificationDeliveries.id,d.id));
     if (["MANAGER_INVITATION","TEAM_INVITATION"].includes(n.kind)) await db.update(teamInvitations).set({state:"DELIVERY_FAILED"}).where(and(eq(teamInvitations.id,n.entityId),eq(teamInvitations.state,"CREATED_NOT_SENT"),eq(teamInvitations.token,n.eventKey.split(":").at(-1)!)));

@@ -423,3 +423,26 @@ Implements the Day 6 instruction "PayPal email change requires re-confirmation, 
 - A payout keeps the recipient it was reserved with, including when an unsent payout is sent again. A new address applies only to payouts reserved after the change.
 
 No email is sent to confirm the new address: no email provider was added.
+
+### Owner decisions, 10 November 2026 — open Sandbox scope, imported and sample history, capped AI for any business
+
+**Decision date:** 10 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** the Owner's answers in the Day 6 session to the three decisions raised by the from-scratch audit. Recorded verbatim.
+
+```text
+Answers to your three decisions (Ryan, 10 Nov 2026) — record verbatim and dated as Owner decisions:
+1. Sandbox scope: YES. Every business on the hosted Sandbox deployment may use PayPal Sandbox subscriptions, the Pay Agent and payouts. Guardrails: per-business cap of 5 payouts and US$100 per day; an env switch that restores demo-only isolation instantly; the ECB rate becomes a shared system feed for all businesses (remove the demo-owner-only rate recording).
+2. CSV history: YES, it counts toward the 28-day forecast rule, labelled "Imported by Owner (CSV, <date>)". Also add "Use sample history for my venue" (reuse the generator, scaled to the venue's capacity), labelled "Sample history (synthetic)", which also counts.
+3. AI for any business: YES, capped. Discovery runs when a location's pin is confirmed, plus a manual "Refresh local signals" (max 3/day per location, max 3 locations per business), with an overall cap of 100 AI calls/day across non-demo businesses and a clear "daily AI limit reached" message. Demo business and judge accounts stay unlimited.
+```
+
+### Owner decision, 10 November 2026 — people, invitations and sign-up (corrects the same day's items 1–2)
+
+**Decision date:** 10 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** the Owner's correction in the Day 6 session. Recorded verbatim.
+
+```text
+CORRECTION to items 1–2 (Ryan, 10 Nov 2026), record as Owner decision:
+1. People & places: the Owner (or a Manager, for their own location's workers only) adds a person with: name, email (phone optional), role (Manager or casual worker) and the work location(s) they belong to. No home address is ever asked for. Adding creates the person in status "Invited — not yet signed up" and sends the official FairShift invite email automatically. The person is NOT active until they open the link, verify their email and complete sign-up themselves (set password, confirm name and contact details; workers also add availability and their PayPal email per Step 3b). Only active people can receive shift offers or manage a location. Owner can edit, resend the invite, revoke an unaccepted invite, and deactivate (never hard-delete; audited). Locations: full create/edit/deactivate by the Owner, audited.
+2. Official FairShift invite email via the existing Resend setup: from "FairShift <no-reply@your domain>", subject "<Business> invited you to FairShift", saying who invited them, which location and role, with a sign-up link that expires in 7 days; branded HTML + plain text; logged in an outbox. Expired links can be resent. Public demo: outbox only.
+```
+
+**Boundary kept.** Casual workers stay bound to one location (the authorised product scope; cross-location casual scheduling remains OPEN). "Work location(s)" therefore means one location for a casual worker and one or more for a Manager.
