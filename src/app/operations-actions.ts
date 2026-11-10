@@ -22,7 +22,7 @@ import { createShiftFromOpportunity } from "@/server/intelligence/opportunity-sh
 import { parseCoverageText, parseTradingText } from "@/server/intelligence/workload";
 import { guardDemoWrite } from "@/server/demo/fixtures";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
-import { payAgentFor, preparePayAgentRetry, rejectPayAgentHold, releasePayAgentHold, runPayAgentRetry, runReleasedHold, scheduleLatestPayAgentEvent, schedulePayAgentEvent } from "@/server/pay-agent/service";
+import { payAgentFor, preparePayAgentRetry, keepPayAgentHold, rejectPayAgentHold, releasePayAgentHold, runPayAgentRetry, runReleasedHold, scheduleLatestPayAgentEvent, schedulePayAgentEvent } from "@/server/pay-agent/service";
 
 // The Owner acting on the location a page names (a location page sends it), else the selected one.
 async function ownerAt(form: FormData) { const id = field(form, "locationId"); return requireScope(["OWNER"], /^[0-9a-f-]{36}$/.test(id) ? { locationId: id } : {}); }
@@ -158,6 +158,11 @@ export async function releasePayAgentHoldAction(form: FormData) {
     const db = getDatabase();
     runReleasedHold(payAgentFor(db), await releasePayAgentHold(db, scope, field(form, "eventId"), field(form, "reason")));
   });
+}
+// The Owner keeps a Pay Agent hold, with a reason kept on record; the worker is told it's being checked.
+export async function keepPayAgentHoldAction(form: FormData) {
+  const scope=await requireFinancialScope(["OWNER","MANAGER"]);
+  return perform("/settlements", () => keepPayAgentHold(getDatabase(), scope, field(form, "eventId"), field(form, "reason")));
 }
 // A manager's rejection of a Pay Agent hold, with a reason: the payable stays unpaid.
 export async function rejectPayAgentHoldAction(form: FormData) {

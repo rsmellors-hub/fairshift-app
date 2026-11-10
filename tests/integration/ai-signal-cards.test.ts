@@ -71,7 +71,7 @@ describe("AI signal cards", () => {
     const signal = outlet.localIntelligence!.signals.find(row => row.name === "Fixture match at the nearby stadium")!;
     expect(signal.use).toBe("APPLIED");
     let owner = renderToStaticMarkup(AiThisWeek({ outlets: [outlet] }));
-    for (const text of ["AI this week", "Rosebank: Fixture match at the nearby stadium", "https://tickets.example.com/fixture-match", "More customers, +10%", "Proposed: not used until accepted", "Fri, 18 Dec 2026", "1 unconfirmed"]) expect(owner).toContain(text);
+    for (const text of ["Local signals this week", "Rosebank: Fixture match at the nearby stadium", "https://tickets.example.com/fixture-match", "More customers, +10%", "Proposed: not used until accepted", "Fri, 18 Dec 2026", "1 unconfirmed"]) expect(owner).toContain(text);
     const plan = renderToStaticMarkup(PlanSignalCards({ outlet, act: true }));
     expect(plan).toContain("Would change Fri, 18 Dec 2026 08:00");
     expect(plan).toContain(">Accept</button>");

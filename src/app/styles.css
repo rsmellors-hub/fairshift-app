@@ -833,3 +833,29 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .coverage-log ul { margin: 6px 0; padding-left: 18px; }
 .coverage-log li { margin: 2px 0; overflow-wrap: anywhere; }
 .live-feeds .data-table th[scope="row"] { font-weight: 400; }
+
+/* Design, 10 Nov 2026: Today, Locations, setup and pin layouts. */
+.kpi-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 16px 0; }
+.kpi-tile { display: flex; flex-direction: column; gap: 4px; }
+.kpi-tile strong { font-size: 1.6rem; }
+.needs-list, .short-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.needs-list form { margin: 0; }
+.needs-list .needs-link { width: 100%; text-align: left; font: inherit; color: inherit; background: none; cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; }
+.needs-list a { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; text-decoration: none; padding: 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; }
+.needs-list small { flex-basis: 100%; color: var(--muted, #666); }
+.short-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line, #eee); }
+.location-layout { display: grid; grid-template-columns: minmax(180px, 220px) 1fr; gap: 24px; align-items: start; }
+.location-list ul { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; }
+.location-list a { display: block; padding: 6px 10px; border-radius: 8px; text-decoration: none; }
+.location-list a[aria-current="page"] { background: var(--primary-soft, #e3eee7); font-weight: 600; }
+.location-section > summary { cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.customer-types .acceptance-check span { display: flex; flex-direction: column; }
+.role-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 10px; }
+.setup-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.place-results { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; }
+@media (max-width: 760px) { .location-layout { grid-template-columns: 1fr; } }
+
+/* Pay page tabs (design: OwnerPay). */
+.page-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--line, #ddd); }
+.page-tabs a { padding: 8px 14px; text-decoration: none; border-bottom: 2px solid transparent; }
+.page-tabs a:hover, .page-tabs a:focus-visible { border-bottom-color: currentColor; }

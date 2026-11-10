@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OwnerPage from "@/app/owner/page";
 import OwnerLoading from "@/app/owner/loading";
 import { OwnerOverview } from "@/app/owner/overview";
@@ -9,17 +9,22 @@ import { getConfigurationStatus } from "@/server/config/env";
 import { getOwnerOverview, ownerForecastSummary, ownerStaffingSummary, type OwnerOverviewData } from "@/server/product/owner-overview";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
+import { getTodayNeeds, type TodayNeeds } from "@/server/product/owner-today";
+const needs: TodayNeeds = { suggestions: { count: 0, locations: [] }, held: 0, heldAt: null, unconfirmed: { count: 0, amountMinor: 0, currency: null, at: null }, invitations: { count: 0, firstSent: null, firstExpiry: null }, failedPayouts: 0, failedAt: null, offers: { open: 0, accepted: 0, nextClose: null } };
 
 vi.mock("@/server/auth/request", () => ({ requireScope: vi.fn() }));
 vi.mock("@/server/config/env", () => ({ getConfigurationStatus: vi.fn() }));
-vi.mock("@/server/db/client", () => ({ getDatabase: () => ({}) }));
+vi.mock("@/server/db/client", () => ({ getDatabase: () => ({ select: () => { throw new Error("no database in this unit test"); } }) }));
+vi.mock("@/server/product/owner-today", () => ({ getTodayNeeds: vi.fn() }));
+vi.mock("@/server/product/owner-setup", () => ({ getOwnerSetup: vi.fn() }));
 vi.mock("@/server/product/owner-overview", () => ({ getOwnerOverview: vi.fn(), ownerForecastSummary: vi.fn(), ownerStaffingSummary: vi.fn() }));
 vi.mock("@/server/intelligence/weekly", () => ({ getWeeklyForecast: vi.fn() }));
 vi.mock("@/server/intelligence/staffing", () => ({ getWeeklyStaffing: vi.fn() }));
 const empty: OwnerOverviewData = { locations: [{ id: "one", name: "One location", timezone: "UTC", active: true }], series: [], attention: [], payables: { awaitingApproval: 0, needsAttention: 0 }, salesUnavailable: false };
 afterEach(() => vi.resetAllMocks());
+beforeEach(async () => { const { getOwnerSetup } = await import("@/server/product/owner-setup"); vi.mocked(getOwnerSetup).mockResolvedValue([]); });
 
-describe("Owner Overview route and states", () => {
+describe("Owner Today route and states", () => {
   it("requires Owner scope before configuration or data access", async () => {
     vi.mocked(requireScope).mockRejectedValue(new Error("REDIRECT:/account"));
     await expect(OwnerPage({})).rejects.toThrow("REDIRECT:/account");
@@ -40,17 +45,22 @@ describe("Owner Overview route and states", () => {
     vi.mocked(requireScope).mockResolvedValue(scope);
     vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
     vi.mocked(getOwnerOverview).mockResolvedValue(empty);
-    expect(renderToStaticMarkup(await OwnerPage({}))).toContain("One location");
-    expect(getOwnerOverview).toHaveBeenCalledWith({}, scope);
+    vi.mocked(getTodayNeeds).mockResolvedValue(needs);
+    const html = renderToStaticMarkup(await OwnerPage({}));
+    expect(html).toContain("Needs you");
+    expect(html).toContain("Nothing needs you right now.");
+    expect(getOwnerOverview).toHaveBeenCalledWith(expect.anything(), scope);
+    expect(vi.mocked(getTodayNeeds).mock.calls[0][1]).toBe(scope);
   });
   it("keeps the factual Overview when the weekly forecast fails, without inventing demand", async () => {
     vi.mocked(requireScope).mockResolvedValue({ organisationId: "tenant", role: "OWNER" } as Awaited<ReturnType<typeof requireScope>>);
     vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
     vi.mocked(getOwnerOverview).mockResolvedValue(empty);
+    vi.mocked(getTodayNeeds).mockResolvedValue(needs);
     vi.mocked(getWeeklyForecast).mockRejectedValue(new Error("forecast store offline"));
     const html = renderToStaticMarkup(await OwnerPage({}));
-    expect(html).toContain("One location");
-    expect(html).toContain("The weekly forecast could not be loaded. No demand has been assumed.");
+    expect(html).toContain("Needs you");
+    expect(html).toMatch(/Forecast sales<\/span><strong class="money">Not available</);
     expect(html).not.toContain("forecast store offline");
     expect(ownerForecastSummary).not.toHaveBeenCalled();
   });
@@ -58,10 +68,11 @@ describe("Owner Overview route and states", () => {
     vi.mocked(requireScope).mockResolvedValue({ organisationId: "tenant", role: "OWNER" } as Awaited<ReturnType<typeof requireScope>>);
     vi.mocked(getConfigurationStatus).mockReturnValue({ databaseConfigured: true } as ReturnType<typeof getConfigurationStatus>);
     vi.mocked(getOwnerOverview).mockResolvedValue(empty);
+    vi.mocked(getTodayNeeds).mockResolvedValue(needs);
     vi.mocked(getWeeklyStaffing).mockRejectedValue(new Error("coverage store offline"));
     const html = renderToStaticMarkup(await OwnerPage({}));
-    expect(html).toContain("One location");
-    expect(html).toContain("Coverage could not be loaded. No gap has been assumed.");
+    expect(html).toContain("Needs you");
+    expect(html).toMatch(/Staff hours still needed<\/span><strong class="money">Not available</);
     expect(html).not.toContain("coverage store offline");
     expect(html).not.toMatch(/>0 h</);
     expect(ownerStaffingSummary).not.toHaveBeenCalled();

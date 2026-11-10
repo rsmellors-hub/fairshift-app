@@ -139,7 +139,7 @@ export async function roundsForShifts(db: DatabaseSession, scope: Pick<Scope, "o
 export async function suggestionContext(db: DatabaseSession, scope: Pick<Scope, "organisationId" | "locationId">, suggestions: readonly SuggestedShift[]) {
   const [departmentRows, policyRows] = await Promise.all([
     db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.outletId, scope.locationId)).orderBy(asc(departments.name)),
-    db.select({ id: workPolicies.id, name: workPolicies.name, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor }).from(workPolicies).where(and(eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt))).orderBy(asc(workPolicies.name)),
+    db.select({ id: workPolicies.id, name: workPolicies.name, earningsModel: workPolicies.earningsModel, rateMinor: workPolicies.rateMinor, currencyCode: workPolicies.currencyCode }).from(workPolicies).where(and(eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt))).orderBy(asc(workPolicies.name)),
   ]);
   const approved = new Map<string, { shiftId: string; rounds: { round: number; closesAt: Date | null; offered: number }[]; accepted: number; headcount: number }>();
   const matches = await Promise.all(suggestions.map(async suggestion => ({ suggestion, shift: (await approvedShiftFor(db, scope, suggestion))[0] })));
@@ -148,5 +148,5 @@ export async function suggestionContext(db: DatabaseSession, scope: Pick<Scope, 
   const accepted = shiftIds.length ? await db.select({ shiftId: shiftOffers.shiftId, count: sql<number>`count(*)`.mapWith(Number) }).from(shiftOffers).where(and(inArray(shiftOffers.shiftId, shiftIds), eq(shiftOffers.status, "ACCEPTED"))).groupBy(shiftOffers.shiftId) : [];
   for (const { suggestion, shift } of matches) if (shift) approved.set(suggestion.key, { shiftId: shift.id, headcount: shift.requiredHeadcount, accepted: accepted.find(row => row.shiftId === shift.id)?.count ?? 0,
     rounds: (rounds.get(shift.id) ?? []).map(row => ({ round: row.round, closesAt: row.closesAt, offered: Array.isArray(row.offers) ? row.offers.length : 0 })) });
-  return { departments: departmentRows, policies: policyRows.filter(row => row.earningsModel === "HOURLY" && (row.rateMinor ?? 0) > 0).map(({ id, name }) => ({ id, name })), approved };
+  return { departments: departmentRows, policies: policyRows.filter(row => row.earningsModel === "HOURLY" && (row.rateMinor ?? 0) > 0).map(({ id, name, rateMinor, currencyCode }) => ({ id, name, rateMinor: rateMinor!, currencyCode })), approved };
 }

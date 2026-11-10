@@ -43,7 +43,9 @@ describe("shared product shell", () => {
 
   it("renders a truthful minimum owner context", async () => {
     const html = renderToStaticMarkup(await OwnerLayout({children:"Owner content"}));
-    for (const area of ["locations", "forecast", "reporting", "payments", "settings", "billing"]) expect(html).toContain(`href="/owner/${area}"`);
+    // Design nav (10 Nov 2026): Today, Plan, Fill shifts, Schedule, Pay, Locations, PayPal & AI records, Business settings, Billing.
+    for (const area of ["locations", "proof", "settings", "billing"]) expect(html).toContain(`href="/owner/${area}"`);
+    expect(html).toContain('href="/owner"');
     // People and pay terms live on each location's page (design, 10 Nov 2026).
     for (const area of ["workforce", "policies"]) expect(html).not.toContain(`href="/owner/${area}"`);
     expect(html).toContain("Owner mobile navigation");
@@ -52,8 +54,8 @@ describe("shared product shell", () => {
     expect(html).not.toContain('href="/owner/incentives"');
     expect(html).toContain('href="/account"');
     // An Owner reaches the location operations from their own navigation.
-    for (const href of ["/manager/plan", "/manager/fill", "/manager/allocations", "/manager/review#performance", "/manager/review"]) expect(html).toContain(`href="${href}"`);
-    expect(html).toContain("Operations");
+    for (const href of ["/manager/plan", "/manager/fill", "/manager/allocations", "/manager/review"]) expect(html).toContain(`href="${href}"`);
+    for (const label of ["Today", "Plan", "Fill shifts", "Schedule", "Pay", "PayPal &amp; AI records", "Business settings"]) expect(html).toContain(`>${label}</a>`);
     expect(html).not.toContain('href="/worker');
     expect(html).not.toContain('href="/operator');
   });

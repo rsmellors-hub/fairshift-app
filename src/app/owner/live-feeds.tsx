@@ -43,7 +43,7 @@ export function OwnerLiveFeeds({ staffing, feeds, timeZone, eventsConfigured, no
     {outlets.map(outlet => { const local = outlet.localIntelligence; if (!local || local.status === "UNAVAILABLE") return null; const applied = local.signals.filter(signal => signal.use === "APPLIED").length;
       return <details className="owner-forecast-detail" key={outlet.outletId}><summary><strong>{outlet.outletName}</strong> <small>{local.signals.length} AI-found {local.signals.length === 1 ? "signal" : "signals"} · {applied} applied to the forecast{local.lastAttempt ? ` · last searched ${stamp(local.lastAttempt.createdAt, outlet.timezone)}` : ""}</small></summary>
         {local.signals.length ? <ul className="context-signals">{local.signals.slice(0, 8).map(signal => <SignalCard key={signal.key} signal={signal} />)}</ul> : <p className="note">No AI-found influence with a source for the coming days. That means none was found, not that nothing is happening.</p>}
-        {local.signals.length > 8 ? <p className="note">{local.signals.length - 8} more on the location’s Forecast &amp; staffing page.</p> : null}
+        {local.signals.length > 8 ? <p className="note">{local.signals.length - 8} more on the location’s Plan page.</p> : null}
         {local.runs.map(run => <CoverageLog key={run.id} run={run} timeZone={outlet.timezone} />)}
         {showTrackRecord || local.trackRecord.length ? <><h3>AI signal track record</h3><TrackRecord rows={local.trackRecord} /></> : null}
         <p className="note"><Link className="text-link" href={`/owner/locations/${outlet.outletId}`}>Open {outlet.outletName}</Link></p>

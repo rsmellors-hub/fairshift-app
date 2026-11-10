@@ -8,6 +8,7 @@ import { getDatabase } from "@/server/db/client";
 import { UserFacingError } from "@/server/domain/errors";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { approveSuggestedShift } from "@/server/scheduling/shift-suggestions";
+import { suggestShifts } from "@/server/scheduling/shift-rules";
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 
@@ -26,5 +27,28 @@ export async function approveSuggestedShiftAction(form: FormData) {
     } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
   }
   for (const role of ["manager", "owner", "worker"]) revalidatePath(`/${role}`, "layout");
-  redirect(`/manager/plan?status=${outcome}#suggested-shifts`);
+  redirect(`/manager/fill?status=${outcome}#suggested-shifts`);
+}
+
+// Design (OwnerFill, 10 Nov 2026): "Approve all N and send offers". Each suggestion still goes through the
+// same server checks and fair offer order as a single approval; any that changed are skipped and counted.
+export async function approveAllSuggestedShiftsAction(form: FormData) {
+  const scope = await requireScope(["OWNER", "MANAGER"]);
+  let outcome = "error", sent = 0;
+  if (getConfigurationStatus().databaseConfigured) {
+    try {
+      const db = getDatabase();
+      const read = async () => (await getWeeklyStaffing(db, scope, new Date())).outlets.find(row => row.outletId === scope.locationId) ?? null;
+      const outlet = await read();
+      const keys = form.getAll("key").map(String).filter(Boolean);
+      const wanted = new Set(keys);
+      for (const suggestion of outlet ? suggestShifts(outlet).filter(row => wanted.has(row.key)) : []) {
+        try { await approveSuggestedShift(db, scope, { key: suggestion.key, departmentId: field(form, "departmentId"), policyId: field(form, "policyId") }, read); sent += 1; }
+        catch (error) { if (!(error instanceof UserFacingError)) throw error; }
+      }
+      outcome = sent ? "suggestions-sent" : "suggestion-approved";
+    } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
+  }
+  for (const role of ["manager", "owner", "worker"]) revalidatePath(`/${role}`, "layout");
+  redirect(`/manager/fill?status=${outcome}&sent=${sent}#suggested-shifts`);
 }

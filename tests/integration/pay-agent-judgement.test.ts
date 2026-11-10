@@ -64,11 +64,11 @@ describe("Pay Agent judgement beyond the rules (Day 6, Step 1g)", () => {
       const managerPanel = renderToStaticMarkup(PayAgentPanel({ event: view, payableId: here.payable!.id, demo: false, timezone: "Europe/London" }));
       expect(managerPanel).toContain("✓");
       expect(managerPanel).toContain("Hours match the accepted shift");
-      expect(managerPanel).toContain("⚠");
+      expect(managerPanel).toContain(`<span aria-hidden="true">!</span>`);
       expect(managerPanel).toContain("Overlaps other confirmed work at the same time: held for the Owner");
       expect(managerPanel).toContain("Held for the Owner to decide");
-      expect(managerPanel).not.toContain("Release for payment checks");
-      expect(renderToStaticMarkup(PayAgentPanel({ event: view, payableId: here.payable!.id, demo: false, timezone: "Europe/London", owner: true }))).toContain("Release for payment checks");
+      expect(managerPanel).not.toContain("Release as calculated");
+      expect(renderToStaticMarkup(PayAgentPanel({ event: view, payableId: here.payable!.id, demo: false, timezone: "Europe/London", owner: true }))).toContain("Release as calculated");
       await expect(releasePayAgentHold(t.db, first, held.id, "Checked with the worker: the hours were right.")).rejects.toMatchObject({ feedback: "pay-agent-owner-decides" });
       await expect(rejectPayAgentHold(t.db, first, held.id, "No")).rejects.toMatchObject({ feedback: "pay-agent-owner-decides" });
 
@@ -105,7 +105,7 @@ describe("Pay Agent judgement beyond the rules (Day 6, Step 1g)", () => {
       const event = await eventOf(t.db, work.payAgentEvent!.id);
       expect(event).toMatchObject({ decision: "SETTLE", checks: { hours: "OK", overlap: "OK", timing: "OK", records: "OK" } });
       const panel = renderToStaticMarkup(PayAgentPanel({ event: toPayAgentEventView(event as never), payableId: work.payable!.id, demo: false, timezone: "Europe/London" }));
-      expect(panel).not.toContain("⚠");
+      expect(panel).not.toContain(`<span aria-hidden="true">!</span>`);
       expect((panel.match(/✓/g) ?? []).length).toBe(4);
     } finally { await t.close(); }
   });

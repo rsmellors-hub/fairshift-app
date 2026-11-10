@@ -12,13 +12,14 @@ import "@bryntum/scheduler/scheduler.css";
 import "@bryntum/scheduler/stockholm-light.css";
 import "./allocations.css";
 
+// Design, 10 Nov 2026 (Manager · Today): Today, Plan, Fill shifts, Schedule, Confirm work, Team.
 const navigation = [
   { label: "Today", href: "/manager" },
-  { label: "Forecast & staffing", href: "/manager/plan" },
+  { label: "Plan", href: "/manager/plan" },
   { label: "Fill shifts", href: "/manager/fill" },
-  { label: "Allocations", href: "/manager/allocations" },
-  { label: "Workers", href: "/manager/team" },
-  { label: "Review & pay", href: "/manager/review" },
+  { label: "Schedule", href: "/manager/allocations" },
+  { label: "Confirm work", href: "/manager/review" },
+  { label: "Team", href: "/manager/team" },
 ];
 
 export default async function ManagerLayout({ children }: { children: React.ReactNode }) {

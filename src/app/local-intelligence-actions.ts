@@ -39,7 +39,7 @@ export async function decideLocalAdjustmentsAction(form: FormData) {
 // Accepting one AI-found demand signal: staffing uses the current adjustments on every day it changes,
 // each checked against what the person saw (date:fingerprint pairs from the card). The adjustments on a
 // day can include another applied signal; the card names them. Dismissing sets one signal aside.
-const back = (form: FormData) => field(form, "next") === "/owner/forecast" ? "/owner/forecast" : "/manager/plan";
+const back = (form: FormData) => { const next = field(form, "next"); return ["/owner/forecast", "/owner", "/manager/fill"].includes(next) ? next : "/manager/plan"; };
 export async function acceptSignalAction(form: FormData) {
   const scope = await requireScope(["OWNER", "MANAGER"]);
   const seen = field(form, "seen").split(",").map(pair => pair.split(":")).filter(([date, fp]) => /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") && /^[0-9a-f]{64}$/.test(fp ?? ""));

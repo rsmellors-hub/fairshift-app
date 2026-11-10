@@ -6,7 +6,9 @@ import type { Scope } from "@/server/auth/access";
 import { audited, auditActor, uuidOrNull, type AuditFound, type AuditTarget } from "@/server/auth/audit-actor";
 import { getConfigurationStatus } from "@/server/config/env";
 import { getDatabase, type Database } from "@/server/db/client";
-import { workPayables } from "@/server/db/schema";
+import { users, workers, workPayables } from "@/server/db/schema";
+import { notify } from "@/server/notifications/service";
+import { randomUUID } from "node:crypto";
 import { UserFacingError } from "@/server/domain/errors";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { loadConfirmedWork } from "./evidence";
@@ -143,6 +145,28 @@ export async function releasePayAgentHold(db: Database, scope: ManagerScope, eve
 
 export function runReleasedHold(agent: PayAgent, released: { eventId: string; credential: PayAgentServiceCredential }, schedule: AfterResponse = afterResponse) {
   schedule(() => agent.process({ eventId: released.eventId }, released.credential));
+}
+
+// The Owner keeps a hold (design, OwnerPay, 10 Nov 2026): the hold stays open and the payable unpaid, the
+// Owner's written reason is kept on record, and the worker is told the payment is being checked. The amount,
+// recipient and hold itself are unchanged; the Owner can still release or reject it later.
+export async function keepPayAgentHold(db: Database, scope: ManagerScope, eventId: string, note: string): Promise<{ eventId: string; notified: boolean }> {
+  return audited(db, control(scope, "PAY_AGENT_HOLD_KEPT", { eventId }), async found => {
+    mintPayAgentCredentialForManager(scope);
+    ownerDecides(scope);
+    const reason = (note ?? "").trim();
+    if (!reason || reason.length > 500) throw new UserFacingError("pay-agent-keep-reason", "Give a reason for keeping this payment held, in up to 500 characters.");
+    const event = await heldEvent(db, scope, eventId);
+    onPayable(found, event.payableId, event.id);
+    found.detail = { payableId: event.payableId, note: reason };
+    const [payable] = await db.select({ workerId: workPayables.workerId }).from(workPayables).where(and(eq(workPayables.id, event.payableId), eq(workPayables.organisationId, scope.organisationId)));
+    const [person] = payable ? await db.select({ id: workers.id, userId: workers.userId, email: users.email }).from(workers).innerJoin(users, eq(users.id, workers.userId)).where(eq(workers.id, payable.workerId)) : [];
+    // One notice per hold: keeping it again records the new reason but doesn't message the worker twice.
+    const sent = person ? await notify(db, { id: randomUUID(), organisationId: scope.organisationId, userId: person.userId, workerId: person.id, recipientEmail: person.email,
+      eventKey: `pay-hold-kept:${event.id}`, kind: "PAYMENT_BEING_CHECKED", entityId: event.payableId, title: "Your payment is being checked",
+      body: "Your manager is checking this shift's pay before it's sent. Nothing about the amount has changed; you'll hear as soon as it's decided.", href: "/worker/earnings" }) : null;
+    return { eventId: event.id, notified: !!sent };
+  }, () => "KEPT");
 }
 
 // A manager rejects a hold, with a reason: the payable stays unpaid on every path.

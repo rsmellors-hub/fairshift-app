@@ -263,7 +263,7 @@ describe("what managers and workers see", () => {
       // The Owner sees the actions on a held payment (Day 6: holds are the Owner's to decide).
       wireActions(t.db, { ...manager, role: "OWNER" });
       const review = renderToStaticMarkup(await ManagerWorkspace({ area: "review" }));
-      for (const text of ["Pay Agent", "Held for the Owner", "Hold for the Owner · Confirmation delay", "Confirmation was recorded long after the shift ended.", "resp_test_1", "Release for payment checks", "Reject payment", "Resolve the Pay Agent&#x27;s hold to continue."]) expect(review).toContain(text);
+      for (const text of ["Pay Agent", "Held for the Owner", "Hold for the Owner · Confirmation delay", "Confirmation was recorded long after the shift ended.", "resp_test_1", "Release as calculated", "Reject payment", "Resolve the Pay Agent&#x27;s hold to continue."]) expect(review).toContain(text);
       expect(review).not.toContain("Approve £78.00");
       vi.mocked(requireScope).mockResolvedValue(work.workerScope);
       const earnings = renderToStaticMarkup(await WorkerWorkspace({ area: "earnings" }));

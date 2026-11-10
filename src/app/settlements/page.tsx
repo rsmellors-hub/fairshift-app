@@ -16,7 +16,7 @@ export default async function SettlementsPage({ searchParams }: { searchParams: 
   return <ProductShell
     role={scope.role === "OWNER" ? "Owner" : "Manager"}
     context={scope.locationName}
-    navigation={[{ label: "Review & pay", href: "/settlements" }]}
+    navigation={[{ label: "Pay", href: "/settlements" }]}
   >
     {await ManagerWorkspace({ area: "review", status, financialScope: scope, financialOnly: true })}
   </ProductShell>;

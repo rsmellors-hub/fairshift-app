@@ -199,7 +199,7 @@ const FEEDBACK: Record<string, string> = {
   "work-not-confirmed": "Confirm the work before its sales results.",
   "import-format": "The first line must be: transaction_id,attribution_code,occurred_at,amount,currency. An import can have at most 2,000 rows.",
   "terms-changed": "The details of this work changed. Check the new details before responding.",
-  "opportunity-changed": "This casual requirement has changed since you opened it. No shift was created. Check the latest figures on Forecast & staffing.",
+  "opportunity-changed": "This casual requirement has changed since you opened it. No shift was created. Check the latest figures on Plan.",
   "opportunity-outside-window": "This shift doesn’t overlap the time it’s meant to cover. No shift was created. Adjust the times, or create it without this requirement.",
   "service-capacity-invalid": "Service capacity must be a whole number of transactions from 1 to 1000. Nothing was saved.",
   "minimum-cover-invalid": "Minimum cover must be a whole number of staff from 0 to 100. Nothing was saved.",

@@ -5,7 +5,11 @@ import { getOwnerOverview, ownerForecastSummary, ownerStaffingSummary } from "@/
 import { getOwnerSetup } from "@/server/product/owner-setup";
 import { getWeeklyForecast } from "@/server/intelligence/weekly";
 import { getWeeklyStaffing, type WeeklyStaffing } from "@/server/intelligence/staffing";
-import { OwnerOverview, OwnerReload } from "@/app/owner/overview";
+import { OwnerReload } from "@/app/owner/overview";
+import { NeedsYou, TodayHeader, TodayTiles, WhereShort } from "@/app/owner/today";
+import { getTodayNeeds } from "@/server/product/owner-today";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 import { DisruptionAlerts, type DisruptionAlert } from "@/app/owner/disruption-alerts";
 import { affectedShifts } from "@/server/intelligence/early-notice";
 import { OwnerSetupChecklist } from "@/app/owner/setup-checklist";
@@ -14,7 +18,7 @@ import { AiThisWeek } from "@/app/components/ai-signals";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// The Owner's Overview. loading.tsx sends a skeleton of the same layout at once; the independent reads
+// The Owner's Today page. loading.tsx sends a skeleton of the same layout at once; the independent reads
 // then run in parallel, and a failure in one leaves the others intact.
 export default async function OwnerPage({ searchParams }: { searchParams?: Promise<{ welcome?: string; status?: string }> }) {
   const scope = await requireScope(["OWNER"]);
@@ -36,11 +40,21 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
     getOwnerSetup(db, scope, !!staffing?.outlets.some(row => row.casualGapMinutes !== null)).catch(() => null),
   ]);
   const params = query.status === "fulfilled" ? query.value : undefined;
-  return <div className="product-page"><ActionFeedback status={params?.status} />
-    {staffingWeek ? <AiThisWeek outlets={staffingWeek.outlets} /> : null}
-    {setup ? <OwnerSetupChecklist steps={setup} welcome={!!params?.welcome} /> : null}
+  // Design, 10 Nov 2026 (Owner · Today): Needs you, local signals with inline decisions, the week's
+  // figures and where each location is short.
+  const needs = await getTodayNeeds(db, scope, staffingWeek, now).catch(() => null);
+  const timezone = overview.value.locations.find(row => row.id === scope.locationId)?.timezone ?? overview.value.locations[0]?.timezone ?? "UTC";
+  // The greeting's name is cosmetic: if it can't be read, the page greets without it.
+  const [user] = await (async () => db.select({ firstName: users.firstName }).from(users).where(eq(users.id, scope.userId)))().catch(() => []);
+  const names = new Map(overview.value.locations.map(row => [row.id, row.name]));
+  return <div className="product-page owner-today"><ActionFeedback status={params?.status} />
+    <TodayHeader name={user?.firstName ?? ""} date={now} timezone={timezone} addPersonHref={`/owner/locations/${scope.locationId}#add-team-member`} />
+    {setup && setup.some(step => !step.done) ? <OwnerSetupChecklist steps={setup} welcome={!!params?.welcome} /> : null}
+    {needs ? <NeedsYou needs={needs} timezone={timezone} teamHref={`/owner/locations/${scope.locationId}?team=invited#team`} /> : null}
+    {staffingWeek ? <AiThisWeek outlets={staffingWeek.outlets} act={!scope.demo} /> : null}
     <DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} />
-    <OwnerOverview data={overview.value} forecast={forecast} staffing={staffing} />
+    {needs ? <TodayTiles staffing={staffing} forecast={forecast} needs={needs} timezone={timezone} /> : null}
+    <WhereShort staffing={staffing} names={names} />
   </div>;
 }
 
