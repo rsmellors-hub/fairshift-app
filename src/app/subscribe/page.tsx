@@ -1,4 +1,4 @@
-import { sandboxOrganisationId } from "@/server/config/deployment";
+import { sandboxBusinessAllowed } from "@/server/config/deployment";
 import type { Metadata } from "next";
 import { AcquisitionProgress } from "@/app/components/acquisition-progress";
 import { BillingToggle, PLAN_COPY, PlanPrice } from "@/app/components/plan-cards";
@@ -25,7 +25,7 @@ export default async function Subscribe({searchParams}:{searchParams:Promise<{pe
  if (scope && isEntitled(sub)) redirect(await ownerDestination(db,scope.organisationId));
  const {period,status,billing,verified}=await searchParams;
  const billingPeriod=period === "ANNUAL" ? "ANNUAL" : "MONTHLY";
- const configured=!!scope && sandboxOrganisationId() === scope.organisationId && !!getSubscriptionAdapter(),contact=enterpriseContact();
+ const configured=!!scope && sandboxBusinessAllowed(scope.organisationId) && !!getSubscriptionAdapter(),contact=enterpriseContact();
  const awaiting=!!sub && ["APPROVAL_PENDING","APPROVED"].includes(sub.status);
  const needsHelp=!!sub && !["UNCONFIGURED","PENDING","APPROVAL_PENDING","APPROVED"].includes(sub.status);
  return <main className="acquisition-shell plan-shell"><header className="acquisition-header"><FairShiftBrand /><form action={signOutAction}><button className="link-button">Sign out</button></form></header>

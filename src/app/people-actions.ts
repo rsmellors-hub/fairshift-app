@@ -22,7 +22,7 @@ import { completeInvitedSignUp, openInvitation } from "@/server/people/sign-up";
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 const feedback = (error: unknown) => error instanceof UserFacingError ? error.feedback : "error";
 // Back to the page the person acted on: a location's Team, or the Manager's team page.
-const safeNext = (form: FormData) => { const next = String(form.get("next") ?? ""); return /^\/(owner\/locations\/[0-9a-f-]{36}|manager\/team)$/.test(next) ? next : null; };
+const safeNext = (form: FormData) => { const next = String(form.get("next") ?? ""); return /^\/(owner\/locations\/[0-9a-f-]{36}|manager\/team|onboarding\?step=team&location=[0-9a-f-]{36})$/.test(next) ? next : null; };
 const pathFor = (role: string, form?: FormData) => (form && safeNext(form)) ?? (role === "OWNER" ? "/owner/locations" : "/manager/team");
 function refresh() { for (const role of ["owner", "manager", "worker"]) revalidatePath(`/${role}`, "layout"); }
 
@@ -40,7 +40,7 @@ export async function addPersonAction(form: FormData) {
     await dispatchNotification(getDatabase(), getEmailAdapter(), result.notificationId, `/invite#${result.token}`);
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#team`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}status=${outcome}#team`);
 }
 
 export async function updatePersonAction(form: FormData) {
@@ -53,7 +53,7 @@ export async function updatePersonAction(form: FormData) {
     if (result.emailChanged) outcome = "person-email-changed";
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#team`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}status=${outcome}#team`);
 }
 
 export async function deactivatePersonAction(form: FormData) {
@@ -65,7 +65,7 @@ export async function deactivatePersonAction(form: FormData) {
     await deactivatePerson(getDatabase(), scope, field(form, "key"));
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#team`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}status=${outcome}#team`);
 }
 
 export async function removeFromLocationAction(form: FormData) {
@@ -74,7 +74,7 @@ export async function removeFromLocationAction(form: FormData) {
   let outcome = "person-removed";
   try { await removeFromLocation(getDatabase(), scope, field(form, "key"), field(form, "locationId")); } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#team`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}status=${outcome}#team`);
 }
 
 export async function updateLocationAction(form: FormData) {

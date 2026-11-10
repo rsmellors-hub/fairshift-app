@@ -29,7 +29,9 @@ async function save(form: FormData, section: string, success: string, fn: (scope
   let outcome = success;
   try { await fn(scope); } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "error"; }
   for (const role of ["owner", "manager", "worker"]) revalidatePath(`/${role}`, "layout");
-  redirect(`/owner/locations/${id}?status=${outcome}#${section}`);
+  // From the setup flow (design Setup), back to its step.
+  const setup = /^setup:(venue|sales|pay|team)$/.exec(field(form, "next"));
+  redirect(setup ? `/onboarding?step=${setup[1]}&location=${id}&status=${outcome}` : `/owner/locations/${id}?status=${outcome}#${section}`);
 }
 const whole = (text: string) => /^\d{1,4}$/.test(text.trim()) ? Number(text.trim()) : NaN;
 const minutes = (text: string) => { const value = Number(text.trim()); return text.trim() && Number.isFinite(value) ? Math.round(value * 60) : NaN; };
@@ -100,5 +102,5 @@ export async function confirmPinAction(form: FormData) {
     await pinConfirmed(getDatabase(), scope);
   } catch (error) { outcome = error instanceof UserFacingError ? error.feedback : "pin-invalid"; }
   for (const role of ["owner", "manager"]) revalidatePath(`/${role}`, "layout");
-  redirect(field(form, "next") === "setup" ? `/onboarding?step=venue&status=${outcome}` : `/owner/locations/${id}?status=${outcome}#venue`);
+  redirect(field(form, "next") === "setup" ? `/onboarding?step=venue&location=${id}&status=${outcome}` : `/owner/locations/${id}?status=${outcome}#venue`);
 }

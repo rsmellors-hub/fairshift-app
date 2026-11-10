@@ -1,3 +1,4 @@
+import { searchCategoriesFor } from "@/server/intelligence/customer-types";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { AiProviderError } from "@/server/integrations/openai/staffing-assessmen
 import type { DiscoveryResponse, LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
 import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
 import {
-  blockAdjustments, buildDiscoveryInput, CATEGORY_LABEL, DISCOVERY_INSTRUCTIONS, discoveryJsonSchema, DISRUPTION_CATEGORIES, impactScore, LOCAL_INTEL_OUTPUT_VERSION, LOCAL_INTEL_POLICY_VERSION,
+  blockAdjustments, buildDiscoveryInput, CATEGORY_LABEL, DISCOVERY_INSTRUCTIONS, discoveryJsonSchema, DISRUPTION_CATEGORIES, impactScore, INFLUENCE_CATEGORIES, LOCAL_INTEL_OUTPUT_VERSION, LOCAL_INTEL_POLICY_VERSION,
   locationProfileSchema, restrictedNote, signalKey, sourceDecision, storedSignalStatus, validateDiscoveryOutput, type AppliableSignal, type BlockAdjustment, type InfluenceCategory, type LocationProfile, type ProfileSource, type RunKind, type SignalStatus,
 } from "@/server/intelligence/local-intelligence-contract";
 import { consultedBy, type SourceCheck, type SourceChecker } from "@/server/intelligence/local-intelligence-sources";
@@ -76,8 +77,11 @@ export async function runLocalDiscovery(db: Database, target: { organisationId: 
   const [holidayRow] = isSouthAfrica(outlet.country) ? await db.select().from(externalFeeds).where(eq(externalFeeds.feed, holidayFeedKey("ZA"))) : [];
   const lookup = holidayLookup(holidayRow ?? null, "ZA");
   const holidays = isSouthAfrica(outlet.country) ? Array.from({ length: 8 }, (_, i) => shiftDate(today, i)).flatMap(date => { const fact = lookup(date); return fact ? [{ date, name: fact.name, source: fact.sourceLabel }] : []; }) : [];
+  const searchFocus = searchCategoriesFor(outlet.customerTypes ?? [], options.kind === "DAILY" ? INFLUENCE_CATEGORIES : [...DISRUPTION_CATEGORIES, "OTHER"]);
   const input = buildDiscoveryInput({ runKind: options.kind, today, location: { name: outlet.name, city: outlet.city, province: outlet.province, country: outlet.country, latitude: outlet.latitude, longitude: outlet.longitude, timezone: outlet.timezone },
-    profile: profileOf(outlet), tradingFor, holidays });
+    profile: profileOf(outlet), tradingFor, holidays,
+    // Design §3: the location's customer types decide which categories are searched, and why.
+    focus: searchFocus, ownerNote: outlet.customerNote });
   // Recorded before the call, so an interrupted run still counts against the cap.
   const [run] = await db.insert(localIntelligenceRuns).values({ id: randomUUID(), organisationId: target.organisationId, outletId: outlet.id, kind: options.kind, trigger: options.trigger, requestedBy: options.requestedBy ?? null,
     windowFrom: input.window.from, windowTo: input.window.to, status: "RUNNING", policyVersion: LOCAL_INTEL_POLICY_VERSION, outputVersion: LOCAL_INTEL_OUTPUT_VERSION, provider: options.provider.provider, model: options.provider.model, input, createdAt: now }).returning();
@@ -114,7 +118,7 @@ export async function runLocalDiscovery(db: Database, target: { organisationId: 
         dateCertainty: signal.dateCertainty, shiftBlocks: [...new Set(signal.shiftBlocks)], roles: [...new Set(signal.roles)], direction: signal.direction, sizeBand: signal.sizeBand, severity: signal.severity, closureLikely: signal.closureLikely,
         confidence: signal.confidence, sourceTier: signal.sourceTier, reasoning: signal.reasoning, sourceUrl: signal.sourceUrl, sourceTitle: signal.sourceTitle || null,
         sourceCheck: check?.outcome ?? "NOT_CHECKED", sourceHttpStatus: check?.httpStatus ?? null, consultedInSearch: seen.exact ? "EXACT" : seen.site ? "SAME_SITE" : "NO",
-        impact: impactScore(signal), createdAt: now,
+        impact: impactScore(signal), createdAt: now, triggeredBy: searchFocus?.find(row => row.category === signal.category)?.triggeredBy ?? null,
       }));
     }
   }
@@ -261,6 +265,8 @@ export function currentRuns(runs: readonly RunRow[]) {
 export type LocalSignalView = AppliableSignal & {
   id: string; runId: string; category: string; categoryLabel: string; otherLabel: string | null; name: string; dateCertainty: string; roles: string[]; severity: string | null; closureLikely: boolean;
   confidence: string; sourceTier: string; reasoning: string; sourceUrl: string; sourceTitle: string | null; sourceCheck: string; consultedInSearch: string; serverNote: string | null; rejectionCode: string | null;
+  // Design §3: why this was looked for at this location (the customer type that switched its category on).
+  triggeredBy?: string | null;
   responseId: string | null; model: string; responseModel: string | null; foundAt: Date;
   // Demand: applied in at least one planning block, or listed (ranked below the top signals, or outside the
   // planning week). Capacity: an Owner alert when severe, else noted. Access: a staff-attendance risk.
@@ -318,7 +324,7 @@ export function resolveLocalIntelligence(input: { outletId: string; stored: Stor
     return { key: row.signalKey, status: stored.status, effectType: row.effectType, direction: row.direction, sizeBand: row.sizeBand, validFrom: row.validFrom, validTo: row.validTo, startMinute: row.startMinute, endMinute: row.endMinute,
       shiftBlocks: row.shiftBlocks as string[], impact: row.impact, id: row.id, runId: row.runId, category: row.category, categoryLabel: row.category === "OTHER" ? row.otherLabel ?? "Other" : CATEGORY_LABEL[row.category as InfluenceCategory] ?? row.category,
       otherLabel: row.otherLabel, name: row.name, dateCertainty: row.dateCertainty, roles: row.roles as string[], severity: row.severity, closureLikely: row.closureLikely, confidence: row.confidence, sourceTier: row.sourceTier, reasoning: row.reasoning,
-      sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, sourceCheck: row.sourceCheck, consultedInSearch: row.consultedInSearch, serverNote: stored.note, rejectionCode: row.rejectionCode,
+      sourceUrl: row.sourceUrl, sourceTitle: row.sourceTitle, triggeredBy: row.triggeredBy ?? null, sourceCheck: row.sourceCheck, consultedInSearch: row.consultedInSearch, serverNote: stored.note, rejectionCode: row.rejectionCode,
       responseId: run.providerResponseId, model: run.model, responseModel: run.responseModel, foundAt: run.completedAt ?? run.createdAt };
   });
   // The latest dismissal or restoration per signal key at this location; a dismissed demand signal moves nothing.

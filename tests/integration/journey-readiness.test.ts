@@ -73,7 +73,7 @@ describe("invited people reach their invitation", () => {
   }));
 
   it("only the known continuation is honoured, and a business owner still verifies by email", () => withDb(async db => {
-    expect(await outcome(() => registerAction(form({ email: "owner-new@example.test", password, next: "https://elsewhere.example/" })))).toBe("REDIRECT:/check-email");
+    expect(await outcome(() => registerAction(form({ name: "New Owner", businessName: "New Cafe", country: "South Africa", terms: "yes", email: "owner-new@example.test", password, next: "https://elsewhere.example/" })))).toBe("REDIRECT:/check-email");
     expect(await db.select().from(notifications).where(eq(notifications.kind, "VERIFY_EMAIL"))).toHaveLength(1);
     expect(await db.select().from(identityTokens)).toHaveLength(1);
   }));

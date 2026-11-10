@@ -23,13 +23,16 @@ async function perform(destination: string, fn: () => Promise<string>) {
     catch (error) { status = error instanceof UserFacingError ? error.feedback : "error"; }
   }
   for (const role of ["owner", "manager", "worker"]) revalidatePath(`/${role}`, "layout");
-  redirect(`${destination}?status=${status}`);
+  redirect(`${destination}${destination.includes("?") ? "&" : "?"}status=${status}`);
 }
 
 const OWNER_SALES = "/owner/reporting", TEAM = "/manager/team";
 export async function connectSquareAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);
-  return perform(OWNER_SALES, async () => { await connectSquare(getDatabase(), scope, { outletId: field(form, "outletId") }, createSquareClient(), squareSandboxCredentials()); return "saved"; });
+  // From the setup flow (design Setup step 4), back to it.
+  const outletId = field(form, "outletId");
+  const back = field(form, "next") === "setup" && /^[0-9a-f-]{36}$/.test(outletId) ? `/onboarding?step=sales&location=${outletId}&from=square` : OWNER_SALES;
+  return perform(back, async () => { await connectSquare(getDatabase(), scope, { outletId: field(form, "outletId") }, createSquareClient(), squareSandboxCredentials()); return "saved"; });
 }
 export async function syncSquareAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);

@@ -1222,6 +1222,9 @@ export const fxReferenceRates = pgTable("fx_reference_rates", {
   rateDate: date("rate_date", { mode: "string" }).notNull(),
   eurZar: text("eur_zar").notNull(),
   eurUsd: text("eur_usd").notNull(),
+  // EUR/GBP from the same file (Owner decision 10 Nov 2026), so GBP payouts can be checked against the
+  // Sandbox's US$100 daily cap. Null on rows recorded before it was read.
+  eurGbp: text("eur_gbp"),
   usdZarMicros: bigint("usd_zar_micros", { mode: "number" }).notNull(),
   // ECB_EUROFXREF_DAILY: fetched from the ECB daily reference-rate file.
   // OWNER_MANUAL: typed by the Sandbox demo organisation's Owner from the ECB publication.
@@ -1616,6 +1619,9 @@ export const localIntelligenceSignals = pgTable("local_intelligence_signals", {
   sourceHttpStatus: integer("source_http_status"),
   consultedInSearch: text("consulted_in_search").notNull(),
   impact: integer("impact").notNull(),
+  // Which of the location's customer types switched on this finding's category (design §3, 10 Nov 2026);
+  // ALWAYS for the categories checked at every venue; null for runs before customer types existed.
+  triggeredBy: text("triggered_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   index("local_intelligence_signals_run_idx").on(t.runId),

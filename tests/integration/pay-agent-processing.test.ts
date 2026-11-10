@@ -267,8 +267,10 @@ describe("Pay Agent settlement gates", () => {
       await legacy.t.db.update(organisations).set({ country: "South Africa" }).where(eq(organisations.id, legacy.manager.organisationId));
       expect(await legacy.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "payout-route-unverified" });
     } finally { await legacy.t.close(); }
+    // Outside the Sandbox organisation, once demo-only isolation is restored by its switch.
+    vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY");
     const ordinary = await scenario({ sandbox: false });
-    try { expect(await ordinary.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "sandbox-isolation-required" }); } finally { await ordinary.t.close(); }
+    try { expect(await ordinary.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "sandbox-isolation-required" }); } finally { await ordinary.t.close(); vi.unstubAllEnvs(); }
     const unregistered = await scenario({ paymentEmail: null });
     try { expect(await unregistered.run()).toMatchObject({ status: "SETTLEMENT_BLOCKED", outcomeCode: "payment-details-required" }); } finally { await unregistered.t.close(); }
   });

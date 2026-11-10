@@ -95,8 +95,18 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved", "person-removed": "Removed from this location; history kept", "invitation-revoked": "Invitation revoked", "trading-saved": "Trading hours saved", "staffing-saved": "Staffing and offers saved", "role-added": "Role added", "pay-version-saved": "New pay version saved", "tip-settings-saved": "Card tips saved", "pin-confirmed": "Pin confirmed" };
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved", "person-removed": "Removed from this location; history kept", "invitation-revoked": "Invitation revoked", "trading-saved": "Trading hours saved", "staffing-saved": "Staffing and offers saved", "role-added": "Role added", "pay-version-saved": "New pay version saved", "tip-settings-saved": "Card tips saved", "pin-confirmed": "Pin confirmed", "sample-history-created": "Sample history added (synthetic)", "csv-imported": "Sales imported" };
 const FEEDBACK: Record<string, string> = {
+  "venue-invalid": "Enter the venue’s name, street address, city, type, seats, bills per person per hour and the minimum on the floor.",
+  "sample-needs-venue": "Add the venue type and seats first, so the sample matches your venue.",
+  "sample-needs-hours": "Add trading hours first, so the sample follows when you’re open.",
+  "sample-after-csv": "You’ve imported real sales, so the sample isn’t needed.",
+  "csv-invalid": "The file couldn’t be read. Use a header row with date, transactions and optionally hour and sales.",
+  "setup-needs-role": "Add at least one role with an hourly rate at or above the minimum wage to continue.",
+  "subscription-required": "Start your free trial before setting up your venue.",
+  "sandbox-payout-limit": "This business has reached today’s Sandbox payout limit (5 payouts or US$100). It can send more tomorrow.",
+  "sandbox-payout-limit-unchecked": "This payout can’t be checked against the Sandbox’s daily limit, so it isn’t sent.",
+  "location-timezone-unknown": "FairShift can’t yet work out the local time for your country.",
   "person-home-location": "This is the location they joined FairShift through. Remove them from their other locations, or deactivate them.",
   "person-last-location": "This is their only location. Deactivate them instead to stop all their work.",
   "venue-facts-invalid": "Check the customer types, venue type and seats. The note can't hold links, emails or phone numbers.",

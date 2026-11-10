@@ -267,6 +267,13 @@
       "when": 1794307091185,
       "tag": "0037_design_people_venue",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794319706060,
+      "tag": "0038_fx_gbp_signal_reason",
+      "breakpoints": true
     }
   ]
 }

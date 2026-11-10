@@ -61,6 +61,21 @@ export async function invitationEmailFor(tx: DatabaseSession, invitationId: stri
   return invitationEmailData(tx, { organisationId: invitation.organisationId, inviterId: invitation.createdBy, role: invitation.role as "MANAGER" | "TEAM_MEMBER", outletIds: [...new Set(outletIds)], expiresAt: invitation.expiresAt, invitee: invitation.firstName });
 }
 
+// Design, 10 Nov 2026 (SignUp): the business name and country are given with the account. The business
+// is created then, owned by the new account; nothing operational is available until the email is
+// confirmed and the PayPal Sandbox trial is approved.
+export async function createBusinessShell(db:Database,userId:string,input:{name:string;country:string}) {
+  const value=z.object({name:z.string().trim().min(1).max(150),country:z.string().trim().min(2).max(100)}).parse(input);
+  return db.transaction(async tx => {
+    const owned=await tx.select().from(memberships).where(and(eq(memberships.userId,userId),eq(memberships.role,"OWNER"),eq(memberships.state,"ACTIVE")));
+    if (owned.length) return owned[0];
+    const organisationId=randomUUID();
+    await tx.insert(organisations).values({id:organisationId,name:value.name,country:value.country});
+    const [membership]=await tx.insert(memberships).values({id:randomUUID(),userId,organisationId,role:"OWNER"}).returning();
+    await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID()});
+    return membership;
+  });
+}
 export async function inviteMember(db:Database,scope:Scope,input:unknown) {
   assertRole(scope,["OWNER","MANAGER"]);
   await requireEntitlement(db,scope.organisationId);

@@ -68,3 +68,35 @@ const HINTS: Record<CustomerType, RegExp> = {
 export function suggestCustomerTypes(text: string): CustomerType[] {
   return CUSTOMER_TYPES.filter(type => HINTS[type].test(text));
 }
+
+// The AI's search categories (local-intelligence contract) each customer-type category maps to, and the
+// categories searched at every venue whatever its customers: whether it can open (local service
+// disruptions, extreme weather).
+import type { InfluenceCategory } from "@/server/intelligence/local-intelligence-contract";
+export const SEARCH_CATEGORY: Record<SignalCategory, InfluenceCategory> = {
+  PUBLIC_HOLIDAYS: "PUBLIC_HOLIDAY", OFFICE_CLOSURES: "NEWS_POLITICAL", TRANSPORT_STRIKES: "ACCESS_DISRUPTION", TERM_AND_EXAM_DATES: "SCHOOL_CALENDAR",
+  CAMPUS_EVENTS: "FESTIVAL_CONCERT_CULTURAL", FESTIVALS: "FESTIVAL_CONCERT_CULTURAL", CRUISE_DAYS: "OTHER", MAJOR_EVENTS: "FESTIVAL_CONCERT_CULTURAL",
+  NEARBY_SHOWS: "FESTIVAL_CONCERT_CULTURAL", MATCH_DAYS: "SPORT", SCHOOL_HOLIDAYS: "SCHOOL_CALENDAR", FAMILY_EVENTS: "FESTIVAL_CONCERT_CULTURAL",
+  PAYDAYS: "PAYDAY_MONTH_END", MALL_HOURS: "COMMEMORATIVE_COMMERCIAL", SALES: "COMMEMORATIVE_COMMERCIAL", TRANSPORT_DISRUPTIONS: "ACCESS_DISRUPTION",
+  ROAD_CLOSURES: "ACCESS_DISRUPTION", LATE_EVENTS: "FESTIVAL_CONCERT_CULTURAL", CONCERTS: "FESTIVAL_CONCERT_CULTURAL", LONG_WEEKENDS: "PUBLIC_HOLIDAY",
+};
+export const ALWAYS_SEARCHED: readonly InfluenceCategory[] = ["SERVICE_DISRUPTION", "EXTREME_WEATHER"];
+export type TriggeredBy = CustomerType | "ALWAYS";
+
+// The categories a location's customer types switch on, each with what to look for and why; null when
+// the location has no customer types yet (the search then covers every category, as before).
+export function searchCategoriesFor(types: readonly string[], allowed: readonly InfluenceCategory[]) {
+  const chosen = signalCategoriesFor(types);
+  if (!chosen.length) return null;
+  const byCategory = new Map<InfluenceCategory, { focus: string[]; triggeredBy: TriggeredBy }>();
+  for (const { category, triggeredBy } of chosen) {
+    const search = SEARCH_CATEGORY[category];
+    const entry = byCategory.get(search) ?? { focus: [], triggeredBy };
+    entry.focus.push(SIGNAL_CATEGORY_LABEL[category]);
+    byCategory.set(search, entry);
+  }
+  for (const category of ALWAYS_SEARCHED) if (!byCategory.has(category)) byCategory.set(category, { focus: [], triggeredBy: "ALWAYS" });
+  return [...byCategory].filter(([category]) => allowed.includes(category)).map(([category, entry]) => ({ category, focus: entry.focus, triggeredBy: entry.triggeredBy }));
+}
+export const triggeredByLabel = (value: string | null | undefined) =>
+  !value ? null : value === "ALWAYS" ? "Checked at every venue: can it open?" : `Because you picked ${CUSTOMER_TYPE_LABEL[value as CustomerType] ?? value}`;

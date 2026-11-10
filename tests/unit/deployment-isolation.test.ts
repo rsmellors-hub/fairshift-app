@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deploymentMode, assertSandboxDeployment, assertSandboxFinancialScope, SandboxIsolationError } from "@/server/config/deployment";
 import { getPayPalClient, getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { PayPalClient } from "@/server/integrations/paypal/client";
@@ -10,6 +10,8 @@ import { DEMO_ORGANISATION_ID } from "@/server/constants";
 
 vi.mock("@/server/integrations/paypal/client", () => ({ PayPalClient: vi.fn(class {}) }));
 vi.mock("@/server/integrations/paypal/payout-client", () => ({ PayPalPayoutClient: vi.fn(class {}) }));
+// These tests cover demo-only isolation, restored by its switch (Owner decision 10 Nov 2026).
+beforeEach(() => { vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY"); });
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
 const credentials = () => {
   vi.stubEnv("PAYPAL_CLIENT_ID", "fixture"); vi.stubEnv("PAYPAL_CLIENT_SECRET", "fixture");

@@ -32,6 +32,8 @@ const identity = (demoPersona: string | null = null) => ({ user: { id: scope.use
 const request = () => new Request("https://isolated.example.test/api/paypal/orders?deployment=HOSTED_SANDBOX_DEMO", { method: "POST", headers: { origin: "https://isolated.example.test", "x-fairshift-deployment-mode": "HOSTED_SANDBOX_DEMO" }, body: JSON.stringify({ deploymentMode: "HOSTED_SANDBOX_DEMO", organisationId: DEMO_ORGANISATION_ID }) });
 const form = () => { const f = new FormData(); f.set("tier", "SINGLE_OUTLET"); f.set("billingPeriod", "MONTHLY"); f.set("payableId", randomUUID()); f.set("deploymentMode", "HOSTED_SANDBOX_DEMO"); return f; };
 beforeEach(() => {
+  // These tests cover demo-only isolation, restored by its switch (Owner decision 10 Nov 2026).
+  vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY");
   sandboxFixture();
   vi.stubEnv("DATABASE_URL", "postgres://fixture:fixture@127.0.0.1:1/unused");
   vi.stubEnv("PAYPAL_CLIENT_ID", "fixture"); vi.stubEnv("PAYPAL_CLIENT_SECRET", "fixture"); vi.stubEnv("PAYPAL_WEBHOOK_ID", "fixture"); vi.stubEnv("APP_BASE_URL", "https://isolated.example.test");

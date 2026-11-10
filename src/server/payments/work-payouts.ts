@@ -1,4 +1,5 @@
-import { assertSandboxFinancialScope, assertSandboxOrganisation } from "@/server/config/deployment";
+import { assertSandboxBusiness, assertSandboxFinancialScope } from "@/server/config/deployment";
+import { assertSandboxPayoutLimits } from "@/server/payments/sandbox-limits";
 import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
 import { resolveProviderAmount } from "@/server/domain/provider-currency";
@@ -287,6 +288,8 @@ export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, inp
     : await resolveProviderAmount({ amountMinor: input.amountMinor, currencyCode: input.currencyCode }, () => currentZarConversion(db));
   await assertPayoutRoute(db, scope, providerLeg.providerCurrency, providerLeg.fxRateMicros !== null);
   payoutAmount(providerLeg.providerAmountMinor, providerLeg.providerCurrency);
+  // Daily Sandbox guardrails for each business (Owner decision 10 Nov 2026); a resend was already counted.
+  if (!input.existing) await assertSandboxPayoutLimits(db, scope.organisationId, providerLeg);
   // A payout already reserved keeps the address it was reserved with (Day 6, Step 3b): a later change
   // to the worker's PayPal email affects only payouts reserved after it.
   const [worker] = input.existing ? [{ email: input.existing.recipient }] : await db.select({ email: workers.paypalPayoutEmail }).from(workers)
@@ -366,7 +369,7 @@ export type ConfirmedWorkAuthority = {
 // manager, with the basis and the service in the audit), then reserved and sent exactly as
 // submitWorkPayout does, with the same frozen provider leg, route gate, uniqueness and recovery.
 export async function submitConfirmedWorkPayout(db: Database, paypal: PayoutClientSource, authority: ConfirmedWorkAuthority, payableId: string): Promise<SubmitResult> {
-  assertSandboxOrganisation(authority.organisationId);
+  assertSandboxBusiness(authority.organisationId);
   const actor: PayoutActor = { userId: null, organisationId: authority.organisationId, locationId: authority.locationId, service: "fairshift-pay-agent" };
   const payable = await db.transaction(async tx => {
     const locked = await scopedPayable(tx, actor, payableId, true);

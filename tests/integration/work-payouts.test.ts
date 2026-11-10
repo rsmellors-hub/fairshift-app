@@ -1048,7 +1048,8 @@ it.each(["LIVE_CUSTOMER", "wrong tenant", "public demo"])("preserves an existing
     const before = await snapshot(), auditBefore = await t.db.select().from(auditEvents);
     let refused = manager;
     if (boundary === "LIVE_CUSTOMER") vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE", "LIVE_CUSTOMER");
-    if (boundary === "wrong tenant") refused = { ...manager, organisationId: randomUUID() };
+    // The env switch restores demo-only isolation (Owner decision 10 Nov 2026).
+    if (boundary === "wrong tenant") { vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY"); refused = { ...manager, organisationId: randomUUID() }; }
     if (boundary === "public demo") refused = { ...manager, demo: { persona: "MANAGER", group: "public" } };
     await expect(submitWorkPayout(t.db, paypal, refused, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
     await expect(refreshWorkPayout(t.db, paypal, refused, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
@@ -1142,8 +1143,11 @@ describe("South African ZAR→USD Sandbox provider currency (DEC-SA-012)", () =>
       expect((await submitWorkPayout(t.db, paypal, manager, payable.id)).submitted).toBe(false);
       expect(await payoutsOf(t.db)).toHaveLength(1);
       expect(paypal.createPayout).toHaveBeenCalledTimes(1);
-      // A different organisation cannot reach the isolated demo route, and changes nothing.
+      // A different organisation can't reach this payable when every business may use the Sandbox, and
+      // can't reach the route at all once demo-only isolation is restored; nothing changes either way.
       const before = await payoutsOf(t.db);
+      await expect(submitWorkPayout(t.db, paypal, { ...manager, organisationId: randomUUID() }, payable.id)).rejects.toThrow();
+      vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY");
       await expect(submitWorkPayout(t.db, paypal, { ...manager, organisationId: randomUUID() }, payable.id)).rejects.toMatchObject({ code: "SANDBOX_ISOLATION_REQUIRED" });
       expect(await payoutsOf(t.db)).toEqual(before);
     } finally { await t.close(); }

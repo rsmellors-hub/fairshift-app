@@ -37,9 +37,24 @@ export function assertSandboxOrganisation(organisationId: string) {
   if (assertSandboxDeployment() !== organisationId) throw new SandboxIsolationError();
 }
 
+// Owner decision 10 Nov 2026: on the hosted PayPal Sandbox deployment, every business may use Sandbox
+// subscriptions, the Pay Agent and payouts (with daily payout caps, sandbox-limits.ts). Setting
+// FAIRSHIFT_SANDBOX_SCOPE=DEMO_ONLY restores demo-only isolation at once. Live customer mode never opens.
+export function sandboxOpenToAllBusinesses() {
+  return sandboxOrganisationId() !== null && process.env.FAIRSHIFT_SANDBOX_SCOPE !== "DEMO_ONLY";
+}
+export function sandboxBusinessAllowed(organisationId: string) {
+  const id = sandboxOrganisationId();
+  return !!id && (id === organisationId || sandboxOpenToAllBusinesses());
+}
+export function assertSandboxBusiness(organisationId: string) {
+  assertSandboxDeployment();
+  if (!sandboxBusinessAllowed(organisationId)) throw new SandboxIsolationError();
+}
+
 // scope must come from server-side authentication. Public persona sessions never
 // acquire provider-write authority, even inside the isolated demo deployment.
 export function assertSandboxFinancialScope(scope: { organisationId: string; demo?: unknown }) {
-  assertSandboxOrganisation(scope.organisationId);
+  assertSandboxBusiness(scope.organisationId);
   if (scope.demo) throw new SandboxIsolationError();
 }

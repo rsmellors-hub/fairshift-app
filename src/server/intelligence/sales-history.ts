@@ -22,7 +22,10 @@ const eligibleSale = sql`(
   or (${saleTransactions.source} = 'REFERENCE' and ${saleTransactions.providerStatus} = 'REFERENCE'
     and ${saleTransactions.occurredAt} is not null and ${unverified})
   or (${saleTransactions.source} = 'IMPORTED' and ${saleTransactions.providerStatus} = 'IMPORTED'
-    and ${saleTransactions.occurredAt} is not null and ${unverified})
+    and ${saleTransactions.occurredAt} is not null and ${unverified}
+    -- FairShift's sample history is set aside once the Owner has imported real sales (CSV).
+    and not (${saleTransactions.sourceSystem} = 'FAIRSHIFT_SAMPLE_V1' and exists (select 1 from "sale_transactions" "csv"
+      where "csv"."outlet_id" = "sale_transactions"."outlet_id" and "csv"."source" = 'IMPORTED' and "csv"."source_system" like 'OWNER_CSV:%')))
   or (${saleTransactions.source} = 'ZETTLE' and ${saleTransactions.providerStatus} = 'ZETTLE'
     and ${saleTransactions.occurredAt} is not null and ${unverified})
   or (${saleTransactions.source} = 'SQUARE' and ${saleTransactions.providerStatus} = 'SQUARE'

@@ -12,7 +12,7 @@ import { registerIdentity, signIn, issueSession, createIdentityToken, redeemIden
 import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE, DEMO_COOKIE } from "@/server/auth/request";
 import { demoConfig } from "@/server/demo/config";
 import { isDemoAccount } from "@/server/demo/session";
-import { ensureCustomerOrganisation, inviteMember, revokeInvitation } from "@/server/auth/tenancy";
+import { createBusinessShell, ensureCustomerOrganisation, inviteMember, revokeInvitation } from "@/server/auth/tenancy";
 import { membershipDestination } from "@/server/auth/destination";
 import { notify, dispatchNotification, markNotificationRead, dispatchOperationalEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
@@ -39,7 +39,15 @@ export async function registerAction(form:FormData) {
   await consumeLimit(getDatabase(),"registration-global",100);
   const user=await registerIdentity(getDatabase(),{email:field(form,"email"),password:field(form,"password")});
   token=await issueSession(getDatabase(),user.id);
-  if (!invited) await identityEmail(user,"VERIFY_EMAIL");
+  if (!invited) {
+   // Design (SignUp): name, business and country with the account; terms must be accepted.
+   if (field(form,"terms") !== "yes") throw new Error("Terms not accepted.");
+   const [first="",...rest]=field(form,"name").trim().split(/\s+/);
+   if (first) await getDatabase().update(users).set({firstName:first,surname:rest.join(" ") || null,name:field(form,"name").trim()}).where(eq(users.id,user.id));
+   const country=field(form,"country") === "Other" ? field(form,"otherCountry") : field(form,"country");
+   await createBusinessShell(getDatabase(),user.id,{name:field(form,"businessName"),country});
+   await identityEmail(user,"VERIFY_EMAIL");
+  }
  } catch {redirect(invited ? "/register?status=error&next=invite" : "/register?status=error");}
  await setSessionCookie(token);
  redirect(invited ? "/invite" : "/check-email");

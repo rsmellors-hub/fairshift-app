@@ -1,4 +1,4 @@
-import { assertSandboxOrganisation } from "@/server/config/deployment";
+import { assertSandboxBusiness } from "@/server/config/deployment";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { UserFacingError } from "@/server/domain/errors";
 import { BASE_PAYABLE_METHOD } from "@/server/domain/work-payable";
@@ -56,7 +56,7 @@ export async function evaluateSettlementGates(db: DatabaseSession, identity: Pay
   if (payable.status === "APPROVED" && (payable.approvedAmountMinor !== payable.finalAmountMinor || payable.approvedCurrencyCode !== payable.currencyCode)) return blocked("COMPENSATION_MISMATCH");
   if (command.authority.kind === "MANAGER_RELEASED_HOLD" && evidence.worker?.userId && command.authority.userId === evidence.worker.userId) return blocked("INDEPENDENT_CONFIRMATION_REQUIRED");
   try {
-    assertSandboxOrganisation(identity.organisationId);
+    assertSandboxBusiness(identity.organisationId);
     await prepareWorkPayout(db, identity, { workerId: payable.workerId, amountMinor: payable.finalAmountMinor, currencyCode: payable.currencyCode });
   } catch (error) {
     return blocked(settlementCodeOf(error));

@@ -28,6 +28,7 @@ import { localDate } from "@/server/intelligence/forecast";
 import { checkWage } from "@/server/domain/statutory-wage";
 import { PolicyForm } from "@/app/owner/policy-form";
 import { HoursRuleSettings, PolicyRevision, ShiftRulesSettings } from "@/app/owner/rules-settings";
+import { importSalesCsvAction, sampleHistoryAction } from "@/app/setup-actions";
 import { BusinessSettings } from "@/app/owner/business-settings";
 import { loadHoursRule, loadShiftRules } from "@/server/scheduling/shift-rules";
 import { SANDBOX_PAYOUT_LIMITS } from "@/server/payments/sandbox-limits";
@@ -46,7 +47,6 @@ import { ProofPanelView } from "@/app/owner/proof-panel";
 import { refusalText } from "@/server/domain/payout-refusal";
 import { getTicketmasterApiKey } from "@/server/integrations/ticketmaster/events";
 import { isFreshRateDate, latestFxReferenceRate } from "@/server/fx/reference-rates";
-import { sandboxOrganisationId } from "@/server/config/deployment";
 import { OwnerTips } from "@/app/owner/tips";
 import { getOwnerTipView } from "@/server/tips/view";
 import { devStatementLinksEnabled } from "@/server/tips/statement";
@@ -160,7 +160,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       <details className="panel disclosure"><summary>Departments · {scope.locationName}</summary>{operations.departments.map(d => <div className="record-row" key={d.id}>{d.name}</div>)}<form action={createDepartmentAction} className="inline-form"><label>Department name<input name="name" maxLength={100} required /></label><button className="primary-button">Add department</button></form></details>
     </> : null}
     {area === "payments" ? <section className="panel"><h2>Work earnings payments</h2><p className="panel-lede">Approve and send from Review &amp; pay at each location, yourself or through its manager. Paid shows only after PayPal confirms the payment.</p>{workPayments.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Approved work and payment status</caption><thead><tr><th scope="col">Location</th><th scope="col">Worker</th><th scope="col">Shift</th><th scope="col">Total</th><th scope="col">Status</th></tr></thead><tbody>{workPayments.map((payment) => <tr key={payment.id}><th scope="row">{locations.find((location) => location.id === payment.outletId)?.name}</th><td data-label="Worker">{payment.workerName}</td><td data-label="Shift">{longDate(payment.shiftDate)}</td><td data-label="Total"><strong>{money(payment.amountMinor, payment.currencyCode)}</strong></td><td data-label="Status"><PayableBadge status={payment.status} payout={payment.payout} />{payment.payout?.refusal ? <small>{refusalText(payment.payout.refusal)}</small> : null}</td></tr>)}</tbody></table></div> : <p>No confirmed work payables yet.</p>}</section> : null}
-    {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} canRecord={!scope.demo && sandboxOrganisationId() === scope.organisationId} feed={fxFeed} timeZone={locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} /> : null}
+    {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} feed={fxFeed} timeZone={locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} /> : null}
     {area === "payments" && payments.length ?<section className="panel"><h2>Organisation incentive payments</h2>{payments.map((payment, index) => <div className="record-row" key={`${payment.outletId}-${payment.shiftDate}-${index}`}><span>{locations.find((location) => location.id === payment.outletId)?.name} · {payment.shiftDate} · {money(payment.amount, payment.currency)}</span><PaymentBadge status={payment.status} /></div>)}</section> : null}
     {area === "settings" ? <>
       <section className="panel"><h2>Connected services</h2>
@@ -170,6 +170,12 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       </section>
       {business ? <BusinessSettings business={business} locationCount={locations.length} disabled={!!scope.demo} /> : null}
       <HoursRuleSettings rule={hoursRule} disabled={!!scope.demo} />
+      <details className="panel disclosure" id="sales-data"><summary><span className="h4">Sales data</span><span className="note"> · {scope.locationName}</span></summary>
+        <div className="record-row"><span><strong>Square</strong><small>Sales and card tips per worker. <Link href="/owner/reporting">Connect or manage Square</Link></small></span></div>
+        {scope.demo ? null : <>
+          <form action={importSalesCsvAction} className="inline-form"><input type="hidden" name="locationId" value={scope.locationId} /><input type="hidden" name="next" value="settings" /><label>Upload past sales (CSV)<input type="file" name="file" accept=".csv,text/csv" required /><small>Daily or hourly totals · labelled “Imported”</small></label><button className="secondary-button">Upload</button></form>
+          <form action={sampleHistoryAction} className="inline-form"><input type="hidden" name="locationId" value={scope.locationId} /><input type="hidden" name="next" value="settings" /><span className="note">Sample history, scaled to the venue’s seats · labelled “Sample (synthetic)”</span><button className="secondary-button">Use sample history</button></form></>}
+      </details>
       <details className="panel disclosure"><summary><span className="h4">Payouts</span><span className="note"> · PayPal · US dollars</span></summary>
         <div className="record-row"><span><strong>Payout currency</strong><small>US dollars: rand can’t be sent through PayPal.</small></span></div>
         <div className="record-row"><span><strong>Exchange rate</strong><small>Latest European Central Bank reference rate, locked when each payout is created.</small></span></div>

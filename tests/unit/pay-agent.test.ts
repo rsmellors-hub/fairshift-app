@@ -14,6 +14,8 @@ import { sandboxFixture } from "../helpers/sandbox";
 
 let networkGuard: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  // These tests cover demo-only isolation, restored by its switch (Owner decision 10 Nov 2026).
+  vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY");
   networkGuard = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected network call in Pay Agent tests"));
 });
 afterEach(() => {

@@ -41,8 +41,8 @@ describe("confirmation to workplace journey",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,m.organisationId));
     const html=renderToStaticMarkup(await BillingReturn());
     expect(html).toContain("Setting up your FairShift account");expect(html).toContain("confirming the details with PayPal");
-    expect(html).toContain('aria-current="step"');expect(html).toContain("Ready");
-    for(const technical of [status,"webhook","reconciliation","I-JOURNEY","P-JOURNEY","API","browser return","Team","Check payment status"]) expect(html).not.toContain(technical);
+    expect(html).toContain('aria-current="step"');expect(html).toContain("Plan");
+    for(const technical of [status,"webhook","reconciliation","I-JOURNEY","P-JOURNEY","API","browser return","Check payment status"]) expect(html).not.toContain(technical);
     expect((await t.db.select().from(subscriptions).where(eq(subscriptions.organisationId,m.organisationId)))[0]).toMatchObject({status,verifiedAt:null});
    }
    expect(adapter.create).not.toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe("confirmation to workplace journey",()=>{
    expect((await t.db.select().from(outlets).where(eq(outlets.organisationId,m.organisationId)))[0]).toMatchObject({address:setupFields.locationAddress,city:setupFields.locationCity});
    expect((await t.db.select().from(users).where(eq(users.email,"owner@example.test")))[0].email).toBe("owner@example.test");
    await expect(BillingReturn()).rejects.toThrow("REDIRECT:/owner");
-   await expect(Onboarding()).rejects.toThrow("REDIRECT:/owner");
+   await expect(Onboarding({})).rejects.toThrow("REDIRECT:/owner");
    expect(await checkSubscriptionStatusAction()).toEqual({destination:"/owner"});expect(adapter.create).not.toHaveBeenCalled();
   }finally{await t.close();}
  });
@@ -101,11 +101,11 @@ describe("confirmation to workplace journey",()=>{
    await t.db.update(subscriptions).set({status:"ACTIVE",verifiedAt:new Date()}).where(eq(subscriptions.organisationId,m.organisationId));
    await t.db.update(users).set({firstName:"Alex",surname:"River",position:"Owner",telephone:"+441234567890"}).where(eq(users.id,u.id));
    await t.db.update(organisations).set({name:"River Business"}).where(eq(organisations.id,m.organisationId));
-   const html=renderToStaticMarkup(await Onboarding());
-   for(const name of ["firstName","surname","position","telephone","name","locationName","locationAddress","locationCity","locationPostalCode","locationCountry"]) expect(html).toContain(`name="${name}"`);
-   for(const name of ["title","email","province","locationProvince","businessAddress","city","postalCode","country"]) expect(html).not.toContain(`name="${name}"`);
-   for(const value of ["Alex","River","Owner","+441234567890","River Business","owner@example.test","Continue to FairShift","Last name","A few details, then your first location."]) expect(html).toContain(value);
-   expect(html).toContain('name="sameAddress"');expect(html).toContain('checked=""');expect(html).not.toContain("Team");
+   const html=renderToStaticMarkup(await Onboarding({}));
+   // Design, 10 Nov 2026 (Setup step 3): the venue, never a home address or personal details again.
+   for(const name of ["name","address","city","postalCode","venueType","seats","customerTypes","transactionsPerStaffHour","minimumStaffWhileOpen","trading1","coverage1"]) expect(html).toContain(`name="${name}"`);
+   for(const name of ["title","email","position","telephone","businessAddress","country"]) expect(html).not.toContain(`name="${name}"`);
+   for(const value of ["River Business","Where is your venue?","Step 3 of 6","Save venue and place the pin"]) expect(html).toContain(value);
    const separate=renderToStaticMarkup(WorkplaceElement(false));
    for(const name of ["businessAddress","city","postalCode","country"]) expect(separate).toContain(`name="${name}"`);
    expect(separate).not.toContain('name="province"');
@@ -144,6 +144,9 @@ it("offers a saved Sandbox approval link only to the configured isolated organis
   expect(live).not.toContain("https://www.sandbox.paypal.com/approve");
   expect(getSubscriptionAdapter).not.toHaveBeenCalled();
   sandboxFixture("22222222-2222-4222-8222-222222222222");
+  // Another business sees its own approval link when every business may use the Sandbox, but not once
+  // demo-only isolation is restored (Owner decision 10 Nov 2026).
+  vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE","DEMO_ONLY");
   expect(renderToStaticMarkup(await page())).not.toContain("Continue in PayPal");
   expect(getSubscriptionAdapter).not.toHaveBeenCalled();
  }finally{await t.close();}

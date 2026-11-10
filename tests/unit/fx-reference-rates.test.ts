@@ -1,19 +1,17 @@
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fxReferenceRates, organisations } from "@/server/db/schema";
+import { fxReferenceRates } from "@/server/db/schema";
 import { ProviderCurrencyRateUnavailableError } from "@/server/domain/provider-currency";
 import {
   businessDaysBefore, currentZarConversion, deriveUsdZarMicros, ECB_DAILY_URL, fetchEcbDailyQuote, isFreshRateDate,
-  parseEcbDailyXml, recordEcbQuote, recordManualFxRate,
+  parseEcbDailyXml, recordEcbQuote,
 } from "@/server/fx/reference-rates";
 import { createTestDatabase } from "../helpers/database";
-import { testUser } from "../helpers/pay-agent";
 
 // DEC-SA-012 (7 Nov 2026): ZAR->USD at the newest ECB reference rate, derived EUR/ZAR ÷ EUR/USD,
 // locked in at reservation, and blocked when no rate from the last 3 business days exists.
 // All quotes here are synthetic test values in the ECB file's shape, never published rates.
-const SANDBOX_ORG = "00000000-0000-4000-8000-0000000000aa";
 const xml = (date: string, rows: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
   <gesmes:subject>Reference rates</gesmes:subject>
@@ -105,23 +103,4 @@ describe("recorded reference rates", () => {
     } finally { await t.close(); }
   });
 
-  it("allows manual entry only by the Sandbox demo organisation's Owner, never by a manager, a demo persona or another business", async () => {
-    vi.stubEnv("FAIRSHIFT_DEPLOYMENT_MODE", "HOSTED_SANDBOX_DEMO");
-    vi.stubEnv("FAIRSHIFT_SANDBOX_ORGANISATION_ID", SANDBOX_ORG);
-    const t = await createTestDatabase();
-    try {
-      const userId = await testUser(t.db);
-      await t.db.insert(organisations).values({ id: SANDBOX_ORG, name: "Sandbox demo test", country: "South Africa" });
-      const input = { rateDate: "2026-11-06", eurZar: "20.0232", eurUsd: "1.08" };
-      const now = new Date("2026-11-07T10:00:00Z");
-      await expect(recordManualFxRate(t.db, { userId, organisationId: SANDBOX_ORG, role: "MANAGER" }, input, now)).rejects.toThrow(/Access denied/);
-      await expect(recordManualFxRate(t.db, { userId, organisationId: crypto.randomUUID(), role: "OWNER" }, input, now)).rejects.toThrow(/Access denied/);
-      await expect(recordManualFxRate(t.db, { userId, organisationId: SANDBOX_ORG, role: "OWNER", demo: { persona: "OWNER", group: "g" } }, input, now)).rejects.toThrow(/Access denied/);
-      await expect(recordManualFxRate(t.db, { userId, organisationId: SANDBOX_ORG, role: "OWNER" }, { ...input, eurZar: "abc" }, now)).rejects.toMatchObject({ feedback: "fx-rate-invalid" });
-      const row = await recordManualFxRate(t.db, { userId, organisationId: SANDBOX_ORG, role: "OWNER" }, input, now);
-      expect(row).toMatchObject({ source: "OWNER_MANUAL", recordedBy: userId, usdZarMicros: 18_540_000 });
-      await expect(recordManualFxRate(t.db, { userId, organisationId: SANDBOX_ORG, role: "OWNER" }, input, now)).rejects.toMatchObject({ feedback: "fx-rate-exists" });
-      expect(await currentZarConversion(t.db, now)).toMatchObject({ fxRateSource: "OWNER_MANUAL:2026-11-06" });
-    } finally { await t.close(); }
-  });
 });

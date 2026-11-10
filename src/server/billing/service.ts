@@ -1,4 +1,4 @@
-import { assertSandboxDeployment, assertSandboxFinancialScope, assertSandboxOrganisation } from "@/server/config/deployment";
+import { assertSandboxBusiness, assertSandboxDeployment, assertSandboxFinancialScope } from "@/server/config/deployment";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -57,7 +57,7 @@ async function checkout(db:Database,scope:CustomerScope,adapter:SubscriptionAdap
 async function reconcile(db:DatabaseSession,adapter:SubscriptionAdapter,id:string) {
  const [row]=await db.select().from(subscriptions).where(eq(subscriptions.providerId,id)).for("update");
  if (!row) throw new Error("Unknown subscription.");
- assertSandboxOrganisation(row.organisationId);
+ assertSandboxBusiness(row.organisationId);
  const details=subscriptionDetails.parse(await adapter.get(id));
  const overridden=details.plan_overridden || (details.quantity && details.quantity !== "1");
  if (details.id !== row.providerId || details.custom_id !== row.organisationId || details.plan_id !== row.planId || (details.status === "ACTIVE" && overridden)) throw new Error("Subscription identity mismatch.");
@@ -96,7 +96,7 @@ export async function processSubscriptionWebhook(db:Database,adapter:Subscriptio
   // Serialize on the subscription before deduplication and authoritative GET.
   const [sub]=await tx.select().from(subscriptions).where(eq(subscriptions.providerId,event.resource.id)).for("update");
   if (!sub) throw new WebhookError("UNKNOWN_SUBSCRIPTION",503);
-  assertSandboxOrganisation(sub.organisationId);
+  assertSandboxBusiness(sub.organisationId);
   const [existing]=await tx.select().from(subscriptionEvents).where(eq(subscriptionEvents.id,event.id));
   if (existing) {
    if (existing.payloadHash !== hash) throw new WebhookError("EVENT_CONTENT_MISMATCH",400);

@@ -45,7 +45,7 @@ function request(input: { id?: string; subscriptionId?: string; eventType?: stri
   });
 }
 
-beforeEach(() => vi.stubEnv("PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID", "P-BOUND"));
+beforeEach(() => { vi.stubEnv("PAYPAL_SINGLE_OUTLET_MONTHLY_PLAN_ID", "P-BOUND"); vi.stubEnv("FAIRSHIFT_SANDBOX_SCOPE", "DEMO_ONLY"); });
 afterEach(() => { vi.resetAllMocks(); vi.unstubAllEnvs(); });
 
 describe("subscription webhook HTTP financial integrity", () => {

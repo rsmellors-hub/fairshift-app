@@ -2,11 +2,8 @@ import { randomUUID } from "node:crypto";
 import { desc } from "drizzle-orm";
 import { z } from "zod";
 
-import { AccessError, type Scope } from "@/server/auth/access";
-import { sandboxOrganisationId } from "@/server/config/deployment";
-import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, fxReferenceRates } from "@/server/db/schema";
-import { UserFacingError } from "@/server/domain/errors";
+import type { DatabaseSession } from "@/server/db/client";
+import { fxReferenceRates } from "@/server/db/schema";
 import { FX_RATE_SCALE, ProviderCurrencyRateUnavailableError, ZAR_PROVIDER_PAYOUT_CURRENCY, type ProviderCurrencyConversion } from "@/server/domain/provider-currency";
 
 // DEC-SA-012 (Owner decision, 7 November 2026): payouts convert ZAR to USD at the most recent ECB
@@ -28,11 +25,11 @@ export const FX_FRESH_BUSINESS_DAYS = 3;
 const FETCH_TIMEOUT_MS = 10_000;
 
 export type FxReferenceRate = typeof fxReferenceRates.$inferSelect;
-export type EcbQuote = { rateDate: string; eurZar: string; eurUsd: string };
+export type EcbQuote = { rateDate: string; eurZar: string; eurUsd: string; eurGbp?: string };
 
 const quote = z.string().regex(/^[0-9]{1,6}(\.[0-9]{1,6})?$/).refine(value => Number(value) > 0);
 const isoDate = z.iso.date();
-export const ecbQuoteSchema = z.object({ rateDate: isoDate, eurZar: quote, eurUsd: quote }).strict();
+export const ecbQuoteSchema = z.object({ rateDate: isoDate, eurZar: quote, eurUsd: quote, eurGbp: quote.optional() }).strict();
 
 // A published decimal quote as an exact integer of millionths.
 function millionths(value: string): bigint {
@@ -61,7 +58,9 @@ export function parseEcbDailyXml(xml: string): EcbQuote {
     if (found.length !== 1) throw new Error(`The ECB file does not contain exactly one ${currency} rate.`);
     return found[0];
   };
-  return ecbQuoteSchema.parse({ rateDate: dates[0], eurZar: rateOf("ZAR"), eurUsd: rateOf("USD") });
+  // GBP is read when the file has it (it always should); its absence never blocks ZAR payouts.
+  const gbp = [...xml.matchAll(/<Cube\s+currency=['"]GBP['"]\s+rate=['"]([0-9.]+)['"]/g)].map(match => match[1]);
+  return ecbQuoteSchema.parse({ rateDate: dates[0], eurZar: rateOf("ZAR"), eurUsd: rateOf("USD"), ...(gbp.length === 1 ? { eurGbp: gbp[0] } : {}) });
 }
 
 export async function fetchEcbDailyQuote(fetchImpl: typeof fetch = fetch): Promise<EcbQuote> {
@@ -88,7 +87,7 @@ export function isFreshRateDate(rateDate: string, now: Date): boolean {
 
 async function insertRate(db: DatabaseSession, value: EcbQuote, source: string, recordedBy: string | null) {
   const [row] = await db.insert(fxReferenceRates).values({
-    id: randomUUID(), rateDate: value.rateDate, eurZar: value.eurZar, eurUsd: value.eurUsd,
+    id: randomUUID(), rateDate: value.rateDate, eurZar: value.eurZar, eurUsd: value.eurUsd, eurGbp: value.eurGbp ?? null,
     usdZarMicros: deriveUsdZarMicros(value.eurZar, value.eurUsd), source, recordedBy,
   }).onConflictDoNothing({ target: fxReferenceRates.rateDate }).returning();
   return row ?? null;
@@ -99,22 +98,6 @@ export async function recordEcbQuote(db: DatabaseSession, value: EcbQuote, now =
   const parsed = ecbQuoteSchema.parse(value);
   if (parsed.rateDate > utcDate(now)) throw new Error("An ECB reference date cannot be in the future.");
   return { row: await insertRate(db, parsed, ECB_SOURCE, null), quote: parsed };
-}
-
-// Fallback when the ECB file can't be fetched: the Owner of the isolated Sandbox demo organisation
-// types the ECB's published quotes for one reference date. Nobody else may, and a date already
-// recorded is never replaced.
-export async function recordManualFxRate(db: Database, scope: Pick<Scope, "userId" | "organisationId" | "role" | "demo">, input: unknown, now = new Date()) {
-  if (scope.role !== "OWNER" || scope.demo || sandboxOrganisationId() !== scope.organisationId) throw new AccessError();
-  const parsed = ecbQuoteSchema.safeParse(input);
-  if (!parsed.success || parsed.data.rateDate > utcDate(now)) throw new UserFacingError("fx-rate-invalid", "Enter the ECB reference date and the EUR/ZAR and EUR/USD rates exactly as published.");
-  return db.transaction(async tx => {
-    const row = await insertRate(tx, parsed.data, MANUAL_SOURCE, scope.userId);
-    if (!row) throw new UserFacingError("fx-rate-exists", "A reference rate for that date is already recorded. Recorded rates can't be changed.");
-    await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: scope.organisationId, action: "FX_REFERENCE_RATE_RECORDED", entityType: "fx_reference_rate", entityId: row.id,
-      correlationId: `fx:${row.rateDate}`, metadata: { actorUserId: scope.userId, source: MANUAL_SOURCE, rateDate: row.rateDate, eurZar: row.eurZar, eurUsd: row.eurUsd, usdZarMicros: row.usdZarMicros } });
-    return row;
-  });
 }
 
 export async function latestFxReferenceRate(db: DatabaseSession): Promise<FxReferenceRate | null> {

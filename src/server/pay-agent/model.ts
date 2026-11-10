@@ -1,4 +1,4 @@
-import { sandboxOrganisationId } from "@/server/config/deployment";
+import { sandboxBusinessAllowed } from "@/server/config/deployment";
 import { getAiConfig, getConfigurationStatus } from "@/server/config/env";
 import { AiProviderError, OpenAiStaffingAssessmentProvider, type AssessmentRequest, type AssessmentResponse, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 
@@ -13,7 +13,7 @@ export const PAY_AGENT_MAX_INPUT_CHARS = 8_000;
 // every other organisation, and whenever AI is not configured, no model is used and the event
 // records a retryable MODEL_NOT_CONFIGURED outcome; the payment obligation is unchanged.
 export function payAgentModelFor(organisationId: string): StaffingAssessmentProvider | null {
-  if (sandboxOrganisationId() !== organisationId) return null;
+  if (!sandboxBusinessAllowed(organisationId)) return null;
   if (!getConfigurationStatus().aiConfigured) return null;
   const { OPENAI_API_KEY, OPENAI_MODEL } = getAiConfig();
   return new OpenAiStaffingAssessmentProvider(OPENAI_API_KEY, OPENAI_MODEL, fetch, PAY_AGENT_MODEL_TIMEOUT_MS);

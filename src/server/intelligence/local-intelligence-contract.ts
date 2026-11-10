@@ -87,6 +87,7 @@ export type DiscoveryInput = {
   knownHolidays: { date: string; name: string; source: string }[];
   categories: { category: InfluenceCategory; label: string }[];
   bands: { sizeBand: SizeBand; planningAssumptionPercent: number }[];
+  ownerNote?: string;
 };
 
 // Only the location's own public facts: no worker, manager, customer, amount or sales figure.
@@ -96,6 +97,10 @@ export function buildDiscoveryInput(input: {
   profile: (LocationProfile & { source: ProfileSource }) | null;
   tradingFor: (date: string) => readonly TradingWindow[] | null;
   holidays: readonly { date: string; name: string; source: string }[];
+  // Design §3: categories switched on by the location's customer types, and the Owner's note, which can
+  // only narrow the search. Without customer types, every category is searched as before.
+  focus?: readonly { category: InfluenceCategory; focus: readonly string[] }[] | null;
+  ownerNote?: string | null;
 }): DiscoveryInput {
   const window = discoveryWindow(input.today);
   const dates = Array.from({ length: DISCOVERY_WINDOW_DAYS }, (_, i) => shiftDate(window.from, i));
@@ -108,7 +113,9 @@ export function buildDiscoveryInput(input: {
     tradingHours: dates.map(date => { const windows = input.tradingFor(date); return { date, hours: windows === null ? "NOT_SET" : windows.length ? windows.map(row => ({ start: formatClock(row.start), end: formatClock(row.end) })) : "CLOSED" }; }),
     dayParts: DAY_PARTS.map(part => ({ name: part.name, start: formatClock(part.start), end: formatClock(part.end) })),
     knownHolidays: input.holidays.filter(row => row.date >= window.from && row.date <= window.to).map(row => ({ date: row.date, name: row.name, source: row.source })),
-    categories: (input.runKind === "DAILY" ? INFLUENCE_CATEGORIES : [...DISRUPTION_CATEGORIES, "OTHER" as const]).map(category => ({ category, label: CATEGORY_LABEL[category] })),
+    categories: (input.focus?.length ? input.focus.map(row => row.category) : input.runKind === "DAILY" ? INFLUENCE_CATEGORIES : [...DISRUPTION_CATEGORIES, "OTHER" as const])
+      .map(category => { const focus = input.focus?.find(row => row.category === category)?.focus ?? []; return { category, label: focus.length ? `${CATEGORY_LABEL[category]} — look for: ${focus.join(", ")}` : CATEGORY_LABEL[category] }; }),
+    ...(input.ownerNote ? { ownerNote: `The Owner's note, which may only narrow this search, never widen it: ${input.ownerNote}` } : {}),
     bands: SIZE_BANDS.map(sizeBand => ({ sizeBand, planningAssumptionPercent: LOCAL_BAND_BPS[sizeBand] / 100 })),
   };
 }

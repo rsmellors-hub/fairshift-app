@@ -64,7 +64,7 @@ describe("authenticated HTTP action boundary",()=>{
    vi.mocked(getDatabase).mockReturnValue(t.db);
    const o=await bootstrap(t.db);
    const invitation=await inviteMember(t.db,o.scope,{role:"TEAM_MEMBER",email:"join@example.test",firstName:"Sam",surname:"Taylor",telephone:"+27111234567"});
-   await expect(registerAction(form({...personal,email:"join@example.test",password,role:"OWNER",organisationId:o.o.organisationId}))).rejects.toThrow("REDIRECT:/check-email");
+   await expect(registerAction(form({...personal,next:"invite",email:"join@example.test",password,role:"OWNER",organisationId:o.o.organisationId}))).rejects.toThrow("REDIRECT:/invite");
    const [u]=await t.db.select().from(users).where(eq(users.email,"join@example.test"));
    expect(await t.db.select().from(memberships).where(eq(memberships.userId,u.id))).toHaveLength(0);
    expect(await joinByInvitation(invitation.token)).toBe("REDIRECT:/worker");
@@ -203,7 +203,7 @@ describe("subscription gate at real application boundaries",()=>{
     for (const action of [confirmWorkAction,approvePayableAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=error");
     for (const action of [sendPayoutAction,refreshPayoutAction]) await expect(action(new FormData())).rejects.toThrow("REDIRECT:/settlements?status=sandbox-isolation-required");
    }
-   await expect(Onboarding()).rejects.toThrow("REDIRECT:/subscribe");
+   await expect(Onboarding({})).rejects.toThrow("REDIRECT:/subscribe");
    await expect(savePersonalAction(form({...personal,firstName:"Changed",userId:randomUUID(),email:"forged@example.test"}))).rejects.toThrow("REDIRECT:/subscribe");
    await expect(saveBusinessAction(form({...business,name:"One",organisationId:randomUUID()}))).rejects.toThrow("REDIRECT:/onboarding?status=error");
    const account=renderToStaticMarkup(await Account({searchParams:Promise.resolve({})}));
@@ -305,8 +305,9 @@ describe("subscription-first UI and verification continuation",()=>{
    await expect(Subscribe({searchParams:Promise.resolve({})})).rejects.toThrow("REDIRECT:/onboarding");
    await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/onboarding");
    await expect(createLocationAction(form({name:"Bypass"}))).rejects.toThrow("REDIRECT:/onboarding");
-   const setup=renderToStaticMarkup(await Onboarding());
-   expect(setup).toContain("Set up your workplace");expect(setup).toContain("HQ");expect(setup).toContain('name="locationName"');
+   const setup=renderToStaticMarkup(await Onboarding({}));
+   // Design, 10 Nov 2026: setup opens at the venue step, reusing the existing workplace.
+   expect(setup).toContain("Your venue: HQ");expect(setup).toContain('name="address"');expect(setup).toContain('name="customerTypes"');
    await expect(completeWorkplaceAction({},form({...setupFields,name:"One",locationName:"HQ",organisationId:randomUUID(),email:"injected@example.test"}))).rejects.toThrow("REDIRECT:/owner");
    expect(await t.db.select().from(outlets).where(eq(outlets.organisationId,o.o.organisationId))).toHaveLength(1);
    expect((await t.db.select().from(users).where(eq(users.id,o.u.id)))[0].email).toBe(o.u.email);

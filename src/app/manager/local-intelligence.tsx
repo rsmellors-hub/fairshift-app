@@ -1,3 +1,4 @@
+import { triggeredByLabel } from "@/server/intelligence/customer-types";
 import Link from "next/link";
 import { DataLabel, StatusBadge } from "@/app/components/product-ui";
 import { AiFoundLabel, DemoScenarioLabel, stamp } from "@/app/components/source-labels";
@@ -42,6 +43,7 @@ export function SignalCard({ signal }: { signal: LocalSignalView }) {
   return <li className="context-signal local-signal">
     <p><strong>{signal.name}</strong> <StatusBadge tone={tone}>{use}</StatusBadge></p>
     <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
+    {triggeredByLabel(signal.triggeredBy) ? <p className="note">{triggeredByLabel(signal.triggeredBy)}</p> : null}
     <p>{signal.reasoning}</p>
     <p className="note">{signal.categoryLabel} · {effectText(signal)} · {dateSpan(signal.validFrom, signal.validTo)}{time}{signal.shiftBlocks.length ? ` · ${signal.shiftBlocks.map(part => PART[part] ?? part).join(", ")}` : ""}{signal.roles.length ? ` · affects ${signal.roles.map(role => ROLE[role] ?? role).join(" and ")}` : ""}{signal.demo ? " · synthetic" : ` · ${CERTAINTY[signal.dateCertainty] ?? signal.dateCertainty} · ${signal.confidence.toLowerCase()} confidence · ${TIER[signal.sourceTier] ?? signal.sourceTier}`}</p>
     {signal.serverNote ? <p className="note">{signal.serverNote}</p> : null}

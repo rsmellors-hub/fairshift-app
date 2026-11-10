@@ -58,5 +58,13 @@ export default function FaqPage() {
       </section>)}
       <p><Link className="text-link" href="/product">Read how FairShift works <span aria-hidden="true">→</span></Link></p>
     </div></section>
+    <section className="site-section" id="terms" aria-labelledby="terms-title"><div className="site-width">
+      <h2 id="terms-title">Terms</h2>
+      <p>Owners and managers confirm all work and pay. The AI suggests and checks; it never sets amounts, picks workers or books shifts. This deployment uses PayPal Sandbox: no real money moves.</p>
+    </div></section>
+    <section className="site-section" id="privacy" aria-labelledby="privacy-title"><div className="site-width">
+      <h2 id="privacy-title">Privacy</h2>
+      <p>FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID number or bank details.</p>
+    </div></section>
   </PublicShell>;
 }

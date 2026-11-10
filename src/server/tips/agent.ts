@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Scope } from "@/server/auth/access";
 import { audited, auditActor, uuidOrNull } from "@/server/auth/audit-actor";
-import { assertSandboxOrganisation } from "@/server/config/deployment";
+import { assertSandboxBusiness } from "@/server/config/deployment";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import {
   auditEvents, staffDestinationEvents, tipAgentEvents, tipAllocationLines, tipAllocations, tipBlockRoster, tipEvidenceRows, tipHoldDecisions, tipHolds,
@@ -290,7 +290,7 @@ export async function settleTipLine(db: Database, paypal: PayoutClientSource, sc
     }
     let prepared: Awaited<ReturnType<typeof prepareWorkPayout>>;
     try {
-      assertSandboxOrganisation(scope.organisationId);
+      assertSandboxBusiness(scope.organisationId);
       prepared = await prepareWorkPayout(tx, scope, { workerId: line.workerId, amountMinor: line.shareMinor, currencyCode: line.currencyCode });
     } catch (error) { return record(`BLOCKED:${settlementCodeOf(error)}`); }
     if (dryRun) return record("DRY_RUN_ELIGIBLE");
