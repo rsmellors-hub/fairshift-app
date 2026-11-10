@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { assertRole, type Scope } from "@/server/auth/access";
 import { auditActor } from "@/server/auth/audit-actor";
 import { requireEntitlement } from "@/server/billing/entitlement";
 import type { Database, DatabaseSession } from "@/server/db/client";
-import { auditEvents, memberships, outlets, shiftOffers, shifts, teamInvitations, users, workers } from "@/server/db/schema";
+import { auditEvents, memberships, outlets, shiftOffers, shifts, teamInvitations, users, workerLocations, workers } from "@/server/db/schema";
+import { worksAt } from "@/server/people/worker-locations";
+import { approvedMinutes } from "@/server/scheduling/shift-suggestions";
+import { loadHoursRule } from "@/server/scheduling/shift-rules";
 import { UserFacingError } from "@/server/domain/errors";
 
 // People in a business (Day 6, Owner decision 10 Nov 2026): Managers and casual workers, each with a
@@ -21,6 +24,9 @@ export type Person = {
   key: string; role: "MANAGER" | "TEAM_MEMBER" | "REGULAR"; name: string; email: string | null; telephone: string | null;
   locations: { id: string; name: string }[]; status: PersonStatus;
   invitationId: string | null; invitationExpiresAt: Date | null; workerId: string | null; userId: string | null;
+  // Casual workers: approved hours per week over the business's reference period, across all their
+  // locations, and whether that reaches the regular-hours alert; and their own "I want more hours".
+  weeklyAverageMinutes: number | null; hoursAlert: boolean; wantsMoreHours: boolean;
 };
 
 const OPEN = ["CREATED_NOT_SENT", "SENT", "DELIVERY_FAILED"] as const;
@@ -29,30 +35,41 @@ const invitationStatus = (row: { state: string; expiresAt: Date }, now: Date): P
 
 // Everyone the caller may manage: the Owner sees the whole business; a Manager sees the workers at
 // their own location only.
-export async function listPeople(db: DatabaseSession, scope: Scope, now = new Date()): Promise<Person[]> {
+export async function listPeople(db: DatabaseSession, scope: Scope, now = new Date(), options: { locationId?: string } = {}): Promise<Person[]> {
   assertRole(scope, ["OWNER", "MANAGER"]);
   const owner = scope.role === "OWNER";
+  // One location's team: a Manager's own, or the one the Owner is looking at.
+  const at = owner ? options.locationId ?? null : scope.locationId;
   const places = await db.select({ id: outlets.id, name: outlets.name }).from(outlets).where(eq(outlets.organisationId, scope.organisationId));
   const place = (id: string | null) => places.find(row => row.id === id);
   const invitations = await db.select().from(teamInvitations)
-    .where(and(eq(teamInvitations.organisationId, scope.organisationId), owner ? undefined : eq(teamInvitations.outletId, scope.locationId)))
+    .where(and(eq(teamInvitations.organisationId, scope.organisationId), at ? eq(teamInvitations.outletId, at) : undefined))
     .orderBy(desc(teamInvitations.createdAt));
   const people: Person[] = [];
 
-  const staff = await db.select().from(workers).where(and(eq(workers.organisationId, scope.organisationId), owner ? undefined : eq(workers.locationId, scope.locationId)));
+  const staff = await db.select().from(workers).where(and(eq(workers.organisationId, scope.organisationId), at ? worksAt(at) : undefined));
+  const extra = staff.length ? await db.select({ workerId: workerLocations.workerId, outletId: workerLocations.outletId }).from(workerLocations)
+    .where(and(inArray(workerLocations.workerId, staff.map(row => row.id)), isNull(workerLocations.removedAt))) : [];
+  const rule = await loadHoursRule(db, scope.organisationId);
+  const weeks = rule?.referenceWeeks ?? 12;
+  const approved = await approvedMinutes(db, scope.organisationId, staff.filter(row => row.workerType === "CASUAL").map(row => row.id), new Date(now.getTime() - weeks * 7 * 86_400_000));
   for (const worker of staff) {
     const invitation = invitations.find(row => row.workerId === worker.id);
     const status: PersonStatus = worker.status === "INACTIVE" ? (invitation && !worker.userId && invitation.state === "REVOKED" ? "INVITE_REVOKED" : "DEACTIVATED")
       : worker.userId ? "ACTIVE" : invitation ? invitationStatus(invitation, now) : "INVITED";
     people.push({ key: `worker:${worker.id}`, role: worker.workerType === "CASUAL" ? "TEAM_MEMBER" : "REGULAR", name: worker.displayName, email: worker.email, telephone: worker.telephone,
-      locations: [place(worker.locationId)].filter((row): row is { id: string; name: string } => !!row), status,
-      invitationId: invitation && !worker.userId ? invitation.id : null, invitationExpiresAt: invitation?.expiresAt ?? null, workerId: worker.id, userId: worker.userId });
+      locations: [worker.locationId, ...extra.filter(row => row.workerId === worker.id).map(row => row.outletId)].map(id => place(id)).filter((row): row is { id: string; name: string } => !!row), status,
+      invitationId: invitation && !worker.userId ? invitation.id : null, invitationExpiresAt: invitation?.expiresAt ?? null, workerId: worker.id, userId: worker.userId,
+      ...(() => { if (worker.workerType !== "CASUAL") return { weeklyAverageMinutes: null, hoursAlert: false, wantsMoreHours: false };
+        const weekly = Math.round((approved.get(worker.id) ?? 0) / weeks);
+        return { weeklyAverageMinutes: weekly, hoursAlert: !!rule && weekly >= rule.weeklyThresholdMinutes, wantsMoreHours: worker.wantsMoreHours }; })() });
   }
-  if (!owner) return people;
+  if (!owner && scope.role === "MANAGER") return people;
 
   // Managers who have signed up, one row per person with all their locations.
-  const managers = await db.select({ membership: memberships, user: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
-    .where(and(eq(memberships.organisationId, scope.organisationId), eq(memberships.role, "MANAGER")));
+  const managers = (await db.select({ membership: memberships, user: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(memberships.organisationId, scope.organisationId), eq(memberships.role, "MANAGER"))))
+    .filter((row, _, all) => !at || all.some(other => other.user.id === row.user.id && other.membership.outletId === at));
   const byUser = new Map<string, typeof managers>();
   for (const row of managers) byUser.set(row.user.id, [...(byUser.get(row.user.id) ?? []), row]);
   for (const [userId, rows] of byUser) {
@@ -60,7 +77,8 @@ export async function listPeople(db: DatabaseSession, scope: Scope, now = new Da
     const user = rows[0].user;
     people.push({ key: `manager:${userId}`, role: "MANAGER", name: [user.firstName, user.surname].filter(Boolean).join(" ") || user.name || user.email, email: user.email, telephone: user.telephone,
       locations: (active.length ? active : rows).map(row => place(row.membership.outletId)).filter((row): row is { id: string; name: string } => !!row),
-      status: active.length ? "ACTIVE" : "DEACTIVATED", invitationId: null, invitationExpiresAt: null, workerId: null, userId });
+      status: (at ? rows.some(row => row.membership.outletId === at && row.membership.state === "ACTIVE") : active.length) ? "ACTIVE" : "DEACTIVATED", invitationId: null, invitationExpiresAt: null, workerId: null, userId,
+      weeklyAverageMinutes: null, hoursAlert: false, wantsMoreHours: false });
   }
   // Manager invitations not yet accepted, one row per batch.
   const seen = new Set<string>();
@@ -72,7 +90,7 @@ export async function listPeople(db: DatabaseSession, scope: Scope, now = new Da
     if ([...byUser.values()].some(rows => rows[0].user.email === invitation.email && rows.some(row => row.membership.state === "ACTIVE") && siblings.every(s => rows.some(row => row.membership.outletId === s.outletId)))) continue;
     people.push({ key: `invitation:${batch}`, role: "MANAGER", name: [invitation.firstName, invitation.surname].filter(Boolean).join(" ") || invitation.email || "Invited manager", email: invitation.email, telephone: invitation.telephone,
       locations: siblings.map(row => place(row.outletId)).filter((row): row is { id: string; name: string } => !!row), status: invitationStatus(invitation, now),
-      invitationId: invitation.id, invitationExpiresAt: invitation.expiresAt, workerId: null, userId: null });
+      invitationId: invitation.id, invitationExpiresAt: invitation.expiresAt, workerId: null, userId: null, weeklyAverageMinutes: null, hoursAlert: false, wantsMoreHours: false });
   }
   return people;
 }

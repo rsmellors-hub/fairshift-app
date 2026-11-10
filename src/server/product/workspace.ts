@@ -71,7 +71,7 @@ export async function getWorkerWorkspace(db: DatabaseSession, scope:Pick<Scope,"
     .leftJoin(workPayables, and(eq(workPayables.allocationId, workAllocations.id), eq(workPayables.workerId, workers.id), eq(workPayables.organisationId, workers.organisationId)))
     .leftJoin(workPayouts, and(eq(workPayouts.payableId, workPayables.id), eq(workPayouts.workerId, workers.id)))
     .leftJoin(workPerformanceResults, and(eq(workPerformanceResults.allocationId, workAllocations.id), eq(workPerformanceResults.workerId, workers.id)))
-    .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(shifts.outletId, scope.locationId)))
+    .where(and(eq(workers.id, scope.workerId ?? "00000000-0000-0000-0000-000000000000"), eq(workers.organisationId, scope.organisationId), sql`${shifts.outletId} in (select "id" from "outlets" where "organisation_id" = ${scope.organisationId})`))
     .orderBy(desc(shifts.shiftDate), desc(shifts.createdAt));
   // Only the status of each of the worker's own payables' latest Pay Agent event, mapped to plain
   // statuses on screen; never the decision text, reason, model detail or another worker's state.

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
 import { configureFixture, hours, ingestTimedBills } from "../helpers/workload";
-import { createActivatedTeamMember } from "../helpers/workers";
+import { createActivatedTeamMember, createTeamMember } from "../helpers/workers";
 import type { Scope } from "@/server/auth/access";
 import { requireScope } from "@/server/auth/request";
 import { getConfigurationStatus } from "@/server/config/env";
@@ -14,7 +14,7 @@ import { memberships, organisations, outlets, shiftOffers, shifts, subscriptions
 import { dayOpportunities } from "@/server/intelligence/opportunity";
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { getAllocationSchedule, planningRanges } from "@/server/scheduling/allocations";
-import { allocateAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, respondToAssignment } from "@/server/scheduling/operations";
 import { offerFromScheduleAction } from "@/app/schedule-actions";
 import { dropRule, FORECAST_RESOURCE, OPEN_PLACES_RESOURCE, REGULAR_RESOURCE } from "@/app/manager/allocation-model";
 import { ManagerWorkspace } from "@/app/manager/workspace";

@@ -1,6 +1,6 @@
-import { tokenHash } from "@/server/auth/identity";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, getTableColumns, inArray, isNull, lt, gt, sql } from "drizzle-orm";
+import { worksAt } from "@/server/people/worker-locations";
 import { z } from "zod";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { departments, organisations, outlets, workers, workerAvailability, teamInvitations, workPolicies, shifts, shiftOffers, workAcceptances, workAllocations, workPayables, workPayouts, auditEvents, shiftIncentives } from "@/server/db/schema";
@@ -10,6 +10,7 @@ import { BASE_PAYABLE_METHOD, BasePayableUnavailableError, basePayableFromAccept
 import { localDate } from "@/server/intelligence/forecast";
 import { checkWage, termsForWageCheck, wageAllowsOffer, wageCheckExplanation, wageJurisdiction, wageNotChecked } from "@/server/domain/statutory-wage";
 import { wageNotCheckedAcknowledgement } from "@/server/scheduling/wage-acknowledgement";
+import { loadShiftRules } from "@/server/scheduling/shift-rules";
 
 import { assertRole, type Scope } from "@/server/auth/access";
 import { auditActor } from "@/server/auth/audit-actor";
@@ -49,16 +50,6 @@ async function assertWageAllowsOffer(db: DatabaseSession, outlet: typeof outlets
   if (check.status === "BELOW_DEMO_MINIMUM") throw new UserFacingError("wage-below-minimum", `This pay is below the ${check.floorName ?? "wage floor"} for the shift's date, so it can't be offered.`);
   if (wageNotChecked(check)) throw new UserFacingError("wage-not-checked", "Minimum wage not checked: FairShift holds no minimum wage rule for this location's country or the shift's date, and the Owner hasn't acknowledged that, so it can't be offered.");
   throw new UserFacingError("wage-not-checkable", "This pay can't be checked against a minimum wage, so it can't be offered.");
-}
-const teamInput = z.object({ firstName: z.string().trim().min(1).max(100), surname: z.string().trim().min(1).max(100), telephone: z.string().trim().regex(/^\+?[0-9 ()-]{6,30}$/), email: z.string().trim().email().max(254) });
-export async function createTeamMember(db: Database, input: unknown, scope:OperatingScope) {
-  const value = teamInput.parse(input);
-  return db.transaction(async (tx) => {
-    await location(tx, scope);
-    const [worker] = await tx.insert(workers).values({ id: randomUUID(), organisationId: scope.organisationId, locationId: scope.locationId, ...value, displayName: `${value.firstName} ${value.surname}`, workerType: "CASUAL" }).returning();
-    const [invitation] = await tx.insert(teamInvitations).values({ id: randomUUID(), workerId: worker.id, token: tokenHash(randomUUID()), state: "CREATED_NOT_SENT" }).returning();
-    return { worker, invitation };
-  });
 }
 export async function createDepartment(db: Database, name: string, scope:OperatingScope) {
   await location(db, scope);
@@ -109,7 +100,7 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
   // The casual Worker Pool only: permanent staff are lightweight tip records, never offered work.
   const team = await db.select({ worker: workers, invitation: teamInvitations }).from(workers)
     .leftJoin(teamInvitations, eq(teamInvitations.workerId, workers.id))
-    .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(workers.workerType, "CASUAL")));
+    .where(and(eq(workers.organisationId, scope.organisationId), worksAt(scope.locationId), eq(workers.workerType, "CASUAL")));
   const departmentRows = await db.select().from(departments).where(eq(departments.outletId, scope.locationId));
   // Current pay terms only: a superseded version is kept for the record but never offered again.
   const policies = await db.select().from(workPolicies).where(and(eq(workPolicies.outletId, scope.locationId), isNull(workPolicies.supersededAt)));
@@ -119,7 +110,7 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
     .innerJoin(workers, eq(workers.id, shiftOffers.workerId))
     .leftJoin(workAllocations, eq(workAllocations.offerId, shiftOffers.id))
     .leftJoin(workAcceptances, eq(workAcceptances.id, workAllocations.acceptanceId))
-    .where(and(eq(shifts.outletId, scope.locationId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId)));
+    .where(and(eq(shifts.outletId, scope.locationId), eq(workers.organisationId, scope.organisationId)));
   const paymentIssues = await db.select({ id: shiftIncentives.id, status: shiftIncentives.status, shiftDate: shifts.shiftDate, workerName: workers.displayName }).from(shiftIncentives)
     .innerJoin(shifts, eq(shifts.id, shiftIncentives.shiftId)).innerJoin(workers, eq(workers.id, shiftIncentives.workerId))
     .where(and(eq(shifts.outletId, scope.locationId), eq(workers.organisationId, scope.organisationId), inArray(shiftIncentives.status, ["FAILED", "EARNED"])));
@@ -158,7 +149,10 @@ export async function createRequirement(db: Database, input: { departmentId: str
     try { expected = expectedWorkEarnings(policyInput.parse(policy), input.startsAt, input.endsAt); }
     catch (error) { throw new UserFacingError("earnings-not-whole", error instanceof Error ? error.message : "These terms cannot be calculated."); }
     await assertWageAllowsOffer(tx, outlet, { ...policy, startsAt: input.startsAt, endsAt: input.endsAt });
-    const [row] = await tx.insert(shifts).values({ id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
+    // The location's cancellation pay becomes part of this shift's terms (Owner decision 10 Nov 2026).
+    const rules = (await loadShiftRules(tx, scope.organisationId, [scope.locationId])).get(scope.locationId);
+    const [row] = await tx.insert(shifts).values({
+      cancellationPercent: rules?.cancellationPercent ?? null, cancellationWindowMinutes: rules?.cancellationWindowMinutes ?? null, id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,
@@ -177,7 +171,7 @@ async function scopedShift(db: DatabaseSession, id: string, scope:OperatingScope
   return shift;
 }
 async function eligible(db: DatabaseSession, workerId: string, shift: typeof shifts.$inferSelect, checkConflicts: boolean, scope:OperatingScope, options: { requireActivation?: boolean } = {}) {
-  const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"), eq(workers.workerType, "CASUAL"))).for("update");
+  const [worker] = await db.select().from(workers).where(and(eq(workers.id, workerId), worksAt(scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.status, "ACTIVE"), eq(workers.workerType, "CASUAL"))).for("update");
   if (!worker) throw new Error("Team member unavailable at this location.");
   if (!checkConflicts) return worker;
   const conflicts = await db.select({ id: shifts.id }).from(shiftOffers).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId))

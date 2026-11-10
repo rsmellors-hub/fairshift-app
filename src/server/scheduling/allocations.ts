@@ -1,5 +1,6 @@
 import type { Scope } from "@/server/auth/access";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { worksAt } from "@/server/people/worker-locations";
 import { FORECAST_RESOURCE, REGULAR_RESOURCE, toAllocationSchedule, type PlanningRange } from "@/app/manager/allocation-model";
 import { money } from "@/app/components/format";
 import type { DatabaseSession } from "@/server/db/client";
@@ -44,10 +45,10 @@ export async function getAllocationSchedule(db: DatabaseSession, scope:Pick<Scop
     .leftJoin(workPayables, eq(workPayables.allocationId, workAllocations.id))
     .leftJoin(workPayouts, eq(workPayouts.payableId, workPayables.id))
     .where(and(eq(outlets.id, scope.locationId), eq(outlets.organisationId, scope.organisationId),
-      eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId)))
+      eq(workers.organisationId, scope.organisationId), worksAt(scope.locationId)))
     .orderBy(desc(shifts.startsAt));
   const team = await db.select({ id: workers.id, name: workers.displayName }).from(workers)
-    .where(and(eq(workers.locationId, scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.workerType, "CASUAL")));
+    .where(and(worksAt(scope.locationId), eq(workers.organisationId, scope.organisationId), eq(workers.workerType, "CASUAL")));
   const published = await db.select({ id: shifts.id, roleName: shifts.roleName, startsAt: shifts.startsAt, endsAt: shifts.endsAt, shiftDate: shifts.shiftDate, status: shifts.status, requiredHeadcount: shifts.requiredHeadcount, termsVersion: shifts.termsVersion,
     currencyCode: shifts.currencyCode, guaranteedBasePayMinor: shifts.guaranteedBasePayMinor, earningsModel: shifts.earningsModel, commissionBps: shifts.commissionBps, incentiveBasis: shifts.incentiveBasis, incentiveAmountMinor: shifts.incentiveAmountMinor, incentiveTargetMinor: shifts.incentiveTargetMinor })
     .from(shifts).innerJoin(outlets, eq(shifts.outletId, outlets.id))

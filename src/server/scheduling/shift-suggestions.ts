@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, inArray, isNotNull, lte, sql, isNull } from "drizzle-orm";
+import { worksAt } from "@/server/people/worker-locations";
 import { assertRole, type Scope } from "@/server/auth/access";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { auditEvents, departments, offerRounds, outlets, shiftOffers, shifts, workers, workPayables, workPolicies } from "@/server/db/schema";
@@ -51,7 +52,7 @@ export async function startOfferRounds(db: Database, scope: OperatingScope, shif
   const [rules, hoursRule] = [(await loadShiftRules(db, scope.organisationId, [scope.locationId])).get(scope.locationId), await loadHoursRule(db, scope.organisationId)];
   if (!rules || !hoursRule) throw new UserFacingError("offer-rules-missing", "This location's offer settings aren't set yet, so offers can't go out automatically.");
   const pool = await db.select({ id: workers.id, wantsMoreHours: workers.wantsMoreHours }).from(workers)
-    .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(workers.workerType, "CASUAL"), eq(workers.status, "ACTIVE"), isNotNull(workers.userId))).orderBy(asc(workers.id));
+    .where(and(eq(workers.organisationId, scope.organisationId), worksAt(scope.locationId), eq(workers.workerType, "CASUAL"), eq(workers.status, "ACTIVE"), isNotNull(workers.userId))).orderBy(asc(workers.id));
   const threshold = hoursRule.weeklyThresholdMinutes * hoursRule.referenceWeeks;
   const done = await approvedMinutes(db, scope.organisationId, pool.map(row => row.id), new Date(now.getTime() - hoursRule.referenceWeeks * 7 * 86_400_000));
   const left = (id: string) => Math.max(0, threshold - (done.get(id) ?? 0));
@@ -78,7 +79,7 @@ async function recordRound(db: DatabaseSession, scope: OperatingScope, shiftId: 
 async function openSecondRound(db: Database, scope: OperatingScope, shiftId: string, now: Date, why: string) {
   const offeredAlready = new Set((await db.select({ workerId: shiftOffers.workerId }).from(shiftOffers).where(eq(shiftOffers.shiftId, shiftId))).map(row => row.workerId));
   const pool = await db.select({ id: workers.id }).from(workers)
-    .where(and(eq(workers.organisationId, scope.organisationId), eq(workers.locationId, scope.locationId), eq(workers.workerType, "CASUAL"), eq(workers.status, "ACTIVE"), isNotNull(workers.userId))).orderBy(asc(workers.id));
+    .where(and(eq(workers.organisationId, scope.organisationId), worksAt(scope.locationId), eq(workers.workerType, "CASUAL"), eq(workers.status, "ACTIVE"), isNotNull(workers.userId))).orderBy(asc(workers.id));
   const result = await offerEach(db, shiftId, pool.filter(row => !offeredAlready.has(row.id)).map(row => row.id), scope);
   await recordRound(db, scope, shiftId, 2, now, null, `Round 2: open to every other eligible worker at this location until the shift is filled. ${why}`, result.offered, result.skipped);
   return { round: 2, offered: result.offered.length };

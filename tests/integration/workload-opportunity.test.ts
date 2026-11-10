@@ -89,9 +89,8 @@ describe("reference company baseline", () => {
       for (const text of ["Expected sales by location", "Expected transactions by location", "Casual requirement by location", "Busiest ", "Reference sales history"]) expect(forecast).toContain(text);
       expect(forecast).not.toContain("Configuration required");
       const page = renderToStaticMarkup(await OwnerLocationPage({ params: Promise.resolve({ locationId: c.rows[0].id }) }));
-      for (const text of ["By time of day", "Expected transactions", "Regular coverage", "7 transactions per staff hour, at least 2 staff while open"]) expect(page).toContain(text);
-      const policies = renderToStaticMarkup(await OwnerWorkspace({ area: "policies" }));
-      for (const text of ["7 transactions per staff hour, at least 2 staff while open", "reference company configuration"]) expect(policies).toContain(text);
+      // The location page holds this location's settings (design, 10 Nov 2026); the figures are on Plan.
+      for (const text of ["Staffing and offers", 'name="transactionsPerStaffHour" value="7"', 'name="minimumStaffWhileOpen" value="2"', "Regular cover already on shift"]) expect(page).toContain(text);
       pages(t.db, c.scope());
       const plan = renderToStaticMarkup(await ManagerWorkspace({ area: "plan" }));
       for (const text of ["By time of day", "Reference sales history · synthetic", "Where casual cover is needed"]) expect(plan).toContain(text);

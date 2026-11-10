@@ -13,6 +13,7 @@ import { UserFacingError } from "@/server/domain/errors";
 import { dispatchNotification } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { deactivatePerson, updatePerson } from "@/server/people/people";
+import { removeFromLocation } from "@/server/people/worker-locations";
 import { completeInvitedSignUp, openInvitation } from "@/server/people/sign-up";
 
 // People and places (Day 6, Owner decision 10 Nov 2026). Every write is server-checked: the Owner acts on
@@ -20,12 +21,14 @@ import { completeInvitedSignUp, openInvitation } from "@/server/people/sign-up";
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 const feedback = (error: unknown) => error instanceof UserFacingError ? error.feedback : "error";
-const pathFor = (role: string) => role === "OWNER" ? "/owner/workforce" : "/manager/team";
+// Back to the page the person acted on: a location's Team, or the Manager's team page.
+const safeNext = (form: FormData) => { const next = String(form.get("next") ?? ""); return /^\/(owner\/locations\/[0-9a-f-]{36}|manager\/team)$/.test(next) ? next : null; };
+const pathFor = (role: string, form?: FormData) => (form && safeNext(form)) ?? (role === "OWNER" ? "/owner/locations" : "/manager/team");
 function refresh() { for (const role of ["owner", "manager", "worker"]) revalidatePath(`/${role}`, "layout"); }
 
 export async function addPersonAction(form: FormData) {
   const scope = await requireScope(["OWNER", "MANAGER"]);
-  const path = pathFor(scope.role);
+  const path = pathFor(scope.role, form);
   let outcome = "person-invited";
   if (!getConfigurationStatus().databaseConfigured) redirect(`${path}?status=error`);
   try {
@@ -37,12 +40,12 @@ export async function addPersonAction(form: FormData) {
     await dispatchNotification(getDatabase(), getEmailAdapter(), result.notificationId, `/invite#${result.token}`);
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#people`);
+  redirect(`${path}?status=${outcome}#team`);
 }
 
 export async function updatePersonAction(form: FormData) {
   const scope = await requireScope(["OWNER", "MANAGER"]);
-  const path = pathFor(scope.role);
+  const path = pathFor(scope.role, form);
   let outcome = "person-updated";
   try {
     const email = field(form, "email");
@@ -50,19 +53,28 @@ export async function updatePersonAction(form: FormData) {
     if (result.emailChanged) outcome = "person-email-changed";
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#people`);
+  redirect(`${path}?status=${outcome}#team`);
 }
 
 export async function deactivatePersonAction(form: FormData) {
   const scope = await requireScope(["OWNER", "MANAGER"]);
-  const path = pathFor(scope.role);
+  const path = pathFor(scope.role, form);
   let outcome = "person-deactivated";
   try {
     if (field(form, "confirm") !== "yes") throw new UserFacingError("person-confirm", "Confirm the deactivation.");
     await deactivatePerson(getDatabase(), scope, field(form, "key"));
   } catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`${path}?status=${outcome}#people`);
+  redirect(`${path}?status=${outcome}#team`);
+}
+
+export async function removeFromLocationAction(form: FormData) {
+  const scope = await requireScope(["OWNER", "MANAGER"]);
+  const path = pathFor(scope.role, form);
+  let outcome = "person-removed";
+  try { await removeFromLocation(getDatabase(), scope, field(form, "key"), field(form, "locationId")); } catch (error) { outcome = feedback(error); }
+  refresh();
+  redirect(`${path}?status=${outcome}#team`);
 }
 
 export async function updateLocationAction(form: FormData) {
@@ -72,7 +84,7 @@ export async function updateLocationAction(form: FormData) {
   try { await updateLocation(getDatabase(), scope, id, { name: field(form, "name"), address: field(form, "address"), city: field(form, "city"), province: field(form, "province"), postalCode: field(form, "postalCode") }); }
   catch (error) { outcome = feedback(error); }
   refresh();
-  redirect(`/owner/locations?status=${outcome}`);
+  redirect(`/owner/locations/${id}?status=${outcome}#venue`);
 }
 
 export async function setLocationActiveAction(form: FormData) {

@@ -446,3 +446,12 @@ CORRECTION to items 1–2 (Ryan, 10 Nov 2026), record as Owner decision:
 ```
 
 **Boundary kept.** Casual workers stay bound to one location (the authorised product scope; cross-location casual scheduling remains OPEN). "Work location(s)" therefore means one location for a casual worker and one or more for a Manager.
+
+### Owner decisions, 10 November 2026 — the approved screen design (docs/design/fairshift-screens)
+
+**Decision date:** 10 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** the Owner's design package instruction in the Day 6 session ("From here, an approved design is the source of truth"), and the Owner's answers to the two conflicts the screen map raised.
+
+1. **The design is the source of truth** for screens, navigation and copy from 10 November 2026. Mockup values (business, people, dates, amounts) are demo persona data and are never hard-coded.
+2. **Casual workers may belong to several locations.** Answer recorded verbatim: "Allow several locations". A casual worker may belong to more than one location of the same business, receive offers from each, and their hours count across all of them for the regular-hours alert. This supersedes the boundary recorded earlier the same day ("Casual workers stay bound to one location") and the specification's DEFERRED status for cross-location casual scheduling. "Remove from {location}" ends one membership and keeps all history.
+3. **Invitation email subject.** Answer recorded verbatim: "Design subject, our domain". The subject is "You're invited to work shifts at <Business>", in the design's layout. The sender stays FairShift <no-reply@notify.getafairshift.com>, FairShift's verified domain. This supersedes the subject in the same day's people decision.
+4. **Cancellation pay** (register R-03, FS-PAY-TERMS-DEC-001). Instruction recorded verbatim: "Cancellation pay (default 50% under 24 h, printed on every offer)". It is a per-location Owner setting: a percentage of the shift's expected base earnings, owed when the venue cancels an accepted shift within the short-notice window. The default is 50% within 24 hours. The setting is printed on every offer and is a separate line, never folded into the base rate. Holiday pay (R-02) remains unresolved and is not built.

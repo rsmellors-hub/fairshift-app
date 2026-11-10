@@ -95,8 +95,13 @@ export function TaskLink({ href, title, children }: { href: string; title: strin
 }
 
 // Outcomes that succeeded and still have something to explain.
-const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved" };
+const DONE: Record<string, string> = { "square-sale-recorded": "Sandbox payment created", "square-demo-shift-created": "Demo shift offered", "early-notice-sent": "Early notice sent", "payout-email-saved": "PayPal email saved", "person-invited": "Invite sent", "person-updated": "Details saved", "person-email-changed": "Email changed: resend their invite", "person-deactivated": "Deactivated", "location-updated": "Location saved", "location-deactivated": "Location deactivated", "location-reactivated": "Location reactivated", "shift-rules-saved": "Shift rules saved", "hours-rule-saved": "Alert saved", "business-saved": "Business details saved", "details-saved": "Details saved", "person-removed": "Removed from this location; history kept", "invitation-revoked": "Invitation revoked", "trading-saved": "Trading hours saved", "staffing-saved": "Staffing and offers saved", "role-added": "Role added", "pay-version-saved": "New pay version saved", "tip-settings-saved": "Card tips saved", "pin-confirmed": "Pin confirmed" };
 const FEEDBACK: Record<string, string> = {
+  "person-home-location": "This is the location they joined FairShift through. Remove them from their other locations, or deactivate them.",
+  "person-last-location": "This is their only location. Deactivate them instead to stop all their work.",
+  "venue-facts-invalid": "Check the customer types, venue type and seats. The note can't hold links, emails or phone numbers.",
+  "pin-invalid": "The pin couldn't be saved. Check the coordinates.",
+  "role-invalid": "Choose or type a role.",
   "person-exists": "Someone with this email is already in this business. Resend or revoke their invitation instead.",
   "person-one-location": "A casual worker belongs to one location. Choose one.",
   "person-has-shifts": "This worker has upcoming accepted shifts. Reassign them before deactivating.",

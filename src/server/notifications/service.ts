@@ -1,4 +1,4 @@
-import { brandedHtml } from "@/server/notifications/templates";
+import { brandedHtml, invitationHtml } from "@/server/notifications/templates";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import type { Database, DatabaseSession } from "@/server/db/client";
@@ -19,6 +19,15 @@ export async function markNotificationRead(db:DatabaseSession,userId:string,id:s
   return row;
 }
 // Persist before dispatch. Only provider acknowledgement means accepted; never claims delivery.
+// The design's invitation layout for invitations; FairShift's standard layout for everything else.
+async function htmlFor(db:Database,n:typeof notifications.$inferSelect,link:string) {
+  if (["MANAGER_INVITATION","TEAM_INVITATION"].includes(n.kind) && n.entityId) {
+    const { invitationEmailFor } = await import("@/server/auth/tenancy");
+    const email = await invitationEmailFor(db,n.entityId);
+    if (email) return invitationHtml(email,link);
+  }
+  return brandedHtml({heading:n.title,text:n.body,link,action:"Open FairShift"});
+}
 export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:string,secureHref?:string) {
   const [row] = await db.select({notification:notifications,delivery:notificationDeliveries}).from(notifications).innerJoin(notificationDeliveries,eq(notificationDeliveries.notificationId,notifications.id)).where(eq(notifications.id,id));
   if (!row) return;
@@ -34,7 +43,7 @@ export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:s
   // plain-text and a branded HTML version of the same words.
   const invitation=["MANAGER_INVITATION","TEAM_INVITATION"].includes(n.kind), link=`${applicationOrigin()}${secureHref ?? n.href}`;
   try {result = await adapter.send({to:d.destination,subject:invitation ? n.title : `FairShift · ${n.title}`,text:`${n.body}\n\n${link}\n\nFairShift`,
-    html:brandedHtml({heading:n.title,text:n.body,link,action:invitation ? "Accept invitation and sign up" : "Open FairShift"}),idempotencyKey:`notification/${n.id}`});}
+    html:await htmlFor(db,n,link),idempotencyKey:`notification/${n.id}`});}
   catch {
     await db.update(notificationDeliveries).set({status:"UNKNOWN",failureCode:"EMAIL_UNCONFIRMED"}).where(eq(notificationDeliveries.id,d.id));
     if (["MANAGER_INVITATION","TEAM_INVITATION"].includes(n.kind)) await db.update(teamInvitations).set({state:"DELIVERY_FAILED"}).where(and(eq(teamInvitations.id,n.entityId),eq(teamInvitations.state,"CREATED_NOT_SENT"),eq(teamInvitations.token,n.eventKey.split(":").at(-1)!)));

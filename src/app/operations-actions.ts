@@ -11,9 +11,8 @@ import { UserFacingError } from "@/server/domain/errors";
 import { confirmWorkPerformance, importAttributedSales } from "@/server/performance/attribution";
 import { LocalTimeError, localDateTimeToInstant } from "@/server/domain/timezone";
 import { requireFinancialScope, requireScope } from "@/server/auth/request";
-import { inviteMember } from "@/server/auth/tenancy";
 import { saveWorkerAvailability, workerRespond } from "@/server/auth/operations";
-import { dispatchNotification, dispatchWorkerEmails } from "@/server/notifications/service";
+import { dispatchWorkerEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
 import { eq } from "drizzle-orm";
 import { workers } from "@/server/db/schema";
@@ -25,15 +24,21 @@ import { guardDemoWrite } from "@/server/demo/fixtures";
 import { approveWorkPayable, refreshWorkPayout, submitWorkPayout } from "@/server/payments/work-payouts";
 import { payAgentFor, preparePayAgentRetry, rejectPayAgentHold, releasePayAgentHold, runPayAgentRetry, runReleasedHold, scheduleLatestPayAgentEvent, schedulePayAgentEvent } from "@/server/pay-agent/service";
 
-async function perform(path: string, fn: () => Promise<unknown>) {
-  if (!getConfigurationStatus().databaseConfigured) redirect(`${path}${path.includes("?") ? "&" : "?"}status=error`);
+// The Owner acting on the location a page names (a location page sends it), else the selected one.
+async function ownerAt(form: FormData) { const id = field(form, "locationId"); return requireScope(["OWNER"], /^[0-9a-f-]{36}$/.test(id) ? { locationId: id } : {}); }
+// Back to the location page section the form came from; never an arbitrary address.
+function backTo(form: FormData, fallback: string) { const next = field(form, "next"); return /^\/owner\/locations\/[0-9a-f-]{36}(#[a-z-]+)?$/.test(next) ? next : fallback; }
+async function perform(target: string, fn: () => Promise<unknown>) {
+  const [path, hash] = target.split("#");
+  const anchor = hash ? `#${hash}` : "";
+  if (!getConfigurationStatus().databaseConfigured) redirect(`${path}${path.includes("?") ? "&" : "?"}status=error${anchor}`);
   try { await fn(); } catch (error) {
     // A refusal the person can act on keeps its own message; anything else stays generic.
     const status = error instanceof UserFacingError ? error.feedback : error instanceof LocalTimeError ? `time-${error.problem.toLowerCase()}` : "error";
-    redirect(`${path}${path.includes("?") ? "&" : "?"}status=${status}`);
+    redirect(`${path}${path.includes("?") ? "&" : "?"}status=${status}${anchor}`);
   }
   for (const role of ["manager", "worker", "owner"]) revalidatePath(`/${role}`, "layout");
-  redirect(`${path}${path.includes("?") ? "&" : "?"}status=saved`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}status=saved${anchor}`);
 }
 const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 function planPath(form: FormData) {
@@ -47,16 +52,9 @@ function planPath(form: FormData) {
   const area = field(form, "returnArea") === "allocations" ? "allocations" : "fill";
   return `/manager/${area}${query.size ? `?${query}` : ""}`;
 }
-export async function createTeamAction(form: FormData) {
-  const scope = await requireScope(["OWNER","MANAGER"]);
-  return perform("/manager/team", async () => {
-    const result = await inviteMember(getDatabase(),scope,{role:"TEAM_MEMBER",...Object.fromEntries(["firstName","surname","telephone","email"].map(key => [key,field(form,key)]))});
-    await dispatchNotification(getDatabase(),getEmailAdapter(),result.notificationId,`/invite#${result.token}`);
-  });
-}
 export async function createDepartmentAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => createDepartment(getDatabase(), field(form, "name"),scope));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => createDepartment(getDatabase(), field(form, "name"),scope));
 }
 // Pay terms from the Owner's form, in minor units. Shared by new terms and revisions.
 function policyFromForm(form: FormData) {
@@ -76,18 +74,18 @@ function policyFromForm(form: FormData) {
   return earningsModel === "COMMISSION" ? { earningsModel, commissionBps: value, commissionBasis: "VERIFIED_ATTRIBUTED_SALES", ...incentive } : { earningsModel, rateMinor: value, ...incentive };
 }
 export async function createPolicyAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => createWorkPolicy(getDatabase(), policyFromForm(form), field(form, "name"), scope));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => createWorkPolicy(getDatabase(), policyFromForm(form), field(form, "name"), scope));
 }
 // Day 6, item 3: editing pay terms writes a new dated version; accepted shifts keep their terms.
 export async function revisePolicyAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies#compensation", () => reviseWorkPolicy(getDatabase(), field(form, "policyId"), policyFromForm(form), field(form, "name"), scope));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies#compensation"), () => reviseWorkPolicy(getDatabase(), field(form, "policyId"), policyFromForm(form), field(form, "name"), scope));
 }
 // Day 6, Step 3a: the Owner's audited acknowledgement that the minimum wage isn't checked at this location.
 export async function acknowledgeWageNotCheckedAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => acknowledgeWageNotChecked(getDatabase(), scope, field(form, "confirmed") === "yes"));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => acknowledgeWageNotChecked(getDatabase(), scope, field(form, "confirmed") === "yes"));
 }
 export async function createRequirementAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
@@ -218,8 +216,8 @@ function wholeNumber(value: string, feedback: string) {
 }
 function workloadPolicyAction(level: PolicyLevel) {
   return async (form: FormData) => {
-    const scope=await requireScope(["OWNER"]);
-    return perform("/owner/policies", async () => {
+    const scope=await ownerAt(form);
+    return perform(backTo(form, "/owner/policies"), async () => {
       const transactionsPerStaffHour = wholeNumber(field(form,"transactionsPerStaffHour"), "service-capacity-invalid");
       const minimumStaffWhileOpen = wholeNumber(field(form,"minimumStaffWhileOpen"), "minimum-cover-invalid");
       if (transactionsPerStaffHour < 1 || transactionsPerStaffHour > 1000) throw new UserFacingError("service-capacity-invalid", "Enter a whole number from 1 to 1000.");
@@ -230,13 +228,13 @@ function workloadPolicyAction(level: PolicyLevel) {
 }
 export async function saveOrganisationWorkloadPolicyAction(form: FormData) { return workloadPolicyAction("ORGANISATION")(form); }
 export async function saveLocationWorkloadPolicyAction(form: FormData) { return workloadPolicyAction("LOCATION")(form); }
-export async function clearOrganisationWorkloadPolicyAction() {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => clearWorkloadPolicy(getDatabase(),scope,"ORGANISATION"));
+export async function clearOrganisationWorkloadPolicyAction(form: FormData) {
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => clearWorkloadPolicy(getDatabase(),scope,"ORGANISATION"));
 }
-export async function clearLocationWorkloadPolicyAction() {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => clearWorkloadPolicy(getDatabase(),scope,"LOCATION"));
+export async function clearLocationWorkloadPolicyAction(form: FormData) {
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => clearWorkloadPolicy(getDatabase(),scope,"LOCATION"));
 }
 // One line per weekday. Blank leaves the day not set, which stays distinct from closed or none.
 function weekFromForm<T>(form: FormData, prefix: string, parse: (text: string) => T, feedback: string) {
@@ -247,20 +245,20 @@ function weekFromForm<T>(form: FormData, prefix: string, parse: (text: string) =
   });
 }
 export async function saveTradingHoursAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => setTradingHours(getDatabase(),scope,weekFromForm(form,"trading",parseTradingText,"trading-hours-invalid")));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => setTradingHours(getDatabase(),scope,weekFromForm(form,"trading",parseTradingText,"trading-hours-invalid")));
 }
 export async function saveVenueContextAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => setVenueContext(getDatabase(),scope,{ venueProfile: field(form,"venueProfile"), latitude: field(form,"latitude"), longitude: field(form,"longitude") }));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => setVenueContext(getDatabase(),scope,{ venueProfile: field(form,"venueProfile"), latitude: field(form,"latitude"), longitude: field(form,"longitude") }));
 }
 export async function saveLocationProfileAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => setLocationProfile(getDatabase(),scope,{ area: field(form,"area"), venueType: field(form,"venueType"), typicalCustomers: field(form,"typicalCustomers") }));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => setLocationProfile(getDatabase(),scope,{ area: field(form,"area"), venueType: field(form,"venueType"), typicalCustomers: field(form,"typicalCustomers") }));
 }
 export async function saveRegularCoverageAction(form: FormData) {
-  const scope=await requireScope(["OWNER"]);
-  return perform("/owner/policies", () => setRegularCoverage(getDatabase(),scope,weekFromForm(form,"coverage",parseCoverageText,"regular-coverage-invalid")));
+  const scope=await ownerAt(form);
+  return perform(backTo(form, "/owner/policies"), () => setRegularCoverage(getDatabase(),scope,weekFromForm(form,"coverage",parseCoverageText,"regular-coverage-invalid")));
 }
 export async function changeAssignmentAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});

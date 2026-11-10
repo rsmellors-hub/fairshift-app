@@ -46,9 +46,11 @@ describe("people: add by invitation, active only after sign-up", () => {
       const adapter = outbox();
       await dispatchNotification(t.db, adapter, result.notificationId, `/invite#${result.token}`);
       const sent = adapter.send.mock.calls[0][0];
-      expect(sent.subject).toBe("Jacaranda Test Kitchen invited you to FairShift");
-      expect(sent.text).toContain("Sam Taylor has invited you to join Jacaranda Test Kitchen on FairShift as a casual worker at Main Street.");
-      expect(sent.text).toMatch(/expires on \d{1,2} November 2026/);
+      expect(sent.subject).toBe("You're invited to work shifts at Jacaranda Test Kitchen");
+      expect(sent.text).toContain("Sam Taylor invited you to work shifts at Jacaranda Test Kitchen");
+      expect(sent.text).toContain("Role: Casual worker");
+      expect(sent.text).toContain("Invited by: Sam Taylor, Owner");
+      expect(sent.text).toMatch(/expires on \w{3}, \d{1,2} Nov 2026 \(7 days\)/);
       expect(sent.html).toContain("Accept invitation and sign up");
       expect(sent.html).toContain(`/invite#${result.token}`);
       const [delivery] = await t.db.select().from(notificationDeliveries).innerJoin(notifications, eq(notifications.id, notificationDeliveries.notificationId)).where(eq(notifications.id, result.notificationId));
@@ -88,9 +90,12 @@ describe("people: add by invitation, active only after sign-up", () => {
       const result = await inviteMember(t.db, c.scope, { role: "MANAGER", email: "morgan@example.test", firstName: "Morgan", surname: "Naidoo", locationIds: [c.locationId, second.id] });
       expect(result.invitations).toHaveLength(2);
       expect(await t.db.select().from(notifications).where(eq(notifications.recipientEmail, "morgan@example.test"))).toHaveLength(1);
-      expect((await t.db.select().from(notifications).where(eq(notifications.id, result.notificationId)))[0].body).toContain("as a Manager at Main Street and Harbour");
+      expect((await t.db.select().from(notifications).where(eq(notifications.id, result.notificationId)))[0].body).toContain("Locations: Main Street, Johannesburg and Harbour, Durban");
       expect((await listPeople(t.db, c.scope)).filter(p => p.role === "MANAGER")).toEqual([expect.objectContaining({ name: "Morgan Naidoo", status: "INVITED", locations: [expect.objectContaining({ name: "Main Street" }), expect.objectContaining({ name: "Harbour" })] })]);
-      await expect(inviteMember(t.db, c.scope, { role: "TEAM_MEMBER", email: "two@example.test", firstName: "Two", surname: "Places", locationIds: [c.locationId, second.id] })).rejects.toMatchObject({ feedback: "person-one-location" });
+      // A casual worker may belong to several locations (Owner decision 10 Nov 2026): one invitation, both places.
+      const both = await inviteMember(t.db, c.scope, { role: "TEAM_MEMBER", email: "two@example.test", firstName: "Two", surname: "Places", locationIds: [c.locationId, second.id] });
+      expect(both.invitations).toHaveLength(1);
+      expect((await listPeople(t.db, c.scope)).find(p => p.email === "two@example.test")?.locations.map(place => place.name)).toEqual(["Main Street", "Harbour"]);
       const morgan = await identity(t.db, "morgan@example.test", false);
       const first = await completeInvitedSignUp(t.db, morgan, result.token, { firstName: "Morgan", surname: "Naidoo", telephone: "" });
       expect(await t.db.select().from(memberships).where(and(eq(memberships.userId, morgan.id), eq(memberships.state, "ACTIVE")))).toHaveLength(2);
@@ -101,7 +106,7 @@ describe("people: add by invitation, active only after sign-up", () => {
       await expect(inviteMember(t.db, manager, { role: "TEAM_MEMBER", email: "x@example.test", firstName: "X", surname: "Y", locationIds: [first.outletId === c.locationId ? second.id : c.locationId] })).rejects.toThrow("Access denied.");
       await inviteMember(t.db, manager, { role: "TEAM_MEMBER", email: "jo@example.test", firstName: "Jo", surname: "Dlamini" });
       // A Manager sees only their own location's workers.
-      expect((await listPeople(t.db, manager)).map(p => p.email)).toEqual(["jo@example.test"]);
+      expect((await listPeople(t.db, manager)).map(p => p.email).sort()).toEqual(["jo@example.test", "two@example.test"]);
     } finally { await t.close(); }
   });
 
@@ -115,7 +120,7 @@ describe("people: add by invitation, active only after sign-up", () => {
       const lee = await identity(t.db, "lee@example.test", false);
       await expect(openInvitation(t.db, lee, first.token)).rejects.toMatchObject({ feedback: "invitation-unavailable" });
       const again = await resendInvitation(t.db, c.scope, first.invitation.id);
-      expect((await t.db.select().from(notifications).where(eq(notifications.id, again.notificationId)))[0].title).toBe("Jacaranda Test Kitchen invited you to FairShift");
+      expect((await t.db.select().from(notifications).where(eq(notifications.id, again.notificationId)))[0].title).toBe("You're invited to work shifts at Jacaranda Test Kitchen");
       await expect(openInvitation(t.db, lee, again.token)).resolves.toMatchObject({ role: "TEAM_MEMBER" });
       expect(await t.db.select().from(auditEvents).where(eq(auditEvents.action, "INVITATION_RESENT"))).toHaveLength(1);
 

@@ -69,6 +69,12 @@ export const outlets = pgTable(
     // The Owner's own words about the location (area, venue type, typical customers), the only
     // description local intelligence gives the model. DEMO_SEED marks the fictional demo's profiles.
     locationProfile: jsonb("location_profile"), locationProfileSource: text("location_profile_source"),
+    // Design, 10 Nov 2026: who the customers are (a closed list; each switches on fixed signal categories),
+    // an optional note that can only narrow a search, the kind of venue and its seats, and when the Owner
+    // confirmed the map pin.
+    customerTypes: text("customer_types").array().notNull().default(sql`'{}'::text[]`),
+    customerNote: text("customer_note"), venueType: text("venue_type"), seats: integer("seats"),
+    pinConfirmedAt: timestamp("pin_confirmed_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -76,6 +82,9 @@ export const outlets = pgTable(
   (table) => [
     index("outlets_organisation_idx").on(table.organisationId),
     check("outlets_venue_profile_check", sql`${table.venueProfile} is null or ${table.venueProfile} in ('STADIUM_DISTRICT', 'WATERFRONT_OUTDOOR', 'BUSINESS_DISTRICT', 'STATION_COMMUTER', 'SHOPPING_CENTRE')`),
+    check("outlets_customer_types_check", sql`${table.customerTypes} <@ array['OFFICE','STUDENTS','TOURISTS','THEATRE_EVENTS','SPORTS','FAMILIES','SHOPPERS','COMMUTERS','NIGHT_OUT']::text[]`),
+    check("outlets_venue_type_check", sql`${table.venueType} is null or ${table.venueType} in ('CAFE_RESTAURANT','BAR','TAKEAWAY')`),
+    check("outlets_seats_check", sql`${table.seats} is null or ${table.seats} between 1 and 5000`),
     check("outlets_coordinates_check", sql`(${table.latitude} is null and ${table.longitude} is null) or (${table.latitude} between -90 and 90 and ${table.longitude} between -180 and 180)`),
     check("outlets_venue_context_source_check", sql`${table.venueContextSource} is null or ${table.venueContextSource} in ('REFERENCE', 'CONFIGURED')`),
     check("outlets_location_profile_check", sql`(${table.locationProfile} is null and ${table.locationProfileSource} is null) or (${table.locationProfile} is not null and ${table.locationProfileSource} in ('OWNER', 'DEMO_SEED'))`),
@@ -556,6 +565,21 @@ export const workPolicies = pgTable("work_policies", {
 )`)]);
 
 // Extended from the original prepared Team invitation; token now stores only SHA-256.
+// The locations a casual worker belongs to (Owner decision 10 Nov 2026: several are allowed). The
+// worker's own location is one of them. Removing someone from a location ends the row; history stays.
+export const workerLocations = pgTable("worker_locations", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "restrict" }),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  addedBy: uuid("added_by").references(() => users.id),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  removedBy: uuid("removed_by").references(() => users.id),
+}, t => [
+  uniqueIndex("worker_locations_current_unique").on(t.workerId, t.outletId).where(sql`${t.removedAt} is null`),
+  index("worker_locations_outlet_idx").on(t.outletId, t.removedAt),
+]);
 export const teamInvitations = pgTable("team_invitations", {
   id: uuid("id").primaryKey(), workerId: uuid("worker_id").references(() => workers.id),
   organisationId: uuid("organisation_id").references(() => organisations.id), outletId: uuid("outlet_id").references(() => outlets.id),
@@ -639,6 +663,9 @@ export const shifts = pgTable(
     guaranteedBasePayMinor: bigint("guaranteed_base_pay_minor", { mode: "number" }).notNull(),
     gratuityPolicy: text("gratuity_policy").notNull(),
     incentivePolicy: text("incentive_policy").notNull(),
+    // The location's cancellation pay when the shift was created (Owner decision 10 Nov 2026); null for
+    // shifts made before it existed. Part of the terms a worker sees and accepts.
+    cancellationPercent: integer("cancellation_percent"), cancellationWindowMinutes: integer("cancellation_window_minutes"),
     incentiveTargetMinor: bigint("incentive_target_minor", { mode: "number" }).notNull().default(0),
     incentiveAmountMinor: bigint("incentive_amount_minor", { mode: "number" }).notNull().default(0),
     // Set only for the individual target-and-bonus incentive; the seeded demo's team incentive leaves it null.
@@ -1709,6 +1736,10 @@ export const locationShiftRules = pgTable("location_shift_rules", {
   preferredMinutes: integer("preferred_minutes").notNull(),
   firstRoundMinutes: integer("first_round_minutes").notNull(),
   firstRoundCutoffMinutes: integer("first_round_cutoff_minutes").notNull(),
+  // Cancellation pay (Owner decision 10 Nov 2026): a share of expected base earnings when the venue
+  // cancels an accepted shift within the window. Printed on every offer; copied onto each shift.
+  cancellationPercent: integer("cancellation_percent").notNull().default(50),
+  cancellationWindowMinutes: integer("cancellation_window_minutes").notNull().default(1440),
   source: text("source").notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1716,6 +1747,7 @@ export const locationShiftRules = pgTable("location_shift_rules", {
   index("location_shift_rules_scope_idx").on(t.organisationId, t.outletId, t.createdAt),
   check("location_shift_rules_lengths_check", sql`${t.minMinutes} >= 60 and ${t.minMinutes} <= ${t.preferredMinutes} and ${t.preferredMinutes} <= ${t.maxMinutes} and ${t.maxMinutes} <= 960 and ${t.minMinutes} % 15 = 0 and ${t.maxMinutes} % 15 = 0 and ${t.preferredMinutes} % 15 = 0`),
   check("location_shift_rules_round_check", sql`${t.firstRoundMinutes} >= 0 and ${t.firstRoundCutoffMinutes} >= 0`),
+  check("location_shift_rules_cancellation_check", sql`${t.cancellationPercent} between 0 and 100 and ${t.cancellationWindowMinutes} between 0 and 10080`),
   check("location_shift_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED')`),
 ]);
 

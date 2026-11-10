@@ -260,6 +260,13 @@
       "when": 1794302166181,
       "tag": "0036_pay_term_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794307091185,
+      "tag": "0037_design_people_venue",
+      "breakpoints": true
     }
   ]
 }

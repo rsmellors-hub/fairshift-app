@@ -28,7 +28,7 @@ export async function affectedShifts(db: DatabaseSession, target: { organisation
   const from = startOfLocalDay(signal.validFrom, target.timezone), to = startOfLocalDay(shiftDate(signal.validTo, 1), target.timezone);
   const rows = await db.select({ offerId: shiftOffers.id, shiftId: shifts.id, workerId: workers.id, workerName: workers.displayName, startsAt: shifts.startsAt, endsAt: shifts.endsAt })
     .from(workAllocations).innerJoin(shiftOffers, eq(shiftOffers.id, workAllocations.offerId)).innerJoin(shifts, eq(shifts.id, shiftOffers.shiftId)).innerJoin(workers, eq(workers.id, shiftOffers.workerId))
-    .where(and(eq(shifts.outletId, target.outletId), eq(workers.organisationId, target.organisationId), eq(workers.locationId, target.outletId), eq(workers.workerType, "CASUAL"),
+    .where(and(eq(shifts.outletId, target.outletId), eq(workers.organisationId, target.organisationId), eq(workers.workerType, "CASUAL"),
       eq(workAllocations.state, "ALLOCATED"), eq(shiftOffers.status, "ACCEPTED"), eq(shifts.status, "PUBLISHED"), gt(shifts.startsAt, now), lt(shifts.startsAt, to), gt(shifts.endsAt, from)));
   const covered = rows.filter(row => {
     const date = localDate(row.startsAt, target.timezone), start = minuteOf(row.startsAt, target.timezone);

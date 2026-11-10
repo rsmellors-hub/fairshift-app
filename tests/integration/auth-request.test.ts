@@ -29,7 +29,7 @@ import SettlementsPage from "@/app/settlements/page";
 import { POST as createOrder } from "@/app/api/paypal/orders/route";
 import { inviteAction, selectLocationAction, refreshSubscriptionAction, selectMembershipAction, savePersonalAction, saveBusinessAction } from "@/app/auth-actions";
 import { importAttributedSalesAction, confirmPerformanceAction } from "@/app/operations-actions";
-import { createTeamAction, createDepartmentAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction, saveOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, clearLocationWorkloadPolicyAction, saveRegularCoverageAction } from "@/app/operations-actions";
+import { createDepartmentAction, offerAssignmentAction, allocateAssignmentAction, confirmWorkAction, changeAssignmentAction, approvePayableAction, sendPayoutAction, refreshPayoutAction, saveOrganisationWorkloadPolicyAction, saveLocationWorkloadPolicyAction, clearOrganisationWorkloadPolicyAction, clearLocationWorkloadPolicyAction, saveRegularCoverageAction } from "@/app/operations-actions";
 import { submitDemoIncentivePayoutAction } from "@/app/scheduling-actions";
 import BillingReturn from "@/app/billing/return/page";
 const jar=vi.hoisted(()=>new Map<string,string>());
@@ -122,7 +122,7 @@ describe("Owner operating a location without a Manager account",()=>{
    let html=renderToStaticMarkup(await ManagerLayout({children:"Operations"}));
    expect(html).toContain('aria-label="Owner navigation"');
    expect(html).not.toContain('aria-label="Manager navigation"');
-   for (const href of ["/manager/plan","/manager/fill","/manager/allocations","/manager/team","/manager/review","/owner"]) expect(html).toContain(`href="${href}"`);
+   for (const href of ["/manager/plan","/manager/fill","/manager/allocations","/manager/review","/owner"]) expect(html).toContain(`href="${href}"`);
    expect(html).not.toContain("Operating location");
    expect((await requireScope(["OWNER","MANAGER"])).locationId).toBe(o.o.locationId);
    // A second active location brings the switch, listing only this organisation's active locations.
@@ -189,7 +189,7 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(subscriptions).set({status}).where(eq(subscriptions.organisationId,o.o.organisationId));
     await expect(OwnerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
     for (const area of ownerAreas) await expect(OwnerWorkspace({area})).rejects.toThrow("REDIRECT:/subscribe");
-    for (const action of [createPolicyAction,createRequirementAction,createTeamAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
+    for (const action of [createPolicyAction,createRequirementAction,createDepartmentAction,offerAssignmentAction,allocateAssignmentAction,changeAssignmentAction,inviteAction,selectLocationAction,submitDemoIncentivePayoutAction,saveOrganisationWorkloadPolicyAction,saveLocationWorkloadPolicyAction,clearOrganisationWorkloadPolicyAction,clearLocationWorkloadPolicyAction,saveRegularCoverageAction,importAttributedSalesAction,confirmPerformanceAction]) {
      await expect(action(new FormData())).rejects.toThrow("REDIRECT:/subscribe");
     }
     await expect(ManagerLayout({children:"Protected"})).rejects.toThrow("REDIRECT:/subscribe");
@@ -242,7 +242,6 @@ describe("subscription gate at real application boundaries",()=>{
     await t.db.update(organisations).set({setupCompletedAt:new Date()}).where(eq(organisations.id,o.o.organisationId));
     await t.db.update(subscriptions).set({status:"SUSPENDED"}).where(eq(subscriptions.organisationId,o.o.organisationId));
     if(role === "MANAGER") {
-     await expect(createTeamAction(new FormData())).rejects.toThrow("subscription-required");
      await expect(inviteMember(t.db,scope,{role:"TEAM_MEMBER",email:"blocked@example.test",...personal})).rejects.toThrow(/active organisation subscription/);
     } else {
      await expect(respondAssignmentAction(new FormData())).rejects.toThrow("subscription-required");

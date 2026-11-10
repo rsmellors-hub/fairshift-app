@@ -27,13 +27,12 @@ import { getSquareActivity, squareSandboxCredentials } from "@/server/commerce/s
 import { localDate } from "@/server/intelligence/forecast";
 import { checkWage } from "@/server/domain/statutory-wage";
 import { PolicyForm } from "@/app/owner/policy-form";
-import { PeoplePanel } from "@/app/components/people-panel";
 import { HoursRuleSettings, PolicyRevision, ShiftRulesSettings } from "@/app/owner/rules-settings";
 import { BusinessSettings } from "@/app/owner/business-settings";
 import { loadHoursRule, loadShiftRules } from "@/server/scheduling/shift-rules";
+import { SANDBOX_PAYOUT_LIMITS } from "@/server/payments/sandbox-limits";
 import { organisations } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { listPeople } from "@/server/people/people";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
 import { PayoutRatePanel } from "@/app/owner/payout-rate";
 import { OwnerLiveFeeds } from "@/app/owner/live-feeds";
@@ -52,7 +51,9 @@ import { OwnerTips } from "@/app/owner/tips";
 import { getOwnerTipView } from "@/server/tips/view";
 import { devStatementLinksEnabled } from "@/server/tips/statement";
 
-export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "tips", "payments", "settings", "proof"] as const;
+export const ownerAreas = ["locations", "forecast", "reporting", "workforce", "policies", "tips", "payments", "settings", "billing", "proof"] as const;
+// PayPal Sandbox's page for the account's automatic payments, where a subscription is managed or cancelled.
+const PAYPAL_SANDBOX_AUTOPAY_URL = "https://www.sandbox.paypal.com/myaccount/autopay/";
 export type OwnerArea = "overview" | typeof ownerAreas[number];
 
 const SUBSCRIPTION_STATE: Record<string, string> = { ACTIVE: "Active", UNCONFIGURED: "Not started", PENDING: "Not started", APPROVAL_PENDING: "Awaiting PayPal approval", APPROVED: "Awaiting confirmation" };
@@ -106,17 +107,17 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   if (area === "reporting") { try { squareActivity = await Promise.all(connections.filter(row => row.provider === "SQUARE").map(async row => ({ outletId: row.outletId, rows: await getSquareActivity(getDatabase(), scope, row.outletId) }))); } catch { squareActivity = []; } }
   let staffing: Awaited<ReturnType<typeof getWeeklyStaffing>> | null = null;
   if (area === "locations") { try { staffing = await getWeeklyStaffing(getDatabase(), scope, new Date()); } catch { staffing = null; } }
-  const people = area === "workforce" ? await listPeople(getDatabase(), scope) : [];
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
   const rulesView = area === "policies" ? { shift: (await loadShiftRules(getDatabase(), scope.organisationId, [scope.locationId])).get(scope.locationId) ?? null, hours: await loadHoursRule(getDatabase(), scope.organisationId) } : null;
+  const hoursRule = area === "settings" ? await loadHoursRule(getDatabase(), scope.organisationId) : null;
   const business = area === "settings" ? (await getDatabase().select().from(organisations).where(eq(organisations.id, scope.organisationId)))[0] ?? null : null;
   const staffingConfiguration = area === "policies" ? await getStaffingConfiguration(getDatabase(),scope) : null;
   let tipView: Awaited<ReturnType<typeof getOwnerTipView>> | null = null;
   if (area === "tips") { try { tipView = await getOwnerTipView(getDatabase(), scope); } catch { tipView = null; } }
   let fxRate: Awaited<ReturnType<typeof latestFxReferenceRate>> = null, fxFeed: LiveFeedStatus["ecb"] | null = null;
   if (area === "payments") { try { fxRate = await latestFxReferenceRate(getDatabase()); fxFeed = (await getLiveFeedStatus(getDatabase())).ecb; } catch { fxRate = null; } }
-  const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", tips: "Tips", payments: "Payments", settings: "Settings", proof: "Proof" }[area];
-  const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", tips: "Your standing tip policy, imported POS tip evidence, deterministic allocations, the Pay Agent’s checks and every hold. Managers have no role here.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your subscription and connected services.", proof: "" }[area];
+  const title = { locations: "Locations", forecast: "Forecast & Staffing", reporting: "Sales", workforce: "Managers", policies: "Compensation & incentives", tips: "Tips", payments: "Payments", settings: "Business settings", billing: "Billing", proof: "Proof" }[area];
+  const description = { locations: "Every location, with its sales, staffing gap and payments.", forecast: "", reporting: "What your locations have recorded, and where each figure comes from.", workforce: "Who runs each location. Casual workers are managed at their location.", policies: "What managers may offer at each location. Managers choose from these terms and can’t change them.", tips: "Your standing tip policy, imported POS tip evidence, deterministic allocations, the Pay Agent’s checks and every hold. Managers have no role here.", payments: "Every approved shift and its PayPal status, across the business.", settings: "Your business details, hours alert, sales data, payouts and AI checks. Plan and payments are on Billing.", billing: "Your FairShift plan, billed through PayPal.", proof: "" }[area];
   const active = locations.filter(location => location.active);
   // Today at the selected location: the date the Owner's terms are checked against here.
   const today = operations ? localDate(new Date(), operations.timezone) : "";
@@ -136,9 +137,6 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
       <details className="panel disclosure"><summary>Add a location</summary><form action={createLocationAction} className="workspace-form form-grid"><label>Location name<input name="name" required maxLength={150}/></label><label>Street address<input name="address" maxLength={200}/></label><label>City or town<input name="city" maxLength={100}/></label><label>Postal code<input name="postalCode" maxLength={20}/></label><button className="primary-button">Add location</button></form><p className="note">Your plan sets how many active locations you can have.</p></details>
     </> : null}
     {area === "reporting" ? <OwnerSales locations={locations} history={history} historyUnavailable={historyUnavailable} weekly={weekly} connections={connections} connectionsAvailable={connectionsAvailable} configured={commerceConnectionsConfigured() && squareSandboxCredentials() !== null} activity={squareActivity} filter={salesFilter} /> : null}
-    {area === "workforce" ? <>
-      <PeoplePanel people={people} locations={active.map(location => ({ id: location.id, name: location.name }))} owner currentLocationId={scope.locationId} timezone={active.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} disabled={!!scope.demo} />
-    </> : null}
     {area === "tips" ? <form action={selectLocationAction} className="filter-row context-picker"><input type="hidden" name="next" value="/owner/tips" /><label>Location<select name="locationId" defaultValue={scope.locationId}>{active.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Switch location</button></form> : null}
     {area === "tips" ? tipView ? <OwnerTips view={tipView} locationName={scope.locationName} devLinks={!scope.demo && devStatementLinksEnabled()} demoData={isDemoOrganisation(scope.organisationId)} /> : <WorkspaceUnavailable /> : null}
     {area === "policies" ? <form action={selectLocationAction} className="filter-row context-picker" data-demo-write=""><label>Location<select name="locationId" defaultValue={scope.locationId}>{active.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><button className="secondary-button">Switch location</button></form> : null}
@@ -165,13 +163,28 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} canRecord={!scope.demo && sandboxOrganisationId() === scope.organisationId} feed={fxFeed} timeZone={locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} /> : null}
     {area === "payments" && payments.length ?<section className="panel"><h2>Organisation incentive payments</h2>{payments.map((payment, index) => <div className="record-row" key={`${payment.outletId}-${payment.shiftDate}-${index}`}><span>{locations.find((location) => location.id === payment.outletId)?.name} · {payment.shiftDate} · {money(payment.amount, payment.currency)}</span><PaymentBadge status={payment.status} /></div>)}</section> : null}
     {area === "settings" ? <>
-      <section className="panel"><h2>Subscription</h2>{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? <p><DataLabel kind="demo">Local runtime fixture</DataLabel> This subscription record was made for local testing. It is not a PayPal subscription.</p> : null}<p><strong>{SUBSCRIPTION_STATE[subscription?.status ?? ""] ?? "Needs attention"}</strong>{subscription?.tier ? ` · ${subscription.tier === "SINGLE_OUTLET" || subscription.tier === "MULTI_OUTLET" ? PLAN_COPY[subscription.tier].name : "Enterprise"}${subscription.billingPeriod ? `, billed ${subscription.billingPeriod === "ANNUAL" ? "annually" : "monthly"}` : ""}` : ""}</p><p className="note">{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? "Never confirmed with PayPal: it is a local fixture. " : subscription?.verifiedAt ? `Last confirmed with PayPal ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(subscription.verifiedAt)}. ` : "Not yet confirmed with PayPal. "}Billed through PayPal Sandbox in this environment, separately from worker payments.</p><div className="button-row"><Link className="secondary-button button-link" href="/subscribe">Review subscription</Link><form action={refreshSubscriptionAction}><button className="secondary-button">Check subscription with PayPal</button></form></div></section>
       <section className="panel"><h2>Connected services</h2>
         <div className="record-row"><span><strong>PayPal worker payments</strong><small>Sends approved earnings. PayPal Sandbox in this environment.</small></span><StatusBadge tone={configuration.paypalPayoutConfigured ? "success" : "warning"}>{configuration.paypalPayoutConfigured ? "Set up" : "Not set up"}</StatusBadge></div>
         <div className="record-row"><span><strong>Square Sandbox</strong><small>{!connectionsAvailable ? "Connection status could not be loaded." : connections.some(row => row.provider === "SQUARE") ? `${connections.filter(row => row.provider === "SQUARE").length} of ${active.length} active locations connected.` : "No location is connected."} <Link href="/owner/reporting">Manage sales sources</Link></small></span><StatusBadge tone={commerceConnectionsConfigured() && squareSandboxCredentials() ? "success" : "warning"}>{commerceConnectionsConfigured() && squareSandboxCredentials() ? "Available" : "Not set up"}</StatusBadge></div>
         <p className="note">Every sales record keeps its source. Reference, imported, Square Sandbox and PayPal Sandbox history are never combined.</p>
       </section>
       {business ? <BusinessSettings business={business} locationCount={locations.length} disabled={!!scope.demo} /> : null}
+      <HoursRuleSettings rule={hoursRule} disabled={!!scope.demo} />
+      <details className="panel disclosure"><summary><span className="h4">Payouts</span><span className="note"> · PayPal · US dollars</span></summary>
+        <div className="record-row"><span><strong>Payout currency</strong><small>US dollars: rand can’t be sent through PayPal.</small></span></div>
+        <div className="record-row"><span><strong>Exchange rate</strong><small>Latest European Central Bank reference rate, locked when each payout is created.</small></span></div>
+        <div className="record-row"><span><strong>Sandbox limit</strong><small>{SANDBOX_PAYOUT_LIMITS.payoutsPerDay} payouts and US${(SANDBOX_PAYOUT_LIMITS.usdMinorPerDay / 100).toFixed(0)} a day per business, in this PayPal Sandbox deployment.</small></span></div></details>
+      <details className="panel disclosure"><summary><span className="h4">AI checks</span><span className="note"> · local signals and the Pay Agent</span></summary>
+        <div className="record-row"><span><strong>Local signals</strong><small>When a location’s pin is confirmed, and on “Refresh local signals”: up to 3 a day per location.</small></span></div>
+        <div className="record-row"><span><strong>Pay Agent</strong><small>Every confirmed shift and tip block, before PayPal.</small></span></div>
+        <p className="note">The AI never sets an amount, chooses a worker or books a shift.</p></details>
+    </> : null}
+    {area === "billing" ? <>
+      <section className="panel"><h2>Subscription</h2>{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? <p><DataLabel kind="demo">Local runtime fixture</DataLabel> This subscription record was made for local testing. It is not a PayPal subscription.</p> : null}<p><strong>{SUBSCRIPTION_STATE[subscription?.status ?? ""] ?? "Needs attention"}</strong>{subscription?.tier ? ` · ${subscription.tier === "SINGLE_OUTLET" || subscription.tier === "MULTI_OUTLET" ? PLAN_COPY[subscription.tier].name : "Enterprise"}${subscription.billingPeriod ? `, billed ${subscription.billingPeriod === "ANNUAL" ? "annually" : "monthly"}` : ""}` : ""}</p><p className="note">{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? "Never confirmed with PayPal: it is a local fixture. " : subscription?.verifiedAt ? `Last confirmed with PayPal ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(subscription.verifiedAt)}. ` : "Not yet confirmed with PayPal. "}Billed through PayPal Sandbox in this environment, separately from worker payments.</p><div className="button-row"><Link className="secondary-button button-link" href="/subscribe">Review subscription</Link><form action={refreshSubscriptionAction}><button className="secondary-button">Check subscription with PayPal</button></form></div></section>
+      <section className="panel"><h2>Plans</h2><p className="panel-lede">Prices include VAT. FairShift charges no fees on workers’ earnings or tips.</p>
+        <ul className="role-list">{(["SINGLE_OUTLET", "MULTI_OUTLET"] as const).map(tier => <li key={tier}><p><strong>{PLAN_COPY[tier].name}</strong> · {PLAN_COPY[tier].limit}{subscription?.tier === tier ? " · current plan" : ""}</p>
+          {tier === "SINGLE_OUTLET" && active.length > 1 ? <p className="note">You have {active.length} active locations. Deactivate {active.length - 1} before switching to {PLAN_COPY[tier].name}.</p> : null}</li>)}</ul>
+        <p className="note">{subscription?.providerId && subscription.providerId !== LOCAL_SUBSCRIPTION_FIXTURE ? <>Subscription ID <span className="mono">{subscription.providerId}</span>. </> : null}To change your card or PayPal balance, or cancel, use <a className="link" href={PAYPAL_SANDBOX_AUTOPAY_URL} target="_blank" rel="noreferrer">Manage in PayPal</a> (PayPal Sandbox).</p></section>
     </> : null}
   </>;
 }

@@ -56,7 +56,9 @@ export async function requireOwnerCustomer() {
   if (!member) redirect("/subscribe");
   return {userId:user.id,organisationId:member.organisationId,role:member.role};
 }
-export async function requireScope(roles:Role[],options:{demoWrite?:boolean}={}) {
+// options.locationId: an Owner acting on a named location of their own business (a location page);
+// resolveScope refuses any location outside it.
+export async function requireScope(roles:Role[],options:{demoWrite?:boolean;locationId?:string}={}) {
   const {user,session}=await signedIn();
   if (session.demoPersona) return demoScope(session,user.id,roles,!!options.demoWrite);
   const rows=await getDatabase().select().from(memberships).where(and(eq(memberships.userId,user.id),eq(memberships.state,"ACTIVE")));
@@ -66,7 +68,7 @@ export async function requireScope(roles:Role[],options:{demoWrite?:boolean}={})
   if (!user.emailVerifiedAt) redirect("/account?status=verify-email");
   if (!await organisationEntitled(getDatabase(),member.organisationId)) redirect(member.role === "OWNER" ? "/subscribe" : "/account?status=subscription-required");
   if (!await workplaceComplete(getDatabase(),member.organisationId)) redirect(member.role === "OWNER" ? "/onboarding" : "/account?status=setup-required");
-  const locationId=(await cookies()).get("fairshift_location")?.value;
+  const locationId=options.locationId ?? (await cookies()).get("fairshift_location")?.value;
   return resolveScope(getDatabase(),user.id,member.id,member.role === "OWNER" ? locationId : undefined,roles);
 }
 // Existing worker-payment obligations remain accessible after operational entitlement

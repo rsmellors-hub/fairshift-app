@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase } from "../helpers/database";
 import { entitled } from "../helpers/onboarding";
-import { activateWorker } from "../helpers/workers";
+import { activateWorker, createTeamMember } from "../helpers/workers";
 import { resolveScope, type Scope } from "@/server/auth/access";
 import { localIntelligenceRuns, localIntelligenceSignals, memberships, notifications, organisations, outlets, shiftOffers, shifts, subscriptions, users, workAllocations } from "@/server/db/schema";
 import type { LocalDiscoveryProvider } from "@/server/integrations/openai/web-discovery";
@@ -13,7 +13,7 @@ import { runLocalDiscovery } from "@/server/intelligence/local-intelligence-serv
 import { getWeeklyStaffing } from "@/server/intelligence/staffing";
 import { provisionSaReferenceBusiness } from "@/server/reference/sa-provision";
 import { SA_REFERENCE_LOCATIONS, SA_REFERENCE_ORGANISATION } from "@/server/reference/sa-reference";
-import { allocateAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { LocalIntelligencePanel } from "@/app/manager/local-intelligence";
 import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
 

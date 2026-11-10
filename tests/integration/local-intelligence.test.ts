@@ -18,8 +18,8 @@ import { holidayFeedKey } from "@/server/reference/public-holiday-feed";
 import { LocalIntelligencePanel } from "@/app/manager/local-intelligence";
 import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
 import { affectedShifts, sendEarlyNotice } from "@/server/intelligence/early-notice";
-import { activateWorker } from "../helpers/workers";
-import { allocateAssignment, createDepartment, createRequirement, createTeamMember, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
+import { activateWorker, createTeamMember } from "../helpers/workers";
+import { allocateAssignment, createDepartment, createRequirement, createWorkPolicy, offerAssignment, respondToAssignment } from "@/server/scheduling/operations";
 import { notifications, shiftOffers, shifts, workAllocations } from "@/server/db/schema";
 
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, notFound: () => { throw new Error("NOT_FOUND"); } }));

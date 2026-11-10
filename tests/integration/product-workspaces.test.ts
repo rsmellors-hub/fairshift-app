@@ -17,12 +17,13 @@ import { getDatabase } from "@/server/db/client";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { getOwnerWorkspace as scopedGetOwnerWorkspace, getWorkerWorkspace as scopedGetWorkerWorkspace } from "@/server/product/workspace";
 import { organisations, outlets, shifts, workers, users, memberships, subscriptions } from "@/server/db/schema";
-import { createTeamAction, createPolicyAction, respondAssignmentAction } from "@/app/operations-actions";
+import { createPolicyAction, respondAssignmentAction } from "@/app/operations-actions";
 import { getOperations as scopedGetOperations } from "@/server/scheduling/operations";
 import { publishDemoShift } from "@/server/scheduling/demo";
 import { ensureDemoCasualWorker } from "@/server/scheduling/demo";
 import { DEMO_ORGANISATION_ID, DEMO_OUTLET_ID, DEMO_CASUAL_WORKER_ID } from "@/server/constants";
 import { createTestDatabase } from "../helpers/database";
+import { createTeamMember } from "../helpers/workers";
 import { legacyCommissionOffer, legacyCommissionShift } from "../helpers/legacy-commission";
 const demoScope = { organisationId: DEMO_ORGANISATION_ID, locationId: DEMO_OUTLET_ID };
 type Db = Awaited<ReturnType<typeof createTestDatabase>>["db"];
@@ -64,6 +65,8 @@ describe("functional product workspaces", () => {
       await configure(testDb.db);
       for (const [page, areas] of [[ManagerAreaPage, managerAreas], [WorkerAreaPage, workerAreas], [OwnerAreaPage, ownerAreas], [OperatorAreaPage, operatorAreas]] as const) {
         for (const area of areas) {
+          // Locations, people and pay terms open the selected location's page (design, 10 Nov 2026).
+          if (page === OwnerAreaPage && ["locations", "workforce", "policies"].includes(area)) { await expect(page({ params: Promise.resolve({ area }), searchParams: Promise.resolve({}) })).rejects.toThrow(/REDIRECT:\/owner\/locations\//); continue; }
           const html = renderToStaticMarkup(await page({ params: Promise.resolve({ area }), searchParams: Promise.resolve({}) }));
           expect(html.length).toBeGreaterThan(80);
           expect(html).not.toContain("Coming next");
@@ -119,7 +122,7 @@ describe("functional product workspaces", () => {
     const t = await createTestDatabase();
     try {
       await configure(t.db);
-      await expect(createTeamAction(form({ firstName:"Sam", surname:"Taylor", telephone:"+27111234567", email:"sam@example.test" }))).rejects.toThrow("REDIRECT:/manager/team?status=saved");
+      await createTeamMember(t.db, { firstName:"Sam", surname:"Taylor", telephone:"+27111234567", email:"sam@example.test" }, demoScope);
       let ops = await getOperations(t.db);
       expect(ops.team.find(row=>row.worker.displayName === "Sam Taylor")).toMatchObject({worker:{displayName:"Sam Taylor"},invitation:{state:"CREATED_NOT_SENT"}});
       const teamHtml = renderToStaticMarkup(await ManagerWorkspace({area:"team"}));

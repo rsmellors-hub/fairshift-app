@@ -3,7 +3,8 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/server/db/client";
 import { randomUUID } from "node:crypto";
-import { auditEvents, shiftOffers, shifts, users, workPayouts, workerAvailability, workers } from "@/server/db/schema";
+import { auditEvents, outlets, shiftOffers, shifts, users, workPayouts, workerAvailability, workers } from "@/server/db/schema";
+import { workerLocationIds } from "@/server/people/worker-locations";
 import { checkPassword, consumeLimit } from "./identity";
 import { auditActor } from "./audit-actor";
 import { UserFacingError } from "@/server/domain/errors";
@@ -27,7 +28,12 @@ export async function workerRespond(db:Database,scope:Scope,offerId:string,versi
     const [open]=await db.select({endsAt:shifts.endsAt}).from(shiftOffers).innerJoin(shifts,eq(shifts.id,shiftOffers.shiftId)).where(and(eq(shiftOffers.id,offerId),eq(shiftOffers.workerId,scope.workerId!),eq(shiftOffers.status,"OFFERED")));
     if(open&&open.endsAt<=new Date()) throw new UserFacingError("shift-ended","This shift has already finished.");
   }
-  return respondToAssignment(db,scope.workerId!,offerId,version,response,acknowledged,scope);
+  // The offer's own location decides the response (a worker may belong to several, Owner decision
+  // 10 Nov 2026); it must be one of the worker's locations in this business.
+  const [target]=await db.select({outletId:shifts.outletId}).from(shiftOffers).innerJoin(shifts,eq(shifts.id,shiftOffers.shiftId)).innerJoin(outlets,eq(outlets.id,shifts.outletId))
+    .where(and(eq(shiftOffers.id,offerId),eq(shiftOffers.workerId,scope.workerId!),eq(outlets.organisationId,scope.organisationId)));
+  if(!target || !(await workerLocationIds(db,scope.workerId!)).includes(target.outletId)) throw new Error("Offer unavailable.");
+  return respondToAssignment(db,scope.workerId!,offerId,version,response,acknowledged,{organisationId:scope.organisationId,locationId:target.outletId});
 }
 // Day 6, Step 3b: the worker's PayPal payout destination. Adding the first one needs the address typed
 // twice; changing an existing one also needs the worker's current password (rate-limited). Every save

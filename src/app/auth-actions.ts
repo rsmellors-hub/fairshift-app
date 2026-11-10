@@ -144,7 +144,12 @@ export async function inviteAction(form:FormData) {
 }
 export async function revokeInvitationAction(form:FormData) {
  const scope=await requireScope(["OWNER","MANAGER"]);
- await revokeInvitation(getDatabase(),scope,field(form,"invitationId"));redirect(scope.role === "OWNER" ? "/owner/workforce":"/manager/team");
+ await revokeInvitation(getDatabase(),scope,field(form,"invitationId"));redirect(`${teamPath(scope.role,form)}?status=invitation-revoked#team`);
+}
+// Back to a location's Team (or the Manager's team page), never an arbitrary address.
+function teamPath(role:string,form:FormData) {
+ const next=field(form,"next");
+ return /^\/(owner\/locations\/[0-9a-f-]{36}|manager\/team)$/.test(next) ? next : role === "OWNER" ? "/owner/locations" : "/manager/team";
 }
 export async function markReadAction(form:FormData) {
  const {user}=await requireIdentity();
@@ -176,7 +181,7 @@ export async function refreshSubscriptionAction() {
  redirect(await ownerDestination(getDatabase(),scope.organisationId));
 }
 export async function resendInvitationAction(form:FormData) {
- const scope=await requireScope(["OWNER","MANAGER"]),path=scope.role === "OWNER" ? "/owner/workforce":"/manager/team";
+ const scope=await requireScope(["OWNER","MANAGER"]),path=teamPath(scope.role,form);
  try {
   const {resendInvitation}=await import("@/server/auth/tenancy");
   const result=await resendInvitation(getDatabase(),scope,field(form,"invitationId"));

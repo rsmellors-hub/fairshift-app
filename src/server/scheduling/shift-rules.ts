@@ -6,7 +6,7 @@ import { formatClock } from "@/server/intelligence/workload";
 
 // A location's shift-length rules and offer-round window, and a business's guaranteed-hours alert:
 // Owner settings stored as dated versions (Owner decisions, 9 November 2026). No defaults in code.
-export type ShiftRules = { minMinutes: number; maxMinutes: number; preferredMinutes: number; firstRoundMinutes: number; firstRoundCutoffMinutes: number; source: string; createdAt: Date };
+export type ShiftRules = { minMinutes: number; maxMinutes: number; preferredMinutes: number; firstRoundMinutes: number; firstRoundCutoffMinutes: number; cancellationPercent: number; cancellationWindowMinutes: number; source: string; createdAt: Date };
 export type HoursRule = { weeklyThresholdMinutes: number; referenceWeeks: number; source: string; createdAt: Date };
 
 // --- Rules: the latest dated version stands ------------------------------------------------------
