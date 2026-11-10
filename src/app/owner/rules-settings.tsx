@@ -25,15 +25,14 @@ export function ShiftRulesSettings({ rules, locationName, disabled }: { rules: S
 }
 
 export function HoursRuleSettings({ rule, disabled }: { rule: HoursRule | null; disabled?: boolean }) {
-  return <section className="panel" id="hours-rule" aria-labelledby="hours-rule-title">
-    <h2 id="hours-rule-title">Regular-hours alert · whole business</h2>
+  return <details className="panel disclosure" id="hours-rule"><summary><span className="h4">Hours alert</span><span className="note"> · {rule ? `${h(rule.weeklyThresholdMinutes)} h a week over ${rule.referenceWeeks} weeks` : "not set"}</span></summary>
     <p className="panel-lede">FairShift alerts you when a casual worker averages this many hours a week or more over the reference period. It only alerts: it never offers anyone regular hours. {rule ? `Current since ${since(rule.createdAt)}${rule.source === "DEMO_SEED" ? " (demo values)" : ""}.` : "Not set yet, so no alert is shown."}</p>
     <form action={setHoursRuleAction} className="workspace-form form-grid">
       <label>Average hours a week<input name="weeklyHours" type="number" min={1} max={80} step={0.5} defaultValue={rule ? h(rule.weeklyThresholdMinutes) : ""} required disabled={disabled} /></label>
       <label>Over this many weeks<input name="referenceWeeks" type="number" min={1} max={52} step={1} defaultValue={rule?.referenceWeeks ?? ""} required disabled={disabled} /></label>
       {disabled ? null : <button className="secondary-button">Save alert</button>}
     </form>
-  </section>;
+  </details>;
 }
 
 // Changing pay terms writes a new version from now; shifts already created keep the terms they were made with.

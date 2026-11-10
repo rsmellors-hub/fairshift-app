@@ -8,7 +8,7 @@ import type { EventModel, ResourceModel, Scheduler } from "@bryntum/scheduler";
 import { allocateAssignmentAction } from "@/app/operations-actions";
 import { offerFromScheduleAction, rescheduleShiftAction, type OfferResult, type ScheduleChange, type ScheduleResult } from "@/app/schedule-actions";
 import type { PlanningSummary } from "@/server/scheduling/allocations";
-import { type AllocationSchedule, dropRule, moveToDay, schedulerConfig, type ScheduleEvent } from "./allocation-model";
+import { type AllocationSchedule, dropRule, FORECAST_RESOURCE, moveToDay, OPEN_PLACES_RESOURCE, REGULAR_RESOURCE, schedulerConfig, type ScheduleEvent } from "./allocation-model";
 
 const parts = (iso: string, timeZone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map(part => [part.type, part.value]));
 const localDate = (iso: string, timeZone: string) => { const p = parts(iso, timeZone); return `${p.year}-${p.month}-${p.day}`; };
@@ -58,7 +58,10 @@ export function AllocationScheduler({ schedule, timeZone, planning = null, dragT
   const [pending, setPending] = useState<Pending | null>(null);
   const [pendingOffer, setPendingOffer] = useState<PendingOffer | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
-  const selected = schedule.events.find(event => event.id === selectedId) ?? null;
+  // Design (OwnerSchedule, 10 Nov 2026): "Show open slots only" narrows the timeline and the list to places still to fill.
+  const [openOnly, setOpenOnly] = useState(false);
+  const listed = openOnly ? schedule.events.filter(event => event.kind === "GAP") : schedule.events;
+  const selected = listed.find(event => event.id === selectedId) ?? listed[0] ?? null;
 
   const send = async (change: ScheduleChange) => {
     let result: ScheduleResult;
@@ -187,6 +190,12 @@ export function AllocationScheduler({ schedule, timeZone, planning = null, dragT
     return () => { cancelled = true; };
   }, [date, days, load]);
 
+  useEffect(() => {
+    const store = (instance.current as unknown as { eventStore?: { filterBy: (fn: (record: { id: unknown }) => boolean) => void; clearFilters: () => void } } | null)?.eventStore;
+    if (!store || load !== "ready") return;
+    if (openOnly) store.filterBy(record => eventsRef.current.find(event => event.id === String(record.id))?.kind === "GAP"); else store.clearFilters();
+  }, [openOnly, load]);
+
   const shiftWeek = (weeks: number) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + weeks * days); setDate(next.toISOString().slice(0, 10)); };
 
   return <section className="panel allocation-schedule" aria-label="Location shift schedule">
@@ -196,6 +205,7 @@ export function AllocationScheduler({ schedule, timeZone, planning = null, dragT
       <label>Starting<input type="date" value={date} onChange={(event) => { if (event.target.value) setDate(event.target.value); }} /></label>
       <button className="secondary-button" type="button" onClick={() => shiftWeek(1)}>Next</button>
       <label>View<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={7}>Week</option><option value={1}>Day</option></select></label>
+      <button className="secondary-button" type="button" aria-pressed={openOnly} onClick={() => setOpenOnly(value => !value)}>{openOnly ? "Show all shifts" : "Show open slots only"}</button>
     </div>
     {planning ? <ForecastNeed planning={planning} /> : null}
     <ul className="allocation-legend" aria-label="Shift states">
@@ -217,12 +227,35 @@ export function AllocationScheduler({ schedule, timeZone, planning = null, dragT
     {outcome ? <p className={outcome.ok ? "allocation-outcome" : "allocation-outcome allocation-outcome-refused"} role={outcome.ok ? "status" : "alert"}>{outcome.message}{refreshing ? " Updating…" : ""}</p> : null}
     <div className="allocation-timeline" ref={host} />
     <p className="note">Select a shift for its details. In Week view, dragging moves a shift to another day at the same times; switch to Day view to change its hours. {dragToOffer ? "Drag an open place onto a worker to offer them the shift. " : ""}FairShift checks every change on the server, so a refused move returns to where it was.</p>
-    <label>Shift details<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{schedule.events.map((event) => <option value={event.id} key={event.id}>{shown(event.startDate, timeZone)} · {event.workerName} · {event.state}</option>)}</select></label>
-    {selected ? <ShiftDetail key={`${selected.id}:${selected.termsVersion}`} event={selected} timeZone={timeZone} send={send} /> : null}
+    <label>Shift details<select value={selected?.id ?? ""} onChange={(event) => setSelectedId(event.target.value)}>{listed.map((event) => <option value={event.id} key={event.id}>{shown(event.startDate, timeZone)} · {event.workerName} · {event.state}</option>)}</select></label>
+    {openOnly && !listed.length ? <p className="note">No open slots in this schedule.</p> : null}
+    {selected ? <ShiftDetail key={`${selected.id}:${selected.termsVersion}`} event={selected} timeZone={timeZone} send={send} assign={dragToOffer && selected.kind === "GAP" ? { candidates: candidatesFor(schedule, selected), offer: sendOffer } : null} /> : null}
   </section>;
 }
 
-function ShiftDetail({ event, timeZone, send }: { event: ScheduleEvent; timeZone: string; send: (change: ScheduleChange) => Promise<boolean> }) {
+// "Assign…" on an open place (design, OwnerSchedule): pick someone from the location's team; they get a
+// booking request (an offer) to accept. The same checks as dragging decide who can be picked, and the
+// server checks again before anything is sent.
+function candidatesFor(schedule: AllocationSchedule, event: ScheduleEvent) {
+  const special = new Set([OPEN_PLACES_RESOURCE.id, FORECAST_RESOURCE.id, REGULAR_RESOURCE.id]);
+  return schedule.resources.filter(row => !special.has(String(row.id))).map(row => { const rule = dropRule(schedule, event, String(row.id));
+    return { id: rule.action === "OFFER" ? rule.workerId : String(row.id), name: String(row.name), refused: rule.action === "REFUSE" ? rule.message : null }; });
+}
+function AssignPicker({ event, candidates, offer }: { event: ScheduleEvent; candidates: ReturnType<typeof candidatesFor>; offer: (event: ScheduleEvent, workerId: string, workerName: string) => Promise<void> }) {
+  const [choice, setChoice] = useState("");
+  const [sending, setSending] = useState(false);
+  const free = candidates.filter(row => !row.refused);
+  const picked = free.find(row => row.id === choice);
+  return <details className="allocation-change"><summary>Assign…</summary>
+    {free.length ? <div className="workspace-form"><label>Who<select value={choice} onChange={change => setChoice(change.target.value)}><option value="">Choose someone free</option>{free.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+      <button className="primary-button" type="button" disabled={!picked || sending} onClick={async () => { if (!picked) return; setSending(true); await offer(event, picked.id, picked.name); setSending(false); }}>Send booking request</button>
+      <p className="note">They get it in their Inbox and by email, on this shift’s terms. They’re booked only once they accept and you finalise.</p></div>
+      : <p className="note">Nobody on the team is free for this shift.</p>}
+    {candidates.some(row => row.refused) ? <ul className="note">{candidates.filter(row => row.refused).map(row => <li key={row.id}>{row.name}: {row.refused}</li>)}</ul> : null}
+  </details>;
+}
+
+function ShiftDetail({ event, timeZone, send, assign = null }: { event: ScheduleEvent; timeZone: string; send: (change: ScheduleChange) => Promise<boolean>; assign?: { candidates: ReturnType<typeof candidatesFor>; offer: (event: ScheduleEvent, workerId: string, workerName: string) => Promise<void> } | null }) {
   const [saving, setSaving] = useState(false);
   const pay = event.earningsModel === "COMMISSION" ? `${(event.commissionBps ?? 0) / 100}% commission` : event.currencyCode === "ZAR" ? rand(event.guaranteedBasePayMinor) : new Intl.NumberFormat("en-GB", { style: "currency", currency: event.currencyCode }).format(event.guaranteedBasePayMinor / 100);
   const submit = async (form: FormData) => {
@@ -246,6 +279,7 @@ function ShiftDetail({ event, timeZone, send }: { event: ScheduleEvent; timeZone
       {event.kind === "OFFER" && event.state.startsWith("Accepted") ? <form action={allocateAssignmentAction} data-demo-write=""><input type="hidden" name="offerId" value={event.id} /><input type="hidden" name="returnArea" value="allocations" /><button className="primary-button">Finalise allocation</button></form> : null}
       {event.kind === "OFFER" && event.interaction === "LOCKED" && event.state === "Allocated" ? <Link href="/manager/review">Review this work</Link> : null}
     </div>
+    {assign ? <AssignPicker event={event} candidates={assign.candidates} offer={assign.offer} /> : null}
     {event.interaction === "CHANGE_ONLY" ? <details className="allocation-change"><summary>Change shift</summary>
       <form action={submit} className="workspace-form" data-demo-write="">
         <label>New start · {timeZone}<input name="startsAt" type="datetime-local" required defaultValue={localInput(event.startDate, timeZone)} /></label>
