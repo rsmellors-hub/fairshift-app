@@ -37,6 +37,8 @@ const OUTCOME_EXPLANATIONS: Record<string, string> = {
   "payout-currency-unverified": "PayPal payouts in this currency aren't verified for FairShift yet, so nothing was sent.",
   "payout-currency-unsupported": "This payout currency is not supported.",
   "payment-details-required": "The worker has not saved payment details yet.",
+  "paypal-not-connected": "Connect your PayPal to pay your team. Nothing was sent; the earnings stay recorded as unpaid.",
+  "paypal-connection-unavailable": "The PayPal account this payment was sent from can't be reached right now, so nothing was changed.",
   "performance-required": "The sales result for this shift must be confirmed first.",
 };
 

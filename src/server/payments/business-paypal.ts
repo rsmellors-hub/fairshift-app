@@ -83,3 +83,61 @@ export async function businessPayoutCredentials(db: DatabaseSession, organisatio
   if (!row) return null;
   return { connectionId: row.id, clientId: row.clientId, secret: openSecret(row.secretSealed, key, organisationId), senderEmail: row.senderEmail, appId: row.appId };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Which PayPal account sends payouts, for the whole deployment (release control, 12 Nov 2026).
+// FAIRSHIFT_PAYOUT_SENDER=business: every new payout is sent from the business's own connected app,
+// and a business with none connected is blocked ("Connect your PayPal to pay your team") — never a
+// fallback to the platform app. Anything else (the default): new payouts use the platform app, as
+// before. The switch only chooses the sender of a NEW reservation. A payout already reserved is
+// always sent again and read with the account it was reserved under (sender_connection_id; null is
+// the platform app), because PayPal's sender_batch_id duplicate protection and its batch lookups
+// belong to that account.
+export const PAYOUT_SENDER_ENV = "FAIRSHIFT_PAYOUT_SENDER";
+export type PayoutSenderMode = "PLATFORM" | "BUSINESS";
+export function payoutSenderMode(env: Record<string, string | undefined> = process.env): PayoutSenderMode {
+  return env[PAYOUT_SENDER_ENV]?.trim().toLowerCase() === "business" ? "BUSINESS" : "PLATFORM";
+}
+
+export class PayPalNotConnectedError extends UserFacingError {
+  constructor() { super("paypal-not-connected", "Connect your PayPal to pay your team."); this.name = "PayPalNotConnectedError"; }
+}
+
+// Recorded on the reservation. No secret is read here.
+export type PayoutSender = { connectionId: string | null; senderEmail: string | null };
+export async function newPayoutSender(db: DatabaseSession, organisationId: string, env: Record<string, string | undefined> = process.env): Promise<PayoutSender> {
+  if (payoutSenderMode(env) === "PLATFORM") return { connectionId: null, senderEmail: null };
+  if (!businessCredentialKey(env[CREDENTIALS_KEY_ENV])) throw new PayPalNotConnectedError();
+  const [row] = await db.select({ id: businessPaypalConnections.id, senderEmail: businessPaypalConnections.senderEmail }).from(businessPaypalConnections)
+    .where(and(eq(businessPaypalConnections.organisationId, organisationId), isNull(businessPaypalConnections.disconnectedAt)));
+  if (!row) throw new PayPalNotConnectedError();
+  return { connectionId: row.id, senderEmail: row.senderEmail };
+}
+
+export type PayoutCredentials =
+  | { kind: "PLATFORM" }
+  | { kind: "BUSINESS"; connectionId: string; clientId: string; secret: string; senderEmail: string };
+
+// The credentials a recorded payout is sent and read with: the account it was reserved under, even if
+// the business has since replaced or disconnected that app. Never the platform app for a business payout.
+export async function credentialsForPayout(db: DatabaseSession, payout: { organisationId: string; senderConnectionId: string | null }): Promise<PayoutCredentials> {
+  if (!payout.senderConnectionId) return { kind: "PLATFORM" };
+  const key = businessCredentialKey();
+  const [row] = key ? await db.select().from(businessPaypalConnections)
+    .where(and(eq(businessPaypalConnections.id, payout.senderConnectionId), eq(businessPaypalConnections.organisationId, payout.organisationId))) : [];
+  if (!key || !row) throw new UserFacingError("paypal-connection-unavailable", "The PayPal account this payment was sent from can't be reached right now, so nothing was changed.");
+  return { kind: "BUSINESS", connectionId: row.id, clientId: row.clientId, secret: openSecret(row.secretSealed, key, payout.organisationId), senderEmail: row.senderEmail };
+}
+
+// "Test connection" for the app already connected: a fresh Sandbox token with the stored credentials.
+// Owner only. Records when it last passed; a failure changes nothing and is reported to the Owner.
+export async function testBusinessPayPal(db: Database, actor: { organisationId: string; role: string }, test: TokenTest = sandboxTokenTest, now = new Date()) {
+  if (actor.role !== "OWNER") throw new UserFacingError("paypal-connect-owner", "Only the business owner can connect PayPal.");
+  const key = businessCredentialKey();
+  if (!key) throw new UserFacingError("paypal-connect-unavailable", "PayPal connections aren't available on this server yet.");
+  const [row] = await db.select().from(businessPaypalConnections).where(and(eq(businessPaypalConnections.organisationId, actor.organisationId), isNull(businessPaypalConnections.disconnectedAt)));
+  if (!row) throw new PayPalNotConnectedError();
+  const { appId } = await test(row.clientId, openSecret(row.secretSealed, key, actor.organisationId));
+  await db.update(businessPaypalConnections).set({ lastTestedAt: now, appId: appId ?? row.appId }).where(eq(businessPaypalConnections.id, row.id));
+  return { appId: appId ?? row.appId };
+}

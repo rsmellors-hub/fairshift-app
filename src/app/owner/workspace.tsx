@@ -32,6 +32,8 @@ import { importSalesCsvAction, sampleHistoryAction } from "@/app/setup-actions";
 import { BusinessSettings } from "@/app/owner/business-settings";
 import { loadHoursRule, loadShiftRules } from "@/server/scheduling/shift-rules";
 import { SANDBOX_PAYOUT_LIMITS } from "@/server/payments/sandbox-limits";
+import { businessPayPalStatus, payoutSenderMode } from "@/server/payments/business-paypal";
+import { connectPayPalAction, testPayPalAction } from "@/app/settings-actions";
 import { organisations } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { PolicyWageCell, WageBelowNotice, WageReferencePanel } from "@/app/owner/wage-reference";
@@ -110,6 +112,7 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
   const operations = area === "policies" ? await getOperations(getDatabase(),scope) : null;
   const rulesView = area === "policies" ? { shift: (await loadShiftRules(getDatabase(), scope.organisationId, [scope.locationId])).get(scope.locationId) ?? null, hours: await loadHoursRule(getDatabase(), scope.organisationId) } : null;
   const hoursRule = area === "settings" ? await loadHoursRule(getDatabase(), scope.organisationId) : null;
+  const paypalConnection = area === "settings" ? await businessPayPalStatus(getDatabase(), scope.organisationId) : null;
   const business = area === "settings" ? (await getDatabase().select().from(organisations).where(eq(organisations.id, scope.organisationId)))[0] ?? null : null;
   const staffingConfiguration = area === "policies" ? await getStaffingConfiguration(getDatabase(),scope) : null;
   let tipView: Awaited<ReturnType<typeof getOwnerTipView>> | null = null;
@@ -176,7 +179,16 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
           <form action={importSalesCsvAction} className="inline-form"><input type="hidden" name="locationId" value={scope.locationId} /><input type="hidden" name="next" value="settings" /><label>Upload past sales (CSV)<input type="file" name="file" accept=".csv,text/csv" required /><small>Daily or hourly totals · labelled “Imported”</small></label><button className="secondary-button">Upload</button></form>
           <form action={sampleHistoryAction} className="inline-form"><input type="hidden" name="locationId" value={scope.locationId} /><input type="hidden" name="next" value="settings" /><span className="note">Sample history, scaled to the venue’s seats · labelled “Sample (synthetic)”</span><button className="secondary-button">Use sample history</button></form></>}
       </details>
-      <details className="panel disclosure"><summary><span className="h4">Payouts</span><span className="note"> · PayPal · US dollars</span></summary>
+      <details className="panel disclosure" id="payouts" open={!!status?.startsWith("paypal-")}><summary><span className="h4">Payouts</span><span className="note"> · PayPal · US dollars</span></summary>
+        <div className="record-row"><span><strong>Sent from</strong><small>{payoutSenderMode() === "BUSINESS" ? paypalConnection ? `Your PayPal Sandbox account, ${paypalConnection.senderEmail}.` : "Nothing yet. Connect your PayPal to pay your team." : "FairShift’s PayPal Sandbox account in this deployment."}</small></span>{payoutSenderMode() === "BUSINESS" ? <StatusBadge tone={paypalConnection ? "success" : "warning"}>{paypalConnection ? "Connected" : "Not connected"}</StatusBadge> : null}</div>
+        {paypalConnection ? <div className="record-row"><span><strong>Your PayPal app</strong><small>{paypalConnection.appId ?? "App ID not reported"} · client ID ending {paypalConnection.clientIdTail} · secret ending {paypalConnection.secretLast4}{paypalConnection.lastTestedAt ? ` · tested ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC" }).format(paypalConnection.lastTestedAt)}` : ""}</small></span>{scope.demo ? null : <form action={testPayPalAction}><button className="secondary-button">Test connection</button></form>}</div> : null}
+        {scope.demo ? null : <form action={connectPayPalAction} className="stack-form" autoComplete="off">
+          <h3 className="h4">{paypalConnection ? "Replace your PayPal (Sandbox)" : "Connect your PayPal (Sandbox)"}</h3>
+          <label>Client ID<input name="clientId" required minLength={10} maxLength={200} autoComplete="off" spellCheck={false} /></label>
+          <label>Secret<input name="secret" type="password" required minLength={10} maxLength={300} autoComplete="new-password" /><small>Stored encrypted. Only its last four characters are shown.</small></label>
+          <label>PayPal account email<input name="senderEmail" type="email" required maxLength={254} /><small>The Sandbox business account payouts come from. PayPal doesn’t report it to FairShift, so enter it as your Developer Dashboard shows it.</small></label>
+          <button className="primary-button">Test and connect</button>
+        </form>}
         <div className="record-row"><span><strong>Payout currency</strong><small>US dollars: rand can’t be sent through PayPal.</small></span></div>
         <div className="record-row"><span><strong>Exchange rate</strong><small>Latest European Central Bank reference rate, locked when each payout is created.</small></span></div>
         <div className="record-row"><span><strong>Sandbox limit</strong><small>{SANDBOX_PAYOUT_LIMITS.payoutsPerDay} payouts and US${(SANDBOX_PAYOUT_LIMITS.usdMinorPerDay / 100).toFixed(0)} a day per business, in this PayPal Sandbox deployment.</small></span></div></details>

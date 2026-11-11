@@ -165,6 +165,8 @@ export class PayPalPayoutClient implements PayPalPayoutAdapter {
     private readonly config: PayoutConfig,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly timeoutMs = 10_000,
+    // False for a business's own app: Sandbox negative-test notes go only through the platform app.
+    private readonly negativeTests = true,
   ) {
     // Sandbox only: a live host is never accepted, whatever the configuration says.
     if (config.apiBaseUrl !== PAYPAL_SANDBOX_API_BASE_URL) throw new Error("PayPal payouts are restricted to the Sandbox environment.");
@@ -193,7 +195,7 @@ export class PayPalPayoutClient implements PayPalPayoutAdapter {
           amount: { value: input.amount, currency },
           receiver: input.recipient,
           sender_item_id: input.senderItemId,
-          note: payoutNegativeTestNote() ?? input.note ?? "Manager-approved FairShift shift incentive",
+          note: (this.negativeTests ? payoutNegativeTestNote() : null) ?? input.note ?? "Manager-approved FairShift shift incentive",
           ...(input.purpose ? { purpose: input.purpose } : {}),
         }],
       }),

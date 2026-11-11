@@ -271,7 +271,10 @@ const shiftHours = (start: Date, end: Date) => { const hours = (end.getTime() - 
 // Sandbox was sent, the ECB reference rate frozen at sending, and the batch reference. "Paid ✓" only
 // when PayPal reported the item SUCCESS (status PAID); anything else says what it is.
 const PAYOUT_STATE: Record<string, string> = { SUBMITTING: "Sending to PayPal", NOT_SENT: "Not sent", PROCESSING: "With PayPal", PAID: "Paid ✓", FAILED: "Not paid", RECONCILIATION_REQUIRED: "Checking with PayPal" };
-function RecentPayouts({ rows, timezone }: { rows: { id: string; workerName: string; shiftDate: string; payout: { amountMinor: number; currencyCode: string; providerAmountMinor: number; providerCurrency: string; fxRateMicros: number | null; status: string; senderBatchId: string; paypalBatchId: string | null; createdAt: Date } }[]; timezone: string }) {
+// Which PayPal account the payout came from: the business's own app, or FairShift's (null sender).
+// "Paid from" only once PayPal reported the item SUCCESS.
+const payoutSenderLine = (payout: { status: string; senderEmail: string | null }) => `${payout.status === "PAID" ? "Paid" : "Sent"} from ${payout.senderEmail ?? "FairShift’s PayPal Sandbox account"}`;
+function RecentPayouts({ rows, timezone }: { rows: { id: string; workerName: string; shiftDate: string; payout: { amountMinor: number; currencyCode: string; providerAmountMinor: number; providerCurrency: string; fxRateMicros: number | null; status: string; senderBatchId: string; paypalBatchId: string | null; senderEmail: string | null; createdAt: Date } }[]; timezone: string }) {
   const recent = [...rows].sort((a, b) => b.payout.createdAt.getTime() - a.payout.createdAt.getTime()).slice(0, 20);
   return <section className="panel" id="payouts" aria-labelledby="payouts-title"><h2 id="payouts-title">Recent payouts</h2>
     {recent.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Recent payouts at this location</caption>
@@ -280,7 +283,7 @@ function RecentPayouts({ rows, timezone }: { rows: { id: string; workerName: str
         <td data-label="Person · shift">{workerName} · {longDate(shiftDate)}</td>
         <td data-label="Amount" className="money">{money(payout.amountMinor, payout.currencyCode)}</td>
         <td data-label="Sent to PayPal Sandbox">{payout.providerCurrency === payout.currencyCode ? money(payout.providerAmountMinor, payout.providerCurrency) : labelledMoney(payout.providerAmountMinor, payout.providerCurrency)}{payout.fxRateMicros ? <small> at {(payout.fxRateMicros / 1_000_000).toFixed(4)} {payout.currencyCode} per {payout.providerCurrency} (ECB)</small> : null}</td>
-        <td data-label="Batch"><code>{payout.paypalBatchId ?? payout.senderBatchId}</code><small> · sent {dateTime(payout.createdAt, timezone)}</small></td>
+        <td data-label="Batch"><code>{payout.paypalBatchId ?? payout.senderBatchId}</code><small> · sent {dateTime(payout.createdAt, timezone)}</small><small> · {payoutSenderLine(payout)}</small></td>
         <td data-label="Status">{PAYOUT_STATE[payout.status] ?? payout.status}</td>
       </tr>)}</tbody></table></div>
       : <p className="note">No payouts sent from this location yet.</p>}

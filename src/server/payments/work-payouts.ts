@@ -6,6 +6,7 @@ import { UserFacingError } from "@/server/domain/errors";
 import { currencyForCountry } from "@/server/domain/currency";
 import { resolveProviderAmount } from "@/server/domain/provider-currency";
 import { currentZarConversion } from "@/server/fx/reference-rates";
+import { credentialsForPayout, newPayoutSender, type PayoutCredentials } from "@/server/payments/business-paypal";
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { refusalReason } from "@/server/domain/payout-refusal";
 import { randomUUID } from "node:crypto";
@@ -117,8 +118,12 @@ async function assertPayoutRoute(db: DatabaseSession, scope: Tenancy, providerCu
 
 // HTTP callers pass a factory so refusals happen before reading provider credentials
 // or constructing a client. Tests/internal callers may supply an existing adapter.
-export type PayoutClientSource = PayPalPayoutAdapter | (() => PayPalPayoutAdapter);
-const payoutClient = (source: PayoutClientSource) => typeof source === "function" ? source() : source;
+// The factory is given the credentials of the account the payout is (or will be) reserved under:
+// the platform app (sender_connection_id null) or the business's own app (business-paypal.ts).
+export type PayoutClientSource = PayPalPayoutAdapter | ((credentials: PayoutCredentials) => PayPalPayoutAdapter);
+async function payoutClient(db: DatabaseSession, source: PayoutClientSource, payout: Pick<WorkPayout, "organisationId" | "senderConnectionId">) {
+  return typeof source === "function" ? source(await credentialsForPayout(db, payout)) : source;
+}
 
 // PayPal statuses mapped conservatively. Only an item-level SUCCESS is paid; a batch
 // that is processed or successful says nothing certain about the worker's item.
@@ -296,13 +301,15 @@ export async function prepareWorkPayout(db: DatabaseSession, scope: Tenancy, inp
   if (!input.existing) await assertSandboxPayoutLimits(db, scope.organisationId, providerLeg);
   // A PayPal email change waiting for its confirmation link pauses new payouts to that worker (design, 10 Nov 2026).
   if (!input.existing && await payoutsPaused(db, input.workerId)) throw new PayoutsPausedError();
+  // The account that sends it: chosen once, at reservation, and kept for every resend and status read.
+  const sender = input.existing ? { connectionId: input.existing.senderConnectionId, senderEmail: input.existing.senderEmail } : await newPayoutSender(db, scope.organisationId);
   // A payout already reserved keeps the address it was reserved with (Day 6, Step 3b): a later change
   // to the worker's PayPal email affects only payouts reserved after it.
   const [worker] = input.existing ? [{ email: input.existing.recipient }] : await db.select({ email: workers.paypalPayoutEmail }).from(workers)
     .where(and(eq(workers.id, input.workerId), eq(workers.organisationId, scope.organisationId)));
   const recipient = recipientSchema.safeParse(worker?.email ?? "");
   if (!recipient.success) throw new PaymentDetailsRequiredError();
-  return { providerLeg, recipient: recipient.data };
+  return { providerLeg, recipient: recipient.data, sender };
 }
 
 // Reserves and sends an approved payable once. A repeat, retry or concurrent request finds the
@@ -314,8 +321,8 @@ async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, ac
   assertRateLimitBackoff(existing);
   if (payable.status !== "APPROVED" || payable.approvedAmountMinor === null || payable.approvedCurrencyCode === null) throw new Error("Approve the payable before payout.");
   const amountMinor = payable.approvedAmountMinor, currencyCode = payable.approvedCurrencyCode;
-  const { providerLeg, recipient } = await prepareWorkPayout(db, actor, { workerId: payable.workerId, amountMinor, currencyCode, existing });
-  const client = payoutClient(paypal);
+  const { providerLeg, recipient, sender } = await prepareWorkPayout(db, actor, { workerId: payable.workerId, amountMinor, currencyCode, existing });
+  const client = await payoutClient(db, paypal, { organisationId: payable.organisationId, senderConnectionId: sender.connectionId });
 
   const now = new Date();
   let reserved: WorkPayout | undefined;
@@ -324,7 +331,7 @@ async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, ac
       id: randomUUID(), payableId: payable.id, organisationId: payable.organisationId, outletId: payable.outletId, workerId: payable.workerId,
       amountMinor, currencyCode,
       providerCurrency: providerLeg.providerCurrency, providerAmountMinor: providerLeg.providerAmountMinor, fxRateMicros: providerLeg.fxRateMicros, fxRateSource: providerLeg.fxRateSource,
-      recipient, ...payoutSenderIds(payable.id),
+      recipient, ...payoutSenderIds(payable.id), senderConnectionId: sender.connectionId, senderEmail: sender.senderEmail,
       status: "SUBMITTING", requestedBy: actor.userId, reservedAt: now, updatedAt: now,
     }).onConflictDoNothing({ target: workPayouts.payableId }).returning();
   } else {
@@ -339,6 +346,7 @@ async function submitApprovedPayout(db: Database, paypal: PayoutClientSource, ac
     amountMinor, currencyCode, providerAmountMinor: reserved.providerAmountMinor, providerCurrency: reserved.providerCurrency,
     fxRateMicros: reserved.fxRateMicros, fxRateSource: reserved.fxRateSource,
     senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId, attempt: reserved.attempts,
+    senderConnectionId: reserved.senderConnectionId, senderEmail: reserved.senderEmail,
   });
   return { payout: await sendReserved(db, client, actor, reserved, "FIRST"), submitted: true };
 }
@@ -425,7 +433,7 @@ async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: Pa
     const now = new Date();
     let result: PayoutResult;
     try {
-      result = await payoutClient(paypal).getPayout(payout.paypalBatchId, payout.senderItemId);
+      result = await (await payoutClient(db, paypal, payout)).getPayout(payout.paypalBatchId, payout.senderItemId);
     } catch (error) {
       const code = error instanceof PayPalPayoutError ? error.code : "STATUS_REQUEST_FAILED";
       await db.update(workPayouts).set({ lastError: { code, httpStatus: error instanceof PayPalPayoutError ? error.status ?? null : null, debugId: error instanceof PayPalPayoutError ? error.debugId ?? null : null, outcome: "STATUS_UNAVAILABLE" }, updatedAt: now })
@@ -457,7 +465,7 @@ async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: Pa
     // conversion (fxRateMicros present). The rate is never re-read, so a config change cannot
     // change recovery. Known-batch GET reconciliation above stays available for existing obligations.
     await assertPayoutRoute(db, scope, payout.providerCurrency, payout.fxRateMicros !== null);
-    const client = payoutClient(paypal);
+    const client = await payoutClient(db, paypal, payout);
     const [claimed] = await db.update(workPayouts).set({ status: "SUBMITTING", attempts: sql`${workPayouts.attempts} + 1`, updatedAt: new Date() })
       .where(and(eq(workPayouts.id, payout.id), eq(workPayouts.status, payout.status), payout.status === "SUBMITTING" ? lt(workPayouts.updatedAt, stale) : eq(workPayouts.updatedAt, payout.updatedAt))).returning();
     if (!claimed) {
@@ -507,7 +515,7 @@ export async function reserveTipLinePayout(tx: DatabaseSession, scope: Tenancy, 
     id: randomUUID(), tipLineId: line.id, organisationId: line.organisationId, outletId: line.outletId, workerId: line.workerId,
     amountMinor: line.shareMinor, currencyCode: line.currencyCode,
     providerCurrency: prepared.providerLeg.providerCurrency, providerAmountMinor: prepared.providerLeg.providerAmountMinor, fxRateMicros: prepared.providerLeg.fxRateMicros, fxRateSource: prepared.providerLeg.fxRateSource,
-    recipient: prepared.recipient, ...tipPayoutSenderIds(line.id),
+    recipient: prepared.recipient, ...tipPayoutSenderIds(line.id), senderConnectionId: prepared.sender.connectionId, senderEmail: prepared.sender.senderEmail,
     status: "SUBMITTING", requestedBy: approver.userId, reservedAt: now, updatedAt: now,
   }).onConflictDoNothing({ target: workPayouts.tipLineId }).returning();
   if (!reserved) return null;
@@ -515,13 +523,14 @@ export async function reserveTipLinePayout(tx: DatabaseSession, scope: Tenancy, 
     tipLineId: line.id, approverOfRecord: approver.userId, approverDecision: "FS-TIP-AGENT-DEC-001", approverBasis: approver.basis,
     amountMinor: reserved.amountMinor, currencyCode: reserved.currencyCode, providerAmountMinor: reserved.providerAmountMinor, providerCurrency: reserved.providerCurrency,
     fxRateMicros: reserved.fxRateMicros, fxRateSource: reserved.fxRateSource, senderBatchId: reserved.senderBatchId, senderItemId: reserved.senderItemId,
+    senderConnectionId: reserved.senderConnectionId, senderEmail: reserved.senderEmail,
   });
   return reserved;
 }
 
 // Sends a reservation made by reserveTipLinePayout (status SUBMITTING), exactly as a work payout.
 export async function sendReservedPayout(db: Database, paypal: PayoutClientSource, scope: Tenancy, payout: WorkPayout) {
-  return sendReserved(db, payoutClient(paypal), { userId: null, ...scope, service: "fairshift-pay-agent" }, payout, "FIRST");
+  return sendReserved(db, await payoutClient(db, paypal, payout), { userId: null, ...scope, service: "fairshift-pay-agent" }, payout, "FIRST");
 }
 
 // Latest provider state of a tip line's payout, through the same reconciliation as a work payout.

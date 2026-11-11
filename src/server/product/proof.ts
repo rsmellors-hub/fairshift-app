@@ -35,7 +35,7 @@ export async function getProofPanel(db: DatabaseSession, scope: Pick<Scope, "org
   const [payouts, subscription, payAgent, tipAgent, runs, proposals, assessments, weather, outcomes, feeds] = await Promise.all([
     db.select({ id: workPayouts.id, kind: workPayouts.tipLineId, outletId: workPayouts.outletId, status: workPayouts.status, paypalStatus: workPayouts.paypalStatus, paypalBatchStatus: workPayouts.paypalBatchStatus,
       paypalBatchId: workPayouts.paypalBatchId, paypalItemId: workPayouts.paypalItemId, paypalTransactionId: workPayouts.paypalTransactionId, amountMinor: workPayouts.amountMinor, currencyCode: workPayouts.currencyCode,
-      providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt,
+      providerAmountMinor: workPayouts.providerAmountMinor, providerCurrency: workPayouts.providerCurrency, fxRateSource: workPayouts.fxRateSource, createdAt: workPayouts.createdAt, statusCheckedAt: workPayouts.statusCheckedAt, paidAt: workPayouts.paidAt, senderEmail: workPayouts.senderEmail,
       // Read only to derive whether PayPal refused the payout, and its reason; not returned.
       lastError: workPayouts.lastError })
       .from(workPayouts).where(eq(workPayouts.organisationId, organisationId)).orderBy(desc(workPayouts.createdAt)).limit(50),

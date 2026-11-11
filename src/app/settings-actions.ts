@@ -6,6 +6,7 @@ import { requireIdentity, requireScope } from "@/server/auth/request";
 import { getDatabase } from "@/server/db/client";
 import { UserFacingError } from "@/server/domain/errors";
 import { setHoursRule, setShiftRules, updateBusinessDetails, updateOwnAccountDetails, updateOwnDetails } from "@/server/settings/settings";
+import { connectBusinessPayPal, testBusinessPayPal } from "@/server/payments/business-paypal";
 
 // Editable settings (Day 6, item 3). Server-checked: rules and business details are the Owner's; a
 // person's own details are their own. Closed to the public demo.
@@ -32,6 +33,16 @@ export async function setHoursRuleAction(form: FormData) {
 export async function updateBusinessAction(form: FormData) {
   const scope = await requireScope(["OWNER"]);
   return run("/owner/settings#business", "business-saved", () => updateBusinessDetails(getDatabase(), scope, { name: field(form, "name"), businessAddress: field(form, "businessAddress"), city: field(form, "city"), province: field(form, "province"), postalCode: field(form, "postalCode") }));
+}
+// Business settings › Payouts: the Owner's own PayPal Sandbox app. The secret goes straight to the
+// sealed store and is never echoed back, logged or put in the redirect.
+export async function connectPayPalAction(form: FormData) {
+  const scope = await requireScope(["OWNER"]);
+  return run("/owner/settings#payouts", "paypal-connected", () => connectBusinessPayPal(getDatabase(), scope, { clientId: field(form, "clientId"), secret: field(form, "secret"), senderEmail: field(form, "senderEmail").trim() }));
+}
+export async function testPayPalAction() {
+  const scope = await requireScope(["OWNER"]);
+  return run("/owner/settings#payouts", "paypal-tested", () => testBusinessPayPal(getDatabase(), scope));
 }
 export async function updateOwnDetailsAction(form: FormData) {
   const scope = await requireScope(["TEAM_MEMBER"]);
