@@ -9,6 +9,8 @@ import { memberships, organisations, outletTradingHours, outlets, saleTransactio
 import { loadDailySales } from "@/server/intelligence/sales-history";
 import { selectForecastSource } from "@/server/intelligence/weekly";
 import { saveSetupVenue, setupProgress } from "@/server/onboarding/setup";
+import { DEFAULT_HOURS_RULE, DEFAULT_SHIFT_RULES } from "@/server/scheduling/default-rules";
+import { loadHoursRule, loadShiftRules } from "@/server/scheduling/shift-rules";
 import { generateSampleHistory, importedHistoryLabels, importSalesCsv, SAMPLE_SOURCE_SYSTEM } from "@/server/sales/history-sources";
 
 // Design package §2 (10 Nov 2026): a brand-new business set up from scratch, with no seed data.
@@ -38,6 +40,9 @@ describe("from-scratch setup", () => {
       await t.db.update(organisations).set({ setupCompletedAt: null }).where(eq(organisations.id, b.membership.organisationId));
       await expect(saveSetupVenue(t.db, b.scope, { ...venue, trading: ["07:00-17:00", ...Array(6).fill("")] })).rejects.toMatchObject({ feedback: "trading-hours-invalid" });
       const location = await saveSetupVenue(t.db, b.scope, venue);
+      // A new location starts with the default offer settings, and the business with the hours alert (Owner, 11 Nov 2026).
+      expect((await loadShiftRules(t.db, b.scope.organisationId, [location.id])).get(location.id)).toMatchObject({ ...DEFAULT_SHIFT_RULES, source: "DEFAULT" });
+      expect(await loadHoursRule(t.db, b.scope.organisationId)).toMatchObject({ ...DEFAULT_HOURS_RULE, source: "DEFAULT" });
       expect(location).toMatchObject({ name: "Gardens", country: "South Africa", timezone: "Africa/Johannesburg" });
       expect((await t.db.select().from(outlets).where(eq(outlets.id, location.id)))[0]).toMatchObject({ customerTypes: ["OFFICE", "TOURISTS"], venueType: "CAFE_RESTAURANT", seats: 40 });
       expect((await t.db.select().from(organisations).where(eq(organisations.id, b.membership.organisationId)))[0].setupCompletedAt).toBeInstanceOf(Date);

@@ -31,6 +31,9 @@ export async function consumeLimit(db: DatabaseSession, key: string, maximum = 1
     .onConflictDoUpdate({target:authLimits.key,set:{count:sql`case when ${authLimits.resetsAt} < ${now} then 1 else ${authLimits.count}+1 end`,resetsAt:sql`case when ${authLimits.resetsAt} < ${now} then ${new Date(now.getTime()+15*60_000)} else ${authLimits.resetsAt} end`}}).returning();
   if (row.count > maximum) throw new Error("Too many attempts. Try again later.");
 }
+export async function clearLimit(db: Database, key: string) {
+  await db.delete(authLimits).where(eq(authLimits.key,tokenHash(key)));
+}
 export async function registerIdentity(db: Database, input: unknown) {
   const value = z.object({email:emailSchema,password:passwordSchema}).strict().parse(input);
   await consumeLimit(db,`register:${value.email}`,5);
@@ -47,6 +50,9 @@ export async function signIn(db: Database, email: string, password: string) {
   const dummy = `scrypt:00000000000000000000000000000000:${"00".repeat(64)}`;
   const valid = await checkPassword(password,user?.passwordHash ?? dummy);
   if (!user || !valid) throw new Error("Email or password was not accepted.");
+  // A correct sign-in clears this account's attempt count, so only failed attempts add up to the limit;
+  // the business-wide limit on sign-in attempts still applies.
+  await clearLimit(db,`login:${normalized}`);
   return issueSession(db,user.id);
 }
 export async function issueSession(db: DatabaseSession, userId: string) {

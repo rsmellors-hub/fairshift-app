@@ -99,7 +99,7 @@ export async function createRequirementAction(form: FormData) {
     // A shift started from an opportunity keeps why it was created. These fields only point at
     // it: the figures are recalculated on the server for this session's own location.
     const date = field(form, "opportunityDate"), window = field(form, "opportunityWindow");
-    return date && window ? createShiftFromOpportunity(getDatabase(), { ...requirement, date, window }, scope) : createRequirement(getDatabase(), requirement, scope);
+    return date && window ? createShiftFromOpportunity(getDatabase(), { ...requirement, date, window }, scope) : createRequirement(getDatabase(), requirement, scope, { handMade: true });
   });
 }
 export async function offerAssignmentAction(form: FormData) {

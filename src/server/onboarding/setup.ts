@@ -1,3 +1,4 @@
+import { ensureDefaultRules } from "@/server/scheduling/default-rules";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -49,6 +50,8 @@ export async function saveSetupVenue(db: Database, scope: CustomerScope, input: 
       await assertLocationCapacity(tx, org.id);
       const timezone = resolveLocationTimezone({ locationCountry: org.country, organisationCountry: org.country, existingTimezones: existing.map(place => place.timezone) });
       [row] = await tx.insert(outlets).values({ id: randomUUID(), organisationId: org.id, ...values, timezone }).returning();
+      // A new location starts with the Owner-approved default offer settings (11 Nov 2026).
+      await ensureDefaultRules(tx, org.id, row.id, scope.userId);
     } else [row] = await tx.update(outlets).set(values).where(eq(outlets.id, row.id)).returning();
     await tx.update(organisations).set({ businessAddress: org.businessAddress ?? value.address, city: org.city ?? value.city, postalCode: org.postalCode ?? (value.postalCode || null),
       setupCompletedAt: org.setupCompletedAt ?? new Date(), updatedAt: new Date() }).where(eq(organisations.id, org.id));

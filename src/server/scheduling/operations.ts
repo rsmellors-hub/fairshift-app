@@ -1,5 +1,5 @@
 import { noticeToWorker } from "@/server/worker/inbox";
-import { DEFAULT_CANCELLATION } from "@/server/scheduling/shift-labels";
+import { DEFAULT_SHIFT_RULES } from "@/server/scheduling/default-rules";
 import { cancellationDue, formatMinor, payLabel, shiftLabel } from "@/server/scheduling/shift-labels";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, getTableColumns, inArray, isNull, lt, gt, sql } from "drizzle-orm";
@@ -138,7 +138,7 @@ export async function getOperations(db: DatabaseSession, scope:OperatingScope) {
 export async function locationTimezone(db: DatabaseSession, scope: OperatingScope) {
   return (await location(db, scope)).timezone;
 }
-export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope) {
+export async function createRequirement(db: Database, input: { departmentId: string; policyId: string; startsAt: Date; endsAt: Date; requiredHeadcount: number }, scope:OperatingScope, options: { handMade?: boolean } = {}) {
   z.object({ departmentId: z.uuid(), policyId: z.uuid(), startsAt: z.date(), endsAt: z.date(), requiredHeadcount: z.number().int().min(1).max(1000) }).parse(input);
   return db.transaction(async (tx) => {
     const outlet = await location(tx, scope);
@@ -154,9 +154,14 @@ export async function createRequirement(db: Database, input: { departmentId: str
     await assertWageAllowsOffer(tx, outlet, { ...policy, startsAt: input.startsAt, endsAt: input.endsAt });
     // The location's cancellation pay becomes part of this shift's terms (Owner decision 10 Nov 2026).
     const rules = (await loadShiftRules(tx, scope.organisationId, [scope.locationId])).get(scope.locationId);
+    // A shift made by hand (Fill › Create shift) keeps to the location's shift lengths, like a suggested one
+    // (Owner, 11 Nov 2026); a location without saved settings uses the default 4–8 h. A shift made from a
+    // forecast gap keeps the gap's own window, and the Sandbox demo utilities keep their fixed windows.
+    const lengths = rules ?? DEFAULT_SHIFT_RULES, minutes = (input.endsAt.getTime() - input.startsAt.getTime()) / 60_000;
+    if (options.handMade && (minutes < lengths.minMinutes || minutes > lengths.maxMinutes)) throw new UserFacingError("shift-length", `Shifts here are ${lengths.minMinutes / 60}–${lengths.maxMinutes / 60} hours long. Change the times, or the location's shift lengths under Staffing and offers.`);
     const [row] = await tx.insert(shifts).values({
       // Without a saved rule for the location, the decision's default applies: 50% within 24 hours.
-      cancellationPercent: rules?.cancellationPercent ?? DEFAULT_CANCELLATION.percent, cancellationWindowMinutes: rules?.cancellationWindowMinutes ?? DEFAULT_CANCELLATION.windowMinutes, id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
+      cancellationPercent: rules?.cancellationPercent ?? DEFAULT_SHIFT_RULES.cancellationPercent, cancellationWindowMinutes: rules?.cancellationWindowMinutes ?? DEFAULT_SHIFT_RULES.cancellationWindowMinutes, id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,

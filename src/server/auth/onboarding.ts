@@ -1,3 +1,4 @@
+import { ensureDefaultRules } from "@/server/scheduling/default-rules";
 import { randomUUID } from "node:crypto";
 import { outlets } from "@/server/db/schema";
 import { organisationEntitled } from "@/server/billing/entitlement";
@@ -48,6 +49,7 @@ export async function completeWorkplace(db: import("@/server/db/client").Databas
       await assertLocationCapacity(tx,org.id);
       const timezone=resolveLocationTimezone({locationCountry:value.locationCountry,organisationCountry:value.sameAddress ? value.locationCountry : value.country});
       [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:org.id,...locationValues,timezone}).returning();
+      await ensureDefaultRules(tx,org.id,location.id,scope.userId);
     } else {
       [location]=await tx.update(outlets).set(locationValues).where(eq(outlets.id,location.id)).returning();
     }

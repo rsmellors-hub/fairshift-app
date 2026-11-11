@@ -1,3 +1,4 @@
+import { ensureDefaultRules } from "@/server/scheduling/default-rules";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
@@ -39,6 +40,7 @@ export async function createLocation(db:Database,scope:CustomerScope,input:unkno
     const timezone=resolveLocationTimezone({organisationCountry:organisation?.country,existingTimezones:existing.map(row=>row.timezone)});
     const [location]=await tx.insert(outlets).values({id:randomUUID(),organisationId:scope.organisationId,name:value.name,timezone,country:organisation?.country ?? null,
       address:optional(value.address),city:optional(value.city),province:optional(value.province),postalCode:optional(value.postalCode)}).returning();
+    await ensureDefaultRules(tx,scope.organisationId,location.id,scope.userId);
     await auditLocation(tx,scope,location.id,"LOCATION_CREATED",{name:value.name});
     return location;
   });

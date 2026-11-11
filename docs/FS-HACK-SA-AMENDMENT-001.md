@@ -470,3 +470,12 @@ CORRECTION to items 1–2 (Ryan, 10 Nov 2026), record as Owner decision:
 - **CSV import.** A CSV is stored as imported history labelled "Imported by Owner (CSV, <date>)". The sample is set aside as soon as a CSV exists.
 - **Sample to real sales: a switch-over, not a gradual blend.** A provider (Square) replaces imported or sample history once its own 28 days qualify.
 - **Customer types.** Each customer type maps in code to the AI's search categories (`customer-types.ts`). Local service disruptions and extreme weather are always searched ("Can we open?"). Without customer types, every category is searched as before. The note is passed as narrowing only. Each finding stores the type that triggered it (`triggered_by`), and the screen shows the reason.
+
+### Owner decisions, 11 November 2026: default offer settings, hand-made shift lengths, demo receivers, per-business PayPal
+
+**Decision date:** 11 November 2026. **Status:** OWNER APPROVED (Ryan). **Authorising source:** the Owner's messages in the Day 6 session after the section 8 hosted run, recorded in substance below.
+
+- **Default offer settings.** Every new location starts with the 9 November values as its own settings (source `DEFAULT`): shifts 4–8 h, preferring 6 h; a first round of 2 h, or until 12 h before the shift; cancellation pay 50% within 24 h. A new business starts with the hours alert at 20 h a week over 12 weeks. The Owner changes them under Locations › Staffing and offers; a saved Owner setting is never overwritten. FS8 Test Cafe is backfilled with the same defaults.
+- **Hand-made shifts** keep to the location's shift lengths (4–8 h by default), like suggested shifts.
+- **Demo receivers.** Each demo worker who exists on hosted gets their own PayPal Sandbox personal account as payout email, set by script, confirmed for the demo by this instruction and audited (masked).
+- **Per-business PayPal (scheduled 12 Nov 2026, 08:00–16:00 SAST).** Payouts will come from each business's own PayPal REST app credentials, encrypted at rest; none connected blocks payouts, never falling back to the platform account. Subscriptions stay on FairShift's platform account. Sender accounts: Jacaranda Table `fs-jacaranda-table@business.example.com`, FS8 Test Cafe `fs-fs8-test-cafe@business.example.com`. Not implemented on 11 November.

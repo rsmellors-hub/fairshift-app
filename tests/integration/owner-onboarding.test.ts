@@ -37,7 +37,7 @@ afterEach(()=>vi.unstubAllEnvs());
 describe("subscription-first acquisition",()=>{
  it("migrates a blank database through 0009 and retains nullable profile fields",async()=>{
   const t=await createTestDatabase();try {
-   expect((await t.db.execute(sql`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations`)).rows[0]).toMatchObject({count: 40});
+   expect((await t.db.execute(sql`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations`)).rows[0]).toMatchObject({count: 41});
    const user=await registerIdentity(t.db,{email:" OWNER@EXAMPLE.TEST ",password:"long-test-password-42"});
    expect((await t.db.select().from(users).where(eq(users.id,user.id)))[0]).toMatchObject({email:"owner@example.test",name:"",firstName:null,telephone:null});
    expect(await t.db.select().from(memberships)).toHaveLength(0);

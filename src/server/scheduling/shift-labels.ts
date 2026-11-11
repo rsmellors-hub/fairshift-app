@@ -1,6 +1,3 @@
-// Cancellation pay when a location has no saved rule (Owner decision 10 Nov 2026: default 50% within 24 h).
-export const DEFAULT_CANCELLATION = { percent: 50, windowMinutes: 1440 } as const;
-
 // Plain-text labels for shift notices (Inbox and email). Amounts come from the persisted shift terms.
 type ShiftTerms = { startsAt: Date; endsAt: Date; earningsModel: string; rateMinor: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; commissionBps: number | null;
   cancellationPercent: number | null; cancellationWindowMinutes: number | null };

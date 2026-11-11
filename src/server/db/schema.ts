@@ -1754,7 +1754,8 @@ export const locationShiftRules = pgTable("location_shift_rules", {
   check("location_shift_rules_lengths_check", sql`${t.minMinutes} >= 60 and ${t.minMinutes} <= ${t.preferredMinutes} and ${t.preferredMinutes} <= ${t.maxMinutes} and ${t.maxMinutes} <= 960 and ${t.minMinutes} % 15 = 0 and ${t.maxMinutes} % 15 = 0 and ${t.preferredMinutes} % 15 = 0`),
   check("location_shift_rules_round_check", sql`${t.firstRoundMinutes} >= 0 and ${t.firstRoundCutoffMinutes} >= 0`),
   check("location_shift_rules_cancellation_check", sql`${t.cancellationPercent} between 0 and 100 and ${t.cancellationWindowMinutes} between 0 and 10080`),
-  check("location_shift_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED')`),
+  // DEFAULT: the Owner-approved defaults seeded for a new location (11 Nov 2026), until the Owner changes them.
+  check("location_shift_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED', 'DEFAULT')`),
 ]);
 
 // A business's guaranteed-hours alert (FS-PATHWAY-DEC-001; Owner decision, 9 November 2026): the Owner is
@@ -1771,7 +1772,7 @@ export const organisationHoursRules = pgTable("organisation_hours_rules", {
 }, t => [
   index("organisation_hours_rules_scope_idx").on(t.organisationId, t.createdAt),
   check("organisation_hours_rules_values_check", sql`${t.weeklyThresholdMinutes} > 0 and ${t.weeklyThresholdMinutes} <= 4800 and ${t.referenceWeeks} between 1 and 52`),
-  check("organisation_hours_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED')`),
+  check("organisation_hours_rules_source_check", sql`${t.source} in ('OWNER', 'DEMO_SEED', 'DEFAULT')`),
 ]);
 
 // One offer round for a shift (FS-OFFER-ORDER-DEC-001): who it went to, why, and until when. Round 1 goes

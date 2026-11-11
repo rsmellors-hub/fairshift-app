@@ -182,9 +182,9 @@ describe("opportunity to allocation, across roles", () => {
   });
 
   it.each([
-    { label: "UK winter", timezone: "Europe/London", country: "United Kingdom", wall: "2026-01-19T10:00", instant: "2026-01-19T10:00:00.000Z", shown: "10:00 to 12:00" },
-    { label: "UK summer", timezone: "Europe/London", country: "United Kingdom", wall: "2026-07-14T10:00", instant: "2026-07-14T09:00:00.000Z", shown: "10:00 to 12:00" },
-    { label: "South Africa", timezone: "Africa/Johannesburg", country: "South Africa", wall: "2026-07-14T10:00", instant: "2026-07-14T08:00:00.000Z", shown: "10:00 to 12:00" },
+    { label: "UK winter", timezone: "Europe/London", country: "United Kingdom", wall: "2026-01-19T10:00", instant: "2026-01-19T10:00:00.000Z", shown: "10:00 to 14:00" },
+    { label: "UK summer", timezone: "Europe/London", country: "United Kingdom", wall: "2026-07-14T10:00", instant: "2026-07-14T09:00:00.000Z", shown: "10:00 to 14:00" },
+    { label: "South Africa", timezone: "Africa/Johannesburg", country: "South Africa", wall: "2026-07-14T10:00", instant: "2026-07-14T08:00:00.000Z", shown: "10:00 to 14:00" },
   ])("stores and shows a shift at local time: $label", async ({ timezone, country, wall, instant, shown }) => {
     const t = await createTestDatabase();
     try {
@@ -193,7 +193,8 @@ describe("opportunity to allocation, across roles", () => {
       const manager = await c.manager(), worker = await c.worker(manager);
       // R39.00 in South Africa, at or above the National Minimum Wage on that date.
       const pay = await terms(t.db, c.ownerScope, country === "South Africa" ? 3_900 : 1_300);
-      const end = wall.replace("T10:00", "T12:00");
+      // A hand-made shift keeps to the location's 4–8 h lengths (Owner, 11 Nov 2026).
+      const end = wall.replace("T10:00", "T14:00");
       expect(await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "1", startsAt: wall, endsAt: end })).toContain("status=saved");
       const [shift] = (await getOperations(t.db, manager)).requirements;
       expect(shift.startsAt.toISOString()).toBe(instant);
@@ -247,7 +248,7 @@ describe("opportunity to allocation, across roles", () => {
       // Only the session decides the location: a form cannot pick another.
       pages(t.db);
       await t.db.update(workPolicies).set({ currencyCode: "GBP" }).where(eq(workPolicies.id, pay.policy.id));
-      const result = await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "1", startsAt: "2026-01-19T10:00", endsAt: "2026-01-19T12:00", locationId: c.rows[1].id, outletId: c.rows[1].id, rateMinor: "1" });
+      const result = await act(manager, createRequirementAction, { departmentId: pay.department.id, policyId: pay.policy.id, headcount: "1", startsAt: "2026-01-19T10:00", endsAt: "2026-01-19T14:00", locationId: c.rows[1].id, outletId: c.rows[1].id, rateMinor: "1" });
       expect(result).toContain("status=saved");
       expect(await t.db.select().from(shifts)).toEqual([expect.objectContaining({ outletId: manager.locationId, rateMinor: 1_300 })]);
     } finally { await t.close(); }
