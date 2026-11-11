@@ -447,8 +447,9 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
       <article className="metric-gap"><span>Casual requirement</span><strong>{labourHours(outlet.totals.casualGapMinutes)}</strong><small>Approx. {outlet.totals.indicativeShifts} {outlet.totals.indicativeShifts === 1 ? "shift" : "shifts"} to fill · none created</small></article>
       <article><span>Estimated cost to fill</span><strong>{outlet.commercial?.cost && outlet.currency ? outlet.commercial.cost.lowMinor === outlet.commercial.cost.highMinor ? wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency) : `${wholeMoney(outlet.commercial.cost.lowMinor, outlet.currency)} – ${wholeMoney(outlet.commercial.cost.highMinor, outlet.currency)}` : "Not available"}</strong><small>{outlet.commercial?.cost ? "Estimate on this location’s work policies" : "Needs a work policy in this currency"}</small></article>
     </div> : null}
-    <section className="panel" aria-labelledby="service-days-title"><h2 id="service-days-title">By time of day</h2><p className="panel-lede">Open a day to see when it’s covered and when it isn’t.</p><ServiceDays outlet={outlet} act /></section>
-    <section className="panel ai-section"><h2 className="visually-hidden">AI priorities</h2><DecisionNote />{LocationAssessment(scope, staffing, briefing, aiNotice)}</section>
+    {/* Owner, 11 Nov 2026: the day table and the briefing start collapsed, so the chart and local signals lead. */}
+    <details className="panel disclosure" id="service-days"><summary><span className="h4">By time of day</span><span className="note"> · open a day to see when it’s covered and when it isn’t</span></summary><ServiceDays outlet={outlet} act /></details>
+    <details className="panel disclosure ai-section" id="ai-briefing" open={!!aiNotice}><summary><span className="h4">AI briefing</span><span className="note"> · what to staff first, and why</span></summary><DecisionNote />{LocationAssessment(scope, staffing, briefing, aiNotice)}</details>
     <details className="panel disclosure"><summary>Day-by-day figures</summary>
     <div className="table-scroll" role="region" aria-label="Staffing by planning day" tabIndex={0}><StaffingDayTable outlet={outlet} className="data-table" planHref={fillHref} /></div>
     <p className="note"><StaffingMethodNote policy={outlet.policy} /> No AI is used in these figures.</p>

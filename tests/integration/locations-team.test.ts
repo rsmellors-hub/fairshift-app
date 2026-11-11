@@ -84,7 +84,8 @@ describe("casual workers at several locations", () => {
       const [p3] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 3_900 }, "Floor", hill);
       const elsewhere = await createRequirement(t.db, { departmentId: d3.id, policyId: p3.id, startsAt: new Date(Date.now() + 4 * 86_400_000), endsAt: new Date(Date.now() + 4 * 86_400_000 + 6 * 3_600_000), requiredHeadcount: 1 }, hill);
       await expect(offerAssignment(t.db, elsewhere.id, workerId, hill)).rejects.toThrow();
-      expect((await t.db.select().from(shifts).where(eq(shifts.id, elsewhere.id)))[0].cancellationPercent).toBeNull();
+      // No saved rule at this location: the default cancellation pay applies (50% within 24 hours).
+      expect((await t.db.select().from(shifts).where(eq(shifts.id, elsewhere.id)))[0]).toMatchObject({ cancellationPercent: 50, cancellationWindowMinutes: 1440 });
     } finally { await t.close(); }
   });
 });

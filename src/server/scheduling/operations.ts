@@ -1,4 +1,5 @@
 import { noticeToWorker } from "@/server/worker/inbox";
+import { DEFAULT_CANCELLATION } from "@/server/scheduling/shift-labels";
 import { cancellationDue, formatMinor, payLabel, shiftLabel } from "@/server/scheduling/shift-labels";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, getTableColumns, inArray, isNull, lt, gt, sql } from "drizzle-orm";
@@ -154,7 +155,8 @@ export async function createRequirement(db: Database, input: { departmentId: str
     // The location's cancellation pay becomes part of this shift's terms (Owner decision 10 Nov 2026).
     const rules = (await loadShiftRules(tx, scope.organisationId, [scope.locationId])).get(scope.locationId);
     const [row] = await tx.insert(shifts).values({
-      cancellationPercent: rules?.cancellationPercent ?? null, cancellationWindowMinutes: rules?.cancellationWindowMinutes ?? null, id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
+      // Without a saved rule for the location, the decision's default applies: 50% within 24 hours.
+      cancellationPercent: rules?.cancellationPercent ?? DEFAULT_CANCELLATION.percent, cancellationWindowMinutes: rules?.cancellationWindowMinutes ?? DEFAULT_CANCELLATION.windowMinutes, id: randomUUID(), outletId: scope.locationId, departmentId: department.id, roleName: department.name, policyId: policy.id,
       startsAt: input.startsAt, endsAt: input.endsAt, shiftDate: localDate(input.startsAt, outlet.timezone),
       requiredHeadcount: input.requiredHeadcount, status: "PUBLISHED", publishedAt: new Date(), currencyCode: policy.currencyCode, earningsModel: policy.earningsModel,
       rateMinor: policy.rateMinor, commissionBps: policy.commissionBps, commissionBasis: policy.commissionBasis, expectedEarningsMinor: expected,

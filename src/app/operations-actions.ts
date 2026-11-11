@@ -113,7 +113,13 @@ export async function offerAssignmentAction(form: FormData) {
 }
 export async function allocateAssignmentAction(form: FormData) {
   const scope=await requireScope(["OWNER","MANAGER"],{demoWrite:true});
-  return perform(planPath(form), async () => { await guardDemoWrite(getDatabase(), scope, { offerId: field(form, "offerId") }); return allocateAssignment(getDatabase(), field(form, "offerId"),scope); });
+  return perform(planPath(form), async () => {
+    await guardDemoWrite(getDatabase(), scope, { offerId: field(form, "offerId") });
+    const allocation = await allocateAssignment(getDatabase(), field(form, "offerId"), scope);
+    // The worker's "You're booked" notice is also emailed (design, 10 Nov 2026); a failed send stays pending.
+    if (!scope.demo) await dispatchLocationWorkerEmails(getDatabase(), getEmailAdapter(), scope).catch(() => undefined);
+    return allocation;
+  });
 }
 export async function respondAssignmentAction(form: FormData) {
   const scope=await requireScope(["TEAM_MEMBER"],{demoWrite:true});
@@ -142,6 +148,8 @@ export async function confirmWorkAction(form: FormData) {
     const { payAgentEvent } = await confirmWork(db, field(form, "offerId"),scope);
     // Committed: the Pay Agent runs after the response (DEC-SA-011), never inside it.
     schedulePayAgentEvent(payAgentFor(db), scope, payAgentEvent);
+    // The worker's "Work confirmed" notice is also emailed; a failed send stays pending.
+    if (!scope.demo) await dispatchLocationWorkerEmails(db, getEmailAdapter(), scope).catch(() => undefined);
   });
 }
 // A manager's retry of the Pay Agent for one payable; only the payable ID is read.

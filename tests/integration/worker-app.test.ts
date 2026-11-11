@@ -113,6 +113,16 @@ describe("worker app records", () => {
     } finally { await t.close(); }
   });
 
+  it("gives a shift the default cancellation pay when its location has no saved rule", async () => {
+    const t = await createTestDatabase();
+    try {
+      const manager = (await payAgentCompany(t.db)).scopes[0];
+      const { shift } = await allocatedWork(t.db, manager);
+      const [row] = await t.db.select().from(shifts).where(eq(shifts.id, shift.id));
+      expect(row).toMatchObject({ cancellationPercent: 50, cancellationWindowMinutes: 1440 });
+    } finally { await t.close(); }
+  });
+
   it("keeps each worker's messages to their own thread, and only the Owner answers pay questions", async () => {
     const t = await createTestDatabase();
     try {
