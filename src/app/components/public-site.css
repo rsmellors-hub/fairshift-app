@@ -1,0 +1,110 @@
+/* Public site and landing page (design Main.dc.html, 10 Nov 2026). Scoped to .fs; tokens from fairshift.css. */
+.fs .pub-width{max-width:1280px;margin:0 auto;padding-left:40px;padding-right:40px;width:100%}
+.pub-dark{background:radial-gradient(ellipse 70% 80% at 40% 40%,#4a4541 0%,#24201d 55%,#171412 100%);color:#fff}
+.fs.pub-header{background:var(--paper);border-bottom:1px solid var(--line)}
+.pub-dark .fs.pub-header{background:transparent;border-bottom:0}
+.fs .pub-header-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding-top:22px;padding-bottom:22px}
+.fs .pub-nav{display:flex;flex-wrap:wrap;gap:8px 32px;font-size:14px;font-weight:500}
+.fs .pub-nav a{text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.pub-dark .fs .pub-nav a{color:#fff}
+.fs .pub-actions{display:flex;gap:10px;align-items:center}
+.fs.pub-footer{background:var(--night);color:#fff;border-top:1px solid var(--nightline)}
+.fs .pub-footer-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px;padding-top:32px;padding-bottom:32px}
+.fs .pub-footer-brand{display:flex;flex-direction:column;gap:8px;max-width:420px}
+.fs .pub-footer .tiny{color:#A9A59E}
+.fs .pub-footer-nav{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 24px;font-size:13px;max-width:640px}
+.fs .pub-footer-nav a,.fs .pub-footer-nav summary{color:#fff;min-height:44px;display:inline-flex;align-items:center;cursor:pointer}
+.fs .pub-note summary{list-style:none;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#55504a}
+.fs .pub-note summary::-webkit-details-marker{display:none}
+.fs .pub-note[open]{flex-basis:100%}
+.fs .pub-note p{max-width:560px;color:#D6D2CC;font-size:13px;padding-bottom:8px}
+.pub-dark .fs :focus-visible,.fs.pub-footer :focus-visible{outline-color:#fff}
+
+/* hero */
+.fs.land-hero{color:#fff}
+.fs .land-hero-grid{display:flex;flex-wrap:wrap;gap:56px;align-items:center;justify-content:space-between;padding-top:72px;padding-bottom:96px}
+.fs .land-hero-copy{flex:1 1 520px;display:flex;flex-direction:column;gap:32px}
+.fs .land-hero-title{font-size:clamp(44px,5.4vw,76px);color:#fff}
+.fs .land-dim{color:#8f8a84}
+/* Lighter than the design's #8f8a84 on the hero, where the gradient's light centre needs it for 3:1. */
+.fs.land-hero .land-dim{color:#A9A59E}
+.fs .land-faint{color:var(--faint)}
+.fs .land-intro{font-size:18px;line-height:1.55;color:#D6D2CC;max-width:540px}
+.fs .land-intro-sub{font-size:15px;line-height:1.5;color:#A9A59E;max-width:540px}
+.fs .land-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.fs .land-hero-note{color:#A9A59E}
+.fs .land-hero-example{flex:0 1 360px;display:flex;justify-content:center}
+.fs .land-phone{margin:0;width:320px;max-width:100%;background:#0c0b0a;border-radius:46px;padding:12px;box-shadow:0 40px 80px rgba(0,0,0,.45)}
+.fs .land-phone-screen{background:var(--paper);border-radius:36px;padding:26px 18px 20px;display:flex;flex-direction:column;gap:14px;color:var(--ink)}
+.fs .land-phone-greeting{font-size:24px}
+.fs .land-phone-card{padding:16px;display:flex;flex-direction:column;gap:10px}
+.fs .land-phone-paid{padding:14px 16px;gap:6px}
+.fs .land-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fs .land-row-start{justify-content:flex-start}
+.fs .land-phone-list{margin:0;padding-left:18px;font-size:13px;color:var(--ink2);display:flex;flex-direction:column;gap:4px}
+.fs .land-phone-suggest{padding:10px 12px;font-size:13px}
+.fs .land-phone-line{font-size:13px}
+.fs .land-phone-caption{text-align:center}
+.fs .land-works{border-top:1px solid #3a3531}
+.fs .land-works-row{display:flex;flex-wrap:wrap;gap:16px 48px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:22px;color:#A9A59E;font-size:15px;font-weight:500}
+.fs .land-works .eyebrow{color:#8f8a84}
+
+/* sections */
+.fs.land{background:var(--paper)}
+.fs .land-section{padding-top:80px;padding-bottom:80px;display:flex;flex-direction:column;gap:48px}
+.fs .land-why{padding-top:112px;padding-bottom:40px;gap:72px}
+.fs .land-lead{font-size:44px;max-width:760px}
+.fs .land-why-copy{display:flex;flex-direction:column;gap:20px;max-width:700px}
+.fs .land-why-copy p,.fs .land-body{font-size:16px;color:var(--ink2)}
+.fs .land-head{display:flex;flex-direction:column;gap:14px}
+.fs .land-sub{font-size:15px;max-width:640px}
+.fs .land-grid{display:grid;gap:32px;margin:0;padding:0;list-style:none}
+.fs .land-grid-2{grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:24px}
+.fs .land-grid-3{grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))}
+.fs .land-steps{gap:40px 32px}
+.fs .land-grid-4{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:24px}
+.fs .land-grid-plans{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:20px;max-width:860px}
+.fs .land-ruled{padding-top:16px;display:flex;flex-direction:column;gap:8px}
+.fs .land-card{padding:28px;display:flex;flex-direction:column;gap:14px}
+.fs .land-grid-4 .land-card{padding:24px;gap:10px}
+.fs .land-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.fs .land-measure{max-width:760px}
+.fs .land-fair{flex-direction:row;flex-wrap:wrap;gap:56px;padding-bottom:112px}
+.fs .land-fair-intro{flex:1 1 360px;display:flex;flex-direction:column;gap:16px}
+.fs .land-promises{flex:1 1 560px;list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.fs .land-promises li{padding:18px 0;display:flex;gap:24px}
+.fs .land-promises li:last-child{border-bottom:1px solid var(--line)}
+.fs .land-pricing{background:var(--sunk)}
+.fs .land-pricing .land-section{padding-top:96px;padding-bottom:96px;gap:32px}
+.fs .land-pricing-head{max-width:620px}
+.fs .land-plan{background:var(--paper);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.fs .land-plan .small{color:var(--ink2)}
+.fs .land-plan-dark{background:var(--night);color:#fff}
+.fs .land-plan-dark .eyebrow,.fs .land-plan-dark .tiny{color:#A9A59E}
+.fs .land-plan-dark .small{color:#D6D2CC}
+.fs .land-plan-head{display:flex;justify-content:space-between;align-items:center}
+.fs .land-plan-chip{background:var(--nightline)}
+.fs .land-price{font-size:52px}
+.fs .land-closing{background:var(--night);color:#fff}
+.fs .land-closing .land-section{padding-top:96px;padding-bottom:96px;gap:24px}
+.fs .land-closing-title{font-size:48px;max-width:760px}
+.fs .land-closing-copy{color:#D6D2CC;max-width:520px}
+.fs .land-closing :focus-visible{outline-color:#fff}
+@media (max-width:720px){
+  .fs .pub-width{padding-left:16px;padding-right:16px}
+  .fs .land-section{padding-top:56px;padding-bottom:56px;gap:32px}
+  .fs .land-why{padding-top:64px}
+  .fs .land-lead,.fs .land-closing-title{font-size:32px}
+  .fs .land-hero-grid{padding-top:40px;padding-bottom:56px}
+  .fs .pub-nav{gap:4px 20px}
+}
+.fs .land-num{color:var(--muted)}
+.fs .land-hero-title > span{display:block}
+.fs .land-phone .land-row-start{flex-wrap:wrap}
+.fs .land-phone .btn.sm{padding:0 11px;font-size:12px}
+/* Flex bases never exceed the viewport, so a phone never scrolls sideways. */
+.fs .land-hero-copy{flex-basis:min(520px,100%);min-width:0}
+.fs .land-hero-example{flex-basis:min(360px,100%)}
+.fs .land-fair-intro{flex-basis:min(360px,100%)}
+.fs .land-promises{flex-basis:min(560px,100%)}
+.fs .land-ctas .btn{white-space:normal;text-align:center}

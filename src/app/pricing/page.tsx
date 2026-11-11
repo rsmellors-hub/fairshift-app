@@ -24,7 +24,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           <p className="plan-limit">{PLAN_COPY[tier].limit}</p>
           <PlanPrice tier={tier} billingPeriod={billingPeriod} />
           <ul>{PLAN_COPY[tier].includes.map(line => <li key={line}>{line}</li>)}</ul>
-          <Link className="primary-button button-link" href="/register">Start your business</Link>
+          <Link className="primary-button button-link" href="/register">Start free trial</Link>
         </article>)}
         <article className="plan-card">
           <h2>Enterprise</h2>
