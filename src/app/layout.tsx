@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { designV2Enabled } from "@/lib/design-flag";
 import "./styles.css";
 import "./design-v2.css";
+import "./fairshift.css";
 
 // Design v2 type: Newsreader for display headings, Geist for text, Geist Mono for labels and identifiers.
 const serif = Newsreader({ subsets: ["latin"], weight: ["400", "500"], style: ["normal", "italic"], variable: "--font-newsreader", display: "swap" });
