@@ -288,6 +288,13 @@
       "when": 1794406432505,
       "tag": "0040_default_offer_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794428754158,
+      "tag": "0041_business_paypal",
+      "breakpoints": true
     }
   ]
 }

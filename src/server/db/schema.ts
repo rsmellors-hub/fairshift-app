@@ -847,6 +847,10 @@ export const workPayouts = pgTable("work_payouts", {
   // PROCESSING: PayPal accepted it; PAID: PayPal item SUCCESS; FAILED: PayPal refused
   // or failed it; RECONCILIATION_REQUIRED: the outcome of the request is unknown.
   status: text("status").notNull(),
+  // Which business PayPal connection sent this payout, and its account as recorded (Owner decision 11 Nov 2026);
+  // null for payouts sent from the platform app before per-business payouts.
+  senderConnectionId: uuid("sender_connection_id"),
+  senderEmail: text("sender_email"),
   paypalBatchId: text("paypal_batch_id"),
   paypalItemId: text("paypal_item_id"),
   paypalTransactionId: text("paypal_transaction_id"),
@@ -1856,4 +1860,26 @@ export const payQueries = pgTable("pay_queries", {
   check("pay_queries_message_check", sql`char_length(${t.message}) between 1 and 1000`),
   check("pay_queries_status_check", sql`(${t.status} = 'OPEN' and ${t.answer} is null and ${t.answeredAt} is null)
     or (${t.status} = 'ANSWERED' and char_length(${t.answer}) between 1 and 1000 and ${t.answeredBy} is not null and ${t.answeredAt} is not null)`),
+]);
+
+// A business's own PayPal REST app (Owner decision, 11 Nov 2026): payouts are sent from it, never from
+// FairShift's platform app. The secret is sealed (AES-256-GCM under FAIRSHIFT_CREDENTIALS_KEY, bound to the
+// business) and only its last four characters are ever shown. One current connection per business.
+export const businessPaypalConnections = pgTable("business_paypal_connections", {
+  id: uuid("id").primaryKey(),
+  organisationId: uuid("organisation_id").notNull().references(() => organisations.id, { onDelete: "restrict" }),
+  environment: text("environment").notNull().default("SANDBOX"),
+  clientId: text("client_id").notNull(),
+  secretSealed: text("secret_sealed").notNull(),
+  secretLast4: text("secret_last4").notNull(),
+  appId: text("app_id"),
+  senderEmail: text("sender_email").notNull(),
+  connectedBy: uuid("connected_by").references(() => users.id),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+}, t => [
+  uniqueIndex("business_paypal_connections_current_unique").on(t.organisationId).where(sql`${t.disconnectedAt} is null`),
+  check("business_paypal_connections_environment_check", sql`${t.environment} = 'SANDBOX'`),
+  check("business_paypal_connections_last4_check", sql`char_length(${t.secretLast4}) = 4`),
 ]);
