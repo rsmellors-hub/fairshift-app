@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PayPal and AI records · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+details > summary{cursor:pointer;list-style:none}
+details > summary::-webkit-details-marker{display:none}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item on">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top"><span class="small">Read-only. Every PayPal and AI call, with the identifiers you can check.</span><button class="btn sm out" type="button" onClick="{{x_a1}}">{{l_a1}}</button></div>
+    <div class="content">
+      <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Records</span><h1 class="d2">PayPal and AI records</h1></div>
+
+      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); border-top: 1px solid #121110; border-bottom: 1px solid #DEDCD6" aria-label="Where the data comes from">
+        <div style="padding: 18px 18px 18px 0; display: flex; flex-direction: column; gap: 6px"><span class="chip ok" style="align-self: flex-start">Real</span><p class="small" style="color: #3A3936">PayPal Sandbox payouts and subscription, OpenAI calls, ECB rates, Open-Meteo weather, Nager.Date holidays</p></div>
+        <div style="padding: 18px; border-left: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px"><span class="chip line" style="align-self: flex-start">Sample</span><p class="small" style="color: #3A3936">Sales history and till tips for this business, generated and labelled</p></div>
+        <div style="padding: 18px; border-left: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px"><span class="chip demo" style="align-self: flex-start">Demo</span><p class="small" style="color: #3A3936">Rosebank water interruption: made for the demonstration, never found by AI</p></div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); gap: 24px; align-items: start">
+        <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px" aria-labelledby="pp">
+          <h2 id="pp" class="h4">PayPal</h2>
+          <div style="padding: 14px 0; border-top: 1px solid #DEDCD6; display: flex; justify-content: space-between; gap: 12px"><div><p style="font-weight: 600">Payout · Ayanda Mthembu · Rosebank</p><p class="tiny">8 Nov 15:08 · R135.00 → US$8.16 · ECB 6 Nov</p><p class="mono" style="color: #65635E">batch 5ZBF3L7XQ4AWA · item LNCVDBR5FJ2PY · txn 6NP700667R659653H</p></div><span class="chip paid" style="align-self: flex-start">Paid ✓</span></div>
+          <div style="padding: 14px 0; border-top: 1px solid #DEDCD6; display: flex; justify-content: space-between; gap: 12px"><div><p style="font-weight: 600">Subscription · Group Monthly (USD)</p><p class="tiny">Approved 8 Nov 14:17 · 30 days free, then US$69.48 (R1,149 incl. VAT)</p><p class="mono" style="color: #65635E">I-W03RREWEH5VB · plan P-8D21565845075562BNLYFG5A</p></div><span class="chip ok" style="align-self: flex-start">Active in trial</span></div>
+        </section>
+
+        <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px" aria-labelledby="pa">
+          <h2 id="pa" class="h4">Pay Agent decisions</h2>
+          <div style="padding: 14px 0; border-top: 1px solid #DEDCD6; display: flex; justify-content: space-between; gap: 12px"><div><p style="font-weight: 600">Thabo Molefe · Pretoria Central · 11 Nov</p><p class="tiny">Overlaps confirmed work at Rosebank. Waiting for the owner.</p></div><span class="chip held" style="align-self: flex-start">Held</span></div>
+          <div style="padding: 14px 0; border-top: 1px solid #DEDCD6; display: flex; justify-content: space-between; gap: 12px"><div><p style="font-weight: 600">Ayanda Mthembu · Rosebank · 8 Nov</p><p class="tiny">All 4 checks passed</p></div><span class="chip ok" style="align-self: flex-start">Pay</span></div>
+          <details><summary class="link">Show response IDs</summary><p class="mono" style="color: #65635E; margin-top: 8px">resp_0e0b4eaf4b8530c0… (gpt-6-luna)</p></details>
+        </section>
+
+        <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 4px; grid-column: 1 / -1" aria-labelledby="ls">
+          <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px"><h2 id="ls" class="h4">Local signal searches · latest per location</h2><span class="tiny">Twice a day · 05:00 and 17:00</span></div>
+          <div class="scroll">
+            <table class="tbl">
+              <thead><tr><th>Location</th><th>Last search</th><th class="r">Found</th><th class="r">Used</th><th class="r">Unconfirmed</th><th class="r">Rejected</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><strong>Cape Town Gardens</strong></td><td>9 Nov, 17:03</td><td class="r num">1</td><td class="r num">1</td><td class="r num">0</td><td class="r num">0</td><td style="text-align: right"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a2}}">Sources</button></td></tr>
+                <tr><td><strong>Durban North</strong></td><td>9 Nov, 17:04</td><td class="r num">0</td><td class="r num">0</td><td class="r num">0</td><td class="r num">0</td><td style="text-align: right"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a3}}">What it checked</button></td></tr>
+                <tr><td><strong>Pretoria Central</strong></td><td>9 Nov, 17:05</td><td class="r num">1</td><td class="r num">1</td><td class="r num">0</td><td class="r num">0</td><td style="text-align: right"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a4}}">Sources</button></td></tr>
+                <tr><td><strong>Rosebank</strong></td><td>9 Nov, 17:06</td><td class="r num">1</td><td class="r num">1</td><td class="r num">0</td><td class="r num">0</td><td style="text-align: right"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a5}}">Sources</button></td></tr>
+                <tr><td><strong>Sandton</strong></td><td>9 Nov, 17:07</td><td class="r num">2</td><td class="r num">1</td><td class="r num">1</td><td class="r num">0</td><td style="text-align: right"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a6}}">Sources</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <details style="border-top: 1px solid #DEDCD6; padding-top: 14px; margin-top: 6px"><summary style="display: flex; justify-content: space-between; gap: 12px"><span><strong>AI drafts rejected by FairShift's checks</strong> <span class="small">· never shown to anyone</span></span><span class="chip line">9 this week</span></summary><p class="small" style="margin-top: 10px">Staffing briefings where the AI wrote its own figures or referred to something FairShift couldn't verify. FairShift discarded them and asked again. This is the guardrail working.</p></details>
+          <details style="border-top: 1px solid #DEDCD6; padding-top: 14px; margin-top: 10px"><summary style="display: flex; justify-content: space-between; gap: 12px"><span><strong>Signal track record</strong> <span class="small">· predicted direction against the day's sales</span></span><span class="chip line">3 days so far</span></summary><p class="small" style="margin-top: 10px">Shown once there are 14 days to compare. Measured against sample sales, so it shows the method working, not the AI's real-world accuracy.</p></details>
+        </section>
+
+        <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 10px; grid-column: 1 / -1" aria-labelledby="feeds">
+          <h2 id="feeds" class="h4">Feeds</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; font-size: 13px">
+            <div class="sunk" style="padding: 12px 14px"><p style="font-weight: 600">European Central Bank</p><p class="tiny">16.448227 ZAR per US$ · published 9 Nov · fetched 20:07</p></div>
+            <div class="sunk" style="padding: 12px 14px"><p style="font-weight: 600">Nager.Date public holidays</p><p class="tiny">South Africa 2026–2027 · fetched 9 Nov 13:33</p></div>
+            <div class="sunk" style="padding: 12px 14px"><p style="font-weight: 600">Open-Meteo weather</p><p class="tiny">5 locations · fetched 9 Nov 21:08 · Weather data by Open-Meteo.com</p></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
+const ACTS = {"a1": {"t": "fairshift-records-nov-2026.csv downloaded: every PayPal and AI call with its identifiers.", "d": "Downloaded ✓", "tg": false, "l": "Download CSV"}, "a2": {"t": "Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.", "d": null, "tg": false, "l": "Sources"}, "a3": {"t": "Checked: events feed, weather and public notices within 5 km. Nothing relevant was found, so the forecast is unchanged.", "d": null, "tg": false, "l": "What it checked"}, "a4": {"t": "Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.", "d": null, "tg": false, "l": "Sources"}, "a5": {"t": "Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.", "d": null, "tg": false, "l": "Sources"}, "a6": {"t": "Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.", "d": null, "tg": false, "l": "Sources"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

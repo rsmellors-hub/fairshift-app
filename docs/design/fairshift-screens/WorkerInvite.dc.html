@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Accept your invitation · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div class="phone" style="height: 844px; overflow: hidden">
+  <div class="ptop"><span class="brand"><span class="mark">F</span>FairShift</span><span class="tiny">Step 1 of 2</span></div>
+  <form class="pbody" onsubmit="return false" style="gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 8px">
+      <span class="eyebrow">Invitation</span>
+      <h1 class="d3" style="font-size: 30px">Lindiwe invited you to work with Jacaranda Table</h1>
+      <p class="small">Casual · Floor · Rosebank, Johannesburg</p>
+    </div>
+    <div class="field"><label for="i-email">Email</label><input id="i-email" class="input" value="lwazi.m@gmail.com" disabled><span class="hint" style="color: #1F5E43">✓ Confirmed by opening this link</span></div>
+    <div class="field"><label for="i-name">Full name</label><input id="i-name" class="input" value="Lwazi Mahlangu"></div>
+    <div class="field"><label for="i-phone">Mobile</label><input id="i-phone" class="input" value="082 555 0142"></div>
+    <div class="field"><label for="i-pw">Create a password</label><input id="i-pw" class="input" type="password" value="••••••••••••"></div>
+    <div class="sunk" style="padding: 12px 14px; font-size: 13px; color: #3A3936">Next you'll add when you can work and the PayPal email for your pay. FairShift never charges you.</div>
+    <a href="WorkerHome.dc.html" class="btn lg wide">Join Jacaranda Table</a>
+    <p class="tiny" style="text-align: center">Not you? <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a1}}">{{l_a1}}</button></p>
+  </form>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+const ACTS = {"a1": {"t": "Invitation ignored. No account was created.", "d": "Ignored", "tg": false, "l": "Ignore this invitation"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Set up your first venue</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="min-height: 1180px; background: #F4F3EF; font-family: 'Geist', sans-serif; color: #121110">
+  <header style="border-bottom: 1px solid #DEDCD6">
+    <div style="max-width: 1240px; margin: 0 auto; padding: 18px 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <a href="Main.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+      <ol aria-label="Setup steps" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px">
+        <li class="chip ok">1 Account ✓</li>
+        <li class="{{c2}}">2 Plan{{k2}}</li>
+        <li class="{{c3}}">3 Venue{{k3}}</li>
+        <li class="{{c4}}">4 Sales history{{k4}}</li>
+        <li class="{{c5}}">5 Pay terms{{k5}}</li>
+        <li class="{{c6}}">6 Team{{k6}}</li>
+      </ol>
+      <a href="OwnerToday.dc.html" class="link">Save and finish later</a>
+    </div>
+  </header>
+  <main style="max-width: 1240px; margin: 0 auto; padding: 40px; display: flex; flex-wrap: wrap; gap: 40px">
+    <sc-if value="{{s2}}" hint-placeholder-val="{{ true }}">
+    <section style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 2 of 6 · Jacaranda Table</span>
+        <h1 class="d2">Your email is confirmed. Choose your plan</h1>
+        <p style="color: #3A3936; max-width: 560px">Free for 28 days. Prices include VAT. No fees on workers’ earnings or tips.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px">
+        <button type="button" onClick="{{pickSingle}}" class="card" style="{{stSingle}}"><span class="h4">Single</span><span><span class="money" style="font-size: 28px">R499</span> <span class="small">a month</span></span><span class="tiny">1 location · billed by PayPal as US$30.17</span></button>
+        <button type="button" onClick="{{pickGroup}}" class="card" style="{{stGroup}}"><span class="h4">Group</span><span><span class="money" style="font-size: 28px">R1,149</span> <span class="small">a month</span></span><span class="tiny">Up to 5 locations · billed by PayPal as US$69.48</span></button>
+      </div>
+
+      <p class="tiny">You’ll approve the subscription in PayPal Sandbox, then come straight back here to set up your first venue. No charge until Tue 8 Dec. Change plan any time in Billing.</p>
+      <div style="display: flex; justify-content: space-between; gap: 12px"><a href="SignUp.dc.html" class="btn out lg">Back</a><button type="button" class="btn lg" onClick="{{next}}">Start free trial with PayPal</button></div>
+    </section>
+    </sc-if>
+    <sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+    <section style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 3 of 6 · Jacaranda Table</span>
+        <h1 class="d2">Where is your first venue?</h1>
+        <p style="color: #3A3936; max-width: 560px">FairShift uses the address to check weather, public holidays and what's happening nearby. Nothing is shared with your customers or staff.</p>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 18px">
+        <div class="field"><label for="v-name">Venue name</label><input id="v-name" class="input" value="Jacaranda Table · Gardens"></div>
+        <div class="field"><label for="v-addr">Street address</label><input id="v-addr" class="input" value="Kloof Street, Gardens, Cape Town, 8001"><span class="hint">Start typing and pick your address from the list.</span></div>
+        <div style="position: relative; height: 240px; border-radius: 12px; overflow: hidden; border: 1px solid #DEDCD6; background-color: #E9E7E1; background-image: linear-gradient(#DAD7D0 1px, transparent 1px), linear-gradient(90deg, #DAD7D0 1px, transparent 1px); background-size: 40px 40px">
+          <div style="position: absolute; left: 0; right: 0; top: 112px; height: 14px; background: #F4F3EF; transform: rotate(-12deg)"></div>
+          <div style="position: absolute; top: 0; bottom: 0; left: 300px; width: 12px; background: #F4F3EF; transform: rotate(8deg)"></div>
+          <div style="position: absolute; left: 290px; top: 92px; display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <span class="chip dark">Jacaranda Table · Gardens</span>
+            <svg width="22" height="30" viewBox="0 0 22 30" aria-hidden="true"><path d="M11 29s9-9.6 9-17A9 9 0 0 0 2 12c0 7.4 9 17 9 17z" fill="#121110"/><circle cx="11" cy="12" r="3.5" fill="#F4F3EF"/></svg>
+          </div>
+          <span class="mono" style="position: absolute; left: 12px; bottom: 10px; color: #65635E">[MAP] −33.932, 18.411</span>
+        </div>
+        <label class="check"><input type="checkbox" checked><span>The pin is on my venue. <span class="small">Drag it if it's off.</span></span></label>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 16px">
+          <div class="field"><label for="v-type">Venue type</label><select id="v-type" class="input"><option>Café and restaurant</option><option>Bar</option><option>Takeaway</option></select></div>
+          <div class="field"><label for="v-seats">Seats</label><input id="v-seats" class="input num" value="64"></div>
+        </div>
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font:600 13px/1.2 'Geist',sans-serif;margin-bottom:8px">Who are your customers? <span class="small">Pick all that apply</span></legend>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:8px"><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Office workers</strong><br><span class="tiny">AI checks: public holidays, office closures, strikes on transport routes</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Students</strong><br><span class="tiny">AI checks: term and exam dates, campus events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Tourists</strong><br><span class="tiny">AI checks: festivals, cruise days, major events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Theatre and event-goers</strong><br><span class="tiny">AI checks: shows and events at nearby venues</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Sports fans</strong><br><span class="tiny">AI checks: match days at nearby grounds</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Families</strong><br><span class="tiny">AI checks: school holidays, family events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Shoppers</strong><br><span class="tiny">AI checks: paydays, mall trading hours, sales</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Commuters</strong><br><span class="tiny">AI checks: transport disruptions, road closures</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Night-out crowd</strong><br><span class="tiny">AI checks: late events, concerts, long weekends</span></span></label></div>
+          <span class="hint">Each choice decides exactly which local signals the AI looks for at this location, so results are consistent and explainable. Nothing fits? <a href="#v-other" class="link">Add a short note</a> (optional; it can only narrow the search).</span>
+          <input id="v-other" class="input" placeholder="Optional note, e.g. near the Baxter Theatre" aria-label="Optional customer note" style="margin-top:6px">
+        </fieldset>
+      </div>
+      <div style="display: flex; justify-content: space-between; gap: 12px"><button type="button" class="btn out lg" onClick="{{back}}">Back</button><button type="button" class="btn lg" onClick="{{next}}">Save venue and continue</button></div>
+    </section>
+    </sc-if>
+    <sc-if value="{{s4}}" hint-placeholder-val="{{ false }}">
+    <section style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 4 of 6 · Jacaranda Table</span>
+        <h1 class="d2">How busy is Gardens usually?</h1>
+        <p style="color: #3A3936; max-width: 560px">Sales by day and hour give the forecast its starting point. The AI only adjusts it up or down from there.</p>
+      </div>
+      <div class="card" style="padding: 8px 24px">
+        <label class="check" style="padding: 16px 0; border-bottom: 1px solid #DEDCD6"><input type="radio" name="hist"><span><strong>Connect Square</strong><br><span class="small">Sales and card tips per worker import nightly. Read-only access.</span></span></label>
+        <label class="check" style="padding: 16px 0; border-bottom: 1px solid #DEDCD6"><input type="radio" name="hist"><span><strong>Upload past sales (CSV)</strong><br><span class="small">Daily or hourly totals. Shown as "Imported" everywhere it's used.</span></span></label>
+        <label class="check" style="padding: 16px 0"><input type="radio" name="hist" checked><span><strong>Start with sample history</strong><br><span class="small">Scaled to your 64 seats and venue type. Always labelled "Sample (synthetic)" until you add real sales.</span></span></label>
+      </div>
+      <div style="display: flex; justify-content: space-between; gap: 12px"><button type="button" class="btn out lg" onClick="{{back}}">Back</button><button type="button" class="btn lg" onClick="{{next}}">Continue</button></div>
+    </section>
+    </sc-if>
+    <sc-if value="{{s5}}" hint-placeholder-val="{{ false }}">
+    <section style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 5 of 6 · Jacaranda Table</span>
+        <h1 class="d2">What do casual shifts pay?</h1>
+        <p style="color: #3A3936; max-width: 560px">Workers see these terms on every offer. Pay is hourly only.</p>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><p style="font: 600 13px/1.2 'Geist', sans-serif">Roles and hourly pay</p><span class="tiny">{{roleCount}}</span></div>
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 12px; align-items: end; padding: 14px; border: 1px solid #DEDCD6; border-radius: 12px">
+            <div class="field"><label for="r1">Role</label><select id="r1" class="input"><option selected>Floor</option><option>Kitchen</option><option>Bar</option><option>Barista</option><option>Scullery</option><option>Host</option></select></div>
+            <div class="field"><label for="w1">Hourly rate</label><input id="w1" class="input num" value="R45.00"></div>
+            <span class="chip ok" style="margin-bottom: 8px">✓ Above R30.23</span>
+            
+          </div>
+          <sc-if value="{{has2}}" hint-placeholder-val="{{ false }}">
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 12px; align-items: end; padding: 14px; border: 1px solid #DEDCD6; border-radius: 12px">
+            <div class="field"><label for="r2">Role</label><select id="r2" class="input"><option>Floor</option><option selected>Kitchen</option><option>Bar</option><option>Barista</option><option>Scullery</option><option>Host</option></select></div>
+            <div class="field"><label for="w2">Hourly rate</label><input id="w2" class="input num" value="R48.00"></div>
+            <span class="chip ok" style="margin-bottom: 8px">✓ Above R30.23</span>
+            <div style="grid-column: 1/-1; display: flex; justify-content: flex-end"><button type="button" class="btn sm out" onClick="{{rm2}}" aria-label="Remove Kitchen">Remove</button></div>
+          </div>
+          </sc-if>
+          <sc-if value="{{has3}}" hint-placeholder-val="{{ false }}">
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 12px; align-items: end; padding: 14px; border: 1px solid #DEDCD6; border-radius: 12px">
+            <div class="field"><label for="r3">Role</label><select id="r3" class="input"><option>Floor</option><option>Kitchen</option><option selected>Bar</option><option>Barista</option><option>Scullery</option><option>Host</option></select></div>
+            <div class="field"><label for="w3">Hourly rate</label><input id="w3" class="input num" value="R50.00"></div>
+            <span class="chip ok" style="margin-bottom: 8px">✓ Above R30.23</span>
+            <div style="grid-column: 1/-1; display: flex; justify-content: flex-end"><button type="button" class="btn sm out" onClick="{{rm3}}" aria-label="Remove Bar">Remove</button></div>
+          </div>
+          </sc-if>
+          <sc-if value="{{canAdd}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn out" style="align-self: flex-start" onClick="{{addRole}}">+ Add role</button></sc-if>
+          <p class="tiny">Each role is offered at its own rate. Every rate is checked against the National Minimum Wage (R30.23 an hour from 1 Mar 2026) before you can continue.</p>
+        </div>
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px"><legend style="font: 600 13px/1.2 'Geist', sans-serif; margin-bottom: 8px">Card tips</legend>
+          <label class="check"><input type="radio" name="tip" checked><span><strong>Shared by everyone on the shift</strong> <span class="small">split equally per service block</span></span></label>
+          <label class="check"><input type="radio" name="tip"><span><strong>Go to the person who earned them</strong> <span class="small">follows the till record</span></span></label>
+        </fieldset>
+        <p class="tiny">You can change roles and rates later in Locations. Source for the wage floor: South African Government, 3 Feb 2026. A reference check, not legal advice.</p>
+      </div>
+      <div style="display: flex; justify-content: space-between; gap: 12px"><button type="button" class="btn out lg" onClick="{{back}}">Back</button><button type="button" class="btn lg" onClick="{{next}}">Continue</button></div>
+    </section>
+    </sc-if>
+    <sc-if value="{{s6}}" hint-placeholder-val="{{ false }}">
+    <section style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 6 of 6 · Jacaranda Table</span>
+        <h1 class="d2">Who works at Gardens?</h1>
+        <p style="color: #3A3936; max-width: 560px">Add people now or later. Each gets an official FairShift invitation and becomes active once they sign up. No home address is needed.</p>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: grid; grid-template-columns: 1.2fr 1.4fr 1fr auto; gap: 8px; align-items: end">
+          <div class="field"><label for="t-name">Full name</label><input id="t-name" class="input" value="Pieter van Wyk"></div>
+          <div class="field"><label for="t-email">Email</label><input id="t-email" class="input" value="pieter.vw@gmail.com"></div>
+          <div class="field"><label for="t-role">Role</label><select id="t-role" class="input"><option>Casual worker</option><option>Manager</option><option>Permanent staff (tips only)</option></select></div>
+          <button type="button" class="btn" onClick="{{addP}}">Add</button>
+        </div>
+        <sc-if value="{{added}}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: space-between; padding: 12px 14px; border: 1px solid #DEDCD6; border-radius: 10px"><span><strong>Pieter van Wyk</strong> · Casual worker</span><span class="chip info">Invitation will send when you finish</span></div></sc-if>
+        <p class="tiny"><a href="EmailInvite.dc.html" class="link">Preview the invitation email</a></p>
+      </div>
+      <sc-if value="{{isGroup}}" hint-placeholder-val="{{ true }}">
+      <div class="card" style="padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+        <div><p class="h4">Gardens is set up · location 1 of 5</p><p class="small">Add your next venue now, or later from Locations.</p></div>
+        <button type="button" class="btn out" onClick="{{again}}">+ Add another location</button>
+      </div>
+      </sc-if>
+      <div style="display: flex; justify-content: space-between; gap: 12px"><button type="button" class="btn out lg" onClick="{{back}}">Back</button><a href="OwnerToday.dc.html" class="btn lg">{{teamCta}}</a></div>
+    </section>
+    </sc-if>
+    <sc-if value="{{notPlan}}" hint-placeholder-val="{{ false }}">
+    <aside style="flex: 1 1 380px; display: flex; flex-direction: column; gap: 16px">
+      <div style="background: #121110; color: #fff; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 18px">
+        <div style="display: flex; justify-content: space-between; align-items: center"><span class="eyebrow" style="color: #A9A59E">First look at your area</span><span class="tiny" style="color: #A9A59E">Started 09:12</span></div>
+        <p class="serif" style="font-size: 26px; line-height: 1.15">Here's what's happening near Gardens this week</p>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+          <li style="border-top: 1px solid #2E2B28; padding: 12px 0; display: flex; justify-content: space-between; gap: 12px"><span style="color: #E8E5DF">Weather for trading hours</span><span class="mono" style="color: #A9A59E">Open-Meteo ✓</span></li>
+          <li style="border-top: 1px solid #2E2B28; padding: 12px 0; display: flex; justify-content: space-between; gap: 12px"><span style="color: #E8E5DF">South African public holidays</span><span class="mono" style="color: #A9A59E">Nager.Date ✓</span></li>
+          <li style="border-top: 1px solid #2E2B28; border-bottom: 1px solid #2E2B28; padding: 12px 0; display: flex; justify-content: space-between; gap: 12px"><span style="color: #E8E5DF">Local news, events and notices</span><span class="mono" style="color: #A9A59E">AI search · 4 found</span></li>
+        </ul>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="background: #1C1A18; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow" style="color: #A9A59E">Can we open? · Wed 11 – Thu 12 Nov</span><p style="font-weight: 600">Planned zero-pressure water testing</p><p class="tiny" style="color: #A9A59E">Source: capetown.gov.za · checked by FairShift</p></div>
+          <div style="background: #1C1A18; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow" style="color: #A9A59E">Can people get there? · until 15 Nov</span><p style="font-weight: 600">Roadworks in Gardens</p><p class="tiny" style="color: #A9A59E">Source: capetown.gov.za · checked by FairShift</p></div>
+          <div style="background: #1C1A18; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow" style="color: #A9A59E">Demand · Fri 13 – Sat 14 Nov</span><p style="font-weight: 600">"Swing With The King" at Artscape</p><p class="tiny" style="color: #A9A59E">Source: artscape.co.za · checked by FairShift</p></div>
+        </div>
+        <p class="tiny" style="color: #A9A59E">Nothing changes your staffing until you accept it. FairShift checks again twice a day.</p>
+      </div>
+    </aside>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1420}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { step: 2, plan: 'group', added: false, roles: 1 }; }
+  renderVals() {
+    const st = this.state || {}; const step = st.step || 2; const plan = st.plan || 'group';
+    const set = o => this.setState(Object.assign({}, this.state, o));
+    const v = { next: () => set({ step: Math.min(6, step + 1) }), back: () => step > 2 ? set({ step: step - 1 }) : null,
+      addP: () => set({ added: true }), added: !!st.added, teamCta: st.added ? 'Finish and send invitations' : 'Skip and finish',
+      pickSingle: () => set({ plan: 'single' }), pickGroup: () => set({ plan: 'group' }), isGroup: plan === 'group',
+      again: () => set({ step: 3, added: false }) };
+    const roles = st.roles || 1; v.notPlan = step !== 2;
+    v.has2 = roles >= 2; v.has3 = roles >= 3; v.canAdd = roles < 3; v.roleCount = roles + (roles === 1 ? ' role' : ' roles');
+    v.addRole = () => set({ roles: Math.min(3, roles + 1) }); v.rm2 = () => set({ roles: 1 }); v.rm3 = () => set({ roles: 2 });
+    const card = on => 'padding: 20px; display: flex; flex-direction: column; gap: 8px; text-align: left; font: inherit; color: #121110; cursor: pointer; ' + (on ? 'border: 1.5px solid #121110; background: #fff' : 'border: 1px solid #DEDCD6; background: #FAF9F6');
+    v.stSingle = card(plan === 'single'); v.stGroup = card(plan === 'group');
+    for (let i = 2; i <= 6; i++) { v['s' + i] = step === i; v['c' + i] = i < step ? 'chip ok' : i === step ? 'chip dark' : 'chip line'; v['k' + i] = i < step ? ' ✓' : ''; }
+    return v;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Business and billing · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item on">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top"><span class="small">Settings › Business</span><button class="btn sm" type="button" onClick="{{x_a1}}">{{l_a1}}</button></div>
+    <div class="content">
+      <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Business settings</span><h1 class="d2">Jacaranda Table</h1><p class="small">Plan, payments and invoices are on <a href="OwnerBilling.dc.html" class="link">Billing</a>.</p></div>
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 880px">
+
+        <details class="card" open style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between; gap: 12px"><span class="h4">Business details · Jacaranda Table · South Africa</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+          
+          <div class="field"><label for="b-name">Business name</label><input id="b-name" class="input" value="Jacaranda Table"></div>
+          <div class="field"><label for="b-country">Country</label><select id="b-country" class="input"><option>South Africa</option><option>United Kingdom</option></select><span class="hint">Sets rand, the minimum-wage rule, public holidays and VAT display.</span></div>
+          <div class="field"><label for="b-vat">VAT number <span class="small">(optional)</span></label><input id="b-vat" class="input" value="4XXXXXXXXX"></div>
+        </div></details>
+
+        
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between; gap: 12px"><span class="h4">Hours alert · 20 h a week over 12 weeks</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+          
+          <p class="small">Alert me when a casual worker averages this many hours a week over the period, so I can consider a permanent role.</p>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px"><div class="field"><label for="h-hours">Hours a week</label><input id="h-hours" class="input num" value="20"></div><div class="field"><label for="h-weeks">Over</label><input id="h-weeks" class="input num" value="12 weeks"></div></div>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between; gap: 12px"><span class="h4">Sales data · sample history in use</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #DEDCD6"><div><p style="font-weight: 600">Square</p><p class="tiny">Sales and card tips per worker</p></div><button class="btn sm out" type="button" onClick="{{x_a2}}">{{l_a2}}</button></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #DEDCD6"><div><p style="font-weight: 600">Upload past sales (CSV)</p><p class="tiny">Daily or hourly totals per location · labelled "Imported"</p></div><button class="btn sm out" type="button" onClick="{{x_a3}}">{{l_a3}}</button></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #DEDCD6"><div><p style="font-weight: 600">Sample history</p><p class="tiny">Scaled to each venue's seats · labelled "Sample (synthetic)"</p></div><span class="chip line">In use: 5 locations</span></div>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between; gap: 12px"><span class="h4">Payouts · PayPal connected · US dollars</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+          
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>PayPal business account</span><span class="chip ok">Connected</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Payout currency</span><span>US dollars · rand can't be sent through PayPal</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Exchange rate</span><span>Latest ECB reference rate, locked per payout</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Sandbox limit</span><span>5 payouts and US$100 a day</span></div>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between; gap: 12px"><span class="h4">AI checks · twice a day per location</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+          
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Local signals</span><span>Twice a day per location · 05:00 and 17:00</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Manual refresh</span><span>3 a day per location</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Pay Agent</span><span>Every confirmed shift and tip block</span></div>
+          <p class="tiny">The AI never sets an amount, chooses a worker or books a shift.</p>
+        </div></details>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+const ACTS = {"a1": {"t": "Business settings saved.", "d": "Saved ✓", "tg": false, "l": "Save changes"}, "a2": {"t": "Square connected (sandbox). Sales and card tips per worker import nightly.", "d": "Connected ✓", "tg": false, "l": "Connect"}, "a3": {"t": "CSV imported and labelled \"Imported\". The forecast uses it from the next check.", "d": "Uploaded ✓", "tg": false, "l": "Upload"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

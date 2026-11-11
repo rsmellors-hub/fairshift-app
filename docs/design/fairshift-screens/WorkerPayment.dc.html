@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shift pay · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div class="phone" style="min-height: 1020px">
+  <div class="ptop"><a href="WorkerEarnings.dc.html" class="btn sm out" aria-label="Back to all pay">← All pay</a><span class="chip paid">Paid ✓</span></div>
+  <main class="pbody">
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="eyebrow">Shift pay · Sun 8 Nov</span><h1 style="font-weight: 600; font-size: 16px">Rosebank · Floor · 12:00–15:00</h1><p class="money" style="font-size: 44px">R176.60</p><p class="small">Shift earnings and your share of the tips</p></div>
+
+    <section class="card" style="padding: 4px 18px" aria-label="What makes up this pay">
+      <div style="padding: 14px 0; border-bottom: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Shift earnings</span><span class="num">R135.00</span></div>
+        <div class="tiny" style="display: flex; justify-content: space-between"><span>3 h × R45.00 · confirmed by Zanele 14:10</span><span class="chip paid">Paid ✓</span></div>
+        <p class="tiny">US$8.16 at ECB 16.5382 · batch 5ZBF3L7XQ4AWA · 8 Nov 15:08</p>
+      </div>
+      <div style="padding: 14px 0; border-bottom: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Card tips</span><span class="num">R41.60</span></div>
+        <div class="tiny" style="display: flex; justify-content: space-between"><span>Lunch block R124.80, shared by 3</span><span class="chip paid">Paid ✓</span></div>
+        <p class="tiny">US$2.53 at ECB 16.4482 · checked by the Pay Agent · 9 Nov 10:20</p>
+      </div>
+      <div style="padding: 14px 0; display: flex; justify-content: space-between; font-weight: 700"><span>Total for this shift</span><span class="num">R176.60</span></div>
+    </section>
+
+    <sc-if value="{{closed}}" hint-placeholder-val="{{ true }}">
+      <button class="btn out wide" type="button" onClick="{{toggle}}">Query this shift's pay</button>
+    </sc-if>
+    <sc-if value="{{open}}" hint-placeholder-val="{{ false }}">
+      <form class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px" onsubmit="return false">
+        <h2 class="h4">Query this shift's pay</h2>
+        <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px"><legend class="small" style="margin-bottom: 6px">What's wrong?</legend>
+          <label class="check"><input type="radio" name="q" checked><span>The hours are wrong</span></label>
+          <label class="check"><input type="radio" name="q"><span>Tips are missing or wrong</span></label>
+          <label class="check"><input type="radio" name="q"><span>I haven't received it</span></label>
+        </fieldset>
+        <div class="field"><label for="q-note">Tell us more</label><textarea id="q-note" class="input" style="min-height: 72px; padding: 12px">I stayed until 16:00 to help close.</textarea></div>
+        <div style="display: flex; gap: 8px"><button class="btn" type="button" style="flex: 1" onClick="{{x_a1}}">{{l_a1}}</button><button class="btn out" type="button" onClick="{{toggle}}">Cancel</button></div>
+        <p class="tiny">Paid amounts never change. If you're owed more, it's paid separately and shows here.</p>
+      </form>
+    </sc-if>
+
+    <section style="display: flex; flex-direction: column; gap: 6px" aria-labelledby="prev">
+      <p class="tiny">We also emailed you when this was paid. <a href="EmailPaid.dc.html" class="link">See the email</a></p>
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="prev" class="eyebrow">Previous shift pay</h2><a href="WorkerEarnings.dc.html" class="link">See all</a></div>
+      <div class="card" style="padding: 2px 16px">
+        <a href="WorkerPayment.dc.html" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span><strong>Sun 1 Nov</strong> <span class="tiny">· Sandton · 6 h + tips</span></span><span class="num">R325.20 <span class="chip paid">Paid</span></span></a>
+        <a href="WorkerPayment.dc.html" style="display: flex; justify-content: space-between; padding: 12px 0; text-decoration: none; color: #121110"><span><strong>Sat 31 Oct</strong> <span class="tiny">· Rosebank · 4 h + tips</span></span><span class="num">R218.00 <span class="chip paid">Paid</span></span></a>
+      </div>
+    </section>
+  </main>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1020}}'>
+const ACTS = {"a1": {"t": "Query sent to the owner. The answer arrives in your Inbox.", "d": "Sent ✓", "tg": false, "l": "Send to the owner"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  constructor(props) { super(props); this.state = { open: false }; }
+  _rv0() {
+    const open = !!(this.state && this.state.open);
+    return { open, closed: !open, toggle: () => this.setState(Object.assign({}, this.state, { open: !open })) };
+  }
+}
+</script>
+</body>
+</html>

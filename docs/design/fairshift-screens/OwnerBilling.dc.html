@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Business and billing · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item on">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top"><span class="small">Settings › Billing</span><span class="chip ok">Free trial · 28 days left</span></div>
+    <div class="content">
+      <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Billing</span><h1 class="d2">Your FairShift plan</h1><p class="small">Prices include VAT. FairShift charges no fees on workers' earnings or tips.</p></div>
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 880px">
+        <section style="background: #121110; color: #fff; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px" aria-labelledby="sub">
+          <div style="display: flex; justify-content: space-between"><h2 id="sub" class="eyebrow" style="color: #A9A59E">Current plan</h2><span class="chip" style="background: #E3EEE7; color: #1F5E43">Active · free trial</span></div>
+          <p><span class="serif" style="font-size: 40px">Group</span> <span style="color: #A9A59E">up to 5 locations · 5 in use</span></p>
+          <p style="color: #E8E5DF">R1,149 a month incl. VAT, from Tue 8 Dec. Billed by PayPal as US$69.48; your bank or PayPal converts at its own rate.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="btn sm inv-out" type="button" onClick="{{x_a1}}">Manage in PayPal</button><button class="btn sm inv-out" type="button" onClick="{{x_a2}}">{{l_a2}}</button></div>
+        </section>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Change plan</span><span class="tiny">Show ▾</span></summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-top: 16px">
+            <div class="sunk" style="padding: 18px; display: flex; flex-direction: column; gap: 8px"><p class="h4">Single</p><p><span class="money" style="font-size: 26px">R499</span> <span class="small">a month incl. VAT</span></p><p class="tiny">1 location · billed as US$30.17</p><p class="tiny" style="color: #7A4E00">You have 5 locations. Deactivate 4 before switching.</p><button class="btn sm out" type="button" disabled>Switch to Single</button></div>
+            <div class="sunk" style="padding: 18px; display: flex; flex-direction: column; gap: 8px; border: 1.5px solid #121110"><p class="h4">Group</p><p><span class="money" style="font-size: 26px">R1,149</span> <span class="small">a month incl. VAT</span></p><p class="tiny">Up to 5 locations · billed as US$69.48</p><span class="chip dark" style="align-self: flex-start">Current plan</span></div>
+          </div>
+        </details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Payment method · PayPal subscription</span><span class="tiny">Show ▾</span></summary>
+          <div style="display: flex; flex-direction: column; margin-top: 12px">
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Paid with</span><span>PayPal (Sandbox)</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Subscription ID</span><span class="mono">I-W03RREWEH5VB</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid #DEDCD6"><span>Next charge</span><span>Tue 8 Dec 2026 · US$69.48</span></div>
+            <p class="tiny" style="margin-top: 6px">To change your card or PayPal balance, use Manage in PayPal.</p>
+          </div>
+        </details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Invoices · none yet</span><span class="tiny">Show ▾</span></summary>
+          <div style="margin-top: 12px"><p class="small">Your first invoice appears after the trial ends on Tue 8 Dec. Each invoice shows the rand price incl. VAT and the US$ amount PayPal charged.</p></div>
+        </details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Billing details for invoices</span><span class="tiny">Show ▾</span></summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-top: 16px">
+            <div class="field"><label for="i-name">Invoice to</label><input id="i-name" class="input" value="Jacaranda Table"></div>
+            <div class="field"><label for="i-vat">VAT number <span class="small">(optional)</span></label><input id="i-vat" class="input" value="4XXXXXXXXX"></div>
+            <div class="field"><label for="i-email">Send invoices to</label><input id="i-email" class="input" value="accounts@jacarandatable.co.za"></div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+const ACTS = {"a1": {"t": "Opening your subscription in PayPal Sandbox in a new tab.", "d": null, "tg": false, "l": "Manage in PayPal"}, "a2": {"t": "Cancellation scheduled. Your plan stays active until Tue 8 Dec and nothing is charged.", "d": "Cancellation scheduled", "tg": false, "l": "Cancel plan"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

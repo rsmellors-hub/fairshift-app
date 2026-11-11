@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shifts · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div class="phone" style="height: 980px">
+  <div class="ptop"><span class="brand"><span class="mark">F</span>FairShift</span><span class="tiny">Tue 10 Nov</span></div>
+  <main class="pbody">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h1 class="d3">My shifts</h1>
+      <div role="tablist" aria-label="Calendar view" style="display:inline-flex;padding:3px;border-radius:999px;background:#ECEAE4">
+        <button type="button" role="tab" aria-selected="{{isMonth}}" onClick="{{showMonth}}" style="{{monthSt}}">Month</button>
+        <button type="button" role="tab" aria-selected="{{isList}}" onClick="{{showList}}" style="{{listSt}}">List</button>
+      </div>
+    </div>
+
+    <sc-if value="{{isMonth}}" hint-placeholder-val="{{ true }}">
+    <section class="card" style="padding:14px 14px 16px;display:flex;flex-direction:column;gap:10px" aria-labelledby="mo">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button class="btn out sm" type="button" aria-label="Previous month" onClick="{{x_a1}}">‹</button>
+        <h2 id="mo" class="h4">November 2026</h2>
+        <button class="btn out sm" type="button" aria-label="Next month" onClick="{{x_a2}}">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center">
+        <p class="tiny">Mon</p><p class="tiny">Tue</p><p class="tiny">Wed</p><p class="tiny">Thu</p><p class="tiny">Fri</p><p class="tiny">Sat</p><p class="tiny">Sun</p>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;background:#ECEAE4;color:#65635E"><p style="font-weight:700">1</p><p style="font-size: 11px">✓</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">2</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">3</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">4</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">5</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;background:#F6E3E0;color:#9C2318"><p style="font-weight:700;text-decoration:line-through">6</p><p style="font-size: 11px">cancelled</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">7</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;background:#ECEAE4;color:#65635E"><p style="font-weight:700">8</p><p style="font-size: 11px">✓</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;background:#ECEAE4;color:#65635E"><p style="font-weight:700">9</p><p style="font-size: 11px">✓</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;background:#121110;color:#fff"><p style="font-weight:700">10</p><p style="font-size: 11px;">10–14</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">11</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;border:1.5px solid #121110"><p style="font-weight:700">12</p><p style="font-size: 11px;">10–16</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">13</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;border:1.5px dashed #B87A10"><p style="font-weight:700">14</p><p style="font-size: 11px;color:#7A4E00">offer</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;border:1.5px dashed #B87A10"><p style="font-weight:700">15</p><p style="font-size: 11px;color:#7A4E00">offer</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">16</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">17</p></div>
+        <div style="padding:6px 0;min-height:44px;border-radius:10px;border:1.5px dashed #B87A10"><p style="font-weight:700">18</p><p style="font-size: 11px;color:#7A4E00">offer</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">19</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">20</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">21</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">22</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">23</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">24</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">25</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">26</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">27</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">28</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">29</p></div>
+        <div style="padding:8px 0;min-height:44px"><p class="small">30</p></div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap" class="tiny">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#121110;vertical-align:-1px"></span> Today</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1.5px solid #121110;vertical-align:-1px"></span> Booked</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1.5px dashed #B87A10;vertical-align:-1px"></span> Offer</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ECEAE4;vertical-align:-1px"></span> Worked</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#F6E3E0;vertical-align:-1px"></span> Cancelled</span>
+      </div>
+    </section>
+    </sc-if>
+
+    <section style="display:flex;flex-direction:column;gap:10px" aria-labelledby="up">
+      <h2 id="up" class="eyebrow">Upcoming · 2 booked · 3 offers</h2>
+      <div class="card" style="padding:2px 16px">
+        <div style="display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid #DEDCD6">
+          <div style="width:44px;text-align:center"><p class="tiny">Tue</p><p class="h4">10</p></div>
+          <div style="flex:1"><strong>10:00–14:00 · Rosebank</strong><p class="small">Floor · 4 h · R180.00</p></div>
+          <span class="chip dark">Today</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid #DEDCD6">
+          <div style="width:44px;text-align:center"><p class="tiny">Thu</p><p class="h4">12</p></div>
+          <div style="flex:1"><strong>10:00–16:00 · Rosebank</strong><p class="small">Floor · 6 h · R270.00</p></div>
+          <span class="chip ok">Booked</span>
+        </div>
+        <a href="WorkerOffer.dc.html" style="display:flex;gap:12px;align-items:center;padding:13px 0;text-decoration:none;color:#121110">
+          <div style="width:44px;text-align:center"><p class="tiny">Sat</p><p class="h4">14</p></div>
+          <div style="flex:1"><strong>16:00–22:00 · Sandton</strong><p class="small">Floor · 6 h · R270.00 · reply by 11:00</p></div>
+          <span class="chip held">Offer</span>
+        </a>
+        <a href="WorkerOffer.dc.html" style="display:flex;gap:12px;align-items:center;padding:13px 0;border-top:1px solid #DEDCD6;text-decoration:none;color:#121110">
+          <div style="width:44px;text-align:center"><p class="tiny">Sun</p><p class="h4">15</p></div>
+          <div style="flex:1"><strong>11:00–17:00 · Rosebank</strong><p class="small">Floor · 6 h · R270.00 · reply by 13:00</p></div>
+          <span class="chip held">Offer</span>
+        </a>
+        <a href="WorkerOffer.dc.html" style="display:flex;gap:12px;align-items:center;padding:13px 0;border-top:1px solid #DEDCD6;text-decoration:none;color:#121110">
+          <div style="width:44px;text-align:center"><p class="tiny">Wed</p><p class="h4">18</p></div>
+          <div style="flex:1"><strong>17:00–22:00 · Sandton</strong><p class="small">Bar · 5 h · R225.00 · open to all</p></div>
+          <span class="chip held">Offer</span>
+        </a>
+      </div>
+      <a href="WorkerOffer.dc.html" class="btn wide">See all 3 offers</a>
+    </section>
+
+    <details class="card" style="padding:14px 16px">
+      <summary style="cursor:pointer;font-weight:600">Cancelled this month · 1 shift</summary>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span>Fri 6 · Sandton · 17:00–22:00</span><span class="chip bad">Cancelled</span></div>
+        <p class="tiny">Cancelled by Jacaranda Table on Thu 5 Nov, 14:20, 26 h before the start. Cancellations under 24 h are paid at 50%, so no pay is due for this one.</p>
+        <a href="WorkerMessages.dc.html" class="link tiny">See the message</a>
+      </div>
+    </details>
+    <details class="card" style="padding:14px 16px">
+      <summary style="cursor:pointer;font-weight:600">Worked this month · 3 shifts</summary>
+      <div style="display:flex;flex-direction:column;margin-top:8px">
+        <a href="WorkerPayment.dc.html" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span>Mon 9 · Sandton · 10:00–14:00</span><span class="chip info">Sent</span></a>
+        <a href="WorkerPayment.dc.html" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span>Sun 8 · Rosebank · 12:00–15:00</span><span class="chip paid">Paid ✓</span></a>
+        <a href="WorkerPayment.dc.html" style="display:flex;justify-content:space-between;padding:10px 0;text-decoration:none;color:#121110"><span>Sun 1 · Sandton</span><span class="chip paid">Paid ✓</span></a>
+      </div>
+    </details>
+    <p class="tiny">Times are shown in your business's local time. Can't make a booked shift? Tell your manager in Messages at least 12 hours before.</p>
+  </main>
+  <nav class="tabs" aria-label="Main">
+    <a href="WorkerHome.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Home</a>
+    <a href="WorkerShifts.dc.html" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Shifts</a>
+    <a href="WorkerMessages.dc.html"><span style="position:relative;display:inline-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span aria-label="2 unread" style="position:absolute;top:-3px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:#121110;color:#fff;font:600 10px/16px Geist,sans-serif;text-align:center;padding:0 4px">2</span></span>Inbox</a>
+    <a href="WorkerEarnings.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/></svg>Pay</a>
+    <a href="WorkerProfile.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</a>
+  </nav>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":980}}'>
+const ACTS = {"a1": {"t": "October 2026: 1 shift worked (Sat 31 Oct, Rosebank).", "d": null, "tg": false, "l": "‹"}, "a2": {"t": "December 2026: no shifts booked yet. New offers appear here.", "d": null, "tg": false, "l": "›"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  constructor(props) { super(props); this.state = { view: 'month' }; }
+  _rv0() {
+    const m = !this.state || this.state.view !== 'list';
+    const base = 'border:0;border-radius:999px;padding:6px 14px;font:600 13px/1 Geist,sans-serif;cursor:pointer;';
+    const on = base + 'background:#fff;color:#121110;box-shadow:0 1px 2px rgba(0,0,0,.08)';
+    const off = base + 'background:transparent;color:#65635E';
+    return { isMonth: m, isList: !m, monthSt: m ? on : off, listSt: m ? off : on,
+      showMonth: () => this.setState(Object.assign({}, this.state, { view: 'month' })), showList: () => this.setState(Object.assign({}, this.state, { view: 'list' })) };
+  }
+}
+</script>
+</body>
+</html>

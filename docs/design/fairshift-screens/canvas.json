@@ -1,0 +1,271 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-10T09:00:00Z"
+ },
+ "title": "FairShift — full product screens",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 3760,
+   "title": "Home (public)",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "SignUp.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Create account",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Setup.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1420,
+   "title": "Set up: onboarding flow (steps 2–6)",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerToday.dc.html": {
+   "x": 0,
+   "y": 4143,
+   "w": 1440,
+   "h": 1560,
+   "title": "Owner · Today",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerPlan.dc.html": {
+   "x": 1520,
+   "y": 4143,
+   "w": 1440,
+   "h": 1560,
+   "title": "Owner · Plan",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerFill.dc.html": {
+   "x": 3040,
+   "y": 4143,
+   "w": 1440,
+   "h": 1460,
+   "title": "Owner · Fill shifts",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerSchedule.dc.html": {
+   "x": 4560,
+   "y": 4143,
+   "w": 1440,
+   "h": 1080,
+   "title": "Owner · Schedule",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerPay.dc.html": {
+   "x": 6080,
+   "y": 4143,
+   "w": 1440,
+   "h": 1560,
+   "title": "Owner · Pay",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerLocation.dc.html": {
+   "x": 0,
+   "y": 6086,
+   "w": 1440,
+   "h": 1460,
+   "title": "Owner · Locations & team",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerSettings.dc.html": {
+   "x": 1520,
+   "y": 6086,
+   "w": 1440,
+   "h": 1100,
+   "title": "Owner · Business settings",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OwnerProof.dc.html": {
+   "x": 4560,
+   "y": 6086,
+   "w": 1440,
+   "h": 1360,
+   "title": "Owner · PayPal & AI records",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ManagerToday.dc.html": {
+   "x": 6080,
+   "y": 6086,
+   "w": 1440,
+   "h": 1200,
+   "title": "Manager · Today (Rosebank)",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WorkerInvite.dc.html": {
+   "x": 0,
+   "y": 7929,
+   "w": 390,
+   "h": 844,
+   "title": "Worker · Accept invite",
+   "is_interactive": true
+  },
+  "WorkerHome.dc.html": {
+   "x": 470,
+   "y": 7929,
+   "w": 390,
+   "h": 1000,
+   "title": "Worker · Home"
+  },
+  "WorkerOffer.dc.html": {
+   "x": 940,
+   "y": 7929,
+   "w": 390,
+   "h": 1180,
+   "title": "Worker · Shift offers",
+   "is_interactive": true
+  },
+  "WorkerEarnings.dc.html": {
+   "x": 1410,
+   "y": 7929,
+   "w": 390,
+   "h": 980,
+   "title": "Worker · Earnings"
+  },
+  "WorkerPayment.dc.html": {
+   "x": 1880,
+   "y": 7929,
+   "w": 390,
+   "h": 1020,
+   "title": "Worker · Payment & query",
+   "is_interactive": true
+  },
+  "WorkerMessages.dc.html": {
+   "x": 2350,
+   "y": 7929,
+   "w": 390,
+   "h": 1120,
+   "title": "Worker · Inbox",
+   "is_interactive": true
+  },
+  "WorkerProfile.dc.html": {
+   "x": 2820,
+   "y": 7929,
+   "w": 390,
+   "h": 980,
+   "title": "Worker · Profile",
+   "is_interactive": true
+  },
+  "EmailInvite.dc.html": {
+   "x": 0,
+   "y": 9463,
+   "w": 720,
+   "h": 980,
+   "title": "Email · Invitation",
+   "is_interactive": true
+  },
+  "EmailPaid.dc.html": {
+   "x": 800,
+   "y": 9463,
+   "w": 720,
+   "h": 940,
+   "title": "Email · Paid"
+  },
+  "WorkerShifts.dc.html": {
+   "x": 3290,
+   "y": 7929,
+   "w": 390,
+   "h": 980,
+   "title": "Worker · Shifts calendar",
+   "is_interactive": true
+  },
+  "OwnerBilling.dc.html": {
+   "x": 3040,
+   "y": 6086,
+   "w": 1440,
+   "h": 1100,
+   "title": "Owner · Billing",
+   "expand": "fill",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "SignUp.dc.html",
+  "Setup.dc.html",
+  "OwnerToday.dc.html",
+  "OwnerPlan.dc.html",
+  "OwnerFill.dc.html",
+  "OwnerSchedule.dc.html",
+  "OwnerPay.dc.html",
+  "OwnerLocation.dc.html",
+  "OwnerSettings.dc.html",
+  "OwnerBilling.dc.html",
+  "OwnerProof.dc.html",
+  "ManagerToday.dc.html",
+  "WorkerInvite.dc.html",
+  "WorkerHome.dc.html",
+  "WorkerOffer.dc.html",
+  "WorkerEarnings.dc.html",
+  "WorkerPayment.dc.html",
+  "WorkerMessages.dc.html",
+  "WorkerProfile.dc.html",
+  "WorkerShifts.dc.html",
+  "EmailInvite.dc.html",
+  "EmailPaid.dc.html"
+ ],
+ "notes": {
+  "rowA": {
+   "x": 0,
+   "y": -263,
+   "text": "Public site and sign-up",
+   "kind": "title1",
+   "maxW": 4480
+  },
+  "rowB": {
+   "x": 0,
+   "y": 3880,
+   "text": "Owner: plan, fill and pay",
+   "kind": "title1",
+   "maxW": 7520
+  },
+  "rowC": {
+   "x": 0,
+   "y": 5823,
+   "text": "Owner: people, places and records · Manager",
+   "kind": "title1",
+   "maxW": 7520
+  },
+  "rowD": {
+   "x": 0,
+   "y": 7666,
+   "text": "Worker app (phone)",
+   "kind": "title1",
+   "maxW": 3680
+  },
+  "rowE": {
+   "x": 0,
+   "y": 9200,
+   "text": "FairShift emails",
+   "kind": "title1",
+   "maxW": 1520
+  }
+ },
+ "designSystems": []
+}
