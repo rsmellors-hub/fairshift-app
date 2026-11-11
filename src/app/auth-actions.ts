@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getDatabase } from "@/server/db/client";
 import { users, outlets, memberships } from "@/server/db/schema";
-import { signIn, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
+import { SITE_LIMITS, signIn, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
 import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE, DEMO_COOKIE } from "@/server/auth/request";
 import { demoConfig } from "@/server/demo/config";
 import { isDemoAccount } from "@/server/demo/session";
@@ -36,7 +36,7 @@ export async function registerAction(form:FormData) {
  // Accepting an invitation is what verifies an invited person's address, so they go straight back to it.
  const invited=field(form,"next") === "invite";
  try {
-  await consumeLimit(getDatabase(),"registration-global",100);
+  await consumeLimit(getDatabase(),"registration-global",SITE_LIMITS.registration);
   // Design (SignUp): name, business and country with the account; terms must be accepted. All checked
   // before anything is written, and written together (registerAccount).
   const country=field(form,"country") === "Other" ? field(form,"otherCountry") : field(form,"country");

@@ -24,6 +24,10 @@ export async function checkPassword(password: string, encoded: string) {
   const candidate = await derive(password,salt), expected = Buffer.from(key,"hex");
   return candidate.length === expected.length && timingSafeEqual(candidate,expected);
 }
+// Site-wide caps per 15 minutes (F7, 12 Nov 2026). They only stop a flood: set well above any real
+// traffic, so one script can't lock every visitor out of signing in or registering. Each account keeps
+// its own, much lower, limit (login:<email>, register:<email>).
+export const SITE_LIMITS = { login: 2_000, registration: 500 } as const;
 // Database-backed limits survive process restarts and concurrent app instances.
 export async function consumeLimit(db: DatabaseSession, key: string, maximum = 10) {
   const now = new Date();
@@ -47,7 +51,7 @@ export async function registerIdentity(db: Database, input: unknown) {
 }
 export async function signIn(db: Database, email: string, password: string) {
   const normalized = emailSchema.parse(email);
-  await consumeLimit(db,"login-global",200);
+  await consumeLimit(db,"login-global",SITE_LIMITS.login);
   await consumeLimit(db,`login:${normalized}`);
   const [user] = await db.select().from(users).where(eq(users.email,normalized));
   // A real scrypt cost is paid even for an unknown account.
