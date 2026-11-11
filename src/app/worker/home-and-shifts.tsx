@@ -12,7 +12,7 @@ const dayKey = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA"
 const clock = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(date);
 const pay = (row: Row) => row.shift.earningsModel === "COMMISSION" ? "Commission" : money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode);
 const LABEL: Record<string, { text: string; tone: "success" | "predictive" | "neutral" | "warning" }> = {
-  BOOKED: { text: "Booked", tone: "success" }, OFFER: { text: "Offer", tone: "predictive" }, WORKED: { text: "Worked", tone: "neutral" }, CANCELLED: { text: "Cancelled", tone: "warning" }, WAITING: { text: "Waiting for manager", tone: "neutral" },
+  BOOKED: { text: "Booked", tone: "success" }, OFFER: { text: "Offer", tone: "predictive" }, WORKED: { text: "Worked", tone: "neutral" }, CANCELLED: { text: "Cancelled", tone: "warning" }, WAITING: { text: "Accepted · manager to confirm", tone: "neutral" },
 };
 export function calendarKind(row: Row, kind: WorkerShiftKind) {
   if (row.shift.status === "CANCELLED") return row.offer.status === "ACCEPTED" ? "CANCELLED" : null;

@@ -152,8 +152,8 @@ describe("opportunity to allocation, across roles", () => {
       expect(acceptance.snapshot).toMatchObject({ assignmentId: shift.id, rateMinor: 1_300, currencyCode: "GBP", expectedEarningsMinor: 10_400, startsAt: shift.startsAt.toISOString() });
       expect(await t.db.select().from(workAllocations)).toEqual([]);
       shiftsPage = await render(worker, () => WorkerWorkspace({ area: "shifts" }));
-      expect(shiftsPage).toContain("You’re not booked yet");
-      expect(shiftsPage).toContain("Waiting for your manager");
+      expect(shiftsPage).toContain("Your manager will confirm the booking");
+      expect(shiftsPage).toContain("Accepted · your manager will confirm the booking");
       expect(shiftsPage).not.toContain("Accept shift");
 
       // The Manager sees the acceptance and finalises it.

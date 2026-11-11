@@ -80,12 +80,12 @@ function Earn({ shift, detailed = false, wage }: { shift: Row["shift"]; detailed
 const NEXT: Record<WorkerShiftKind, string> = {
   OFFER: "If you accept, your manager confirms who is working. You’ll see it here once you’re booked.",
   CHANGED: "The details changed, so we need your answer again. You’re not booked until you accept and your manager confirms.",
-  ACCEPTED: "You said yes. You’re not booked yet: your manager still has to confirm who is working.",
+  ACCEPTED: "You said yes. Your manager will confirm the booking; you’ll see it here, and by email, once you’re booked.",
   UPCOMING: "You’re booked. See you there.",
   PAST: "",
   CLOSED: "",
 };
-const BADGE: Record<WorkerShiftKind, string> = { OFFER: "New offer", CHANGED: "Details changed", ACCEPTED: "Waiting for your manager", UPCOMING: "You’re booked", PAST: "Finished", CLOSED: "Closed" };
+const BADGE: Record<WorkerShiftKind, string> = { OFFER: "New offer", CHANGED: "Details changed", ACCEPTED: "Accepted · your manager will confirm the booking", UPCOMING: "You’re booked", PAST: "Finished", CLOSED: "Closed" };
 
 export function WorkerShiftCard({ row, kind, locationName, timeZone, availability, wage = null }: { row: Row; kind: WorkerShiftKind; locationName: string; timeZone: string; availability: ReadonlyMap<number, string>; wage?: WageJurisdiction | null }) {
   const when = shiftWhen(row.shift.startsAt, row.shift.endsAt, timeZone);
