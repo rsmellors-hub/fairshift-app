@@ -19,3 +19,6 @@ coverage/
 
 # Judges' credentials for Devpost private instructions: never committed.
 .judge-credentials.local
+
+# Real event-listing responses from OpenWeb Ninja: never committed (Owner instruction, 11 Nov 2026).
+tests/fixtures/openwebninja/
