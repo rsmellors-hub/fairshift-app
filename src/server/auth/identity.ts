@@ -34,11 +34,15 @@ export async function consumeLimit(db: DatabaseSession, key: string, maximum = 1
 export async function clearLimit(db: Database, key: string) {
   await db.delete(authLimits).where(eq(authLimits.key,tokenHash(key)));
 }
-export async function registerIdentity(db: Database, input: unknown) {
+// The checks and password hash for a new account, without writing it (apart from the attempt count).
+export async function prepareIdentity(db: Database, input: unknown) {
   const value = z.object({email:emailSchema,password:passwordSchema}).strict().parse(input);
   await consumeLimit(db,`register:${value.email}`,5);
-  const passwordHash = await hashPassword(value.password);
-  const [user] = await db.insert(users).values({email:value.email,id:randomUUID(),name:"",passwordHash}).returning({id:users.id,email:users.email,name:users.name});
+  return { email: value.email, passwordHash: await hashPassword(value.password) };
+}
+export async function registerIdentity(db: Database, input: unknown) {
+  const { email, passwordHash } = await prepareIdentity(db, input);
+  const [user] = await db.insert(users).values({email,id:randomUUID(),name:"",passwordHash}).returning({id:users.id,email:users.email,name:users.name});
   return user;
 }
 export async function signIn(db: Database, email: string, password: string) {

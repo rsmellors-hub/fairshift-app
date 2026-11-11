@@ -8,7 +8,7 @@ import { UserFacingError } from "@/server/domain/errors";
 import { invitationSubject, invitationText, type InvitationEmail } from "@/server/notifications/templates";
 import { auditActor } from "./audit-actor";
 import { assertRole, resolveScope, type Scope } from "./access";
-import { newToken, tokenHash, consumeLimit } from "./identity";
+import { newToken, tokenHash, consumeLimit, issueSession, prepareIdentity } from "./identity";
 import { notify } from "@/server/notifications/service";
 
 // Serialize acquisition per identity and reuse existing Owner membership (including legacy orgs).
@@ -74,6 +74,26 @@ export async function createBusinessShell(db:Database,userId:string,input:{name:
     const [membership]=await tx.insert(memberships).values({id:randomUUID(),userId,organisationId,role:"OWNER"}).returning();
     await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID()});
     return membership;
+  });
+}
+// Registration (F6, 12 Nov 2026): every field is checked before anything is written; then the account,
+// a new owner's business shell and the session are created in one transaction. A failed attempt leaves
+// no account behind, so the same email can simply try again. An invited person gives no business.
+const ownerRegistration=z.object({terms:z.literal("yes"),name:z.string().trim().min(1).max(200),businessName:z.string().trim().min(1).max(150),country:z.string().trim().min(2).max(100)});
+export async function registerAccount(db:Database,input:{email:string;password:string;owner?:{terms:string;name:string;businessName:string;country:string}}) {
+  const owner=input.owner ? ownerRegistration.parse(input.owner) : null;
+  const {email,passwordHash}=await prepareIdentity(db,{email:input.email,password:input.password});
+  return db.transaction(async tx => {
+    const [first,...rest]=owner ? owner.name.split(/\s+/) : [];
+    const [user]=await tx.insert(users).values({id:randomUUID(),email,passwordHash,name:owner?.name ?? "",firstName:first ?? null,surname:rest.join(" ") || null})
+      .returning({id:users.id,email:users.email,name:users.name});
+    if (owner) {
+      const organisationId=randomUUID();
+      await tx.insert(organisations).values({id:organisationId,name:owner.businessName,country:owner.country});
+      await tx.insert(memberships).values({id:randomUUID(),userId:user.id,organisationId,role:"OWNER"});
+      await tx.insert(subscriptions).values({id:randomUUID(),organisationId,requestId:randomUUID()});
+    }
+    return {user,token:await issueSession(tx,user.id)};
   });
 }
 export async function inviteMember(db:Database,scope:Scope,input:unknown) {

@@ -8,11 +8,11 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getDatabase } from "@/server/db/client";
 import { users, outlets, memberships } from "@/server/db/schema";
-import { registerIdentity, signIn, issueSession, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
+import { signIn, createIdentityToken, redeemIdentityToken, revokeSession, consumeLimit } from "@/server/auth/identity";
 import { currentIdentity, requireIdentity, requireOwnerCustomer, requireScope, selectMembership, setSessionCookie, SESSION_COOKIE, DEMO_COOKIE } from "@/server/auth/request";
 import { demoConfig } from "@/server/demo/config";
 import { isDemoAccount } from "@/server/demo/session";
-import { createBusinessShell, ensureCustomerOrganisation, inviteMember, revokeInvitation } from "@/server/auth/tenancy";
+import { registerAccount, ensureCustomerOrganisation, inviteMember, revokeInvitation } from "@/server/auth/tenancy";
 import { membershipDestination } from "@/server/auth/destination";
 import { notify, dispatchNotification, markNotificationRead, dispatchOperationalEmails } from "@/server/notifications/service";
 import { getEmailAdapter } from "@/server/notifications/email";
@@ -32,24 +32,20 @@ async function identityEmail(user:{id:string;email:string},purpose:"VERIFY_EMAIL
  await dispatchNotification(db,getEmailAdapter(),id,`/${purpose === "VERIFY_EMAIL" ? "verify-email":"reset-password"}#${token}`);
 }
 export async function registerAction(form:FormData) {
- let token:string;
+ let account:{user:{id:string;email:string};token:string};
  // Accepting an invitation is what verifies an invited person's address, so they go straight back to it.
  const invited=field(form,"next") === "invite";
  try {
   await consumeLimit(getDatabase(),"registration-global",100);
-  const user=await registerIdentity(getDatabase(),{email:field(form,"email"),password:field(form,"password")});
-  token=await issueSession(getDatabase(),user.id);
-  if (!invited) {
-   // Design (SignUp): name, business and country with the account; terms must be accepted.
-   if (field(form,"terms") !== "yes") throw new Error("Terms not accepted.");
-   const [first="",...rest]=field(form,"name").trim().split(/\s+/);
-   if (first) await getDatabase().update(users).set({firstName:first,surname:rest.join(" ") || null,name:field(form,"name").trim()}).where(eq(users.id,user.id));
-   const country=field(form,"country") === "Other" ? field(form,"otherCountry") : field(form,"country");
-   await createBusinessShell(getDatabase(),user.id,{name:field(form,"businessName"),country});
-   await identityEmail(user,"VERIFY_EMAIL");
-  }
+  // Design (SignUp): name, business and country with the account; terms must be accepted. All checked
+  // before anything is written, and written together (registerAccount).
+  const country=field(form,"country") === "Other" ? field(form,"otherCountry") : field(form,"country");
+  account=await registerAccount(getDatabase(),{email:field(form,"email"),password:field(form,"password"),
+   owner:invited ? undefined : {terms:field(form,"terms"),name:field(form,"name"),businessName:field(form,"businessName"),country}});
  } catch {redirect(invited ? "/register?status=error&next=invite" : "/register?status=error");}
- await setSessionCookie(token);
+ // The account is saved whatever happens to the email: Check your email offers to send it again.
+ if (!invited) await identityEmail(account.user,"VERIFY_EMAIL").catch(() => console.error("Verification email could not be sent at registration."));
+ await setSessionCookie(account.token);
  redirect(invited ? "/invite" : "/check-email");
 }
 export async function signInAction(form:FormData) {
