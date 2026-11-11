@@ -25,6 +25,13 @@ export function getDatabase(): Database {
     application_name: "fairshift",
   });
 
+  // An idle client can fail (for example when the database restarts). pg emits that on the pool,
+  // and an unhandled 'error' event would crash the process. The pool drops the broken client and
+  // makes a new one on the next query, so record only the error name and carry on.
+  pool.on("error", (error) => {
+    console.error("database pool error", { name: error.name });
+  });
+
   const database = drizzle(pool, { schema });
 
   // One pool per process in every environment. Creating a pool per call exhausts
