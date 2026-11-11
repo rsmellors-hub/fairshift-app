@@ -2,7 +2,8 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-o
 import { getConfigurationStatus } from "@/server/config/env";
 import { deploymentMode, sandboxOrganisationId } from "@/server/config/deployment";
 import { getDatabase, type Database } from "@/server/db/client";
-import { externalFeeds, localIntelligenceRuns, memberships, organisations, outlets, scheduledJobs } from "@/server/db/schema";
+import { externalFeeds, localIntelligenceRuns, memberships, organisations, outlets, scheduledJobs, subscriptions } from "@/server/db/schema";
+import { isEntitled } from "@/server/billing/entitlement";
 import { ensureDemoBooking } from "@/server/demo/booking";
 import { advanceOfferRounds } from "@/server/scheduling/shift-suggestions";
 import { ensureDemoRules } from "@/server/demo/settings-seed";
@@ -66,9 +67,23 @@ type Job = { key: JobKey; retryMs: number; leaseMs: number; enabled: (deps: Sche
   & ({ intervalMs: number; slot?: undefined } | { slot: Slot; intervalMs?: undefined });
 
 async function demoLocations(db: Database, deps: SchedulerDeps) {
-  if (!deps.demoOrganisationIds.length) return [];
+  return activeLocations(db, deps.demoOrganisationIds);
+}
+async function activeLocations(db: Database, organisationIds: readonly string[]) {
+  if (!organisationIds.length) return [];
   return db.select({ organisationId: outlets.organisationId, locationId: outlets.id, latitude: outlets.latitude }).from(outlets)
-    .where(and(inArray(outlets.organisationId, [...deps.demoOrganisationIds]), eq(outlets.active, true))).orderBy(outlets.name);
+    .where(and(inArray(outlets.organisationId, [...organisationIds]), eq(outlets.active, true))).orderBy(outlets.name);
+}
+
+// The businesses the operational jobs (offer rounds, weather, source rechecks) serve: the demo business,
+// and every business with a reconciled active subscription (billing/entitlement.ts) and at least one
+// active location. The AI jobs keep to the demo business; other businesses' AI runs stay on demand,
+// under AI_LIMITS.
+export async function operatingOrganisationIds(db: Database, demoOrganisationIds: readonly string[]) {
+  const rows = await db.selectDistinct({ organisationId: subscriptions.organisationId, status: subscriptions.status, verifiedAt: subscriptions.verifiedAt, providerId: subscriptions.providerId, planId: subscriptions.planId })
+    .from(subscriptions).innerJoin(outlets, and(eq(outlets.organisationId, subscriptions.organisationId), eq(outlets.active, true)))
+    .where(eq(subscriptions.status, "ACTIVE"));
+  return [...new Set([...demoOrganisationIds, ...rows.filter(isEntitled).map(row => row.organisationId)])];
 }
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -125,10 +140,10 @@ export const JOBS: readonly Job[] = [
         return { ok: false, code: "FETCH_FAILED" };
       }
     } },
-  { key: "weather:demo", intervalMs: 3 * HOUR, retryMs: 30 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
+  { key: "weather:demo", intervalMs: 3 * HOUR, retryMs: 30 * MINUTE, leaseMs: 5 * MINUTE, enabled: () => true,
     run: async (db, deps) => {
       const tally: Record<string, number> = {};
-      for (const location of await demoLocations(db, deps)) {
+      for (const location of await activeLocations(db, await operatingOrganisationIds(db, deps.demoOrganisationIds))) {
         const fetchHourly = deps.fetchHourly ?? (deps.fetchImpl ? (place: { latitude: number; longitude: number }, timeoutMs: number) => fetchOpenMeteoHourly(place, { timeoutMs, fetchImpl: deps.fetchImpl }) : undefined);
         const result = await refreshLocationWeather(db, location, { mode: "EXPLICIT", now: deps.now(), fetchHourly });
         tally[result] = (tally[result] ?? 0) + 1;
@@ -183,14 +198,14 @@ export const JOBS: readonly Job[] = [
       return { ok: !tally.error, code: tally.error ? "PARTIAL" : null, detail: tally };
     } },
   // FS-OFFER-ORDER-DEC-001: when a first offer round's window closes with places open, round 2 opens.
-  { key: "offers:rounds", intervalMs: 5 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
-    run: async (db, deps) => { const result = await advanceOfferRounds(db, deps.demoOrganisationIds, deps.now()); return { ok: true, detail: { ...result, planningChanged: result.opened > 0 } }; } },
+  { key: "offers:rounds", intervalMs: 5 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: () => true,
+    run: async (db, deps) => { const result = await advanceOfferRounds(db, await operatingOrganisationIds(db, deps.demoOrganisationIds), deps.now()); return { ok: true, detail: { ...result, planningChanged: result.opened > 0 } }; } },
   // Day 6, Step 2: keeps the demo business's planning week warm in this server's cache, so the first
   // visitor after a restart doesn't wait for months of history to be aggregated. Reads only.
   { key: "cache:demo", intervalMs: 15 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => ({ ok: true, detail: { warmed: await warmDemoPlanning(db, deps.demoOrganisationIds, deps.now()) } }) },
-  { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
-    run: async (db, deps) => { const result = await recheckUnreachableSources(db, deps.demoOrganisationIds, deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
+  { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: () => true,
+    run: async (db, deps) => { const result = await recheckUnreachableSources(db, await operatingOrganisationIds(db, deps.demoOrganisationIds), deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
   { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => {
       const tally = { toppedUp: 0, recorded: 0, waiting: 0 };
