@@ -919,3 +919,7 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .offer-response { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 5; margin: 4px -16px -16px; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
 .offer-response .worker-shift-actions { grid-template-columns: 1fr 1fr; }
 .offer-response .worker-shift-actions button:only-child { grid-column: 1 / -1; }
+
+/* Pay (design OwnerPay): the Pay Agent's checks sit apart from the payment steps above them. */
+.pay-card .pay-agent { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pay-card .pay-agent > p:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
