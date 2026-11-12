@@ -951,3 +951,9 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 
 /* Plan (design OwnerPlan): folded detail panels keep their own content without a second card frame. */
 .plan-fold > .panel { margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+
+/* A list of radio choices (worker pay query): each choice is one 44 px row, radio before its label. */
+.choice-list { display: grid; gap: 2px; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.choice-list legend { padding: 0 4px; font-weight: 650; }
+.choice-list label { display: flex !important; align-items: center; gap: 10px; min-height: 44px; font-weight: 500; }
+.choice-list input[type="radio"] { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--primary); }

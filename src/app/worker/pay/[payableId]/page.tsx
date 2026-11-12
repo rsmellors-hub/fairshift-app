@@ -46,9 +46,13 @@ export default async function ShiftPayPage({ params, searchParams }: { params: P
       </dl>
       {payout ? <div className="payout-detail">
         <p><StatusBadge tone={payout.status === "PAID" ? "success" : payout.status === "FAILED" ? "warning" : "neutral"}>{PAYOUT[payout.status] ?? payout.status}</StatusBadge>{payout.status === "PAID" && payout.paidAt ? <> PayPal confirmed {dateTime(payout.paidAt, tz)} ({tz})</> : null}</p>
-        {payout.providerCurrency !== payout.currencyCode ? <p className="note">{money(payout.amountMinor, payout.currencyCode)} sent through PayPal Sandbox as {labelledMoney(payout.providerAmountMinor, payout.providerCurrency)}{payout.fxRateMicros ? `, at ECB ${(payout.fxRateMicros / 1_000_000).toFixed(4)} ${payout.currencyCode === "ZAR" ? "rand" : payout.currencyCode} per ${payout.providerCurrency === "USD" ? "US dollar" : payout.providerCurrency}${payout.fxRateSource?.includes(":") ? ` (${payout.fxRateSource.split(":")[1]})` : ""}, locked when the payment was created` : ""}.</p> : null}
+        {/* Design (WorkerPayment): rand first above; the PayPal Sandbox amount, ECB rate and batch on one second line. */}
+        {payout.providerCurrency !== payout.currencyCode || payout.paypalBatchId ? <p className="note payout-conversion">{[
+          payout.providerCurrency !== payout.currencyCode ? `${labelledMoney(payout.providerAmountMinor, payout.providerCurrency)}${payout.fxRateMicros ? ` at ECB ${(payout.fxRateMicros / 1_000_000).toFixed(4)}${payout.fxRateSource?.includes(":") ? ` (${payout.fxRateSource.split(":")[1]})` : ""}` : ""} via PayPal Sandbox` : null,
+          payout.paypalBatchId ? `batch ${payout.paypalBatchId}` : null,
+          payout.status === "PAID" && payout.paidAt ? dateTime(payout.paidAt, tz) : null,
+        ].filter(Boolean).join(" · ")}</p> : null}
         {tips.filter(tip => tip.fxRateMicros && tip.providerCurrency).map((tip, index) => <p className="note" key={index}>Tips sent as {labelledMoney(tip.providerAmountMinor!, tip.providerCurrency!)} at ECB {(tip.fxRateMicros! / 1_000_000).toFixed(4)}{tip.paypalBatchId ? ` · batch ${tip.paypalBatchId}` : ""}.</p>)}
-        {payout.paypalBatchId ? <p className="note">PayPal batch <code>{payout.paypalBatchId}</code></p> : null}
         {payout.status === "PROCESSING" && payout.paypalStatus === "UNCLAIMED" ? <p>Claim this payment by signing in to PayPal with your saved email.</p> : null}
       </div> : <p className="note">{payable.status === "APPROVED" ? "Approved. It hasn’t been sent to PayPal yet." : "Not approved yet, so nothing has been sent."}</p>}
       {checks.length ? <><h3>What the Pay Agent checked <StatusBadge tone="predictive">AI</StatusBadge></h3><ul className="pay-agent-checklist">{checks.map(item => <li key={item.text}><span aria-hidden="true">{item.ok ? "✓" : "!"}</span> {item.text}</li>)}</ul></> : null}
@@ -58,7 +62,7 @@ export default async function ShiftPayPage({ params, searchParams }: { params: P
       {open ? <p role="status">You asked: “{open.message}”. The Pay Agent has set out what’s recorded for this shift and passed it to the Owner, who answers in your Inbox.</p>
         : scope.demo ? <p className="note">Questions are sent by signed-in workers.</p>
         : <form action={raisePayQueryAction} className="workspace-form"><input type="hidden" name="payableId" value={payable.id} />
-          <fieldset><legend>What’s it about?</legend>{PAY_QUERY_TOPICS.map(topic => <label key={topic}><input type="radio" name="topic" value={topic} required /> {PAY_QUERY_TOPIC_LABEL[topic]}</label>)}</fieldset>
+          <fieldset className="choice-list"><legend>What’s it about?</legend>{PAY_QUERY_TOPICS.map(topic => <label key={topic}><input type="radio" name="topic" value={topic} required /> {PAY_QUERY_TOPIC_LABEL[topic]}</label>)}</fieldset>
           <label>Your question<textarea name="message" maxLength={1000} required rows={3} /></label>
           <button className="primary-button">Send to the Owner</button>
           <p className="note">The Pay Agent sets out what’s already recorded for this shift (its checks and the PayPal status) for the Owner. It can’t change any amount, and neither can this question.</p></form>}
