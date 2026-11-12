@@ -896,3 +896,8 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .thread-list a[aria-current] { border-color: var(--accent, #1f5f4a); }
 .payout-detail { margin-top: 12px; }
 @media (max-width: 480px) { .offer-pick { grid-template-columns: 1fr; } .chat-thread li { max-width: 92%; } }
+
+/* Location switch in the top bar (design, 10 Nov 2026): switches on change, no extra button. */
+.workspace-switch { display: flex; align-items: center; min-width: 0; }
+.workspace-switch .location-switcher { margin: 0; }
+.workspace-switch select { min-height: 38px; max-width: 100%; }

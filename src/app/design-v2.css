@@ -428,3 +428,8 @@ html[data-design="v2"] .brand > span { background: transparent; color: var(--ink
   html[data-design="v2"] .site-section h2 { font-size: 30px; }
   html[data-design="v2"] .home-hero-grid { padding-block: 48px; }
 }
+
+/* ---------- Top-bar location switch and sandbox strip (design, 10 Nov 2026) ---------- */
+html[data-design="v2"] .workspace-switch select { appearance: none; min-height: 38px; padding: 0 38px 0 14px; border: 1px solid var(--line2); border-radius: 999px; background-color: var(--surface); background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; font: 500 14px/1 var(--sans); color: var(--ink); }
+html[data-design="v2"] .product-shell-worker .fs.sandbox { padding: 8px 20px; }
+@media (max-width: 720px) { html[data-design="v2"] .workspace-switch { order: 4; } }

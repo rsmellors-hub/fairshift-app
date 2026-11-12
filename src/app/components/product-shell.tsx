@@ -25,6 +25,7 @@ export function ProductShell({
   mobile = false,
   banner,
   notice,
+  strip,
   contextControl,
   children,
 }: {
@@ -35,7 +36,9 @@ export function ProductShell({
   banner?: React.ReactNode;
   // A bar for signed-in accounts of the demo business: shown like the banner, but nothing is hidden.
   notice?: React.ReactNode;
-  // A control beside the context, such as the Owner's operating-location switch.
+  // The dark sandbox strip above the top bar (design, 10 Nov 2026).
+  strip?: React.ReactNode;
+  // A control in the top bar in place of the context, such as the Owner's location switch.
   contextControl?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -47,19 +50,19 @@ export function ProductShell({
         <div className="role-context">
           <span>{role}</span>
           <strong>{context}</strong>
-          {contextControl}
         </div>
         <ProductNavigation navigation={navigation} label={`${role} navigation`} />
         {banner ? null : <p className="sidebar-account"><Link href="/account">Account</Link></p>}
       </aside>
       <div className="product-workspace">
+        {strip}
         <header className="workspace-bar">
           <FairShiftBrand compact href={`/${role.toLowerCase()}`} />
-          {!mobile ? <details className="mobile-menu"><summary>Menu</summary>{contextControl}<ProductNavigation navigation={navigation} label={`${role} mobile navigation`} /></details> : null}
-          <div className="workspace-context">
+          {!mobile ? <details className="mobile-menu"><summary>Menu</summary><ProductNavigation navigation={navigation} label={`${role} mobile navigation`} /></details> : null}
+          {contextControl ? <div className="workspace-switch">{contextControl}</div> : <div className="workspace-context">
             <span>{role}</span>
             <strong>{context}</strong>
-          </div>
+          </div>}
           {banner ? null : <Link className="workspace-account" href="/account">Account</Link>}
         </header>
         {banner}{notice}
