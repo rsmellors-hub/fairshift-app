@@ -1012,3 +1012,7 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .profile-facts div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .profile-facts dt { color: var(--muted); }
 .profile-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+/* Month view: a status word stays whole (no "Worke d") and wraps only between words; 11 px. */
+.month-day small { overflow-wrap: normal; word-break: keep-all; font-size: 11px; letter-spacing: -0.01em; line-height: 1.25; }
+@media (max-width: 480px) { .month-day { padding: 3px 2px; } }
