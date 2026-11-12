@@ -1006,3 +1006,9 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .plan-current-primary, .plan-current-secondary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
 .plan-current-primary { background: #fff; color: #121110; border: 1px solid #fff; }
 .plan-current-secondary { background: transparent; color: #E8E5DF; border: 1px solid #4a4741; }
+
+/* Worker Profile (design WorkerProfile): label/value facts. */
+.profile-facts { display: grid; gap: 10px; margin: 0 0 8px; }
+.profile-facts div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.profile-facts dt { color: var(--muted); }
+.profile-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
