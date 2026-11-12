@@ -463,8 +463,8 @@ html[data-design="v2"] .home-offers, html[data-design="v2"] .home-pay { border-r
   html[data-design="v2"] .sandbox-bar .demo-reset > div { left: auto; right: 0; }
 }
 html[data-design="v2"] .proof-group { font: 500 11px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-html[data-design="v2"] .plan-current a.plan-current-secondary, .plan-current a.plan-current-secondary { color: #E8E5DF; }
-html[data-design="v2"] .plan-current a.plan-current-primary, .plan-current a.plan-current-primary { color: #121110; }
+html[data-design="v2"] .plan-current a.plan-current-secondary { color: #E8E5DF; }
+html[data-design="v2"] .plan-current a.plan-current-primary { color: #121110; }
 
 /* Worker Inbox (design WorkerMessages): one compact row per update — kind and time on the first line,
    the title, then at most two lines of detail. Nothing under 11 px. */

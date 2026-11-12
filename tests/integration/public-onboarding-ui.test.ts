@@ -137,11 +137,21 @@ describe("public pages", () => {
 
   it("orders the home page's calls to action as start, demo, sign in", () => {
     // Design Main.dc.html: the hero offers the trial then the demo; Sign in and Start free trial sit in the header.
+    // The public demo is off for judging (Owner, 12 Nov 2026): "Watch the demo" opens the video from
+    // FAIRSHIFT_DEMO_VIDEO_URL and is not shown without it; nothing links to /demo.
+    vi.stubEnv("FAIRSHIFT_DEMO_VIDEO_URL", "");
+    const without = renderToStaticMarkup(Home());
+    expect(without).not.toContain("Watch the demo");
+    expect(without).not.toMatch(/href="\/demo/);
+    vi.stubEnv("FAIRSHIFT_DEMO_VIDEO_URL", "https://www.youtube.com/watch?v=example");
     const html = renderToStaticMarkup(Home());
+    vi.unstubAllEnvs();
     const header = html.split('aria-label="Main"')[1];
     expect(header.indexOf("Sign in")).toBeLessThan(header.indexOf("Start free trial"));
     const hero = html.split('class="cta-row')[1];
     expect(hero.indexOf("Start your 30-day free trial")).toBeLessThan(hero.indexOf("Watch the demo"));
+    expect(hero).toContain('href="https://www.youtube.com/watch?v=example" target="_blank"');
+    expect(html).not.toMatch(/href="\/demo/);
     expect(html).not.toContain("Start your business");
     // Spec over canvas: Square is not in the Works-with strip.
     expect(html.split("Works with")[1].split("</div>")[0]).not.toMatch(/Square/);

@@ -31,7 +31,7 @@ const TOPICS = [
     ["Does FairShift run payroll?", "No. FairShift doesn’t run payroll or handle tax."],
   ]],
   ["Sales data", [
-    ["Where do sales come from?", "From each location’s sales history, kept with its source. The demo uses labelled synthetic reference history for a fictional business. Sources are always shown separately and never blended."],
+    ["Where do sales come from?", "From each location’s sales history, kept with its source. Sample history is labelled synthetic reference history, made for a fictional business. Sources are always shown separately and never blended."],
     ["What happens with refunds?", "Refunds are kept and linked for audit. They don’t identify who is responsible and don’t automatically change a worker’s earnings."],
   ]],
   ["Forecasts and AI", [
