@@ -40,6 +40,16 @@ export default async function DemoPage({ searchParams }: { searchParams: Promise
   const { status } = await searchParams;
   const { open, saBusiness, earlier } = await demoState();
   const acts = saBusiness ? [DEMAND, OPPORTUNITY, DISRUPTION, MONEY] : [DEMAND, OPPORTUNITY, MONEY];
+  // The public demo is off for judging (Owner, 12 Nov 2026): closed, the page says so and offers Sign in
+  // and Start free trial, with no story of a demo that can't be started.
+  if (!open) return <PublicShell>
+    <section className="page-intro"><div className="site-width">
+      <h1>The public demo is closed</h1>
+      <p className="lede">FairShift’s public demo isn’t available at the moment. Sign in to your account, or start a free trial. This deployment uses PayPal Sandbox, so no real money moves.</p>
+      {status === "expired" ? <p className="form-notice" role="status">Your demo session ended.</p> : null}
+      <div className="cta-row"><Link className="primary-button button-link" href="/sign-in">Sign in</Link><Link className="secondary-button button-link" href="/register">Start free trial</Link></div>
+    </div></section>
+  </PublicShell>;
   return <PublicShell>
     <section className="page-intro"><div className="site-width">
       <h1>Explore FairShift</h1>

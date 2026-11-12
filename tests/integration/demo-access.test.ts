@@ -433,9 +433,13 @@ describe("demo session lifetime and the feature flag", () => {
     vi.stubEnv("FAIRSHIFT_PUBLIC_DEMO", "");
     expect(demoConfig()).toBeNull();
     const closed = renderToStaticMarkup(await DemoPage({ searchParams: Promise.resolve({}) }));
-    expect(closed).toContain("The demo isn’t open right now.");
+    // Closed (Owner, 12 Nov 2026: off for judging): the page says so and offers Sign in and Start free trial.
+    expect(closed).toContain("The public demo is closed");
     expect(closed).not.toContain("Start as the Owner");
-    expect(closed).toContain(judges);
+    expect(closed).not.toContain(judges);
+    expect(closed).not.toContain("Follow the story");
+    expect(closed).toContain('href="/sign-in"');
+    expect(closed).toContain('href="/register"');
     expect(await outcome(() => enterDemoAction(form({ persona: "OWNER" })))).toBe("REDIRECT:/demo?status=unavailable");
     state.jar.set("fairshift_session", session.token);
     expect(await outcome(() => requireScope(["TEAM_MEMBER"]))).toBe("REDIRECT:/demo?status=unavailable");
