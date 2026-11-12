@@ -1,0 +1,94 @@
+EmailInvite.dc.html
+  - "Report this invitation" → Reported. FairShift will review it, and no account is created. (button then reads "Reported ✓")
+Main.dc.html
+  - "Privacy" → Privacy: FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID number or bank details.
+  - "Terms" → Terms: owners and managers confirm all work and pay. The AI suggests and checks; it never sets amounts, picks workers or books shifts. Sandbox: no real money moves.
+ManagerToday.dc.html
+  - "Confirm 4 h" → 4 h confirmed. The Pay Agent checks it before payout. (button then reads "Confirmed 4 h ✓")
+  - "Different hours" → Hours changed. Sent to the worker to agree before pay. (button then reads "Hours sent to worker")
+  - "Send early notice to Sipho" → Early notice sent to Sipho in FairShift and by email. (button then reads "Notice sent ✓")
+  - "Not needed" → Marked not needed. No notice sent. (button then reads "Not needed ✓")
+OwnerBilling.dc.html
+  - "Manage in PayPal" → Opening your subscription in PayPal Sandbox in a new tab.
+  - "Cancel plan" → Cancellation scheduled. Your plan stays active until Tue 8 Dec and nothing is charged. (button then reads "Cancellation scheduled")
+OwnerFill.dc.html
+  - "Approve all 6 and send offers" → Round 1 offers sent for 6 shifts. People who want more hours have 2 h to reply. (button then reads "Offers sent ✓")
+  - "Approve" → Approved. Round 1 offer sent for this shift. (button then reads "Approved ✓")
+  - "Edit" → Editing this shift: change the time, role or places, then approve. (button then reads "Editing…")
+  - "Approve" → Approved. Round 1 offer sent for this shift. (button then reads "Approved ✓")
+  - "Edit" → Editing this shift: change the time, role or places, then approve. (button then reads "Editing…")
+  - "Approve" → Approved. Round 1 offer sent for this shift. (button then reads "Approved ✓")
+  - "Edit" → Editing this shift: change the time, role or places, then approve. (button then reads "Editing…")
+  - "Approve" → Approved. Round 1 offer sent for this shift. (button then reads "Approved ✓")
+  - "Edit" → Editing this shift: change the time, role or places, then approve. (button then reads "Editing…")
+  - "Approve" → Approved. Round 1 offer sent for this shift. (button then reads "Approved ✓")
+  - "Edit" → Editing this shift: change the time, role or places, then approve. (button then reads "Editing…")
+  - "Accept signal and add" → Artscape signal accepted. This shift is added to the approval list. (button then reads "Added ✓")
+OwnerLocation.dc.html
+  - "Discard" → Unsaved changes discarded.
+  - "Save changes" → Location settings saved. (button then reads "Saved ✓")
+  - "Add and send invitation" → Invitation emailed to lwazi.m@gmail.com. Lwazi shows as Invited until they sign up. (button then reads "Invitation sent ✓")
+  - "Edit" → Edit person: change role, locations, or deactivate (stops work at every location).
+  - "Remove from Rosebank" → Removed from Rosebank. Their history and pay records are kept. (button then reads "Removed")
+  - "Edit" → Edit person: change role, locations, or deactivate (stops work at every location).
+  - "Remove from Rosebank" → Removed from Rosebank. Their history and pay records are kept. (button then reads "Removed")
+  - "Edit" → Edit person: change role, locations, or deactivate (stops work at every location).
+  - "Remove from Rosebank" → Removed from Rosebank. Their history and pay records are kept. (button then reads "Removed")
+  - "Copy to all days" → Monday’s hours copied to every day. (button then reads "Copied ✓")
+  - "New version…" → New pay version drafted from Mon 16 Nov. Shifts already accepted keep R45.00. (button then reads "Draft v2 created")
+  - "role" → New role added: choose the role and hourly rate. It is checked against the minimum wage before it can be offered.
+OwnerPay.dc.html
+  - "Release as calculated" → Released by the Owner. Payout sent to PayPal Sandbox. It shows Paid ✓ only when PayPal confirms SUCCESS. (button then reads "Released ✓")
+  - "Keep held" → Kept on hold. The worker is told the payment is being checked. (button then reads "Held")
+  - "Confirm 4 h worked" → 4 h confirmed. The Pay Agent checks it before payout. (button then reads "Confirmed ✓")
+  - "Different hours" → Hours changed. Sent to the worker to agree before pay. (button then reads "Hours sent to worker")
+  - "Review" → Tip block opened for review: compare the till record with the usual tips for this block. (button then reads "Reviewing")
+OwnerPlan.dc.html
+  - "Refresh (2 of 3 left today)" → Local signals checked again for Cape Town Gardens. (button then reads "Refreshed · 1 of 3 left")
+  - "Accept" → Accepted. The demand band is applied to this forecast and logged in AI records. (button then reads "Accepted ✓")
+  - "Dismiss" → Dismissed. The forecast is unchanged; this is logged in AI records. (button then reads "Dismissed")
+  - "We may close: plan for it" → Owner alert recorded. Early notice is queued for the affected shifts. (button then reads "Planned ✓")
+  - "Not affected" → Marked not affected. Nothing changes. (button then reads "Not affected ✓")
+  - "Undo" → Change undone. The forecast is back to the AI-free baseline. (button then reads "Undone")
+OwnerProof.dc.html
+  - "Download CSV" → fairshift-records-nov-2026.csv downloaded: every PayPal and AI call with its identifiers. (button then reads "Downloaded ✓")
+  - "Sources" → Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.
+  - "What it checked" → Checked: events feed, weather and public notices within 5 km. Nothing relevant was found, so the forecast is unchanged.
+  - "Sources" → Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.
+  - "Sources" → Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.
+  - "Sources" → Sources: the events feed and weather forecast pages this check read, each with the link and time it was fetched.
+OwnerSchedule.dc.html
+  - "←" → Showing Wed 11 Nov.
+  - "→" → Showing Fri 13 Nov.
+  - "Day" → Day view.
+  - "Week" → Week view: Mon 9 – Sun 15 Nov.
+  - "Show open slots only" → Showing open slots only. (button then reads "Show all shifts")
+  - "Assign…" → Assign: pick someone from Rosebank’s team who is free. They get a booking request to accept.
+OwnerSettings.dc.html
+  - "Save changes" → Business settings saved. (button then reads "Saved ✓")
+  - "Connect" → Square connected (sandbox). Sales and card tips per worker import nightly. (button then reads "Connected ✓")
+  - "Upload" → CSV imported and labelled "Imported". The forecast uses it from the next check. (button then reads "Uploaded ✓")
+OwnerToday.dc.html
+  - "Accept +5%" → Accepted. Cape Town Gardens gets +5% on Fri and Sat evenings; the extra Fri shift is added to Fill shifts. (button then reads "Accepted ✓")
+  - "Dismiss" → Dismissed. The forecast is unchanged; logged in AI records. (button then reads "Dismissed")
+  - "We may close" → Owner alert recorded. Booked workers on Wed and Thu get early notice; no shift is cancelled. (button then reads "Planned ✓")
+  - "Not affected" → Marked not affected. Nothing changes. (button then reads "Not affected ✓")
+SignUp.dc.html
+  - "terms" → Terms: owners and managers confirm all work and pay. The AI never sets amounts, picks workers or books shifts. Sandbox only.
+  - "privacy notice" → Privacy: FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID or bank details.
+WorkerInvite.dc.html
+  - "Ignore this invitation" → Invitation ignored. No account was created. (button then reads "Ignored")
+WorkerMessages.dc.html
+  - "Send" → Sent to Zanele. She also gets an email. (button then reads "Sent ✓")
+WorkerOffer.dc.html
+  - "Decline" → Declined. The offer goes to the next person. (button then reads "Declined")
+  - "{{cta}}" → Booked! It’s on your Shifts calendar and in your Inbox. (button then reads "Accepted ✓")
+WorkerPayment.dc.html
+  - "Send to the owner" → Query sent to the owner. The answer arrives in your Inbox. (button then reads "Sent ✓")
+WorkerProfile.dc.html
+  - "Edit" → Editing: change the field, then Save. Your manager sees changes straight away. (button then reads "Save")
+  - "Edit" → Editing: change the field, then Save. Your manager sees changes straight away. (button then reads "Save")
+  - "Change PayPal email" → We sent a confirmation link to the new PayPal email. Payouts pause until you confirm it. (button then reads "Confirmation sent ✓")
+WorkerShifts.dc.html
+  - "‹" → October 2026: 1 shift worked (Sat 31 Oct, Rosebank).
+  - "›" → December 2026: no shifts booked yet. New offers appear here.

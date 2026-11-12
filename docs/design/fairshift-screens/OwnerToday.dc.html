@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan · trial ends 8 Dec</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item on">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 12px"><span class="mark" style="width: 32px; height: 32px">LD</span><div><p style="font-size: 13px; font-weight: 600">Lindiwe Dlamini</p><p class="tiny">Owner</p></div></div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <select class="switch" aria-label="Location" onChange="{{x_loc}}"><option selected>All locations · 5</option><option>Rosebank</option><option>Sandton</option><option>Pretoria Central</option><option>Durban North</option><option>Cape Town Gardens</option></select>
+      <div style="display: flex; gap: 10px; align-items: center"><span class="small">Planning week Tue 10 – Mon 16 Nov</span><a href="OwnerLocation.dc.html" class="btn sm out">Add person</a></div>
+    </div>
+    <div class="content">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Tuesday 10 November</span><h1 class="d2">Good morning, Lindiwe</h1></div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 24px">
+        <section class="card" style="flex: 1 1 360px; padding: 24px; display: flex; flex-direction: column; gap: 4px" aria-labelledby="needs">
+          <h2 id="needs" class="eyebrow" style="margin-bottom: 10px">Needs you</h2>
+          <a href="OwnerFill.dc.html" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span><span class="h4">6 suggested shifts ready to send</span><br><span class="small">Cape Town Gardens, Durban North, Sandton</span></span><span aria-hidden="true">→</span></a>
+          <a href="OwnerPay.dc.html" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span><span class="h4">1 payment held for your decision</span> <span class="chip ai">AI</span><br><span class="small">Pay Agent: overlapping shift at another venue</span></span><span class="chip held">Held</span></a>
+          <a href="ManagerToday.dc.html" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span><span class="h4">Tell 1 worker early: Rosebank may close Wed</span><br><span class="small">Water interruption scenario · Ayanda, 10:00–14:00</span></span><span class="chip demo">Demo</span></a>
+          <a href="OwnerLocation.dc.html" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span><span class="h4">2 invitations not accepted yet</span><br><span class="small">Sent Mon 9 Nov · links expire Mon 16 Nov</span></span><span aria-hidden="true">→</span></a>
+        </section>
+
+        <section class="card" style="flex: 1.4 1 520px; padding: 24px; display: flex; flex-direction: column; gap: 14px" aria-labelledby="ai">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px"><h2 id="ai" class="eyebrow" style="display:flex;gap:8px;align-items:center"><span class="chip ai">AI</span> Local signals this week</h2><span class="tiny">Checked all 5 locations at 05:04 and 17:03 · <a href="OwnerProof.dc.html" class="link">records</a></span></div>
+          <p class="serif" style="font-size: 24px; line-height: 1.2">Three things change your week. Two need a decision.</p>
+          <table class="tbl" style="font-size: 13px">
+            <thead><tr><th>What</th><th>Where · when</th><th>Effect</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Miss South Africa finale</strong><br><span class="tiny">Source: timeslive.co.za</span></td><td>Sandton<br><span class="tiny">Sat 14 Nov, evening</span></td><td>Demand +10%<br><span class="tiny">16:00–22:00</span></td><td><span class="chip ok">Applied</span></td></tr>
+              <tr><td><strong>"Swing With The King" at Artscape</strong><br><span class="tiny">Source: artscape.co.za</span></td><td>Cape Town Gardens<br><span class="tiny">Fri 13 – Sat 14 Nov</span></td><td>Demand +5%<br><span class="tiny">17:00–21:00</span></td><td style="white-space:nowrap"><button class="btn sm" type="button" onClick="{{x_t1}}">{{l_t1}}</button> <button class="btn sm out" type="button" onClick="{{x_t2}}">{{l_t2}}</button></td></tr>
+              <tr><td><strong>Zero-pressure water testing</strong><br><span class="tiny">Source: capetown.gov.za</span></td><td>Cape Town Gardens<br><span class="tiny">Wed 11 – Thu 12 Nov</span></td><td>Can we open?<br><span class="tiny">Owner alert</span></td><td style="white-space:nowrap"><button class="btn sm" type="button" onClick="{{x_t3}}">{{l_t3}}</button> <button class="btn sm out" type="button" onClick="{{x_t4}}">{{l_t4}}</button></td></tr>
+              <tr><td><strong>CEM Africa, Johannesburg</strong><br><span class="tiny">Source page restricted (403)</span></td><td>Sandton<br><span class="tiny">Tue 10 – Wed 11 Nov</span></td><td>—</td><td><span class="chip line">Unconfirmed</span></td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 0; border-top: 1px solid #121110; border-bottom: 1px solid #DEDCD6" aria-label="This week">
+        <div style="padding: 20px 20px 20px 0; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Staff hours still needed</span><span class="money" style="font-size: 36px">207 h</span><span class="small">≈ 35 shifts of 6 h · 5 locations</span></div>
+        <div style="padding: 20px; border-left: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Forecast sales</span><span class="money" style="font-size: 36px">R598,901</span><span class="small">Next 7 days</span></div>
+        <div style="padding: 20px; border-left: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Shifts on offer</span><span class="money" style="font-size: 36px">4</span><span class="small">2 accepted · round 1 closes 11:00</span></div>
+        <div style="padding: 20px; border-left: 1px solid #DEDCD6; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Pay to confirm</span><span class="money" style="font-size: 36px">R180.00</span><span class="small">1 shift · 0 payouts failed</span></div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px" aria-labelledby="short">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="short" class="d3" style="font-size: 26px">Where you're short next week</h2><a href="OwnerPlan.dc.html" class="link">Open the plan</a></div>
+        <div class="card" style="padding: 8px 24px">
+          <div style="display: grid; grid-template-columns: 180px 1fr 80px 90px; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid #DEDCD6"><span style="font-weight: 600">Cape Town Gardens</span><div class="bar gap"><span style="width: 100%"></span></div><span class="num" style="text-align: right">79.25 h</span><a href="OwnerFill.dc.html" class="link" style="text-align: right">Fill →</a></div>
+          <div style="display: grid; grid-template-columns: 180px 1fr 80px 90px; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid #DEDCD6"><span style="font-weight: 600">Durban North</span><div class="bar gap"><span style="width: 74%"></span></div><span class="num" style="text-align: right">58.5 h</span><a href="OwnerFill.dc.html" class="link" style="text-align: right">Fill →</a></div>
+          <div style="display: grid; grid-template-columns: 180px 1fr 80px 90px; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid #DEDCD6"><span style="font-weight: 600">Sandton</span><div class="bar gap"><span style="width: 44%"></span></div><span class="num" style="text-align: right">34.75 h</span><a href="OwnerFill.dc.html" class="link" style="text-align: right">Fill →</a></div>
+          <div style="display: grid; grid-template-columns: 180px 1fr 80px 90px; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid #DEDCD6"><span style="font-weight: 600">Rosebank</span><div class="bar gap"><span style="width: 25%"></span></div><span class="num" style="text-align: right">20 h</span><a href="OwnerFill.dc.html" class="link" style="text-align: right">Fill →</a></div>
+          <div style="display: grid; grid-template-columns: 180px 1fr 80px 90px; gap: 16px; align-items: center; padding: 14px 0"><span style="font-weight: 600">Pretoria Central</span><div class="bar gap"><span style="width: 18%"></span></div><span class="num" style="text-align: right">14.5 h</span><a href="OwnerFill.dc.html" class="link" style="text-align: right">Fill →</a></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+const ACTS = {"loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}, "t1": {"t": "Accepted. Cape Town Gardens gets +5% on Fri and Sat evenings; the extra Fri shift is added to Fill shifts.", "d": "Accepted ✓", "tg": false, "l": "Accept +5%"}, "t2": {"t": "Dismissed. The forecast is unchanged; logged in AI records.", "d": "Dismissed", "tg": false, "l": "Dismiss"}, "t3": {"t": "Owner alert recorded. Booked workers on Wed and Thu get early notice; no shift is cancelled.", "d": "Planned ✓", "tg": false, "l": "We may close"}, "t4": {"t": "Marked not affected. Nothing changes.", "d": "Not affected ✓", "tg": false, "l": "Not affected"}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

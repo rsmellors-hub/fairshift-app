@@ -48,7 +48,7 @@ export default async function DemoPage({ searchParams }: { searchParams: Promise
       {status === "expired" ? <p className="form-notice" role="status">Your demo session ended. Start again whenever you like.</p> : null}
       {status === "unavailable" && open ? <p className="form-alert" role="alert">The demo couldn’t start just now. Try again in a moment.</p> : null}
       {open ? <div className="demo-entry">{ENTRIES.map(([persona, title, text]) => <form action={enterDemoAction} key={persona}><input type="hidden" name="persona" value={persona} /><button><strong>{title}</strong><small>{text}</small></button></form>)}</div>
-        : <><p className="form-notice" role="status">The demo isn’t open right now.</p><div className="cta-row"><Link className="primary-button button-link" href="/register">Start your business</Link><Link className="secondary-button button-link" href="/sign-in">Sign in</Link></div></>}
+        : <><p className="form-notice" role="status">The demo isn’t open right now.</p><div className="cta-row"><Link className="primary-button button-link" href="/register">Start free trial</Link><Link className="secondary-button button-link" href="/sign-in">Sign in</Link></div></>}
     </div></section>
     <section className="site-section"><div className="site-width">
       <h2>Follow the story</h2>

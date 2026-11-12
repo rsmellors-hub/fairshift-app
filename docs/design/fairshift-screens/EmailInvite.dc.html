@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invitation email · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0} a{color:#121110}</style>
+</helmet>
+<div style="font-family:'Geist',sans-serif;color:#121110;background:#E9E7E1;padding:28px 0;min-height:980px">
+  <div style="width:600px;margin:0 auto;display:flex;flex-direction:column;gap:12px">
+    <div class="tiny" style="display:flex;flex-direction:column;gap:2px;padding:0 4px">
+      <span><strong>From:</strong> FairShift &lt;no-reply@fairshift.app&gt;</span>
+      <span><strong>To:</strong> Lwazi Mahlangu &lt;lwazi.m@gmail.com&gt;</span>
+      <span><strong>Subject:</strong> You're invited to work shifts at Jacaranda Table</span>
+    </div>
+    <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #DEDCD6">
+      <div style="padding:22px 36px;border-bottom:1px solid #DEDCD6;display:flex;justify-content:space-between;align-items:center"><span class="brand"><span class="mark">F</span>FairShift</span><span class="tiny">Team invitation</span></div>
+      <div style="padding:32px 36px;display:flex;flex-direction:column;gap:20px">
+        <p class="eyebrow">You're invited</p>
+        <h1 class="d2" style="font-size:36px">Zanele Khumalo invited you to work shifts at Jacaranda Table</h1>
+        <p style="font-size:16px;line-height:1.55;color:#3A3936">Hi Lwazi, Jacaranda Table uses FairShift to offer shifts fairly and pay you through PayPal after each shift. Accept the invitation to set up your account.</p>
+        <div class="sunk" style="padding:16px 18px;display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:14px">
+          <span class="small">Business</span><strong>Jacaranda Table</strong>
+          <span class="small">Location</span><span>Rosebank, Johannesburg</span>
+          <span class="small">Role</span><span>Casual worker · Floor</span>
+          <span class="small">Invited by</span><span>Zanele Khumalo, Manager</span>
+        </div>
+        <a href="WorkerInvite.dc.html" class="btn lg" style="align-self:flex-start">Accept invitation and sign up</a>
+        <p class="small">This link expires on <strong>Tue 17 Nov 2026</strong> (7 days). If it expires, ask your manager to resend it.</p>
+        <div style="border-top:1px solid #DEDCD6;padding-top:18px;display:flex;flex-direction:column;gap:8px">
+          <p class="h4" style="font-size:16px">What happens next</p>
+          <p class="small">1. Confirm your email and choose a password.<br>2. Add the PayPal email you want your pay sent to.<br>3. You'll start receiving shift offers for Rosebank.</p>
+          <p class="small">We never ask for your home address, ID number or bank details.</p>
+        </div>
+      </div>
+      <div style="padding:20px 36px;background:#F4F3EF;border-top:1px solid #DEDCD6" class="tiny">You received this because Jacaranda Table added this email to their team on FairShift. Not expecting it? Ignore this email and no account is created. <button type="button" onClick="{{x_a1}}">{{l_a1}}</button>.<br>FairShift · Sandbox demo · no real money moves.</div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":980}}'>
+const ACTS = {"a1": {"t": "Reported. FairShift will review it, and no account is created.", "d": "Reported ✓", "tg": false, "l": "Report this invitation"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

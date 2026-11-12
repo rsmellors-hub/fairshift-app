@@ -896,3 +896,123 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .thread-list a[aria-current] { border-color: var(--accent, #1f5f4a); }
 .payout-detail { margin-top: 12px; }
 @media (max-width: 480px) { .offer-pick { grid-template-columns: 1fr; } .chat-thread li { max-width: 92%; } }
+
+/* Location switch in the top bar (design, 10 Nov 2026): switches on change, no extra button. */
+.workspace-switch { display: flex; align-items: center; min-width: 0; }
+.workspace-switch .location-switcher { margin: 0; }
+.workspace-switch select { min-height: 38px; max-width: 100%; }
+
+/* Fill shifts (design OwnerFill, 10 Nov 2026): Approve all leads; role and pay terms fold under it.
+   On each shift card, responses and the worker pool fold with their count in the header. */
+.suggestion-approve { margin-bottom: 12px; }
+.suggestion-approve .suggestion-terms { flex-basis: 100%; margin-top: 0; }
+.suggestion-terms > summary { padding: 6px 0; }
+.shift-card .fill-fold > summary { font-weight: 600; }
+
+/* Worker offer (design WorkerOffer, 10 Nov 2026): wage check, tips and terms fold under the guaranteed
+   pay; Decline and Accept sit in a bar fixed above the bottom navigation while the offer is in view. */
+.offer-fold { border-top: 1px solid var(--line); padding: 2px 0; }
+.offer-fold > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; min-height: 44px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.offer-fold > summary h4 { margin: 0; font-size: 14px; }
+.offer-fold-key { color: var(--muted); font-size: 13px; font-weight: 500; }
+.offer-fold[open] > summary { margin-bottom: 6px; }
+.offer-response { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 5; margin: 4px -16px -16px; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
+.offer-response .worker-shift-actions { grid-template-columns: 1fr 1fr; }
+.offer-response .worker-shift-actions button:only-child { grid-column: 1 / -1; }
+
+/* Pay (design OwnerPay): the Pay Agent's checks sit apart from the payment steps above them. */
+.pay-card .pay-agent { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pay-card .pay-agent > p:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.offer-response { gap: 4px; padding-block: 8px; box-shadow: 0 -8px 18px rgba(18, 17, 16, .06); }
+.offer-response .acceptance-check { font-size: 13px !important; line-height: 1.35; min-height: 0; align-items: center; }
+.offer-response .worker-shift-actions { gap: 6px; }
+.offer-response .worker-shift-actions button { min-height: 46px; }
+/* Pay: three steps when the sales check doesn't apply. */
+@media (min-width: 768px) { .review-stages:has(> li:nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .review-stages:has(> li:nth-child(3):last-child) > li:last-child { grid-column: 1 / -1; } }
+
+/* Worker Home (design WorkerHome, 10 Nov 2026): messages, one offers card, one pay card, the week strip. */
+.home-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.home-section-head h2 { margin: 0 0 8px; font-size: 13px; }
+.home-section-head a { font-size: 14px; }
+.home-offers { display: grid; gap: 8px; margin-top: 18px; }
+.home-offers h2 { margin: 0; font-size: 16px; }
+.home-offers p { margin: 0; }
+.home-offer-when strong, .home-offer-pay strong { display: block; }
+.home-offer-when small, .home-offer-pay small { color: var(--muted); font-size: 14px; }
+.home-offer-pay { display: flex; align-items: baseline; gap: 10px; }
+.home-offer-pay strong { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.home-offers-cta { width: 100%; min-height: 46px; justify-content: center; }
+.home-pay { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+.home-pay .money { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.home-pay small { color: var(--muted); font-size: 14px; }
+.home-pay .home-pay-status { color: var(--ink); }
+.home-next { margin-top: 8px; }
+
+/* Plan (design OwnerPlan): folded detail panels keep their own content without a second card frame. */
+.plan-fold > .panel { margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+
+/* A list of radio choices (worker pay query): each choice is one 44 px row, radio before its label. */
+.choice-list { display: grid; gap: 2px; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.choice-list legend { padding: 0 4px; font-weight: 650; }
+.choice-list label { display: flex !important; align-items: center; gap: 10px; min-height: 44px; font-weight: 500; }
+.choice-list input[type="radio"] { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--primary); }
+
+/* PayPal & AI records (design OwnerProof): the data legend, then group headings for PayPal and AI. */
+.proof-legend-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px 20px; margin: 0; }
+.proof-legend-list div { display: grid; gap: 6px; }
+.proof-legend-list dd { margin: 0; font-size: 14px; color: var(--muted); }
+.proof-group { margin: 28px 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* Onboarding venue step (design Setup): the form, with the pin and the AI first look beside it on wide screens. */
+.setup-split { display: grid; gap: 20px; }
+@media (min-width: 1100px) { .setup-split { grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); align-items: start; } .setup-aside { position: sticky; top: 16px; } }
+.setup-aside { display: grid; gap: 12px; }
+/* A day-by-day fieldset: Mon–Sun side by side on wide screens, two a row on a phone. */
+.day-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.day-grid > legend { grid-column: 1 / -1; }
+.day-grid > label { display: grid; gap: 4px; font-size: 13px; }
+@media (max-width: 767px) { .day-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* A choice with a detail line: the detail sits under the choice, not run into it. */
+.acceptance-check > span > small { display: block; font-weight: 500; color: var(--muted); }
+@media (min-width: 1100px) { .setup-split .day-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Sign-up (design SignUp): a dark panel with what setup involves beside the form on wide screens. */
+.auth-split { display: grid; gap: 20px; width: min(960px, 100%); }
+.auth-shell-split .auth-card { width: 100%; max-width: none; }
+.auth-aside { display: grid; align-content: start; gap: 18px; padding: 28px; border-radius: var(--radius); background: #121110; color: #E8E5DF; }
+.auth-aside-title { margin: 0; font-size: 22px; line-height: 1.25; color: #fff; }
+.auth-aside-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+.auth-aside-steps li { display: flex; gap: 12px; }
+.auth-aside-steps span { color: #A9A59C; font-variant-numeric: tabular-nums; }
+.auth-aside-note { margin: 0; font-size: 13px; color: #A9A59C; }
+.auth-switch-top { margin-top: 0; }
+@media (min-width: 900px) { .auth-split { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); } }
+@media (max-width: 899px) { .auth-aside { display: none; } }
+.auth-shell-split .acquisition-progress { width: min(960px, 100%); max-width: none; }
+.auth-aside { align-self: start; }
+.auth-sandbox-phone { display: none; }
+@media (max-width: 899px) { .auth-sandbox-phone { display: block; } }
+
+/* Billing (design OwnerBilling): the current plan as a dark card. */
+.plan-current { display: grid; gap: 8px; margin-bottom: 14px; padding: 24px 28px; border-radius: var(--radius); background: #121110; color: #E8E5DF; }
+.plan-current h2 { margin: 0; color: #fff; font-size: 30px; }
+.plan-current p { margin: 0; }
+.plan-current .eyebrow { color: #A9A59C; }
+.plan-current-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plan-current-state { font-size: 13px; color: #fff; padding: 3px 10px; border: 1px solid #4a4741; border-radius: 999px; }
+.plan-current-note { font-size: 13px; color: #A9A59C; }
+.plan-current .button-row { margin-top: 8px; }
+.plan-current-primary, .plan-current-secondary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.plan-current-primary { background: #fff; color: #121110; border: 1px solid #fff; }
+.plan-current-secondary { background: transparent; color: #E8E5DF; border: 1px solid #4a4741; }
+
+/* Worker Profile (design WorkerProfile): label/value facts. */
+.profile-facts { display: grid; gap: 10px; margin: 0 0 8px; }
+.profile-facts div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.profile-facts dt { color: var(--muted); }
+.profile-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+/* Month view: a status word stays whole (no "Worke d") and wraps only between words; 11 px. */
+.month-day small { overflow-wrap: normal; word-break: keep-all; font-size: 11px; letter-spacing: -0.01em; line-height: 1.25; }
+@media (max-width: 480px) { .month-day { padding: 3px 2px; } }

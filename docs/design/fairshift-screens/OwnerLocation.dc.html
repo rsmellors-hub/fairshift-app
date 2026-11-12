@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Locations · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item on">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <span class="small">Locations › {{loc}}</span>
+      <div style="display: flex; gap: 8px"><button class="btn sm out" type="button" onClick="{{x_a1}}">Discard</button><button class="btn sm" type="button" onClick="{{x_a2}}">{{l_a2}}</button></div>
+    </div>
+    <div class="content" style="flex-direction: row; flex-wrap: wrap; align-items: flex-start">
+      <aside style="flex: 0 1 220px; display: flex; flex-direction: column; gap: 4px" aria-label="Locations">
+        <p class="eyebrow" style="margin-bottom: 8px">Locations · 5 of 5</p>
+        <button type="button" class="btn sm" style="{{ls0}}" onClick="{{lp0}}" aria-pressed="{{la0}}">Rosebank</button>
+        <button type="button" class="btn sm" style="{{ls1}}" onClick="{{lp1}}" aria-pressed="{{la1}}">Sandton</button>
+        <button type="button" class="btn sm" style="{{ls2}}" onClick="{{lp2}}" aria-pressed="{{la2}}">Pretoria Central</button>
+        <button type="button" class="btn sm" style="{{ls3}}" onClick="{{lp3}}" aria-pressed="{{la3}}">Durban North</button>
+        <button type="button" class="btn sm" style="{{ls4}}" onClick="{{lp4}}" aria-pressed="{{la4}}">Cape Town Gardens</button>
+        <a href="Setup.dc.html" class="btn sm out" style="margin-top: 8px">+ Add location</a>
+        <p class="tiny" style="margin-top: 6px">Group plan: up to 5. Deactivate one to add another.</p>
+      </aside>
+      <div style="flex: 1 1 640px; display: flex; flex-direction: column; gap: 24px; min-width: 0">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Location</span><h1 class="d2">{{loc}}</h1></div>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Venue details · Cradock Avenue, Rosebank</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px">
+            <div class="field"><label for="l-name">Name</label><input id="l-name" class="input" value="Jacaranda Table · {{loc}}"></div>
+            <div class="field"><label for="l-addr">Address</label><input id="l-addr" class="input" value="Cradock Avenue, Rosebank, Johannesburg"><span class="hint">Pin confirmed · −26.146, 28.041 · <a href="Setup.dc.html" class="link">Move pin</a></span></div>
+            <div style="grid-column:1/-1"><fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font:600 13px/1.2 'Geist',sans-serif;margin-bottom:8px">Who are your customers? <span class="small">Pick all that apply</span></legend>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:8px"><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Office workers</strong><br><span class="tiny">AI checks: public holidays, office closures, strikes on transport routes</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Students</strong><br><span class="tiny">AI checks: term and exam dates, campus events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Tourists</strong><br><span class="tiny">AI checks: festivals, cruise days, major events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Theatre and event-goers</strong><br><span class="tiny">AI checks: shows and events at nearby venues</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Sports fans</strong><br><span class="tiny">AI checks: match days at nearby grounds</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Families</strong><br><span class="tiny">AI checks: school holidays, family events</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox" checked><span><strong>Shoppers</strong><br><span class="tiny">AI checks: paydays, mall trading hours, sales</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Commuters</strong><br><span class="tiny">AI checks: transport disruptions, road closures</span></span></label><label class="check" style="align-items:flex-start;padding:10px 12px;border:1px solid #DEDCD6;border-radius:10px;background:#fff"><input type="checkbox"><span><strong>Night-out crowd</strong><br><span class="tiny">AI checks: late events, concerts, long weekends</span></span></label></div>
+          <span class="hint">Each choice decides exactly which local signals the AI looks for at this location, so results are consistent and explainable. Nothing fits? <a href="#l-other" class="link">Add a short note</a> (optional; it can only narrow the search).</span>
+          <input id="l-other" class="input" placeholder="Optional note, e.g. near the Baxter Theatre" aria-label="Optional customer note" style="margin-top:6px">
+        </fieldset></div>
+            <div class="field"><label for="l-tz">Time zone · currency</label><input id="l-tz" class="input" value="Africa/Johannesburg · ZAR (from country)" disabled></div>
+          </div>
+        </div></details>
+
+
+        <details class="card" open style="padding: 20px 24px"><summary style="cursor: pointer; list-style: none"><span class="h4">Team at {{loc}} · {{teamN}}</span> <span class="tiny">· Hide / show</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+            <div><p class="tiny">Everyone who can be offered or manage shifts here.</p></div>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <select class="input" style="padding: 7px 10px" aria-label="Filter team"><option>Everyone · 3</option><option>Managers · 1</option><option>Casual · 2</option><option>Permanent · 0</option><option>Invited</option><option>Deactivated</option></select>
+              <button class="btn sm" type="button" onClick="{{toggle}}" aria-expanded="{{adding}}">{{addLabel}}</button>
+            </div>
+          </div>
+          <sc-if value="{{adding}}" hint-placeholder-val="{{ false }}">
+          <div class="sunk" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+            <h3 class="h4" style="font-size: 16px">Add a team member to {{loc}}</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px">
+              <div class="field"><label for="p-name">Full name</label><input id="p-name" class="input" value="Lwazi Mahlangu"></div>
+              <div class="field"><label for="p-email">Email</label><input id="p-email" class="input" type="email" value="lwazi.m@gmail.com"></div>
+              <div class="field"><label for="p-phone">Mobile <span class="small">(optional)</span></label><input id="p-phone" class="input" value="082 555 0142"></div>
+              <div class="field"><label for="p-role">Role</label><select id="p-role" class="input"><option>Casual worker</option><option>Manager</option><option>Permanent staff (tips only)</option></select></div>
+            </div>
+            <details><summary class="small" style="cursor: pointer; font-weight: 600">Also works at other locations (optional)</summary>
+              <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px">
+                <label class="check"><input type="checkbox"><span>Sandton</span></label><label class="check"><input type="checkbox"><span>Pretoria Central</span></label><label class="check"><input type="checkbox"><span>Durban North</span></label><label class="check"><input type="checkbox"><span>Cape Town Gardens</span></label>
+              </div>
+            </details>
+            <p class="tiny">We'll email an official FairShift invitation. They become active once they confirm their email and finish signing up. No home address is needed. <a href="EmailInvite.dc.html" class="link">Preview the invitation email</a></p>
+            <div style="display: flex; gap: 8px"><button class="btn" type="button" onClick="{{x_a3}}">{{l_a3}}</button><button class="btn out" type="button" onClick="{{toggle}}">Cancel</button></div>
+          </div>
+          </sc-if>
+          <div class="scroll">
+            <table class="tbl">
+              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th class="r">Hours · 12 wk avg</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><strong>Zanele Khumalo</strong><br><span class="tiny">zanele@jacarandatable.co.za</span></td><td>Manager</td><td><span class="chip ok">Active</span></td><td class="r small">—</td><td style="text-align: right; white-space: nowrap"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a4}}">Edit</button> · <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a5}}">{{l_a5}}</button></td></tr>
+                <tr><td><strong>Ayanda Mthembu</strong><br><span class="tiny">Wants more hours · also Sandton</span></td><td>Casual · Floor</td><td><span class="chip ok">Active</span></td><td class="r num">21.5 h / wk <span class="chip held" title="Above your 20 h alert">Alert</span></td><td style="text-align: right; white-space: nowrap"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a6}}">Edit</button> · <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a7}}">{{l_a7}}</button></td></tr>
+                <tr><td><strong>Thabo Molefe</strong><br><span class="tiny">Also Pretoria Central</span></td><td>Casual · Floor</td><td><span class="chip ok">Active</span></td><td class="r num">14 h / wk</td><td style="text-align: right; white-space: nowrap"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a8}}">Edit</button> · <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a9}}">{{l_a9}}</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tiny">Removing someone from Rosebank keeps their history and pay records. Deactivate (under Edit) stops someone working at every location; invited and deactivated people show in the filter.</p>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Trading hours</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          <div style="display: flex; justify-content: space-between"><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a10}}">{{l_a10}}</button></div>
+          <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; font-size: 13px">
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Mon</strong><span class="num">07:00–17:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Tue</strong><span class="num">07:00–17:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Wed</strong><span class="num">07:00–17:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Thu</strong><span class="num">07:00–21:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Fri</strong><span class="num">07:00–21:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Sat</strong><span class="num">08:00–21:00</span></div>
+            <div class="sunk" style="padding: 10px; display: flex; flex-direction: column; gap: 4px"><strong>Sun</strong><span class="num">08:00–15:00</span></div>
+          </div>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Staffing and offers</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 16px">
+            <div class="field"><label for="s-cap">Bills one person serves an hour</label><input id="s-cap" class="input num" value="14"></div>
+            <div class="field"><label for="s-min">Minimum on the floor</label><input id="s-min" class="input num" value="2"></div>
+            <div class="field"><label for="s-len">Shift length (min · usual · max)</label><input id="s-len" class="input num" value="4 h · 6 h · 8 h"></div>
+            <div class="field"><label for="s-cx">Cancellation pay</label><input id="s-cx" class="input" value="50% if cancelled under 24 h before start"><span class="hint">Printed on every offer.</span></div>
+            <div class="field"><label for="s-r1">First offer round</label><input id="s-r1" class="input" value="2 h, or until 12 h before start"><span class="hint">Goes to people who want more hours first.</span></div>
+          </div>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Pay terms for casual shifts · 2 roles from R45.00 an hour</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          <div style="display: flex; justify-content: space-between; gap: 12px"><button class="btn sm out" type="button" onClick="{{x_a11}}">{{l_a11}}</button></div>
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid #DEDCD6; border-radius: 12px">
+            <div><p style="font-weight: 600">Floor · R45.00 an hour</p><p class="tiny">In force since 8 Nov 2026 · hourly only</p></div>
+            <span class="chip ok">✓ Above National Minimum Wage, R30.23 from 1 Mar 2026</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid #DEDCD6; border-radius: 12px">
+            <div><p style="font-weight: 600">Kitchen · R48.00 an hour</p><p class="tiny">In force since 8 Nov 2026 · hourly only</p></div>
+            <span class="chip ok">✓ Above National Minimum Wage, R30.23 from 1 Mar 2026</span>
+          </div>
+          <button type="button" class="btn sm out" style="align-self: flex-start" onClick="{{x_role}}">+ Add role</button>
+          <p class="tiny">Changing a rate creates a new version from the date you choose. Shifts already accepted keep the terms the worker saw. Source for the floor: South African Government, notice of 3 Feb 2026.</p>
+        </div></details>
+
+        <details class="card" style="padding: 20px 24px"><summary style="cursor: pointer; display: flex; justify-content: space-between"><span class="h4">Card tips · shared by everyone on the shift</span><span class="tiny">Show ▾</span></summary><div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px">
+          
+          <label class="check"><input type="radio" name="tip" checked><span><strong>Shared by everyone on the shift.</strong> <span class="small">Each block (Morning 07–12, Afternoon 12–17, Evening 17–21) is split equally between the people working it.</span></span></label>
+          <label class="check"><input type="radio" name="tip"><span><strong>Tips go to the person who earned them.</strong> <span class="small">Each tip follows the staff member on its till record.</span></span></label>
+          <p class="tiny">Set before a period's tips are imported. Shown to staff on every statement.</p>
+        </div></details>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+const ACTS = {"a1": {"t": "Unsaved changes discarded.", "d": null, "tg": false, "l": "Discard"}, "a2": {"t": "Location settings saved.", "d": "Saved ✓", "tg": false, "l": "Save changes"}, "a3": {"t": "Invitation emailed to lwazi.m@gmail.com. Lwazi shows as Invited until they sign up.", "d": "Invitation sent ✓", "tg": false, "l": "Add and send invitation"}, "a4": {"t": "Edit person: change role, locations, or deactivate (stops work at every location).", "d": null, "tg": false, "l": "Edit"}, "a5": {"t": "Removed from Rosebank. Their history and pay records are kept.", "d": "Removed", "tg": false, "l": "Remove from Rosebank"}, "a6": {"t": "Edit person: change role, locations, or deactivate (stops work at every location).", "d": null, "tg": false, "l": "Edit"}, "a7": {"t": "Removed from Rosebank. Their history and pay records are kept.", "d": "Removed", "tg": false, "l": "Remove from Rosebank"}, "a8": {"t": "Edit person: change role, locations, or deactivate (stops work at every location).", "d": null, "tg": false, "l": "Edit"}, "a9": {"t": "Removed from Rosebank. Their history and pay records are kept.", "d": "Removed", "tg": false, "l": "Remove from Rosebank"}, "a10": {"t": "Monday’s hours copied to every day.", "d": "Copied ✓", "tg": false, "l": "Copy to all days"}, "a11": {"t": "New pay version drafted from Mon 16 Nov. Shifts already accepted keep R45.00.", "d": "Draft v2 created", "tg": false, "l": "New version…"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}, "role": {"t": "New role added: choose the role and hourly rate. It is checked against the minimum wage before it can be offered.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  constructor(props) { super(props); this.state = { adding: false }; }
+  _rv0() {
+    const st = this.state || {}; const adding = !!st.adding;
+    const L = ['Rosebank','Sandton','Pretoria Central','Durban North','Cape Town Gardens']; const N = [3, 4, 2, 2, 3];
+    const i = st.loc || 0; const v = { adding, addLabel: adding ? 'Close' : '+ Add team member', toggle: () => this.setState(Object.assign({}, this.state, { adding: !adding })), loc: L[i], teamN: N[i] };
+    L.forEach((l, k) => { v['ls' + k] = 'justify-content:flex-start;' + (k === i ? '' : 'background:transparent;color:#121110;border-color:transparent');
+      v['la' + k] = k === i; v['lp' + k] = () => this.setState(Object.assign({}, this.state, { loc: k, adding: false })); });
+    return v;
+  }
+}
+</script>
+</body>
+</html>

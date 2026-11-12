@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schedule · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item on">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <select class="switch" aria-label="Location" onChange="{{x_loc}}"><option>All locations · 5</option><option selected>Rosebank</option><option>Sandton</option><option>Pretoria Central</option><option>Durban North</option><option>Cape Town Gardens</option></select>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+        <button class="btn sm out" aria-label="Previous day" type="button" onClick="{{x_a1}}">←</button><span style="font-weight: 600; font-size: 14px">Thu 12 Nov</span><button class="btn sm out" aria-label="Next day" type="button" onClick="{{x_a2}}">→</button>
+        <span style="width: 12px"></span><button class="btn sm" type="button" onClick="{{x_a3}}">Day</button><button class="btn sm out" type="button" onClick="{{x_a4}}">Week</button>
+      </div>
+    </div>
+    <div class="content" style="max-width: none">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Schedule · Rosebank</span><h1 class="d2">Still open: 11 h across 2 slots</h1></div>
+        <div style="display: flex; gap: 8px"><button class="btn out" type="button" onClick="{{x_a5}}">{{l_a5}}</button><button class="btn" type="button" onClick="{{x_a6}}">Assign…</button></div>
+      </div>
+      <section class="card" style="padding: 0; overflow: hidden" aria-label="Day timeline">
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #DEDCD6">
+          <div style="padding: 12px 18px" class="eyebrow">Person</div>
+          <div style="display: grid; grid-template-columns: repeat(14, minmax(0, 1fr))" class="mono">
+            <span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">07</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">08</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">09</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">10</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">11</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">12</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">13</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">14</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">15</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">16</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">17</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">18</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">19</span><span style="padding: 12px 6px; color: #65635E; border-left: 1px solid #ECEAE4">20</span>
+          </div>
+        </div>
+        <div style="padding: 8px 18px; background: #ECEAE4" class="eyebrow">Permanent staff</div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #ECEAE4; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px">Zanele Khumalo</p><p class="tiny">Manager</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 0%; width: 57.1%; background: #121110; color: #fff; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 600">07:00–15:00</div></div></div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #ECEAE4; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px">Kabelo Mokoena</p><p class="tiny">Kitchen</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 7.1%; width: 57.1%; background: #121110; color: #fff; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 600">08:00–16:00</div></div></div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #ECEAE4; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px">Lerato Nkosi</p><p class="tiny">Floor</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 35.7%; width: 57.1%; background: #121110; color: #fff; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 600">12:00–20:00</div></div></div>
+        <div style="padding: 8px 18px; background: #ECEAE4" class="eyebrow">Casual shifts</div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #ECEAE4; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px">Ayanda Mthembu</p><p class="tiny">Floor · R45.00/h</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 21.4%; width: 42.9%; background: #fff; border: 1.5px solid #121110; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600">10:00–16:00 <span class="chip ok">Accepted</span></div></div></div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #ECEAE4; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px; color: #7A4E00">Open place</p><p class="tiny">On offer · round 1 until 11:00</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 21.4%; width: 42.9%; background: repeating-linear-gradient(135deg, #F5EAD3 0 8px, #F5EAD3 8px 16px); border: 1.5px dashed #B87A10; color: #7A4E00; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 600">10:00–16:00 · 6 h</div></div></div>
+        <div style="display: grid; grid-template-columns: 220px 1fr; min-height: 56px"><div style="padding: 10px 18px"><p style="font-weight: 600; font-size: 14px; color: #7A4E00">Gap, not offered yet</p><p class="tiny">From the forecast</p></div><div style="position: relative"><div style="position: absolute; top: 12px; height: 32px; left: 64.3%; width: 35.7%; background: repeating-linear-gradient(135deg, #F5EAD3 0 8px, #F5EAD3 8px 16px); border: 1.5px dashed #B87A10; color: #7A4E00; border-radius: 999px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600">16:00–21:00 · 5 h <a href="OwnerFill.dc.html" class="link" style="color: #7A4E00">Offer</a></div></div></div>
+      </section>
+      <p class="tiny">Drag a shift to move it, or select it and use Assign… to move or assign from a list. Moves never change the pay terms a worker accepted.</p>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+const ACTS = {"a1": {"t": "Showing Wed 11 Nov.", "d": null, "tg": false, "l": "←"}, "a2": {"t": "Showing Fri 13 Nov.", "d": null, "tg": false, "l": "→"}, "a3": {"t": "Day view.", "d": null, "tg": false, "l": "Day"}, "a4": {"t": "Week view: Mon 9 – Sun 15 Nov.", "d": null, "tg": false, "l": "Week"}, "a5": {"t": "Showing open slots only.", "d": "Show all shifts", "tg": true, "l": "Show open slots only"}, "a6": {"t": "Assign: pick someone from Rosebank’s team who is free. They get a booking request to accept.", "d": null, "tg": false, "l": "Assign…"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

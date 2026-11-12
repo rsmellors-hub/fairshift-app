@@ -1,0 +1,146 @@
+/* FairShift design components ("Signboard editorial", design 10 Nov 2026).
+   Ported from docs/design/fairshift-screens/fairshift.css with its values unchanged, alongside design-v2.css.
+   Every rule is scoped to .fs, so it applies only inside markup built from the shared components in
+   src/app/components/fs-*.tsx and never restyles an existing page by class-name collision
+   (the app already uses .card, .chip, .brand, .link and others for different markup).
+   Differences from the design file, by the spec: nothing is set below 11 px (the AI and DEMO chips were 10 px),
+   the phone column is fluid up to 430 px rather than a fixed 390 px, and phone buttons are 44 px tall. */
+.fs{
+  --paper:#F4F3EF; --surface:#FFFFFF; --sunk:#ECEAE4;
+  --ink:#121110; --ink2:#3A3936; --muted:#65635E; --faint:#8C8A84;
+  --line:#DEDCD6; --line2:#C9C6BF;
+  --night:#121110; --night2:#1C1A18; --nightline:#2E2B28; --nightmuted:#A9A59E;
+  --ok:#1F5E43; --ok-soft:#E3EEE7;
+  --held:#7A4E00; --held-soft:#F5EAD3; --held-mark:#B87A10;
+  --info:#24496E; --info-soft:#E4ECF3;
+  --bad:#9C2318; --bad-soft:#F6E3E0;
+  --serif:var(--font-newsreader), "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans:var(--font-geist), "Geist", "Inter", -apple-system, "Segoe UI", sans-serif;
+  --mono:var(--font-geist-mono), "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased
+}
+.fs *, .fs *::before, .fs *::after{box-sizing:border-box}
+.fs h1,.fs h2,.fs h3,.fs h4,.fs p{margin:0}
+.fs .serif{font-family:var(--serif);font-weight:400;letter-spacing:-0.015em}
+.fs .d1{font-family:var(--serif);font-weight:400;font-size:64px;line-height:1.02;letter-spacing:-0.025em}
+.fs .d2{font-family:var(--serif);font-weight:400;font-size:40px;line-height:1.08;letter-spacing:-0.02em}
+.fs .d3{font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.12;letter-spacing:-0.015em}
+.fs .h4{font-family:var(--sans);font-weight:600;font-size:16px;line-height:1.35;letter-spacing:-0.005em}
+.fs .eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fs .small{font-size:13px;line-height:1.45;color:var(--muted)}
+.fs .tiny{font-size:12px;line-height:1.4;color:var(--muted)}
+.fs .ghost{color:var(--faint)}
+.fs .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.fs .money{font-family:var(--sans);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.fs .mono{font-family:var(--mono);font-size:12px}
+.fs a{color:var(--ink)} .fs a:hover{color:var(--ink2)}
+.fs :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* buttons */
+.fs .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 18px;border-radius:999px;font:600 14px/1 var(--sans);text-decoration:none;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer;white-space:nowrap}
+.fs .btn:hover{background:#2a2826;color:#fff}
+.fs .btn.out{background:transparent;color:var(--ink);border-color:var(--line2)}
+.fs .btn.out:hover{border-color:var(--ink);color:var(--ink)}
+.fs .btn.inv{background:#fff;color:var(--ink);border-color:#fff}
+.fs .btn.inv-out{background:transparent;color:#fff;border-color:#55504a}
+.fs .btn.sm{min-height:32px;padding:0 13px;font-size:13px}
+.fs .btn.lg{min-height:48px;padding:0 24px;font-size:15px}
+.fs .btn.wide{width:100%}
+.fs .btn:disabled,.fs .btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.fs .link{font:600 13px/1.2 var(--sans);color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line2);background:none;border:0;padding:0;cursor:pointer}
+
+/* surfaces */
+.fs .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.fs .rule{border-top:1px solid var(--line)}
+.fs .rule-ink{border-top:1px solid var(--ink)}
+.fs .sunk{background:var(--sunk);border-radius:12px}
+
+/* chips */
+.fs .chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font:600 11.5px/1 var(--sans);white-space:nowrap;border:1px solid transparent}
+.fs .chip.paid{background:var(--ok);color:#fff}
+.fs .chip.ok{background:var(--ok-soft);color:var(--ok)}
+.fs .chip.held{background:var(--held-soft);color:var(--held)}
+.fs .chip.info{background:var(--info-soft);color:var(--info)}
+.fs .chip.bad{background:var(--bad-soft);color:var(--bad)}
+.fs .chip.line{background:var(--surface);color:var(--ink2);border-color:var(--line2)}
+.fs .chip.dark{background:var(--ink);color:#fff}
+.fs .chip.ai{background:transparent;color:var(--ink);border-color:var(--ink);font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+.fs .chip.demo{background:transparent;color:var(--held);border:1px dashed var(--held-mark);font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+
+/* app shell */
+.fs.shell,.fs .shell{display:flex;flex-wrap:wrap;min-height:100vh;background:var(--paper)}
+.fs .nav{flex:0 0 248px;background:var(--paper);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:22px}
+.fs .brand{display:flex;align-items:center;gap:10px;font:600 17px/1 var(--sans);letter-spacing:-0.01em;color:var(--ink);text-decoration:none}
+.fs .mark{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font:500 13px/1 var(--serif)}
+.fs .nav-group{display:flex;flex-direction:column;gap:2px}
+.fs .nav a.item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;padding:0 12px;border-radius:9px;font:500 14px/1 var(--sans);color:var(--ink2);text-decoration:none}
+.fs .nav a.item:hover{background:var(--sunk);color:var(--ink)}
+.fs .nav a.item.on{background:var(--ink);color:#fff}
+.fs .count{font:600 11px/1 var(--sans);background:var(--held-soft);color:var(--held);border-radius:999px;padding:4px 7px}
+.fs .nav a.item.on .count{background:#fff;color:var(--ink)}
+.fs .main{flex:999 1 640px;min-width:0;display:flex;flex-direction:column}
+.fs .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 36px;border-bottom:1px solid var(--line);background:var(--paper)}
+.fs .switch{display:inline-flex;align-items:center;gap:10px;min-height:38px;padding:0 14px;border:1px solid var(--line2);border-radius:999px;background:var(--surface);font:500 14px/1 var(--sans);color:var(--ink)}
+.fs .content{padding:32px 36px 64px;display:flex;flex-direction:column;gap:32px;max-width:1240px;width:100%}
+.fs .pagehead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.fs.sandbox,.fs .sandbox{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:9px 36px;background:var(--night);color:#E8E5DF;font:500 12.5px/1.3 var(--sans)}
+.fs.sandbox .mono,.fs .sandbox .mono{color:var(--nightmuted)}
+
+/* tables */
+.fs .tbl{width:100%;border-collapse:collapse;font-size:14px}
+.fs .tbl th{text-align:left;font:500 11px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 14px 10px;border-bottom:1px solid var(--line)}
+.fs .tbl td{padding:14px;border-bottom:1px solid var(--line);vertical-align:top}
+.fs .tbl tr:last-child td{border-bottom:0}
+.fs .tbl .r{text-align:right}
+.fs .scroll{overflow-x:auto}
+
+/* forms */
+.fs .field{display:flex;flex-direction:column;gap:6px}
+.fs .field label{font:600 13px/1.2 var(--sans);color:var(--ink)}
+.fs .field .hint{font-size:12.5px;color:var(--muted)}
+.fs .input{min-height:44px;width:100%;padding:0 14px;border:1px solid var(--line2);border-radius:10px;background:var(--surface);font:400 15px/1.2 var(--sans);color:var(--ink)}
+.fs .input:focus{outline:2px solid var(--ink);outline-offset:1px}
+.fs select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px}
+.fs .check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.fs .check input{width:18px;height:18px;margin-top:2px;accent-color:var(--ink)}
+
+/* bars */
+.fs .bar{height:8px;border-radius:999px;background:var(--sunk);overflow:hidden}
+.fs .bar > span{display:block;height:100%;background:var(--ink);border-radius:999px}
+.fs .bar.gap > span{background:var(--held-mark)}
+
+/* phone */
+.fs.phone,.fs .phone{width:min(430px,100%);margin:0 auto;min-height:100dvh;background:var(--paper);display:flex;flex-direction:column;font-family:var(--sans)}
+.fs .ptop{padding:22px 20px 8px;display:flex;justify-content:space-between;align-items:center}
+.fs .pbody{flex:1;padding:8px 20px 24px;display:flex;flex-direction:column;gap:16px}
+.fs .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--line);background:var(--surface)}
+.fs .tabs a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:60px;font:500 11px/1 var(--sans);color:var(--muted);text-decoration:none}
+.fs .tabs a.on{color:var(--ink);font-weight:700}
+.fs .tabs svg{width:20px;height:20px}
+.fs .phone .btn,.fs.phone .btn{min-height:44px}
+
+/* ---------- App additions (not in the design file) ---------- */
+/* Collapsible section: closed by default, key value in the header. */
+.fs .fold{border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fs .fold > summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;padding:12px 20px;cursor:pointer;list-style:none;font:600 15px/1.3 var(--sans);color:var(--ink)}
+.fs .fold > summary::-webkit-details-marker{display:none}
+.fs .fold > summary::after{content:"";flex:0 0 8px;width:8px;height:8px;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+.fs .fold[open] > summary::after{transform:rotate(-135deg) translate(-2px,-2px)}
+.fs .fold > summary .fold-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fs .fold > summary .fold-key{margin-left:auto;font:600 14px/1.2 var(--sans);font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right}
+.fs .fold > .fold-body{padding:4px 20px 20px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--line)}
+.fs .fold > .fold-body:first-of-type{padding-top:16px}
+.fs .fold.plain{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}
+.fs .fold.plain > summary{padding:12px 0}
+.fs .fold.plain > .fold-body{padding:12px 0 16px;border-top:0}
+/* Toast: a polite live region at the bottom of the viewport. */
+.fs-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:14px;max-width:min(560px,calc(100vw - 32px));padding:12px 14px 12px 18px;border-radius:12px;background:#121110;color:#fff;font:500 14px/1.4 var(--font-geist),"Geist",-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.fs-toast button{flex:0 0 auto;min-width:44px;min-height:44px;margin:-10px -6px -10px 0;border:0;border-radius:999px;background:transparent;color:#fff;font:600 13px/1 inherit;cursor:pointer}
+.fs-toast button:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+@media (max-width:720px){
+  .fs .top,.fs.sandbox,.fs .sandbox{padding-left:16px;padding-right:16px}
+  .fs .content{padding:24px 16px 48px}
+  .fs .d1{font-size:44px}
+  .fs .d2{font-size:32px}
+  .fs .nav{flex-basis:100%;border-right:0;border-bottom:1px solid var(--line)}
+}

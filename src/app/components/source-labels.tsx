@@ -30,6 +30,9 @@ export function OwnerEnteredLabel({ url }: { url: string }) {
   return <span className="source-line"><DataLabel kind="demo">Owner-entered</DataLabel>, source: <SourceLink url={url} /></span>;
 }
 
+// A DEMO scenario's stored name already says "DEMO scenario: … (synthetic)"; DemoScenarioLabel says it once.
+export function demoScenarioTitle(name: string) { const plain = name.replace(/^DEMO scenario:\s*/i, "").replace(/\s*\(synthetic\)\s*$/i, ""); return plain.charAt(0).toUpperCase() + plain.slice(1); }
+
 // A scenario FairShift made for the demonstration: synthetic, with no source page, and never found by AI.
 export function DemoScenarioLabel() {
   return <span className="source-line"><DataLabel kind="demo">DEMO scenario</DataLabel> Synthetic, made for the demonstration: not a real event, and not found by AI.</span>;

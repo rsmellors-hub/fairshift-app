@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item on">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <select class="switch" aria-label="Location" onChange="{{x_loc}}"><option>All locations · 5</option><option>Rosebank</option><option>Sandton</option><option>Pretoria Central</option><option>Durban North</option><option selected>Cape Town Gardens</option></select>
+      <div style="display: flex; gap: 8px" role="tablist" aria-label="Plan views">
+        <a href="OwnerPlan.dc.html" class="btn sm" role="tab" aria-selected="true">Forecast</a>
+        <a href="OwnerSettings.dc.html" class="btn sm out" role="tab" aria-selected="false">Sales history</a>
+      </div>
+    </div>
+    <div class="content">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Plan · Tue 10 – Mon 16 Nov</span><h1 class="d2">Cape Town Gardens needs 79.25 more staff hours</h1></div>
+        <a href="OwnerFill.dc.html" class="btn lg">See 3 suggested shifts</a>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+        <div style="flex: 1.6 1 560px; display: flex; flex-direction: column; gap: 24px; min-width: 0">
+          <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 18px" aria-labelledby="chart">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px"><h2 id="chart" class="h4">Staff hours by day</h2>
+              <div style="display: flex; gap: 16px; font-size: 13px; color: #3A3936"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; background: #121110; border-radius: 2px"></span>Already covered</span><span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; background: #B87A10; border-radius: 2px"></span>Still needed</span><span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 2px; border-top: 2px dashed #121110"></span>AI signal</span></div>
+            </div>
+            <div role="img" aria-label="Still needed: Tue 8.75 h, Wed 8.75 h, Thu 8 h, Fri 9 h, Sat 17.75 h, Sun 17.75 h, Mon 9.25 h" style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 14px; align-items: end; height: 260px; border-bottom: 1px solid #121110; padding-bottom: 0">
+              <div style="display: flex; flex-direction: column; align-items: stretch; gap: 0"><span class="tiny num" style="text-align: center; margin-bottom: 4px">8.75</span><div style="height: 46px; background: #B87A10; border-radius: 4px 4px 0 0"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">8.75</span><div style="height: 46px; background: #B87A10; border-radius: 4px 4px 0 0"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">8</span><div style="height: 42px; background: #B87A10; border-radius: 4px 4px 0 0"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">9</span><div style="height: 48px; background: #B87A10; border-radius: 4px 4px 0 0; outline: 2px dashed #121110; outline-offset: 3px"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">17.75</span><div style="height: 94px; background: #B87A10; border-radius: 4px 4px 0 0; outline: 2px dashed #121110; outline-offset: 3px"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">17.75</span><div style="height: 94px; background: #B87A10; border-radius: 4px 4px 0 0"></div><div style="height: 120px; background: #121110"></div></div>
+              <div style="display: flex; flex-direction: column"><span class="tiny num" style="text-align: center; margin-bottom: 4px">9.25</span><div style="height: 49px; background: #B87A10; border-radius: 4px 4px 0 0"></div><div style="height: 120px; background: #121110"></div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 14px; font-size: 13px; text-align: center; color: #3A3936"><span>Tue 10</span><span>Wed 11</span><span>Thu 12</span><span>Fri 13</span><span>Sat 14</span><span>Sun 15</span><span>Mon 16</span></div>
+          </section>
+
+          <section class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 10px" aria-labelledby="why">
+            <div style="display: flex; justify-content: space-between; gap: 12px"><h2 id="why" class="eyebrow">Why · AI briefing</h2><span class="tiny">Updated 09:14 · figures from FairShift's forecast</span></div>
+            <p class="serif" style="font-size: 22px; line-height: 1.3">Saturday and Sunday carry almost half the gap: 35.5 of 79.25 hours, mostly 12:00–17:00. Fill those first. If you accept the Artscape show, Friday and Saturday evenings need about one more person each.</p>
+          </section>
+
+          <section class="card scroll" style="padding: 8px 10px" aria-label="Day by day">
+            <table class="tbl">
+              <thead><tr><th>Day</th><th class="r">Forecast sales</th><th class="r">Transactions</th><th class="r">Still needed</th><th>Driver</th></tr></thead>
+              <tbody>
+                <tr><td>Tue 10</td><td class="r num">R21,180</td><td class="r num">203</td><td class="r num">8.75 h</td><td class="small">Weekday lunch</td></tr>
+                <tr><td>Wed 11</td><td class="r num">R21,335</td><td class="r num">204</td><td class="r num">8.75 h</td><td class="small">Water testing: decide</td></tr>
+                <tr><td>Thu 12</td><td class="r num">R20,409</td><td class="r num">198</td><td class="r num">8 h</td><td class="small">Water testing: decide</td></tr>
+                <tr><td>Fri 13</td><td class="r num">R21,147</td><td class="r num">202</td><td class="r num">9 h</td><td class="small">Artscape show: decide</td></tr>
+                <tr><td>Sat 14</td><td class="r num">R28,256</td><td class="r num">273</td><td class="r num">17.75 h</td><td class="small">Busiest day · 14:00 peak</td></tr>
+                <tr><td>Sun 15</td><td class="r num">R28,263</td><td class="r num">273</td><td class="r num">17.75 h</td><td class="small">Weekend families</td></tr>
+                <tr><td>Mon 16</td><td class="r num">R21,611</td><td class="r num">204</td><td class="r num">9.25 h</td><td class="small">Weekday lunch</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <aside style="flex: 1 1 340px; display: flex; flex-direction: column; gap: 14px" aria-labelledby="signals">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="signals" class="h4">Local signals</h2><button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a1}}">{{l_a1}}</button></div>
+          <article class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span class="chip ai">Demand</span><span class="tiny">Found 05:04</span></div>
+            <p class="h4">"Swing With The King" at Artscape</p>
+            <p class="small">Fri 13 – Sat 14 Nov, evening shows, 2.4 km away. Theatre-goers match your weekend customers.</p>
+            <div class="sunk" style="padding: 10px 12px; font-size: 13px">If accepted: demand +5% on Fri and Sat, 17:00–21:00</div>
+            <a href="https://www.artscape.co.za/" target="_blank" rel="noopener" class="tiny" style="color: #3A3936">Source: artscape.co.za ↗</a>
+            <div style="display: flex; gap: 8px"><button class="btn sm" type="button" onClick="{{x_a2}}">{{l_a2}}</button><button class="btn sm out" type="button" onClick="{{x_a3}}">{{l_a3}}</button></div>
+          </article>
+          <article class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span class="chip ai">Can we open?</span><span class="tiny">Found 17:03</span></div>
+            <p class="h4">Planned zero-pressure water testing</p>
+            <p class="small">Wed 11 – Thu 12 Nov. Water may be off during testing in parts of Gardens.</p>
+            <a href="https://www.capetown.gov.za/" target="_blank" rel="noopener" class="tiny" style="color: #3A3936">Source: capetown.gov.za ↗ · official notice</a>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="btn sm" type="button" onClick="{{x_a4}}">{{l_a4}}</button><button class="btn sm out" type="button" onClick="{{x_a5}}">{{l_a5}}</button></div>
+          </article>
+          <article class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span class="chip ai">Can people get there?</span><span class="chip ok">Accepted</span></div>
+            <p class="h4">Roadworks in Gardens</p>
+            <p class="small">Until Sun 15 Nov. Staff arriving late flagged on morning shifts.</p>
+            <p class="tiny">Accepted by Lindiwe Dlamini, Tue 10 Nov 09:20 · <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a6}}">{{l_a6}}</button></p>
+          </article>
+          <p class="tiny">Signals only change staffing when you or a manager accept them. Unconfirmed sources are shown but never used.</p>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+const ACTS = {"a1": {"t": "Local signals checked again for Cape Town Gardens.", "d": "Refreshed · 1 of 3 left", "tg": false, "l": "Refresh (2 of 3 left today)"}, "a2": {"t": "Accepted. The demand band is applied to this forecast and logged in AI records.", "d": "Accepted ✓", "tg": false, "l": "Accept"}, "a3": {"t": "Dismissed. The forecast is unchanged; this is logged in AI records.", "d": "Dismissed", "tg": false, "l": "Dismiss"}, "a4": {"t": "Owner alert recorded. Early notice is queued for the affected shifts.", "d": "Planned ✓", "tg": false, "l": "We may close: plan for it"}, "a5": {"t": "Marked not affected. Nothing changes.", "d": "Not affected ✓", "tg": false, "l": "Not affected"}, "a6": {"t": "Change undone. The forecast is back to the AI-free baseline.", "d": "Undone", "tg": false, "l": "Undo"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

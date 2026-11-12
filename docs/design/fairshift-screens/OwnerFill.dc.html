@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fill shifts · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item on">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <select class="switch" aria-label="Location" onChange="{{x_loc}}"><option selected>All locations · 5</option><option>Rosebank</option><option>Sandton</option><option>Pretoria Central</option><option>Durban North</option><option>Cape Town Gardens</option></select>
+      <a href="OwnerSchedule.dc.html" class="btn sm out">Create a shift yourself</a>
+    </div>
+    <div class="content">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Fill shifts · week of 10 Nov</span><h1 class="d2">6 shifts ready to send</h1><p class="small" style="max-width: 620px">Cut from each venue's gap using its shift rules (4–8 h, about 6 h) and its pay terms. The AI orders them by need and says why. Nothing is sent until you approve.</p></div>
+        <button class="btn lg" type="button" onClick="{{x_a1}}">{{l_a1}}</button>
+      </div>
+
+      <section class="card" style="padding: 6px 24px" aria-label="Suggested shifts">
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 12px 0; border-bottom: 1px solid #DEDCD6" class="eyebrow"><span>#</span><span>Shift</span><span>Terms</span><span style="display:flex;gap:6px;align-items:center">Why first <span class="chip ai">AI</span></span><span></span></div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; border-bottom: 1px solid #DEDCD6; align-items: start">
+          <span class="serif" style="font-size: 26px">1</span>
+          <div><p class="h4">Cape Town Gardens · Floor</p><p class="small">Sat 14 Nov · 11:00–17:00 · 2 people</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936">Busiest day of the week; the gap peaks 12:00–17:00.</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_a2}}">{{l_a2}}</button><button class="btn sm out" type="button" onClick="{{x_a3}}">{{l_a3}}</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; border-bottom: 1px solid #DEDCD6; align-items: start">
+          <span class="serif" style="font-size: 26px">2</span>
+          <div><p class="h4">Cape Town Gardens · Floor</p><p class="small">Sun 15 Nov · 11:00–17:00 · 2 people</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936">Weekend families; same peak as Saturday.</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_a4}}">{{l_a4}}</button><button class="btn sm out" type="button" onClick="{{x_a5}}">{{l_a5}}</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; border-bottom: 1px solid #DEDCD6; align-items: start">
+          <span class="serif" style="font-size: 26px">3</span>
+          <div><p class="h4">Durban North · Floor</p><p class="small">Sun 15 Nov · 11:00–17:00 · 2 people</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936">Largest single-day gap at this venue: 15 h.</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_a6}}">{{l_a6}}</button><button class="btn sm out" type="button" onClick="{{x_a7}}">{{l_a7}}</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; border-bottom: 1px solid #DEDCD6; align-items: start">
+          <span class="serif" style="font-size: 26px">4</span>
+          <div><p class="h4">Sandton · Floor</p><p class="small">Sat 14 Nov · 16:00–22:00 · 1 person</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936">Miss South Africa finale nearby (applied, +10%). <a href="https://www.timeslive.co.za/" target="_blank" rel="noopener" class="link">timeslive.co.za</a></p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_a8}}">{{l_a8}}</button><button class="btn sm out" type="button" onClick="{{x_a9}}">{{l_a9}}</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; border-bottom: 1px solid #DEDCD6; align-items: start">
+          <span class="serif" style="font-size: 26px">5</span>
+          <div><p class="h4">Durban North · Floor</p><p class="small">Sat 14 Nov · 11:00–17:00 · 2 people</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936">Second-largest gap this week at Durban North.</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_a10}}">{{l_a10}}</button><button class="btn sm out" type="button" onClick="{{x_a11}}">{{l_a11}}</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) 190px; gap: 18px; padding: 18px 0; align-items: start">
+          <span class="serif" style="font-size: 26px; color: #8C8A84">6</span>
+          <div><p class="h4">Cape Town Gardens · Floor</p><p class="small">Fri 13 Nov · 16:00–22:00 · 1 person</p></div>
+          <div><p class="num" style="font-weight: 600">R45.00 / h · R270.00</p><p class="tiny" style="color: #1F5E43">✓ Above National Minimum Wage (R30.23)</p></div>
+          <p class="small" style="color: #3A3936"><span class="chip held">Depends on you</span> Only needed if you accept the Artscape show signal (+5%, Fri and Sat evenings).</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn sm out" type="button" onClick="{{x_f1}}">{{l_f1}}</button></div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 14px" aria-labelledby="onoffer">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="onoffer" class="d3" style="font-size: 26px">On offer now</h2><span class="small">Offer rules: round 1 for people who want more hours, 2 h or until 12 h before start. Then everyone eligible.</span></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px">
+          <article class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between"><p class="h4">Rosebank · Thu 12 Nov · 10:00–16:00</p><span class="chip info">Round 1</span></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between" class="small"><span>1 of 2 places filled</span><span>closes 11:00</span></div><div class="bar"><span style="width: 50%"></span></div></div>
+            <p class="small">Offered to 3 who want more hours: Ayanda (accepted), Sipho, Naledi. Fewest hours left to the 20 h/week alert first.</p>
+          </article>
+          <article class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between"><p class="h4">Pretoria Central · Wed 11 Nov · 11:00–17:00</p><span class="chip line">Round 2 · open</span></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between" class="small"><span>1 of 1 place filled</span><span>filled 08:42</span></div><div class="bar"><span style="width: 100%"></span></div></div>
+            <p class="small">Thabo accepted in round 2. Remaining offers closed automatically.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1460}}'>
+const ACTS = {"a1": {"t": "Round 1 offers sent for 6 shifts. People who want more hours have 2 h to reply.", "d": "Offers sent ✓", "tg": false, "l": "Approve all 6 and send offers"}, "a2": {"t": "Approved. Round 1 offer sent for this shift.", "d": "Approved ✓", "tg": false, "l": "Approve"}, "a3": {"t": "Editing this shift: change the time, role or places, then approve.", "d": "Editing…", "tg": false, "l": "Edit"}, "a4": {"t": "Approved. Round 1 offer sent for this shift.", "d": "Approved ✓", "tg": false, "l": "Approve"}, "a5": {"t": "Editing this shift: change the time, role or places, then approve.", "d": "Editing…", "tg": false, "l": "Edit"}, "a6": {"t": "Approved. Round 1 offer sent for this shift.", "d": "Approved ✓", "tg": false, "l": "Approve"}, "a7": {"t": "Editing this shift: change the time, role or places, then approve.", "d": "Editing…", "tg": false, "l": "Edit"}, "a8": {"t": "Approved. Round 1 offer sent for this shift.", "d": "Approved ✓", "tg": false, "l": "Approve"}, "a9": {"t": "Editing this shift: change the time, role or places, then approve.", "d": "Editing…", "tg": false, "l": "Edit"}, "a10": {"t": "Approved. Round 1 offer sent for this shift.", "d": "Approved ✓", "tg": false, "l": "Approve"}, "a11": {"t": "Editing this shift: change the time, role or places, then approve.", "d": "Editing…", "tg": false, "l": "Edit"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}, "f1": {"t": "Artscape signal accepted. This shift is added to the approval list.", "d": "Added ✓", "tg": false, "l": "Accept signal and add"}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

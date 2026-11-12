@@ -1,41 +1,45 @@
 import Link from "next/link";
-import { FairShiftBrand } from "@/app/components/product-shell";
+import type { ReactNode } from "react";
+import { FsBrand } from "@/app/components/fs-shell";
+import "./public-site.css";
 
-// The public site: one header and footer for everything a visitor sees before signing in.
-export function PublicShell({ children }: { children: React.ReactNode }) {
+// The public site: one header and footer for everything a visitor sees before signing in (design
+// Main.dc.html, 10 Nov 2026). With a hero, the header sits on the dark hero as on the landing page.
+// Product, FAQ and the demo are not in the design's header; they stay reachable from the footer.
+export function PublicShell({ hero, children }: { hero?: ReactNode; children: ReactNode }) {
+  const header = <header className="fs pub-header"><div className="pub-width pub-header-row">
+    <FsBrand inverse={Boolean(hero)} />
+    <nav aria-label="Main" className="pub-nav">
+      <Link href="/#how">How it works</Link>
+      <Link href="/#who">Who it’s for</Link>
+      <Link href="/#fair">Fair by design</Link>
+      <Link href="/#pricing">Pricing</Link>
+    </nav>
+    <div className="pub-actions">
+      <Link className={hero ? "btn sm inv-out" : "btn sm out"} href="/sign-in">Sign in</Link>
+      <Link className={hero ? "btn sm inv" : "btn sm"} href="/register">Start free trial</Link>
+    </div>
+  </div></header>;
   return <div className="public-site">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <header className="site-header"><div className="site-width site-header-row">
-      <FairShiftBrand />
-      <nav aria-label="Main" className="site-nav">
-        <Link href="/product">Product</Link>
-        <Link href="/pricing">Pricing</Link>
-        <Link href="/faq">FAQ</Link>
-        <Link href="/sign-in">Sign in</Link>
-        <Link className="primary-button button-link" href="/register">Start your business</Link>
-      </nav>
-    </div></header>
+    {hero ? <div className="pub-dark">{header}{hero}</div> : header}
     <main id="main-content" tabIndex={-1}>{children}</main>
-    <footer className="site-footer"><div className="site-width site-footer-row">
-      <div><FairShiftBrand /><p>AI-assisted demand intelligence, staffing and transparent worker pay.</p></div>
-      <nav aria-label="Footer"><Link href="/product">Product</Link><Link href="/pricing">Pricing</Link><Link href="/faq">FAQ</Link><Link href="/demo">Try the demo</Link><Link href="/sign-in">Sign in</Link></nav>
-      <p className="site-footer-note">This environment uses PayPal Sandbox and Square Sandbox, so no real money moves. FairShift does not run payroll or handle tax.</p>
+    <footer className="fs pub-footer"><div className="pub-width pub-footer-row">
+      <div className="pub-footer-brand">
+        <FsBrand inverse />
+        <p className="tiny">FairShift is not a payroll service. Shift earnings and tips are paid to the worker’s PayPal wallet once the shift is confirmed.</p>
+        <p className="tiny">This environment uses PayPal Sandbox, so no real money moves. FairShift does not run payroll or handle tax.</p>
+      </div>
+      <nav aria-label="Footer" className="pub-footer-nav">
+        <Link href="/#how">How it works</Link>
+        <Link href="/pricing">Pricing</Link>
+        <Link href="/product">Product</Link>
+        <Link href="/faq">FAQ</Link>
+        <Link href="/demo">Try the demo</Link>
+        <Link href="/sign-in">Sign in</Link>
+        <details className="pub-note"><summary>Privacy</summary><p>FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID number or bank details.</p></details>
+        <details className="pub-note"><summary>Terms</summary><p>Owners and managers confirm all work and pay. The AI suggests and checks; it never sets amounts, picks workers or books shifts. Sandbox: no real money moves.</p></details>
+      </nav>
     </div></footer>
   </div>;
-}
-
-// A worked example, labelled as one wherever it appears: one casual shift at R45.00 an hour, the demo
-// casual pay term the Owner approved on 8 November 2026 (FS-HACK-SA-AMENDMENT-001, section 5), confirmed
-// by a manager (DEC-SA-011) and paid in US dollars at the latest ECB rate, locked at reservation (DEC-SA-012).
-export function WorkedExample() {
-  return <aside className="worked-example" aria-label="Worked example of one shift">
-    <p className="eyebrow">Worked example · one casual shift, 10:00–16:00</p>
-    <dl className="pay-sum">
-      <div><dt>Preauthorised terms the worker accepted</dt><dd>R45.00 an hour</dd></div>
-      <div><dt>Hours the manager confirmed</dt><dd>6</dd></div>
-      <div className="pay-sum-total"><dt>Earnings, in rand</dt><dd>R270.00</dd></div>
-    </dl>
-    <ol className="pay-steps" aria-label="What happens to that amount"><li>Confirmed</li><li>Checked</li><li>Sent to PayPal</li><li>Paid</li></ol>
-    <p className="note">The FairShift Pay Agent checks the work and FairShift’s server sends the amount through PayPal Sandbox, in US dollars at the latest European Central Bank reference rate, locked when the payout is reserved. Paid shows only once PayPal confirms it. The worker saw these terms before accepting.</p>
-  </aside>;
 }

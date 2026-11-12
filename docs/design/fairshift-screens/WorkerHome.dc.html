@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div class="phone" style="height: 1000px">
+  <div class="ptop"><span class="brand"><span class="mark">F</span>FairShift</span><span class="tiny">Tue 10 Nov</span></div>
+  <main class="pbody">
+    <h1 class="d3">Hi, Ayanda</h1>
+
+    <section style="display: flex; flex-direction: column; gap: 10px" aria-labelledby="latest">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="latest" class="eyebrow">Messages · 2 new</h2><a href="WorkerMessages.dc.html" class="link">Open inbox</a></div>
+
+      <a href="WorkerOffer.dc.html" class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: #121110; border-color: #121110">
+        <div style="display: flex; justify-content: space-between; align-items: center"><span class="chip info">3 open offers</span><span class="tiny">First reply by 11:00</span></div>
+        <div><p class="h4" style="font-size: 18px">Sat 14 Nov · 16:00–22:00</p><p class="small">Sandton · Floor · 6 hours</p></div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="money" style="font-size: 28px">R270.00</span><span class="small">R45.00 an hour</span></div>
+        <span class="small">+ Sun 15 Rosebank · Wed 18 Sandton</span>
+        <span class="btn wide">See all offers</span>
+      </a>
+
+      <div class="card" style="padding: 2px 16px">
+        <a href="WorkerPayment.dc.html" style="display: flex; gap: 10px; padding: 13px 0; border-bottom: 1px solid #DEDCD6; text-decoration: none; color: #121110"><span style="width: 8px; height: 8px; border-radius: 50%; background: #121110; margin-top: 7px; flex: none" aria-label="Unread"></span><span style="flex: 1"><strong>Mon 9 Nov pay sent to PayPal</strong><br><span class="small">R242.40 · shift R180.00 + tips R62.40</span></span><span class="tiny">Mon</span></a>
+        <a href="WorkerMessages.dc.html" style="display: flex; gap: 10px; padding: 13px 0; text-decoration: none; color: #121110"><span style="width: 8px; flex: none"></span><span style="flex: 1"><strong>You're booked: Thu 12 Nov</strong><br><span class="small">Rosebank · 10:00–16:00 · R270.00</span></span><span class="tiny">Mon</span></a>
+      </div>
+    </section>
+
+    <a href="WorkerEarnings.dc.html" class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px; text-decoration: none; color: #121110">
+      <div style="display: flex; justify-content: space-between"><span class="eyebrow">Your pay this week</span><span aria-hidden="true">→</span></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <div><p class="money" style="font-size: 20px">R176.60</p><p class="tiny">Paid</p></div>
+        <div><p class="money" style="font-size: 20px">R242.40</p><p class="tiny">On the way</p></div>
+        <div><p class="money" style="font-size: 20px">R180.00</p><p class="tiny">Being confirmed</p></div>
+      </div>
+    </a>
+
+    <section class="card" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px" aria-labelledby="wk">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="wk" class="eyebrow">My shifts this week</h2><a href="WorkerShifts.dc.html" class="link">Calendar</a></div>
+      <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center">
+        <div style="padding: 6px 0; border-radius: 10px; background: #121110; color: #fff"><p class="tiny" style="color: #A9A59E">Tue</p><p style="font-weight: 700">10</p><p style="font-size: 11px">10–14</p></div>
+        <div style="padding: 6px 0"><p class="tiny">Wed</p><p style="font-weight: 600">11</p></div>
+        <div style="padding: 6px 0; border-radius: 10px; border: 1.5px solid #121110"><p class="tiny">Thu</p><p style="font-weight: 700">12</p><p style="font-size: 11px">10–16</p></div>
+        <div style="padding: 6px 0"><p class="tiny">Fri</p><p style="font-weight: 600">13</p></div>
+        <div style="padding: 6px 0; border-radius: 10px; border: 1.5px dashed #B87A10"><p class="tiny">Sat</p><p style="font-weight: 700">14</p><p style="font-size: 11px; color: #7A4E00">offer</p></div>
+        <div style="padding: 6px 0"><p class="tiny">Sun</p><p style="font-weight: 600">15</p></div>
+        <div style="padding: 6px 0"><p class="tiny">Mon</p><p style="font-weight: 600">16</p></div>
+      </div>
+      <p class="small">Next: <strong>Thu 12 Nov, 10:00–16:00</strong> · Rosebank · R270.00</p>
+    </section>
+  </main>
+  <nav class="tabs" aria-label="Main">
+    <a href="WorkerHome.dc.html" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Home</a>
+    <a href="WorkerShifts.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Shifts</a>
+    <a href="WorkerMessages.dc.html"><span style="position:relative;display:inline-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span aria-label="2 unread" style="position:absolute;top:-3px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:#121110;color:#fff;font:600 10px/16px Geist,sans-serif;text-align:center;padding:0 4px">2</span></span>Inbox</a>
+    <a href="WorkerEarnings.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/></svg>Pay</a>
+    <a href="WorkerProfile.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

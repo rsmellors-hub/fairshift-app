@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Manager today · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Rosebank</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Manager">
+    <a href="ManagerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="ManagerToday.dc.html" class="item on">Today</a>
+      <a href="OwnerPlan.dc.html" class="item"><span><span class="mono" style="opacity: .6">1</span>  Plan</span></a>
+      <a href="OwnerFill.dc.html" class="item"><span><span class="mono" style="opacity: .6">2</span>  Fill shifts</span><span class="count">2</span></a>
+      <a href="OwnerSchedule.dc.html" class="item"><span><span class="mono" style="opacity: .6">3</span>  Schedule</span></a>
+      <a href="OwnerPay.dc.html" class="item"><span><span class="mono" style="opacity: .6">4</span>  Confirm work</span><span class="count">1</span></a>
+    </div>
+    <div class="rule" style="padding-top: 16px"><a href="OwnerLocation.dc.html" class="item">Rosebank team</a></div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 12px"><span class="mark" style="width: 32px; height: 32px; font-size: 11px">ZK</span><div><p style="font-size: 13px; font-weight: 600">Zanele Khumalo</p><p class="tiny">Manager · Rosebank</p></div></div>
+  </nav>
+  <div class="main">
+    <div class="top"><span class="switch">Rosebank</span><span class="small">Tuesday 10 November</span></div>
+    <div class="content">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Rosebank · today</span><h1 class="d2">Two things to do, Zanele</h1></div>
+        <a href="OwnerLocation.dc.html" class="btn out">+ Add a worker</a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr)); gap: 24px; align-items: start">
+        <article class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <span class="eyebrow">1 · Confirm work</span>
+          <p class="h4" style="font-size: 18px">Ayanda Mthembu worked 10:00–14:00</p>
+          <p class="small">Booked 4 h on Floor terms, R45.00 an hour. Confirm the hours actually worked; FairShift works out the pay and the Pay Agent checks it before PayPal.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px" class="sunk"><span>4 h × R45.00</span><span class="money" style="font-size: 22px">R180.00</span></div>
+          <div style="display: flex; gap: 8px"><button class="btn" type="button" onClick="{{x_a1}}">{{l_a1}}</button><button class="btn out" type="button" onClick="{{x_a2}}">{{l_a2}}</button></div>
+        </article>
+
+        <article class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px; border-color: #EBD9B3">
+          <div style="display: flex; justify-content: space-between; align-items: center"><span class="eyebrow">2 · Tell someone early</span><span class="chip demo">Demo scenario</span></div>
+          <p class="h4" style="font-size: 18px">Rosebank may not open tomorrow</p>
+          <p class="small">An all-day water interruption is set for Wed 11 Nov. It's a made-up scenario so you can see how FairShift handles a closure; no AI found it.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px" class="sunk"><span><strong>Sipho Ndlovu</strong> · Wed 11 Nov · 10:00–14:00</span><span class="chip ok">Booked</span></div>
+          <p class="tiny">Sending the notice now gives Sipho a day's warning. It cancels nothing and changes no pay; you or the owner decide the shift later.</p>
+          <div style="display: flex; gap: 8px"><button class="btn" type="button" onClick="{{x_a3}}">{{l_a3}}</button><button class="btn out" type="button" onClick="{{x_a4}}">{{l_a4}}</button></div>
+        </article>
+      </div>
+
+      <section style="display: flex; flex-direction: column; gap: 14px" aria-labelledby="week">
+        <h2 id="week" class="d3" style="font-size: 26px">This week at Rosebank</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); border-top: 1px solid #121110; border-bottom: 1px solid #DEDCD6">
+          <div style="padding: 18px 18px 18px 0"><p class="eyebrow">Staff hours still needed</p><p class="money" style="font-size: 32px">20 h</p><p class="small">2 suggested shifts ready</p></div>
+          <div style="padding: 18px; border-left: 1px solid #DEDCD6"><p class="eyebrow">On offer</p><p class="money" style="font-size: 32px">1 of 2</p><p class="small">Thu 12 Nov · round 1 until 11:00</p></div>
+          <div style="padding: 18px; border-left: 1px solid #DEDCD6"><p class="eyebrow"><span style="display:inline-flex;gap:6px;align-items:center"><span class="chip ai">AI</span> Local signal</span></p><p class="h4" style="margin-top: 6px">Rosebank Sunday Market</p><p class="small">Sun 15 Nov · demand +5% · accepted by Lindiwe</p></div>
+        </div>
+        <div style="display: flex; gap: 8px"><a href="OwnerPlan.dc.html" class="btn out">See the plan</a><a href="OwnerFill.dc.html" class="btn">Send 2 suggested shifts</a></div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+const ACTS = {"a1": {"t": "4 h confirmed. The Pay Agent checks it before payout.", "d": "Confirmed 4 h ✓", "tg": false, "l": "Confirm 4 h"}, "a2": {"t": "Hours changed. Sent to the worker to agree before pay.", "d": "Hours sent to worker", "tg": false, "l": "Different hours"}, "a3": {"t": "Early notice sent to Sipho in FairShift and by email.", "d": "Notice sent ✓", "tg": false, "l": "Send early notice to Sipho"}, "a4": {"t": "Marked not needed. No notice sent.", "d": "Not needed ✓", "tg": false, "l": "Not needed"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

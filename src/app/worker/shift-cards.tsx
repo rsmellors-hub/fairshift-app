@@ -6,6 +6,7 @@ import { availabilityForShift, shiftWeekdays } from "@/server/scheduling/worker-
 import { checkWage, termsForWageCheck, UK_MINIMUM_WAGE_SOURCE, type WageJurisdiction } from "@/server/domain/statutory-wage";
 import { SaWageIndicatorLine, saIndicatorFor } from "@/app/components/wage-check";
 import { cancellationTerms } from "@/server/scheduling/shift-labels";
+import { SA_WAGE_STATUS_LABEL } from "@/server/domain/sa-wage-reference";
 
 type Row = { shift: { cancellationPercent?: number | null; cancellationWindowMinutes?: number | null; id: string; roleName: string; shiftDate: string; startsAt: Date; endsAt: Date; status: string; termsVersion: number; earningsModel: string; rateMinor: number | null; commissionBps: number | null; expectedEarningsMinor: number | null; guaranteedBasePayMinor: number; currencyCode: string; incentiveAmountMinor: number; incentiveTargetMinor: number; incentiveBasis: string | null };
   offer: { id: string; status: string; acceptedAt: Date | null }; allocation: { state: string; confirmedAt: Date | null } | null; departmentName: string | null;
@@ -31,15 +32,16 @@ export function shiftWhen(startsAt: Date, endsAt: Date, timeZone: string) {
   return { date: day.format(startsAt), time: sameDay ? `${time.format(startsAt)} to ${time.format(endsAt)}` : `${time.format(startsAt)} to ${time.format(endsAt)} on ${day.format(endsAt)}` };
 }
 
-// The statutory minimum wage line a worker sees: only what FairShift can actually say.
-function WageNote({ shift, wage }: { shift: Row["shift"]; wage: WageJurisdiction }) {
+// The statutory minimum wage line a worker sees: only what FairShift can actually say. The label is
+// the same result in a few words, for the folded header.
+function wageNote(shift: Row["shift"], wage: WageJurisdiction): { label: string; line: React.ReactNode } | null {
   const terms = termsForWageCheck({ ...shift, rateMinor: shift.rateMinor ?? (shift.earningsModel === "DAILY" ? shift.guaranteedBasePayMinor : null) }, shift);
   if (!terms || terms.earningsModel === "COMMISSION") return null;
   const sa = saIndicatorFor(wage, shift.shiftDate, shift.currencyCode, terms);
-  if (sa) return <SaWageIndicatorLine indicator={sa} />;
+  if (sa) return { label: SA_WAGE_STATUS_LABEL[sa.status], line: <SaWageIndicatorLine indicator={sa} /> };
   const check = checkWage({ jurisdiction: wage, date: shift.shiftDate, currencyCode: shift.currencyCode, terms });
   const source = <a href={UK_MINIMUM_WAGE_SOURCE.url} target="_blank" rel="noreferrer">GOV.UK minimum wage rates</a>;
-  if (check.status === "RATE_CHECKED") return <p className="note wage-note">This pay is at or above the 21-and-over National Living Wage for this date ({source}).</p>;
+  if (check.status === "RATE_CHECKED") return { label: "At or above the National Living Wage", line: <p className="note wage-note">This pay is at or above the 21-and-over National Living Wage for this date ({source}).</p> };
   return null;
 }
 
@@ -62,18 +64,25 @@ function Earn({ shift, detailed = false, wage }: { shift: Row["shift"]; detailed
     </dl>
   </> : null;
   if (!detailed) return <>{guaranteed}{bonus}</>;
+  // Design (WorkerOffer, 10 Nov 2026): the guaranteed pay leads; the wage check, tips and terms fold
+  // below it. The commission-era sales bonus (F13) shows only when these terms carry one, folded with
+  // its "up to" figure in the header, so terms a worker accepts are never hidden.
+  const variable = shift.incentiveBasis || shift.incentiveAmountMinor > 0;
+  const wageLine = wage ? wageNote(shift, wage) : null;
   return <div className="pay-breakdown">
     <section className="pay-block pay-block-guaranteed" aria-label="Guaranteed base pay"><h4>Guaranteed base pay</h4>{guaranteed}</section>
-    <section className="pay-block pay-block-variable" aria-label="Potential variable earnings"><h4>Potential variable earnings <span>Not guaranteed</span></h4>
-      {bonus ? <>{bonus}<p className="worker-shift-bonus">You earn the {amount(shift.incentiveAmountMinor)} bonus if your own sales for this shift reach {amount(shift.incentiveTargetMinor)}.</p></> : (shift.incentiveAmountMinor > 0 ? <p>A {amount(shift.incentiveAmountMinor)} incentive if the team meets its target.</p> : null)}
-      <p className="pay-line"><strong>Tips</strong> Not part of this shift’s terms. Any tips follow the location’s tip policy and are shown under Earnings; none are promised here.</p>
-    </section>
-    <section className="pay-block pay-block-final" aria-label="Final earnings"><h4>Final earnings</h4>
-      <p>Set after the shift: a manager or the Owner confirms the work, and FairShift works out your pay from these terms and checks it. It’s paid to your PayPal account in US dollars, converted from rand at the European Central Bank rate locked when the payment is reserved.</p>
-    </section>
-    <p className="pay-line"><strong>Cancellation pay</strong> {cancellationTerms({ cancellationPercent: shift.cancellationPercent ?? null, cancellationWindowMinutes: shift.cancellationWindowMinutes ?? null }) ?? "No cancellation-pay rule was set when this shift was made."}</p>
-    <p className="note">Holiday pay isn’t calculated in FairShift and isn’t included in these amounts; ask your manager how it’s handled. FairShift doesn’t handle tax.</p>
-    {wage ? <WageNote shift={shift} wage={wage} /> : null}
+    {variable ? <details className="pay-block pay-block-variable offer-fold"><summary><h4>Potential variable earnings <span>Not guaranteed</span></h4>{bonus && base !== null ? <span className="offer-fold-key">Up to {amount(base + shift.incentiveAmountMinor)}</span> : null}</summary>
+      {bonus ? <>{bonus}<p className="worker-shift-bonus">You earn the {amount(shift.incentiveAmountMinor)} bonus if your own sales for this shift reach {amount(shift.incentiveTargetMinor)}.</p></> : <p>A {amount(shift.incentiveAmountMinor)} incentive if the team meets its target.</p>}
+    </details> : null}
+    {wageLine ? <details className="offer-fold"><summary>Wage check <span className="offer-fold-key">{wageLine.label}</span></summary>{wageLine.line}</details> : null}
+    <details className="offer-fold"><summary>Tips · not guaranteed</summary><p className="pay-line"><strong>Tips</strong> Not part of this shift’s terms. Any tips follow the location’s tip policy and are shown under Earnings; none are promised here.</p></details>
+    <details className="offer-fold"><summary>Terms</summary>
+      <section className="pay-block pay-block-final" aria-label="Final earnings"><h4>Final earnings</h4>
+        <p>Set after the shift: a manager or the Owner confirms the work, and FairShift works out your pay from these terms and checks it. It’s paid to your PayPal account in US dollars, converted from rand at the European Central Bank rate locked when the payment is reserved.</p>
+      </section>
+      <p className="pay-line"><strong>Cancellation pay</strong> {cancellationTerms({ cancellationPercent: shift.cancellationPercent ?? null, cancellationWindowMinutes: shift.cancellationWindowMinutes ?? null }) ?? "No cancellation-pay rule was set when this shift was made."}</p>
+      <p className="note">Holiday pay isn’t calculated in FairShift and isn’t included in these amounts; ask your manager how it’s handled. FairShift doesn’t handle tax.</p>
+    </details>
   </div>;
 }
 

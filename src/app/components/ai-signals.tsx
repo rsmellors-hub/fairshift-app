@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataLabel, StatusBadge } from "@/app/components/product-ui";
-import { AiFoundLabel, DemoScenarioLabel, SourceLink, stamp } from "@/app/components/source-labels";
+import { AiFoundLabel, DemoScenarioLabel, demoScenarioTitle, SourceLink, stamp } from "@/app/components/source-labels";
 import { longDate } from "@/app/components/staffing";
 import { acceptSignalAction, decideSignalAction } from "@/app/local-intelligence-actions";
 import type { LocalDay, LocalSignalView, OutletLocalIntelligence, RunView } from "@/server/intelligence/local-intelligence-service";
@@ -67,13 +67,15 @@ export function AiSignalCard({ local, signal, timeZone, act, next, locationName,
   const { state, days } = signalState(local, signal);
   const others = [...new Set(changes.flatMap(row => row.blocks.flatMap(block => block.applied)).filter(key => key !== signal.key))].map(key => local.signals.find(row => row.key === key)?.name ?? key);
   const pending = days.filter(day => day.state !== "ACCEPTED" && day.adjusted.length);
+  const badge = useBadge(local, signal, timeZone);
   return <li className="context-signal ai-signal-card">
-    <p><strong>{locationName ? `${locationName}: ` : ""}{signal.name}</strong> {useBadge(local, signal, timeZone)}</p>
+    {/* A DEMO scenario says so once (DemoScenarioLabel); its name, badge, reasoning and note don't repeat it. */}
+    <p><strong>{locationName ? `${locationName}: ` : ""}{signal.demo ? demoScenarioTitle(signal.name) : signal.name}</strong> {signal.demo ? null : badge}</p>
     <p className="note"><DataLabel kind={signal.demo ? "demo" : "predictive"}>{TYPE_LABEL[signal.effectType] ?? signal.effectType}</DataLabel> {effectLine(signal)} · {dateSpan(signal.validFrom, signal.validTo)}{timeSpan(signal)}</p>
     <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
-    <p>{firstSentence(signal.reasoning)}</p>
+    {signal.demo ? null : <p>{firstSentence(signal.reasoning)}</p>}
     {changes.length ? <p className="note">{state === "ACCEPTED" ? "Changes staffing on" : "Would change"} {changeText(changes)}{others.length ? `. Those hours also carry ${others.join(", ")}, so accepting uses them too.` : "."}</p> : null}
-    {signal.serverNote ? <p className="note">{signal.serverNote}</p> : null}
+    {signal.serverNote && !signal.demo ? <p className="note">{signal.serverNote}</p> : null}
     {act && !signal.demo && signal.effectType === "DEMAND" && signal.status !== "UNCONFIRMED" ? <div className="button-row">
       {signal.use === "APPLIED" && pending.length ? <form action={acceptSignalAction}><input type="hidden" name="next" value={next} /><input type="hidden" name="seen" value={pending.map(day => `${day.date}:${day.fingerprint}`).join(",")} /><button className="primary-button">Accept</button></form> : null}
       {signal.use === "DISMISSED"
@@ -98,10 +100,11 @@ export function searchTimes(runs: readonly (RunView & { timeZone: string })[]) {
 const RANK: Record<LocalSignalView["use"], number> = { APPLIED: 0, ALERT: 1, ATTENDANCE_RISK: 2, LISTED: 3, NOTED: 4, DISMISSED: 5, UNCONFIRMED: 6 };
 
 // The Owner's "AI this week": every location's findings for the planning week, read from storage.
-export function AiThisWeek({ outlets, act = false }: { outlets: readonly OutletStaffing[]; act?: boolean }) {
+// hideDemo: the page already shows the DEMO scenario once, as a disruption alert, so it isn't repeated here.
+export function AiThisWeek({ outlets, act = false, hideDemo = false }: { outlets: readonly OutletStaffing[]; act?: boolean; hideDemo?: boolean }) {
   const rows = outlets.flatMap(outlet => (outlet.localIntelligence?.signals ?? []).map(signal => ({ outlet, signal })));
   const kept = rows.filter(row => !row.signal.demo && row.signal.use !== "UNCONFIRMED").sort((a, b) => RANK[a.signal.use] - RANK[b.signal.use] || a.signal.validFrom.localeCompare(b.signal.validFrom));
-  const demo = rows.filter(row => row.signal.demo);
+  const demo = hideDemo ? [] : rows.filter(row => row.signal.demo);
   const unconfirmed = rows.filter(row => row.signal.use === "UNCONFIRMED");
   const rejected = outlets.flatMap(outlet => (outlet.localIntelligence?.runs ?? []).flatMap(run => run.rejected.map(item => ({ outlet, item }))));
   const runs = outlets.flatMap(outlet => (outlet.localIntelligence?.runs ?? []).map(run => ({ ...run, timeZone: outlet.timezone })));
@@ -115,7 +118,7 @@ export function AiThisWeek({ outlets, act = false }: { outlets: readonly OutletS
       : !changing.length ? <p><strong>AI checked {searched} {searched === 1 ? "location" : "locations"} at {searchTimes(runs)}{latest ? ` (latest ${stamp(latest.completedAt ?? latest.createdAt, latest.timeZone)})` : ""}: nothing changes your forecast.</strong></p>
         : <p className="panel-lede">AI checked {searched} {searched === 1 ? "location" : "locations"} at {searchTimes(runs)}. Each finding below has a source page FairShift opened; staffing uses a demand change only after an Owner or Manager accepts it.</p>}
     {kept.length ? <ul className="context-signals">{kept.map(({ outlet, signal }) => <AiSignalCard key={`${outlet.outletId}-${signal.key}`} local={outlet.localIntelligence!} signal={signal} timeZone={outlet.timezone} act={act} next="/owner" locationName={outlet.outletName} />)}</ul> : null}
-    {demo.length ? <><h3>DEMO scenario</h3><p className="note">Made by FairShift for the demonstration: synthetic, not found by AI.</p><ul className="context-signals">{demo.map(({ outlet, signal }) => <AiSignalCard key={`${outlet.outletId}-${signal.key}`} local={outlet.localIntelligence!} signal={signal} timeZone={outlet.timezone} act={false} next="/owner/forecast" locationName={outlet.outletName} />)}</ul></> : null}
+    {demo.length ? <><ul className="context-signals">{demo.map(({ outlet, signal }) => <AiSignalCard key={`${outlet.outletId}-${signal.key}`} local={outlet.localIntelligence!} signal={signal} timeZone={outlet.timezone} act={false} next="/owner/forecast" locationName={outlet.outletName} />)}</ul></> : null}
     {unconfirmed.length || rejected.length ? <details className="disclosure-inline"><summary>Not used · {unconfirmed.length} unconfirmed · {rejected.length} rejected</summary>
       {unconfirmed.length ? <><h3>Unconfirmed: shown, never applied</h3><ul>{unconfirmed.map(({ outlet, signal }) => <li key={`${outlet.outletId}-${signal.key}`}><strong>{outlet.outletName}: {signal.name}</strong> · {dateSpan(signal.validFrom, signal.validTo)} · <SourceLink url={signal.sourceUrl} title={signal.sourceTitle} />{signal.serverNote ? <small> {signal.serverNote}</small> : null}</li>)}</ul></> : null}
       {rejected.length ? <><h3>Rejected by FairShift</h3><ul>{rejected.map(({ outlet, item }, i) => <li key={i}><strong>{outlet.outletName}: {item.name}</strong> · {item.note ?? item.code} · <SourceLink url={item.sourceUrl} /></li>)}</ul></> : null}
@@ -125,10 +128,11 @@ export function AiThisWeek({ outlets, act = false }: { outlets: readonly OutletS
 }
 
 // The Plan page's cards for one location: kept findings for the week, with Accept and Dismiss.
-export function PlanSignalCards({ outlet, act, notice, simulated = false }: { outlet: OutletStaffing; act: boolean; notice?: string; simulated?: boolean }) {
+// hideDemo: the page shows a DEMO scenario as a disruption alert, outside this AI-found card.
+export function PlanSignalCards({ outlet, act, notice, simulated = false, hideDemo = false }: { outlet: OutletStaffing; act: boolean; notice?: string; simulated?: boolean; hideDemo?: boolean }) {
   const local = outlet.localIntelligence;
   if (!local || local.status === "UNAVAILABLE") return null;
-  const kept = local.signals.filter(signal => signal.use !== "UNCONFIRMED").sort((a, b) => RANK[a.use] - RANK[b.use] || a.validFrom.localeCompare(b.validFrom));
+  const kept = local.signals.filter(signal => signal.use !== "UNCONFIRMED" && !(hideDemo && signal.demo)).sort((a, b) => RANK[a.use] - RANK[b.use] || a.validFrom.localeCompare(b.validFrom));
   const unconfirmed = local.signals.filter(signal => signal.use === "UNCONFIRMED");
   const runs = local.runs.map(run => ({ ...run, timeZone: outlet.timezone }));
   return <section className="panel ai-this-week" id="ai-signals" aria-labelledby="plan-signals-title">

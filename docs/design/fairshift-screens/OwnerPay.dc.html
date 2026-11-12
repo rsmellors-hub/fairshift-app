@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pay · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="font-family: 'Geist', sans-serif; color: #121110; background: #F4F3EF">
+<div class="sandbox"><span>PayPal Sandbox. No real money moves.</span><span class="mono">Jacaranda Table · Group plan</span></div>
+<div class="shell">
+  <nav class="nav" aria-label="Owner">
+    <a href="OwnerToday.dc.html" class="brand"><span class="mark">F</span>FairShift</a>
+    <div class="nav-group">
+      <a href="OwnerToday.dc.html" class="item">Today</a>
+      <a href="OwnerPlan.dc.html" class="item">Plan</a>
+      <a href="OwnerFill.dc.html" class="item">Fill shifts <span class="count">6</span></a>
+      <a href="OwnerSchedule.dc.html" class="item">Schedule</a>
+      <a href="OwnerPay.dc.html" class="item on">Pay <span class="count">2</span></a>
+      <a href="OwnerLocation.dc.html" class="item">Locations</a>
+    </div>
+    <div class="rule" style="padding-top: 16px; display: flex; flex-direction: column; gap: 2px">
+      <a href="OwnerProof.dc.html" class="item">PayPal &amp; AI records</a>
+      <a href="OwnerSettings.dc.html" class="item">Business settings</a>
+      <a href="OwnerBilling.dc.html" class="item">Billing</a>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="top">
+      <select class="switch" aria-label="Location" onChange="{{x_loc}}"><option selected>All locations · 5</option><option>Rosebank</option><option>Sandton</option><option>Pretoria Central</option><option>Durban North</option><option>Cape Town Gardens</option></select>
+      <div style="display: flex; gap: 8px" role="tablist" aria-label="Pay views"><a href="#held1" class="btn sm" role="tab" aria-selected="true">Needs you · 2</a><a href="#recent" class="btn sm out" role="tab" aria-selected="false">Payouts</a><a href="#tips" class="btn sm out" role="tab" aria-selected="false">Tips</a></div>
+    </div>
+    <div class="content">
+      <div class="pagehead">
+        <div style="display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">Pay</span><h1 class="d2">Two payments need you</h1><p class="small">Amounts come from the terms each worker accepted. The AI Pay Agent checks every confirmed shift and tip block before PayPal; you decide anything it holds.</p></div>
+        <div style="text-align: right"><p class="eyebrow">ECB rate, locked at reservation</p><p class="num" style="font-weight: 600">16.4482 ZAR per US$ · 9 Nov</p></div>
+      </div>
+
+      <article class="card" style="padding: 0; overflow: hidden" aria-labelledby="held1">
+        <div style="padding: 20px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; border-bottom: 1px solid #DEDCD6; background: #FBF6EC">
+          <div><span style="display:inline-flex;gap:6px"><span class="chip ai">AI</span><span class="chip held">Held by the Pay Agent</span></span><h2 id="held1" class="h4" style="margin-top: 8px; font-size: 18px">Thabo Molefe · Pretoria Central · Wed 11 Nov, 11:00–17:00</h2><p class="small">Confirmed by Zanele Khumalo (manager) at 17:20</p></div>
+          <div style="text-align: right"><p class="money" style="font-size: 30px">R270.00</p><p class="tiny">6 h × R45.00 · would be paid as US$16.42</p></div>
+        </div>
+        <div style="padding: 20px 24px; display: flex; flex-wrap: wrap; gap: 32px">
+          <div style="flex: 1 1 380px; display: flex; flex-direction: column; gap: 10px">
+            <p class="eyebrow">Pay Agent checks</p>
+            <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+              <li style="display: flex; gap: 10px"><span style="color: #1F5E43; font-weight: 700" aria-hidden="true">✓</span><span>Hours match the booking (6 h)</span></li>
+              <li style="display: flex; gap: 10px"><span style="color: #1F5E43; font-weight: 700" aria-hidden="true">✓</span><span>Terms were set before the shift and accepted</span></li>
+              <li style="display: flex; gap: 10px"><span style="color: #7A4E00; font-weight: 700" aria-hidden="true">!</span><span><strong>Overlaps other confirmed work.</strong> Thabo is also confirmed at Rosebank 15:00–17:00 the same day, 55 km away.</span></li>
+              <li style="display: flex; gap: 10px"><span style="color: #1F5E43; font-weight: 700" aria-hidden="true">✓</span><span>No duplicate payout records</span></li>
+            </ul>
+            <p class="tiny">Rules alone would have paid this. The AI held it because the two confirmations can't both be right.</p>
+          </div>
+          <form style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 12px" onsubmit="return false">
+            <div class="field"><label for="reason">Your reason (required, kept on record)</label><textarea id="reason" class="input" style="min-height: 88px; padding: 12px; resize: vertical">Rosebank entry was a manager error; Thabo worked Pretoria only. Rosebank confirmation corrected.</textarea></div>
+            <div style="display: flex; gap: 8px"><button class="btn" type="button" onClick="{{x_a1}}">{{l_a1}}</button><button class="btn out" type="button" onClick="{{x_a2}}">{{l_a2}}</button></div>
+            <p class="tiny">Nobody can change the amount or the recipient.</p>
+          </form>
+        </div>
+      </article>
+
+      <article class="card" style="padding: 20px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px">
+        <div><span class="chip info">Waiting for confirmation</span><p class="h4" style="margin-top: 8px">Ayanda Mthembu · Rosebank · Tue 10 Nov, 10:00–14:00</p><p class="small">Shift ended 14:00 · a manager or you can confirm the hours</p></div>
+        <div style="display: flex; align-items: center; gap: 20px"><div style="text-align: right"><p class="money" style="font-size: 24px">R180.00</p><p class="tiny">4 h × R45.00</p></div><button class="btn" type="button" onClick="{{x_a3}}">{{l_a3}}</button><button class="btn out" type="button" onClick="{{x_a4}}">{{l_a4}}</button></div>
+      </article>
+
+      <section style="display: flex; flex-direction: column; gap: 12px" aria-labelledby="recent">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="recent" class="d3" style="font-size: 26px">Recent payouts</h2><a href="OwnerProof.dc.html" class="link">PayPal records</a></div>
+        <div class="card scroll" style="padding: 8px 10px">
+          <table class="tbl">
+            <thead><tr><th>Worker</th><th>Shift</th><th class="r">Earnings</th><th class="r">Paid as</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Ayanda Mthembu</strong></td><td>Rosebank · Sun 8 Nov · 3 h</td><td class="r num">R135.00</td><td class="r num small">US$8.16 · ECB 16.5382</td><td><span class="chip paid">Paid ✓</span><br><span class="mono" style="color: #65635E">5ZBF3L7XQ4AWA</span></td></tr>
+              <tr><td><strong>Naledi Sithole</strong></td><td>Durban North · Mon 9 Nov · 6 h</td><td class="r num">R270.00</td><td class="r num small">US$16.42 · ECB 16.4482</td><td><span class="chip info">Sent to PayPal</span><br><span class="tiny">Processing</span></td></tr>
+              <tr><td><strong>Sipho Ndlovu</strong></td><td>Sandton · Mon 9 Nov · 5 h</td><td class="r num">R225.00</td><td class="r num small">US$13.68 · ECB 16.4482</td><td><span class="chip held">Waiting for worker to claim</span><br><span class="tiny">Returns after 30 days if unclaimed</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 12px" aria-labelledby="tips">
+        <h2 id="tips" class="d3" style="font-size: 26px">Card tips</h2>
+        <div class="card scroll" style="padding: 8px 10px">
+          <table class="tbl">
+            <thead><tr><th>Location · block</th><th>Rule</th><th class="r">Tips</th><th>Pay Agent</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><strong>Rosebank</strong> · Mon 9 Nov evening</td><td class="small">Shared by everyone on the shift (3 people)</td><td class="r num">R187.20</td><td><span class="chip ok">Released</span> <span class="tiny">R62.40 each</span></td><td></td></tr>
+              <tr><td><strong>Sandton</strong> · Mon 9 Nov lunch</td><td class="small">Tips go to the person who earned them</td><td class="r num">R940.00</td><td><span class="chip held">Held</span> <span class="tiny">3× this block's usual tips</span></td><td style="text-align: right"><button class="btn sm out" type="button" onClick="{{x_a5}}">{{l_a5}}</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+const ACTS = {"a1": {"t": "Released by the Owner. Payout sent to PayPal Sandbox. It shows Paid ✓ only when PayPal confirms SUCCESS.", "d": "Released ✓", "tg": false, "l": "Release as calculated"}, "a2": {"t": "Kept on hold. The worker is told the payment is being checked.", "d": "Held", "tg": false, "l": "Keep held"}, "a3": {"t": "4 h confirmed. The Pay Agent checks it before payout.", "d": "Confirmed ✓", "tg": false, "l": "Confirm 4 h worked"}, "a4": {"t": "Hours changed. Sent to the worker to agree before pay.", "d": "Hours sent to worker", "tg": false, "l": "Different hours"}, "a5": {"t": "Tip block opened for review: compare the till record with the usual tips for this block.", "d": "Reviewing", "tg": false, "l": "Review"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

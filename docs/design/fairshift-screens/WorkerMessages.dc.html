@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Messages · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div class="phone" style="height: 1120px">
+  <div class="ptop"><span class="brand"><span class="mark">F</span>FairShift</span><span class="tiny">Also sent by email</span></div>
+  <main class="pbody">
+    <div><h1 class="d3">Inbox</h1><p class="small">Every offer, booking, change and payment in one place, plus a direct line to your managers.</p></div>
+    <div role="tablist" aria-label="Filter" style="display:flex;gap:6px;overflow-x:auto">
+      <span class="chip dark">All · 2 new</span><span class="chip line">Offers</span><span class="chip line">Shifts</span><span class="chip line">Pay</span><span class="chip line">Managers</span>
+    </div>
+    <section aria-labelledby="g1"><h2 id="g1" class="eyebrow">Today</h2>
+      <a href="WorkerOffer.dc.html" style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span style="width:8px;height:8px;border-radius:50%;background:#121110;margin-top:7px;flex:none" aria-label="Unread"></span><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><p style="font-weight:700">3 shift offers open</p><span class="tiny" style="white-space:nowrap">09:00</span></div><p class="small">Sat 14 Sandton · Sun 15 Rosebank · Wed 18 Sandton</p><span class="chip held" style="margin-top:6px">First reply by 11:00</span></div></a>
+    </section>
+    <section aria-labelledby="g2"><h2 id="g2" class="eyebrow">This week</h2>
+      <a href="WorkerPayment.dc.html" style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span style="width:8px;height:8px;border-radius:50%;background:#121110;margin-top:7px;flex:none" aria-label="Unread"></span><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><p style="font-weight:700">Mon 9 Nov pay sent to PayPal: R242.40</p><span class="tiny" style="white-space:nowrap">Mon</span></div><p class="small">Shift R180.00 + tips R62.40 · usually lands within minutes</p></div></a>
+      <a href="WorkerShifts.dc.html" style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span style="width:8px;height:8px;border-radius:50%;background:transparent;margin-top:7px;flex:none"></span><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><p style="font-weight:600">You’re booked: Thu 12 Nov</p><span class="tiny" style="white-space:nowrap">Mon</span></div><p class="small">Rosebank · 10:00–16:00 · R270.00</p></div></a>
+      <a href="WorkerPayment.dc.html" style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span style="width:8px;height:8px;border-radius:50%;background:transparent;margin-top:7px;flex:none"></span><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><p style="font-weight:600">Paid: R176.60</p><span class="tiny" style="white-space:nowrap">Sun</span></div><p class="small">Sun 8 Nov Rosebank · shift R135.00 + tips R41.60 · US$10.69</p></div></a>
+      <a href="WorkerShifts.dc.html" style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #DEDCD6;text-decoration:none;color:#121110"><span style="width:8px;height:8px;border-radius:50%;background:transparent;margin-top:7px;flex:none"></span><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><p style="font-weight:600">Shift cancelled: Fri 6 Nov, Sandton</p><span class="tiny" style="white-space:nowrap">Thu 5</span></div><p class="small">Cancelled by Jacaranda Table 26 h before the start. Under 24 h would have been paid at 50%; no pay is due.</p></div></a>
+    </section>
+    <section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px" aria-labelledby="mgr">
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="mgr" class="h4">Managers</h2><span class="tiny">Zanele · Rosebank</span></div>
+      <div class="sunk" style="padding:10px 12px;align-self:flex-start;max-width:85%"><p class="small" style="color:#121110">Thanks for picking up Sunday. Parking is round the back.</p><p class="tiny">Zanele · Sat</p></div>
+      <div style="padding:10px 12px;align-self:flex-end;max-width:85%;background:#121110;color:#fff;border-radius:12px"><p class="small" style="color:#fff">Great, see you then.</p></div>
+      <div style="display:flex;gap:8px"><input class="input" style="flex:1" placeholder="Message your manager…" aria-label="Message your manager"><button class="btn" type="button" onClick="{{x_a1}}">{{l_a1}}</button></div>
+      <details><summary class="tiny" style="cursor:pointer;font-weight:600">Quick messages</summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip line">I can’t make my next shift</span><span class="chip line">Running late</span><span class="chip line">Question about pay</span></div></details>
+    </section>
+  </main>
+  <nav class="tabs" aria-label="Main">
+    <a href="WorkerHome.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Home</a>
+    <a href="WorkerShifts.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Shifts</a>
+    <a href="WorkerMessages.dc.html" class="on"><span style="position:relative;display:inline-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span aria-label="2 unread" style="position:absolute;top:-3px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:#121110;color:#fff;font:600 10px/16px Geist,sans-serif;text-align:center;padding:0 4px">2</span></span>Inbox</a>
+    <a href="WorkerEarnings.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/></svg>Pay</a>
+    <a href="WorkerProfile.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</a>
+  </nav>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1120}}'>
+const ACTS = {"a1": {"t": "Sent to Zanele. She also gets an email.", "d": "Sent ✓", "tg": false, "l": "Send"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>

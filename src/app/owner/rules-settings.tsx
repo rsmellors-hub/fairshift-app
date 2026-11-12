@@ -45,8 +45,10 @@ export function PolicyRevision({ policy, disabled }: { policy: Policy; disabled?
       <label>Name<input name="name" defaultValue={policy.name} maxLength={100} required /></label>
       <label>Basis<select name="earningsModel" defaultValue={policy.earningsModel}><option value="HOURLY">Hourly</option><option value="DAILY">Daily, fixed for the shift</option></select></label>
       <label>Pay ({policy.currencyCode})<input name="rate" inputMode="decimal" defaultValue={major(policy.rateMinor)} required /></label>
-      <label>Sales target (optional)<input name="incentiveTarget" inputMode="decimal" defaultValue={major(policy.incentiveTargetMinor)} /></label>
-      <label>Bonus (optional)<input name="incentiveBonus" inputMode="decimal" defaultValue={major(policy.incentiveBonusMinor)} /></label>
+      {/* F13: the commission-era sales bonus folds away; its fields are still sent, so saving keeps today's values. */}
+      <details className="disclosure-inline form-span"><summary>Sales bonus (optional) · {policy.incentiveTargetMinor !== null && policy.incentiveBonusMinor !== null ? `${money(policy.incentiveBonusMinor, policy.currencyCode)} at ${money(policy.incentiveTargetMinor, policy.currencyCode)} in sales` : "none"}</summary><div className="form-grid">
+        <label>Sales target (optional)<input name="incentiveTarget" inputMode="decimal" defaultValue={major(policy.incentiveTargetMinor)} /></label>
+        <label>Bonus (optional)<input name="incentiveBonus" inputMode="decimal" defaultValue={major(policy.incentiveBonusMinor)} /></label></div></details>
       <p className="form-span note">Saves a new version from now. Shifts already created, offered or accepted keep {money(policy.rateMinor ?? 0, policy.currencyCode)} and their other terms. The minimum wage is checked again.</p>
       <button className="secondary-button">Save new version</button>
     </form><small>Current since {since(policy.effectiveFrom)}</small></details>;

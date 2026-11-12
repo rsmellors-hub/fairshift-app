@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shift offers · FairShift</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+details > summary{cursor:pointer}
+</style>
+</helmet>
+<div class="phone" style="height: 1180px">
+  <div class="ptop"><a href="WorkerHome.dc.html" class="btn sm out" aria-label="Back">←</a><span class="tiny">Jacaranda Table</span></div>
+  <main class="pbody">
+    <div style="display: flex; justify-content: space-between; align-items: end; gap: 10px">
+      <div><span class="eyebrow">Shift offers</span><h1 class="d3">3 open for you</h1></div>
+      <label class="tiny" style="display: flex; flex-direction: column; gap: 4px">Sort<select class="input" style="padding: 6px 10px" aria-label="Sort offers"><option>Reply by</option><option>Shift date</option><option>Location</option></select></label>
+    </div>
+
+    <div role="radiogroup" aria-label="Open offers" style="display: flex; flex-direction: column; gap: 8px">
+      <button type="button" role="radio" aria-checked="{{on0}}" onClick="{{pick0}}" class="card" style="{{st0}}">
+        <span style="display: flex; justify-content: space-between; width: 100%"><strong>Sat 14 Nov · 16:00–22:00</strong><span class="money">R270.00</span></span>
+        <span style="display: flex; justify-content: space-between; width: 100%" class="small"><span>Sandton · Floor · 6 h</span><span class="chip held">Reply by 11:00 today</span></span>
+      </button>
+      <button type="button" role="radio" aria-checked="{{on1}}" onClick="{{pick1}}" class="card" style="{{st1}}">
+        <span style="display: flex; justify-content: space-between; width: 100%"><strong>Sun 15 Nov · 11:00–17:00</strong><span class="money">R270.00</span></span>
+        <span style="display: flex; justify-content: space-between; width: 100%" class="small"><span>Rosebank · Floor · 6 h</span><span class="chip info">Reply by 13:00 today</span></span>
+      </button>
+      <button type="button" role="radio" aria-checked="{{on2}}" onClick="{{pick2}}" class="card" style="{{st2}}">
+        <span style="display: flex; justify-content: space-between; width: 100%"><strong>Wed 18 Nov · 17:00–22:00</strong><span class="money">R225.00</span></span>
+        <span style="display: flex; justify-content: space-between; width: 100%" class="small"><span>Sandton · Bar · 5 h</span><span class="chip line">Open to all · first to accept</span></span>
+      </button>
+    </div>
+
+    <section class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px; border-color: #121110" aria-labelledby="sel">
+      <div style="display: flex; justify-content: space-between; align-items: center"><span class="eyebrow">Selected offer</span><span class="chip info">{{round}}</span></div>
+      <div><h2 id="sel" class="h4" style="font-size: 20px">{{title}}</h2><p class="small">{{where}}</p></div>
+      <div><p class="money" style="font-size: 36px">{{pay}}</p><p class="small">{{calc}} · guaranteed</p></div>
+      <details><summary class="tiny" style="color: #1F5E43; font-weight: 600">✓ Above the National Minimum Wage (R30.23)</summary><p class="tiny" style="margin-top: 6px">R30.23 an hour per ordinary hour from 1 March 2026. Source: South African Government, 3 Feb 2026. A reference check, not legal advice.</p></details>
+      <details><summary class="tiny" style="font-weight: 600">Tips · not guaranteed</summary><p class="tiny" style="margin-top: 6px">{{tips}}</p></details>
+      <details><summary class="tiny" style="font-weight: 600">Terms</summary>
+        <div style="display: flex; flex-direction: column; margin-top: 6px">
+          <div class="rule" style="padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13px"><span class="small">Paid</span><span style="text-align: right">To your PayPal after the shift is confirmed, in US dollars at the locked ECB rate</span></div>
+          <div class="rule" style="padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13px"><span class="small">Who's offered</span><span style="text-align: right">{{who}}</span></div>
+          <div class="rule" style="padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13px"><span class="small">Places</span><span style="text-align: right">1 · first to accept</span></div>
+          <div class="rule" style="padding: 10px 0; border-bottom: 1px solid #DEDCD6; display: flex; justify-content: space-between; gap: 12px; font-size: 13px"><span class="small">If cancelled</span><span style="text-align: right">Cancelled less than 24 h before the start: you're paid 50% of the shift</span></div>
+        </div>
+      </details>
+      <p class="tiny"><a href="WorkerShifts.dc.html" class="link">See my calendar</a> to check for clashes. These terms are fixed once you accept. Accepting one offer doesn't affect the others, unless the times overlap.</p>
+    </section>
+  </main>
+  <div style="padding: 14px 20px 22px; border-top: 1px solid #DEDCD6; background: #fff; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <button class="btn lg out" type="button" onClick="{{x_a1}}">{{l_a1}}</button>
+    <button class="btn lg" type="button" onClick="{{x_a2}}">{{l_a2}}</button>
+  </div>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+const ACTS = {"a1": {"t": "Declined. The offer goes to the next person.", "d": "Declined", "tg": false, "l": "Decline"}, "a2": {"t": "Booked! It’s on your Shifts calendar and in your Inbox.", "d": "Accepted ✓", "tg": false, "l": "{{cta}}"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  _rv0() {
+    const i = (this.state && this.state.i) || 0;
+    const O = [
+      { title: 'Saturday 14 November · 16:00–22:00', where: 'Sandton · Floor', pay: 'R270.00', calc: '6 hours × R45.00 an hour', round: 'Round 1 · reply by 11:00',
+        who: 'Round 1: people who want more hours. Then everyone at Sandton.', tips: 'At Sandton, card tips go to the person who earned them. They are paid after the Pay Agent checks them.', cta: 'Accept Sat 14' },
+      { title: 'Sunday 15 November · 11:00–17:00', where: 'Rosebank · Floor', pay: 'R270.00', calc: '6 hours × R45.00 an hour', round: 'Round 1 · reply by 13:00',
+        who: 'Round 1: people who want more hours. Then everyone at Rosebank.', tips: 'At Rosebank, card tips are pooled per service block and shared equally by the people on shift. They are paid after the Pay Agent checks them.', cta: 'Accept Sun 15' },
+      { title: 'Wednesday 18 November · 17:00–22:00', where: 'Sandton · Bar', pay: 'R225.00', calc: '5 hours × R45.00 an hour', round: 'Round 2 · open to all',
+        who: 'Round 1 has ended. Now open to everyone at Sandton.', tips: 'At Sandton, card tips go to the person who earned them. They are paid after the Pay Agent checks them.', cta: 'Accept Wed 18' }
+    ];
+    const base = 'padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: #121110; cursor: pointer; width: 100%; ';
+    const st = k => base + (k === i ? 'border: 1.5px solid #121110; background: #fff' : 'border: 1px solid #DEDCD6; background: #FAF9F6');
+    const pick = k => () => this.setState(Object.assign({}, this.state, { i: k }));
+    return Object.assign({}, O[i], {
+      on0: i === 0, on1: i === 1, on2: i === 2, st0: st(0), st1: st(1), st2: st(2),
+      pick0: pick(0), pick1: pick(1), pick2: pick(2)
+    });
+  }
+}
+</script>
+</body>
+</html>

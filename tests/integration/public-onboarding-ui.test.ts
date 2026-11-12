@@ -116,7 +116,8 @@ describe("public pages", () => {
       expect(html).not.toMatch(/hourly forecast/i);
       expect(html).not.toMatch(/no (currency )?conversion fees?|free of (conversion )?fees/i);
     }
-    expect(pages[0]).toContain("The right people. The right place. The right time. The right pay.");
+    // The tagline is unchanged; the design greys its last two sentences, so compare the text without tags.
+    expect(pages[0].replace(/<[^>]+>/g, "")).toContain("The right people. The right place. The right time. The right pay.");
     expect(pages[2]).toContain("expected transactions by time of day");
   });
 
@@ -128,12 +129,21 @@ describe("public pages", () => {
       expect(html).not.toMatch(/£|\bGBP\b|Single Outlet|Multi Outlet|bonus|sales target/i);
     }
     expect(faq).toContain("VAT is never applied to worker earnings or tips");
-    expect(renderToStaticMarkup(Home())).toContain("Plans from R499 a month incl. VAT");
+    // Landing pricing (design Main.dc.html): rand first, then the annual price and the US dollar amount PayPal bills.
+    const home = renderToStaticMarkup(Home());
+    for (const text of ["R499", "R1,149", "/ month incl. VAT", "or R4,990 a year · billed by PayPal as US$30.17 a month", "or R11,490 a year · billed by PayPal as US$69.48 a month"]) expect(home).toContain(text);
+    expect(home.indexOf("R499")).toBeLessThan(home.indexOf("US$30.17"));
   });
 
   it("orders the home page's calls to action as start, demo, sign in", () => {
-    const hero = renderToStaticMarkup(Home()).split('class="cta-row"')[1];
-    expect(hero.indexOf("Start your business")).toBeLessThan(hero.indexOf("Try the demo"));
-    expect(hero.indexOf("Try the demo")).toBeLessThan(hero.indexOf("Sign in"));
+    // Design Main.dc.html: the hero offers the trial then the demo; Sign in and Start free trial sit in the header.
+    const html = renderToStaticMarkup(Home());
+    const header = html.split('aria-label="Main"')[1];
+    expect(header.indexOf("Sign in")).toBeLessThan(header.indexOf("Start free trial"));
+    const hero = html.split('class="cta-row')[1];
+    expect(hero.indexOf("Start your 30-day free trial")).toBeLessThan(hero.indexOf("Watch the demo"));
+    expect(html).not.toContain("Start your business");
+    // Spec over canvas: Square is not in the Works-with strip.
+    expect(html.split("Works with")[1].split("</div>")[0]).not.toMatch(/Square/);
   });
 });

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create your FairShift account</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./fairshift.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&amp;family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#121110}a:hover{color:#3A3936}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #F4F3EF; font-family: 'Geist', sans-serif; color: #121110">
+  <aside style="flex: 1 1 480px; background: radial-gradient(ellipse 80% 70% at 30% 30%, #4a4541 0%, #211d1a 60%, #161311 100%); color: #fff; padding: 40px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px">
+    <a href="Main.dc.html" class="brand" style="color: #fff"><span class="mark" style="border-color: #fff">F</span>FairShift</a>
+    <div style="display: flex; flex-direction: column; gap: 28px; max-width: 460px">
+      <h1 class="d2" style="font-size: 46px; color: #fff">Thirty days free.<br><span style="color: #8f8a84">Set up in about ten minutes.</span></h1>
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+        <li style="border-top: 1px solid #3a3531; padding: 14px 0; display: flex; gap: 18px"><span class="mono" style="color: #8f8a84">01</span><span style="color: #E8E5DF">Create your account and business</span></li>
+        <li style="border-top: 1px solid #3a3531; padding: 14px 0; display: flex; gap: 18px"><span class="mono" style="color: #8f8a84">02</span><span style="color: #E8E5DF">Add your first venue by its address</span></li>
+        <li style="border-top: 1px solid #3a3531; padding: 14px 0; display: flex; gap: 18px"><span class="mono" style="color: #8f8a84">03</span><span style="color: #E8E5DF">Add sales history and your pay terms</span></li>
+        <li style="border-top: 1px solid #3a3531; border-bottom: 1px solid #3a3531; padding: 14px 0; display: flex; gap: 18px"><span class="mono" style="color: #8f8a84">04</span><span style="color: #E8E5DF">Invite your team, then approve the plan in PayPal</span></li>
+      </ol>
+    </div>
+    <p class="tiny" style="color: #A9A59E">This deployment uses PayPal Sandbox. No real money moves.</p>
+  </aside>
+  <main style="flex: 1 1 520px; padding: 40px 56px; display: flex; flex-direction: column; justify-content: center">
+    <form style="width: 100%; max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px" onsubmit="return false">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span class="eyebrow">Step 1 of 6 · Account</span>
+        <h2 class="d3">Create your account</h2>
+        <p class="small">Already using FairShift? <a href="OwnerToday.dc.html" class="link">Sign in</a></p>
+      </div>
+      <div class="field"><label for="su-name">Your name</label><input id="su-name" class="input" value="Lindiwe Dlamini"></div>
+      <div class="field"><label for="su-email">Work email</label><input id="su-email" class="input" type="email" value="lindiwe@jacarandatable.co.za"><span class="hint">We'll send a link to confirm it.</span></div>
+      <div class="field"><label for="su-pw">Password</label><input id="su-pw" class="input" type="password" value="••••••••••••"><span class="hint">At least 12 characters.</span></div>
+      <div class="rule"></div>
+      <div class="field"><label for="su-biz">Business name</label><input id="su-biz" class="input" value="Jacaranda Table"></div>
+      <div class="field"><label for="su-country">Country</label>
+        <select id="su-country" class="input"><option>South Africa</option><option>United Kingdom</option><option>Other</option></select>
+        <span class="hint">Sets your currency (rand), the minimum-wage check and public holidays. You can change it later.</span>
+      </div>
+      <label class="check"><input type="checkbox" checked><span>I agree to the <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a1}}">terms</button> and <button class="link" type="button" style="background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline" onClick="{{x_a2}}">privacy notice</button>.</span></label>
+      <a href="Setup.dc.html" class="btn lg wide">Create account</a>
+    </form>
+  </main>
+</div>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div role="status" aria-live="polite" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:#121110;color:#fff;padding:12px 18px;border-radius:12px;font:500 14px/1.4 Geist,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:50">{{toast}}</div></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+const ACTS = {"a1": {"t": "Terms: owners and managers confirm all work and pay. The AI never sets amounts, picks workers or books shifts. Sandbox only.", "d": null, "tg": false, "l": "terms"}, "a2": {"t": "Privacy: FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID or bank details.", "d": null, "tg": false, "l": "privacy notice"}, "loc": {"t": "Showing the selected location.", "d": null, "tg": false, "l": ""}};
+class Component extends DCLogic {
+  _act(id) {
+    const A = ACTS[id]; const st = this.state || {}; const done = Object.assign({}, st.done || {});
+    done[id] = A.tg ? !done[id] : true;
+    this.setState(Object.assign({}, this.state, { done, toast: A.tg && !done[id] ? '' : A.t }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState(Object.assign({}, this.state, { toast: '' })), 2800);
+  }
+  renderVals() {
+    const base = this._rv0 ? this._rv0() : {}; const st = this.state || {}; const done = st.done || {};
+    const out = { toast: st.toast || '', hasToast: !!st.toast };
+    Object.keys(ACTS).forEach(id => { const A = ACTS[id];
+      out['x_' + id] = () => this._act(id);
+      out['l_' + id] = done[id] && A.d ? A.d : (A.l === '{{cta}}' ? base.cta : A.l); });
+    return Object.assign({}, base, out);
+  }
+
+  _rv0() { return {}; }
+}
+</script>
+</body>
+</html>
