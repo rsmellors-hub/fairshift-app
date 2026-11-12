@@ -800,3 +800,74 @@ ID (`gpt-6-luna`). Counts are as each run records them.
 Five scheduled AI calls that SAST day, against the daily cap of 20; each run is recorded before its call.
 There was no 05:00 SAST run that day: the AI schedule went live at 11:25 UTC, after that slot's three-hour
 grace, as the code sets it. The next 05:00 SAST run is NOT VERIFIED.
+
+## Submission day — per-business PayPal senders on hosted (12 November 2026)
+
+Times are SAST. Status terms follow `AGENTS.md` §8. Worker receiving addresses are left out.
+
+**Release `8d9db08` (VERIFIED).** The full gate on `8d9db08` ran twice on a scratch PostgreSQL cluster. The
+first run had 130 test files and 1,322 tests passing, but exited 1 on four unhandled connection-termination
+errors raised while `tests/helpers/postgres.ts` dropped a test database. The second run passed in full:
+1,322 tests, typecheck, ESLint with no warnings, an isolated production build and `git diff --check`, with
+the working tree unchanged. The hosted database was backed up first
+(`hosted-before-0041-20261112T0635Z.dump`, outside the repository). Migration 0041 (additive) was then
+applied by hand, and hosted holds 42 migrations. `submission` was pushed `c4aea9c..8d9db08`, and Render
+reported `8d9db08` live at 08:42. `/api/health` returned ready, CONNECTED and SANDBOX_CONFIGURED, and the
+judge Owner signed in. The new `payouts:refresh` job first ran at 08:42 (no PROCESSING payouts then).
+
+**Businesses connected (VERIFIED).** `scripts/connect-business-paypal.ts` ran against hosted at 08:45, each
+time after a live Sandbox token test, with each business's own Sandbox REST app (neither is the platform
+app `APP-30T25068V46788230`). Each business has one current, tested connection and one
+`PAYPAL_BUSINESS_CONNECTED` audit event, and each Owner sees it in Business settings › Payouts.
+
+| Business | PayPal app | Secret ends | Sending account |
+|---|---|---|---|
+| Jacaranda Table Demo | `APP-2L149153SH969613U` | `OPbI` | `fs-jacaranda-table@business.example.com` |
+| FS8 Test Cafe | `APP-1BG65873FS292853V` | `o2Oh` | `fs-fs8-test-cafe@business.example.com` |
+
+The local and Render values of `FAIRSHIFT_CREDENTIALS_KEY` were compared by SHA-256 fingerprint only, and
+they match. `FAIRSHIFT_PAYOUT_SENDER=business` was set on Render through its API, and the redeploy that
+followed (`dep-dbqm1qec6qcc73fouc6g`, `8d9db08`) was live at 08:49. Health and sign-in were checked again, and
+Jacaranda's Payouts panel now reads "Sent from: Your PayPal Sandbox account,
+fs-jacaranda-table@business.example.com".
+
+**Jacaranda Table pays from its own PayPal account (VERIFIED, 08:51–08:52).** The payable is
+`dae25862-e444-4cc7-9d9e-5bb7fa165ac8`: Ayanda Casual at Rosebank, Sun 8 Nov 15:45–16:45, R45.00. Its
+work confirmation and the Pay Agent's dry-run SETTLE are recorded in the Day 5b section above. Signed in as
+the judge Owner at Rosebank on `/manager/review`, the steps were: **Approve R45.00** (08:51), **Send R45.00
+payout with PayPal**, then **Check payment status**.
+
+| | |
+|---|---|
+| PayPal batch | `YC763K2922R8N` (SUCCESS) |
+| PayPal item | `4W7YA9HG9SBF8`, **SUCCESS** |
+| Transaction | `6VF42056F7941321R` |
+| Amount | R45.00 → US$2.71 at `ECB_EUROFXREF_DAILY:2026-11-11` (16.563944) |
+| Sending account | `fs-jacaranda-table@business.example.com`, app `APP-2L149153SH969613U` |
+| FairShift | PAID at 08:52, one Paid notice to the worker |
+
+Read back from PayPal Sandbox with Jacaranda's credentials, the batch and item are SUCCESS for USD 2.71.
+The platform app gets HTTP 404 for the same batch, so the payout was not sent from the platform app.
+
+**No business PayPal connected (automated only).** In `tests/integration/business-paypal-payouts.test.ts`,
+with per-business senders on and nothing connected, a payout is refused with "Connect your PayPal to pay
+your team." No payout row is reserved, no PayPal client is built and the platform app is never used. This
+passed (6 of 6) on 12 Nov. Not run on hosted: no hosted business has both nothing connected and an unpaid
+payable, and the Owner chose not to create one.
+
+**Earlier FS8 Test Cafe payout, from the platform app (VERIFIED, 11 Nov; re-read 12 Nov).** The payable is
+`a7705505-6be2-4847-97cc-48545c25d76e`: Lwazi Fs8 at FS8 Test Cafe Rosebank, Wed 11 Nov 14:30, R22.50. It was
+sent before per-business senders existed, so `sender_connection_id` is empty and it was sent from the
+platform app.
+
+| | |
+|---|---|
+| PayPal batch | `DVJ8MB8T7TN68` (SUCCESS, completed 13:02:50 UTC) |
+| PayPal item | `C4G7ZYVKXFL3Q`, **SUCCESS** |
+| Transaction | `38U58577CY748070E` |
+| Amount | R22.50 → US$1.37 at `ECB_EUROFXREF_DAILY:2026-11-10` (16.395667) |
+| Sending account | the platform app, `APP-30T25068V46788230` |
+| FairShift | PAID at 15:03 on 11 Nov |
+
+Read back from PayPal Sandbox with the platform app's credentials on 12 Nov, the batch and item are
+SUCCESS for USD 1.37.
