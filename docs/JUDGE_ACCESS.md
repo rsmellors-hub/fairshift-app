@@ -36,7 +36,7 @@ These commands were inspected against source, **not executed**. This is an opera
 1. Obtain the authorised final source revision. Use Node `24.22.0`, pnpm `12.11.2`, and a disposable PostgreSQL database (repository prerequisite: PostgreSQL 15+). Review third-party licence/install availability, especially the Bryntum trial dependency.
 2. Install from the lockfile: `pnpm install --frozen-lockfile`.
 3. Prepare a private `.env.local` using the variable names in `.env.example`; do not copy credentials from another business. Set only the isolated database/origin and capabilities actually authorised for the exercise. No `.env` file was accessed in this package.
-4. Load the environment explicitly for migration: `node --env-file=.env.local --import tsx scripts/migrate.ts`. The `db:migrate` script itself does not load `.env.local`. Target only the disposable database.
+4. Migrate with `pnpm db:migrate`, which reads `DATABASE_URL` from `.env.local`. Target only the disposable database.
 5. Provision the final approved SA fixtures and judge identities through the release-specific, tested procedure. **This procedure is missing.** Existing historical seeds/reference loaders do not establish the required isolated SA/ZAR fixture. Do not improvise SQL, reuse UK amounts, relabel currencies or enable synthetic fallback for a real tenant.
 6. Start with `pnpm dev`, or run `pnpm build` and `pnpm start` for a production-mode local check. Next.js loads the private local environment; external services remain unavailable unless correctly configured and authorised.
 7. Verify access from a fresh browser session, then record the results and limitations. A landing page, mocked test or video alone is not an interactive build verification.
