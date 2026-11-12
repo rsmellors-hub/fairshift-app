@@ -95,7 +95,7 @@ describe("authenticated Owner-originated tenancy",()=>{
  });
  it("marks invitations sent only after provider acknowledgement and does not dispatch duplicates",async()=>{
   const t=await createTestDatabase();try {
-   const o=await owner(t.db),i=await inviteMember(t.db,o.scope,invitation("mail@example.test","MANAGER"));
+   const o=await owner(t.db),i=await inviteMember(t.db,o.scope,invitation("mail@fairshift-mail.dev","MANAGER"));
    let calls=0;
    const adapter={send:async()=>{calls++;return {status:"ACCEPTED" as const,messageId:"provider-message"};}};
    await dispatchNotification(t.db,adapter,i.notificationId,`/invite#${i.token}`);
@@ -141,7 +141,7 @@ describe("authenticated Owner-originated tenancy",()=>{
  });
  it("persists actionable events independently of failed/unconfigured emails and isolates notification reads",async()=>{
   const t=await createTestDatabase();try {
-   const o=await owner(t.db),a=await join(t.db,o.scope,"a@example.test"),b=await join(t.db,o.scope,"b@example.test");
+   const o=await owner(t.db),a=await join(t.db,o.scope,"a@fairshift-mail.dev"),b=await join(t.db,o.scope,"b@fairshift-mail.dev");
    const invitationNotice=(await t.db.select().from(notifications).where(eq(notifications.id,a.invite.notificationId)))[0];
    expect(invitationNotice.userId).toBe(a.user.id);
    await dispatchNotification(t.db,new ResendEmail(),invitationNotice.id,`/invite#${a.invite.token}`);

@@ -235,7 +235,7 @@ describe("demo sessions under concurrency (SHARED-BUT-RESETTABLE)", () => {
   it("demo activity never becomes email, while another organisation's still does", () => withDb(async db => {
     const p = await prepared(db), other = await business(db, "Someone else");
     const send = vi.fn(async () => ({ status: "ACCEPTED" as const, messageId: "m" }));
-    const note = async (organisationId: string) => { const id = randomUUID(); await notify(db, { id, organisationId, recipientEmail: "x@example.test", eventKey: `test:${id}`, kind: "SHIFT_OFFER", entityId: id, title: "T", body: "B", href: "/worker" }); return id; };
+    const note = async (organisationId: string) => { const id = randomUUID(); await notify(db, { id, organisationId, recipientEmail: "x@fairshift-mail.dev", eventKey: `test:${id}`, kind: "SHIFT_OFFER", entityId: id, title: "T", body: "B", href: "/worker" }); return id; };
     await dispatchNotification(db, { send }, await note(p.organisationId));
     expect(send).not.toHaveBeenCalled();
     await dispatchNotification(db, { send }, await note(other.organisationId));

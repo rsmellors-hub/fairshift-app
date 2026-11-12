@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { notifications, notificationDeliveries, teamInvitations } from "@/server/db/schema";
 import { demoConfig } from "@/server/demo/config";
+import { isReservedTestAddress, RESERVED_TEST_ADDRESS } from "@/server/domain/reserved-email";
 import { applicationOrigin, type EmailAdapter } from "./email";
 export async function notify(db:DatabaseSession,input: typeof notifications.$inferInsert) {
   const [notification] = await db.insert(notifications).values(input).onConflictDoNothing({target:notifications.eventKey}).returning();
@@ -34,6 +35,14 @@ export async function dispatchNotification(db:Database,adapter:EmailAdapter,id:s
   const {notification:n,delivery:d} = row;
   // The public demo's activity never becomes email.
   if (n.organisationId && n.organisationId === demoConfig()?.organisationId) return;
+  // A reserved test address (demo, judge and test accounts) is never sent to: the email service is not
+  // called, and the delivery is recorded once as not sent. The in-app notice is unaffected, and the
+  // retry passes only pick up PENDING and UNCONFIGURED deliveries, so it is never retried.
+  if (isReservedTestAddress(d.destination)) {
+    if (d.failureCode !== RESERVED_TEST_ADDRESS) await db.update(notificationDeliveries).set({status:"FAILED",failureCode:RESERVED_TEST_ADDRESS})
+      .where(and(eq(notificationDeliveries.id,d.id),inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED","FAILED"])));
+    return;
+  }
   if (!secureHref && ["MANAGER_INVITATION","TEAM_INVITATION","VERIFY_EMAIL","RESET_PASSWORD","PAYOUT_EMAIL_CONFIRM"].includes(n.kind)) return;
   const [claimed] = await db.update(notificationDeliveries).set({status:"SENDING",attemptedAt:new Date(),failureCode:null})
     .where(and(eq(notificationDeliveries.id,d.id),inArray(notificationDeliveries.status,["PENDING","UNCONFIGURED","FAILED"]))).returning();

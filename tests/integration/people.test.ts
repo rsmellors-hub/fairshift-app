@@ -37,10 +37,10 @@ describe("people: add by invitation, active only after sign-up", () => {
     const t = await createTestDatabase();
     try {
       const c = await company(t.db);
-      const result = await inviteMember(t.db, c.scope, { role: "TEAM_MEMBER", email: "casey@example.test", firstName: "Casey", surname: "Mokoena" });
+      const result = await inviteMember(t.db, c.scope, { role: "TEAM_MEMBER", email: "casey@fairshift-mail.dev", firstName: "Casey", surname: "Mokoena" });
       // Status before sign-up, and no offers yet.
       let people = await listPeople(t.db, c.scope);
-      expect(people.find(p => p.email === "casey@example.test")).toMatchObject({ role: "TEAM_MEMBER", status: "INVITED", telephone: null, locations: [{ name: "Main Street" }] });
+      expect(people.find(p => p.email === "casey@fairshift-mail.dev")).toMatchObject({ role: "TEAM_MEMBER", status: "INVITED", telephone: null, locations: [{ name: "Main Street" }] });
       expect(result.invitation.expiresAt.getTime() - Date.now()).toBeGreaterThan(6.9 * 86_400_000);
       // The official email: subject, inviter, location, role, expiry; HTML and text; logged in the outbox.
       const adapter = outbox();
@@ -54,9 +54,9 @@ describe("people: add by invitation, active only after sign-up", () => {
       expect(sent.html).toContain("Accept invitation and sign up");
       expect(sent.html).toContain(`/invite#${result.token}`);
       const [delivery] = await t.db.select().from(notificationDeliveries).innerJoin(notifications, eq(notifications.id, notificationDeliveries.notificationId)).where(eq(notifications.id, result.notificationId));
-      expect(delivery.notification_deliveries).toMatchObject({ status: "ACCEPTED", destination: "casey@example.test" });
+      expect(delivery.notification_deliveries).toMatchObject({ status: "ACCEPTED", destination: "casey@fairshift-mail.dev" });
       expect((await t.db.select().from(teamInvitations).where(eq(teamInvitations.id, result.invitation.id)))[0].state).toBe("SENT");
-      const [worker] = await t.db.select().from(workers).where(eq(workers.email, "casey@example.test"));
+      const [worker] = await t.db.select().from(workers).where(eq(workers.email, "casey@fairshift-mail.dev"));
       const [department] = await createDepartment(t.db, "Floor", c.scope);
       const [policy] = await createWorkPolicy(t.db, { earningsModel: "HOURLY", rateMinor: 3_900 }, "Casual", c.scope);
       const shift = await createRequirement(t.db, { departmentId: department.id, policyId: policy.id, startsAt: new Date("2026-11-20T08:00:00Z"), endsAt: new Date("2026-11-20T14:00:00Z"), requiredHeadcount: 1 }, c.scope);
@@ -65,7 +65,7 @@ describe("people: add by invitation, active only after sign-up", () => {
       // Sign-up: the invited email only; every detail is checked before anything is redeemed.
       const stranger = await identity(t.db, "someone@example.test", false);
       await expect(openInvitation(t.db, stranger, result.token)).rejects.toMatchObject({ feedback: "invitation-email" });
-      const casey = await identity(t.db, "casey@example.test", false);
+      const casey = await identity(t.db, "casey@fairshift-mail.dev", false);
       await expect(completeInvitedSignUp(t.db, casey, result.token, { firstName: "Casey", surname: "Mokoena", telephone: "", availability: week.slice(0, 3), payoutEmail: "casey.pp@example.test", confirmPayoutEmail: "casey.pp@example.test" })).rejects.toMatchObject({ feedback: "sign-up-details" });
       await expect(completeInvitedSignUp(t.db, casey, result.token, { firstName: "Casey", surname: "Mokoena", telephone: "", availability: week, payoutEmail: "casey.pp@example.test", confirmPayoutEmail: "casey.p@example.test" })).rejects.toMatchObject({ feedback: "payout-email-mismatch" });
       expect(await t.db.select().from(memberships).where(eq(memberships.userId, casey.id))).toHaveLength(0);

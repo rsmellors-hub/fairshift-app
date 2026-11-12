@@ -8,6 +8,7 @@ import { maskedEmail } from "@/app/components/format";
 import { requireIdentity } from "@/server/auth/request";
 import { getDatabase } from "@/server/db/client";
 import { notificationDeliveries, notifications } from "@/server/db/schema";
+import { RESERVED_TEST_ADDRESS } from "@/server/domain/reserved-email";
 
 export const metadata: Metadata = { title: "Check your email" };
 export const dynamic = "force-dynamic";
@@ -18,11 +19,16 @@ export default async function CheckEmail({ searchParams }: { searchParams: Promi
   const { user } = await requireIdentity();
   if (user.emailVerifiedAt) redirect("/account");
   const { status } = await searchParams;
-  const [latest] = await getDatabase().select({ status: notificationDeliveries.status }).from(notifications)
+  const [latest] = await getDatabase().select({ status: notificationDeliveries.status, failureCode: notificationDeliveries.failureCode }).from(notifications)
     .innerJoin(notificationDeliveries, eq(notificationDeliveries.notificationId, notifications.id))
     .where(and(eq(notifications.userId, user.id), eq(notifications.kind, "VERIFY_EMAIL")))
     .orderBy(desc(notifications.createdAt)).limit(1);
   const sent = latest?.status === "ACCEPTED";
+  // A reserved test address (example.test and the like) is never sent to; say so plainly.
+  if (latest?.failureCode === RESERVED_TEST_ADDRESS) return <AuthShell title="Check your email" progress={<AcquisitionProgress current="Verify" />}>
+    <p>Not sent: <strong>{maskedEmail(user.email)}</strong> is a reserved test address, which can’t receive email, so no verification link was sent to it.</p>
+    <form action={signOutAction}><button className="link-button">Use a different email: sign out</button></form>
+  </AuthShell>;
   return <AuthShell title="Check your email" progress={<AcquisitionProgress current="Verify" />}>
     {sent
       ? <p>We sent a verification link to <strong>{maskedEmail(user.email)}</strong>. Open the link to verify your account and continue setting up FairShift.</p>

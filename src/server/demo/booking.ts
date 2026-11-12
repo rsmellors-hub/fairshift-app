@@ -1,5 +1,6 @@
 import { and, asc, eq, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { UserFacingError } from "@/server/domain/errors";
+import { isReservedTestAddress } from "@/server/domain/reserved-email";
 import type { Database, DatabaseSession } from "@/server/db/client";
 import { randomUUID } from "node:crypto";
 import { auditEvents, departments, shiftOffers, shifts, workAllocations, workers, workPolicies } from "@/server/db/schema";
@@ -18,10 +19,7 @@ import { DEMO_SCENARIO_LOCATION } from "./capacity-scenario";
 export const DEMO_BOOKING = { department: "Floor", policy: "Casual floor terms", rateMinor: 4_500, startMinute: 10 * 60, endMinute: 14 * 60 } as const;
 
 // Reserved names (RFC 2606, RFC 6761): mail to them can never reach a real person.
-export function isSyntheticEmail(email: string | null | undefined) {
-  const domain = email?.split("@")[1]?.trim().toLowerCase() ?? "";
-  return /(^|\.)(test|example|invalid|localhost)$/.test(domain) || /(^|\.)example\.(com|net|org)$/.test(domain);
-}
+export const isSyntheticEmail = isReservedTestAddress;
 
 export type DemoBooking = { shiftId: string; offerId: string; workerId: string; date: string; created: boolean };
 
