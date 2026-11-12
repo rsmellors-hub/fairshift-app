@@ -50,6 +50,12 @@ export function SaWageIndicatorLine({ indicator }: { indicator: SaWageIndicator 
   </p>;
 }
 
+// The same indicator folded to its chip, with the full wording one click away (design: compact cards).
+export function SaWageIndicatorFold({ indicator }: { indicator: SaWageIndicator }) {
+  return <details className="disclosure-inline wage-fold"><summary><StatusBadge tone={SA_TONE[indicator.status]}>{SA_WAGE_STATUS_LABEL[indicator.status]}</StatusBadge></summary>
+    <p className="note">{saWageIndicatorExplanation(indicator, minor => money(minor, "ZAR"))} Source: <a href={SA_MINIMUM_WAGE_SOURCE.url} target="_blank" rel="noreferrer">South African Government, {longDay(SA_MINIMUM_WAGE_SOURCE.publishedOn)}</a>.</p></details>;
+}
+
 // The competition policy, said plainly wherever the enforced floor appears (FS-WAGE-INTEL-DEC-002).
 export function DemoFloorPolicy() {
   return <p className="note demo-floor-policy"><span className="provenance">FairShift competition policy</span> Every shift must pay at least the 21-and-over rate for its date. Younger workers and apprentices can have lower statutory minimums; FairShift holds no age or apprenticeship records and doesn’t apply them in this demo.</p>;
