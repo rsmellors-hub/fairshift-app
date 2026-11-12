@@ -269,8 +269,10 @@ function ShiftDetail({ event, timeZone, send, assign = null }: { event: Schedule
       <div><dt>State</dt><dd>{event.state}</dd></div>
       <div><dt>Terms</dt><dd>Version {event.termsVersion}</dd></div>
       <div><dt>Base pay</dt><dd>{pay}</dd></div>
-      <div><dt>Incentive opportunity</dt><dd>{event.bonusLabel}</dd></div>
-      <div><dt>Performance</dt><dd>{event.performanceLabel}</dd></div>
+      {/* F13: the commission-era bonus and sales-target tiles show only for a shift whose terms carry them. */}
+      {event.bonusLabel.startsWith("No bonus") && (event.performanceLabel === "No sales target" || event.performanceLabel === "Not applicable") ? null : <>
+        <div><dt>Incentive opportunity</dt><dd>{event.bonusLabel}</dd></div>
+        <div><dt>Performance</dt><dd>{event.performanceLabel}</dd></div></>}
       <div><dt>Payment</dt><dd>{event.paymentLabel}</dd></div>
     </dl>
     <p className="note">{HOW[event.interaction]}</p>
