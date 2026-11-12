@@ -52,10 +52,12 @@ Requirements: Node.js 24, pnpm, PostgreSQL.
 
 ```bash
 pnpm install
-cp .env.example .env.local      # fill in your own Sandbox values; never commit them
-pnpm exec tsx scripts/migrate.ts
+cp .env.example .env.local      # set DATABASE_URL, then your own Sandbox values; never commit them
+pnpm db:migrate                 # reads .env.local
 pnpm dev
 ```
+
+Only `DATABASE_URL` is required. `.env.example` lists every variable the code reads, one line each.
 
 Without PayPal, OpenAI, Square or Resend credentials the app still runs: those features say they're not configured, and nothing is invented in their place.
 
