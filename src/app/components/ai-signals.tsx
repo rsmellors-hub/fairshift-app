@@ -128,10 +128,11 @@ export function AiThisWeek({ outlets, act = false, hideDemo = false }: { outlets
 }
 
 // The Plan page's cards for one location: kept findings for the week, with Accept and Dismiss.
-export function PlanSignalCards({ outlet, act, notice, simulated = false }: { outlet: OutletStaffing; act: boolean; notice?: string; simulated?: boolean }) {
+// hideDemo: the page shows a DEMO scenario as a disruption alert, outside this AI-found card.
+export function PlanSignalCards({ outlet, act, notice, simulated = false, hideDemo = false }: { outlet: OutletStaffing; act: boolean; notice?: string; simulated?: boolean; hideDemo?: boolean }) {
   const local = outlet.localIntelligence;
   if (!local || local.status === "UNAVAILABLE") return null;
-  const kept = local.signals.filter(signal => signal.use !== "UNCONFIRMED").sort((a, b) => RANK[a.use] - RANK[b.use] || a.validFrom.localeCompare(b.validFrom));
+  const kept = local.signals.filter(signal => signal.use !== "UNCONFIRMED" && !(hideDemo && signal.demo)).sort((a, b) => RANK[a.use] - RANK[b.use] || a.validFrom.localeCompare(b.validFrom));
   const unconfirmed = local.signals.filter(signal => signal.use === "UNCONFIRMED");
   const runs = local.runs.map(run => ({ ...run, timeZone: outlet.timezone }));
   return <section className="panel ai-this-week" id="ai-signals" aria-labelledby="plan-signals-title">

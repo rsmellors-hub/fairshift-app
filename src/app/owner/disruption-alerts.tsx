@@ -18,7 +18,7 @@ export type DisruptionAlert = { outletId: string; outletName: string; timezone: 
 // that sending is simulated; the server refuses a demo send too. Signed-in accounts send it for real.
 function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; canSend: boolean; demoVisitor: boolean }) {
   const allowed = canSend && !demoVisitor;
-  if (!alert.affected) return <p className="note">Closure is likely: the Overview shows which casual workers it affects, so you can tell them early.</p>;
+  if (!alert.affected) return <p className="note">Closure is likely: the Owner’s Today page shows which casual workers it affects, so they can be told early.</p>;
   const affected = alert.affected;
   if (!affected.length) return <p className="note">No allocated casual shift falls in this time, so no early notice is needed.</p>;
   const pending = affected.filter(row => !row.noticeAt);

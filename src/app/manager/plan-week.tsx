@@ -44,7 +44,8 @@ export function WeekCover({ outlet, act = true }: { outlet: OutletStaffing; act?
     {busiest ? <div className="week-cover-headline">
       <h3 id="week-cover-title">{weekday(busiest.planningDate)} needs the most cover</h3>
       <p>{labourHours(busiest.regularMinutes ?? 0)} regular staff{busiest.allocatedCasualMinutes ? ` + ${labourHours(busiest.allocatedCasualMinutes)} allocated casual` : ""} + <strong>{labourHours(busiest.casualGapMinutes ?? 0)} gap to fill</strong></p>
-      {act ? <Link className="primary-button button-link" href={fillHref(busiest.planningDate)}>Fill {weekday(busiest.planningDate)} gap</Link> : null}
+      {/* Outlined: "See N suggested shifts" is the page's one primary action (design: OwnerPlan). */}
+      {act ? <Link className="secondary-button button-link" href={fillHref(busiest.planningDate)}>Fill {weekday(busiest.planningDate)} gap</Link> : null}
     </div> : <h3 id="week-cover-title">{outlet.days.some(day => day.casualGapMinutes === 0) ? "No casual gap in the days we can calculate" : "Cover can’t be calculated yet"}</h3>}
     {busiest ? <p className="note">Worked out by time of day: spare cover at one time doesn’t offset a shortage at another.</p> : null}
     <ul className="cover-legend" aria-label="Chart key"><li><i className="cover-regular" />Regular staff</li><li><i className="cover-casual" />Allocated casual</li><li><i className="cover-gap-key" />Gap to fill</li></ul>

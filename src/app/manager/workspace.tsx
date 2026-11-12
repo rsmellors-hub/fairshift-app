@@ -31,6 +31,7 @@ import { AiStaffingAssessment, signalLookup } from "@/app/components/ai-staffing
 import { generateLocationAssessmentAction } from "@/app/intelligence-actions";
 import { AllocationScheduler } from "./allocation-scheduler";
 import { DecisionNote, fillHref, ManagerJourney, WeekCover } from "./plan-week";
+import { DisruptionAlerts } from "@/app/owner/disruption-alerts";
 import { refreshContextFeedsIfDue } from "@/server/intelligence/demand-context-service";
 import { DemandContextPanel, periodLabel, scenarioLabel } from "./demand-context";
 import { LocalIntelligencePanel, NOTICE as LOCAL_NOTICE } from "./local-intelligence";
@@ -449,7 +450,9 @@ async function Staffing(scope:Scope, aiNotice: string | undefined, staffing: Wee
     suggestionContext(getDatabase(), scope, suggestShifts(outlet)).catch(() => null),
   ]);
   return <div className="staffing-week">
-    <PlanSignalCards outlet={outlet} act={!scope.demo} simulated={!!scope.demo} notice={localNotice ? LOCAL_NOTICE[localNotice] : undefined} />
+    {/* As on Today: a DEMO scenario is a disruption alert outside the AI-found card, never under its chip. */}
+    <PlanSignalCards outlet={outlet} act={!scope.demo} simulated={!!scope.demo} notice={localNotice ? LOCAL_NOTICE[localNotice] : undefined} hideDemo={!!outlet.localIntelligence?.alerts.some(signal => signal.demo)} />
+    <DisruptionAlerts alerts={(outlet.localIntelligence?.alerts ?? []).map(signal => ({ outletId: outlet.outletId, outletName: outlet.outletName, timezone: outlet.timezone, signal }))} canSend={false} demoVisitor={!!scope.demo} />
     <section className="panel" aria-labelledby="week-cover-title">
     <p className="provenance-line">{evidence ? <DataLabel kind={isSyntheticSource(evidence.source) ? "demo" : "fact"}>{evidence.source === "REFERENCE" ? "Reference sales history · synthetic" : evidence.source === "DEMO_SEEDED" ? "Demo / seeded history" : evidence.source === "IMPORTED" ? "Imported sales history · not provider-verified" : evidence.source === "SQUARE" ? "Square Sandbox sales · connected seller" : evidence.source === "ZETTLE" ? "Earlier connected-account sales" : "Verified PayPal Sandbox sales"}</DataLabel> : null}<span>Planning week {longDate(outlet.days[0].planningDate)} – {longDate(outlet.days[6].planningDate)} · {outlet.timezone}</span></p>
     <p className="note">{evidence ? evidence.kind === "HISTORICAL" ? `Historical evidence through ${longDate(evidence.dataThrough)} (${evidence.ageDays} days before the planning week), mapped onto planning weekdays. Not live demand.` : `Sales through ${longDate(evidence.dataThrough)}.` : "No eligible sales history, so no demand or labour requirement has been assumed."}</p>
