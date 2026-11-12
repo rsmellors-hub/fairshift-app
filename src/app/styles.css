@@ -976,3 +976,20 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 /* A choice with a detail line: the detail sits under the choice, not run into it. */
 .acceptance-check > span > small { display: block; font-weight: 500; color: var(--muted); }
 @media (min-width: 1100px) { .setup-split .day-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Sign-up (design SignUp): a dark panel with what setup involves beside the form on wide screens. */
+.auth-split { display: grid; gap: 20px; width: min(960px, 100%); }
+.auth-shell-split .auth-card { width: 100%; max-width: none; }
+.auth-aside { display: grid; align-content: start; gap: 18px; padding: 28px; border-radius: var(--radius); background: #121110; color: #E8E5DF; }
+.auth-aside-title { margin: 0; font-size: 22px; line-height: 1.25; color: #fff; }
+.auth-aside-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+.auth-aside-steps li { display: flex; gap: 12px; }
+.auth-aside-steps span { color: #A9A59C; font-variant-numeric: tabular-nums; }
+.auth-aside-note { margin: 0; font-size: 13px; color: #A9A59C; }
+.auth-switch-top { margin-top: 0; }
+@media (min-width: 900px) { .auth-split { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); } }
+@media (max-width: 899px) { .auth-aside { display: none; } }
+.auth-shell-split .acquisition-progress { width: min(960px, 100%); max-width: none; }
+.auth-aside { align-self: start; }
+.auth-sandbox-phone { display: none; }
+@media (max-width: 899px) { .auth-sandbox-phone { display: block; } }
