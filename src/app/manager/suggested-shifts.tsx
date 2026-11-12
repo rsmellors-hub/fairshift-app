@@ -52,7 +52,7 @@ export function SuggestedShifts({ outlet, briefing, departments, policies, appro
     </tr>;
   };
   return <section className="panel" id="suggested-shifts" aria-labelledby="suggested-shifts-title">
-    <div className="panel-head"><h2 id="suggested-shifts-title">Fill shifts · {outlet.outletName}</h2><span className="note">{open.length} {open.length === 1 ? "shift" : "shifts"} ready to send</span></div>
+    <div className="panel-head"><h2 id="suggested-shifts-title">Suggested shifts</h2><span className="note">{open.length} {open.length === 1 ? "shift" : "shifts"} ready to send</span></div>
     {notice ? <p role="status" className="note context-notice">{notice}</p> : null}
     {!rules ? <p>This location has no shift-length rules yet, so no shifts are suggested. Set them on the location’s page under Staffing and offers.</p>
       : <p className="panel-lede">Cut from this venue’s gap using its shift rules ({labourHours(rules.minMinutes)}–{labourHours(rules.maxMinutes)}, about {labourHours(rules.preferredMinutes)}) and its pay terms. {order.length ? "The AI orders them by need and says why. " : ""}Nothing is sent until you approve.</p>}

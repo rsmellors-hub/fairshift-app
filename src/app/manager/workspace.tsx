@@ -147,8 +147,10 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
   // Finished-shift evidence for review, loaded once and used by both the sales check and the pay cards.
   let work: Awaited<ReturnType<typeof getLocationPerformance>> | null = null;
   if (area === "review") { try { work = await getLocationPerformance(getDatabase(), scope); } catch { work = null; } }
+  const fill = area === "fill" ? await FillSuggestions(scope, staffing, status) : null;
   return <>
-    <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Plan", fill: "Fill shifts", allocations: "Schedule", team: `${scope.locationName} team`, review: scope.role === "OWNER" ? "Pay" : "Confirm work" }[area]} description={{ overview: undefined, plan: "Next week’s demand by time of day, what you already have covered, and what’s left to fill.", fill: undefined, allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: scope.role === "OWNER" ? "Amounts come from the terms each worker accepted. The AI Pay Agent checks every confirmed shift before PayPal; you decide anything it holds." : "Confirm finished work, see what the Pay Agent checked, and pay it through PayPal Sandbox." }[area]} />
+    {/* Design (OwnerFill): the page heading is the number of suggested shifts ready to send, when it is known. */}
+    <PageHeader eyebrow={area === "fill" && fill?.ready != null ? `Fill shifts · ${scope.locationName}` : scope.locationName} title={{ overview: "Today", plan: "Plan", fill: fill?.ready != null ? `${fill.ready} ${fill.ready === 1 ? "shift" : "shifts"} ready to send` : "Fill shifts", allocations: "Schedule", team: `${scope.locationName} team`, review: scope.role === "OWNER" ? "Pay" : "Confirm work" }[area]} description={{ overview: undefined, plan: "Next week’s demand by time of day, what you already have covered, and what’s left to fill.", fill: undefined, allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: scope.role === "OWNER" ? "Amounts come from the terms each worker accepted. The AI Pay Agent checks every confirmed shift before PayPal; you decide anything it holds." : "Confirm finished work, see what the Pay Agent checked, and pay it through PayPal Sandbox." }[area]} />
     {!financialOnly && (area === "plan" || area === "fill" || area === "allocations" || area === "review") ? <ManagerJourney current={area} /> : null}
     <ActionFeedback status={status} saved={area === "fill" ? "Saved. Check the shifts below for your next step" : "Changes saved"} />
     {area === "overview" ? <ManagerToday today={localDate(now, timezone)} now={now} timezone={timezone} staffing={planningOutlet} requirements={requirements} offers={offers} payables={payables} paymentIssues={paymentIssues} departments={departments} team={team} /> : null}
@@ -161,7 +163,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
     {area === "plan" ? await Staffing(scope, ai, staffing, planningDate, context, local) : null}
     {area === "allocations" ? await Roster(scope, timezone) : null}
     {area === "fill" ? <>
-      {await FillSuggestions(scope, staffing, status)}
+      {fill?.node}
       {gapDay ? <section className="panel staffing-handoff" aria-label="Staffing requirement"><h2>{longDate(gapDay.planningDate)}{opportunity ? ` · ${opportunity.windowStart}–${opportunity.windowEnd}` : ""}</h2>
           <p>{opportunity ? <>FairShift identified a casual requirement for {longDate(gapDay.planningDate)}, {opportunity.windowStart}–{opportunity.windowEnd}.</> : requestedWindow ? <>That time no longer has an open casual requirement. Check the figures below.</> : <>FairShift identified no open casual requirement for {longDate(gapDay.planningDate)} from the figures below.</>} You decide what to create. Nothing is created or offered until you do.</p>
           {opportunity ? <ol className="demand-flow demand-flow-compact" aria-label="Why this time needs cover">
@@ -488,7 +490,7 @@ async function Roster(scope:Scope, timeZone:string) {
 
 // Fill shifts (design: OwnerFill, 10 Nov 2026): the suggested shifts to approve, and the signals that
 // would change them, decided here with the same state Plan and Today use.
-async function FillSuggestions(scope: Scope, staffing: WeeklyStaffing | null, status?: string) {
+async function FillSuggestions(scope: Scope, staffing: WeeklyStaffing | null, status?: string): Promise<{ node: React.ReactNode; ready: number | null } | null> {
   const outlet = staffing?.outlets.find(row => row.outletId === scope.locationId);
   if (!outlet || !staffing) return null;
   const [briefing, suggestionData] = await Promise.all([
@@ -496,9 +498,12 @@ async function FillSuggestions(scope: Scope, staffing: WeeklyStaffing | null, st
     suggestionContext(getDatabase(), scope, suggestShifts(outlet)).catch(() => null),
   ]);
   const undecided = (outlet.localIntelligence?.signals ?? []).filter(signal => signal.effectType === "DEMAND" && signal.use === "APPLIED" && !signal.demo);
-  return <>
+  // The same count the suggested list shows: future suggestions not yet approved (null when the list can't be read).
+  const now = Date.parse(staffing.generatedAt);
+  const ready = suggestionData ? suggestShifts(outlet).filter(row => Date.parse(row.startsAt) > now && !suggestionData.approved.has(row.key)).length : null;
+  return { ready, node: <>
     {suggestionData ? <SuggestedShifts outlet={outlet} briefing={briefing} departments={suggestionData.departments} policies={suggestionData.policies} approved={suggestionData.approved} act={!scope.demo} simulated={!!scope.demo} notice={SUGGESTION_NOTICE[status ?? ""]} now={Date.parse(staffing.generatedAt)} /> : null}
     {undecided.length && outlet.localIntelligence ? <section className="panel" aria-labelledby="depends-title"><h2 id="depends-title">Depends on you</h2><p className="panel-lede">These signals add cover only once you accept them; the suggested shifts then include it.</p>
       <ul className="context-signals">{undecided.map(signal => <AiSignalCard key={signal.key} local={outlet.localIntelligence!} signal={signal} timeZone={outlet.timezone} act={!scope.demo} next="/manager/fill" simulated={!!scope.demo} />)}</ul></section> : null}
-  </>;
+  </> };
 }
