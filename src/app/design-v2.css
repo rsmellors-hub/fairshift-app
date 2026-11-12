@@ -462,3 +462,4 @@ html[data-design="v2"] .home-offers, html[data-design="v2"] .home-pay { border-r
   html[data-design="v2"] .sandbox-bar .demo-reset summary { min-height: 32px; }
   html[data-design="v2"] .sandbox-bar .demo-reset > div { left: auto; right: 0; }
 }
+html[data-design="v2"] .proof-group { font: 500 11px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }

@@ -957,3 +957,9 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .choice-list legend { padding: 0 4px; font-weight: 650; }
 .choice-list label { display: flex !important; align-items: center; gap: 10px; min-height: 44px; font-weight: 500; }
 .choice-list input[type="radio"] { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--primary); }
+
+/* PayPal & AI records (design OwnerProof): the data legend, then group headings for PayPal and AI. */
+.proof-legend-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px 20px; margin: 0; }
+.proof-legend-list div { display: grid; gap: 6px; }
+.proof-legend-list dd { margin: 0; font-size: 14px; color: var(--muted); }
+.proof-group { margin: 28px 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
