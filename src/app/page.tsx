@@ -27,7 +27,7 @@ const PROBLEMS = [
 
 const IMPACT = [
   ["For venues", "Staff to the night you’ll actually have", ["See a busy shift days ahead, with the reason and its source", "Fill gaps in minutes: approve the suggestion and the offers go out", "Every hour, payout and tip on one record you can check", "Pay checked against the minimum wage before anyone is offered a shift"]],
-  ["For casual workers", "Know the deal, get paid for it", ["Rate, hours and tip rule shown on every offer, fixed once accepted", "Fair offer order: people who want more hours are offered first", "Paid to PayPal after each confirmed shift, tips included, every rand explained", "Regular hours become visible, so a permanent role can be offered"]],
+  ["For casual workers", "Know the deal, get paid for it", ["Rate, hours and tip rule shown on every offer, fixed once accepted", "Fair offer order: people who want more hours are offered first", "Paid to PayPal after each confirmed shift, every rand explained. Your share of card tips follows as its own PayPal payment", "Regular hours become visible, so a permanent role can be offered"]],
 ] as const;
 
 const STEPS = [
@@ -71,7 +71,7 @@ function Hero() {
     <div className="pub-width land-hero-grid">
       <div className="land-hero-copy">
         <h1 id="hero-title" className="d1 land-hero-title"><span>The right people.</span> <span>The right place.</span> <span className="land-dim">The right time.</span> <span className="land-dim">The right pay.</span></h1>
-        <p className="land-intro">FairShift is shift planning and same-day pay for restaurants, cafés and bars that rely on casual staff. It spots busy shifts early from what’s happening around each venue, offers the work fairly, and pays people through PayPal as soon as a manager confirms the shift, with tips included.</p>
+        <p className="land-intro">FairShift is shift planning and same-day pay for restaurants, cafés and bars that rely on casual staff. It spots busy shifts early from what’s happening around each venue, offers the work fairly, and pays people through PayPal as soon as a manager confirms the shift. Their share of card tips follows as its own PayPal payment.</p>
         <p className="land-intro-sub">For owners and managers who want fewer short-staffed nights, and for casual workers who deserve clear terms and to be paid on time.</p>
         <div className="cta-row land-ctas">
           <Link className="btn lg inv" href="/register">Start your {TRIAL_DAYS}-day free trial</Link>
