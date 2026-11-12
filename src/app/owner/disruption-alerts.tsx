@@ -46,7 +46,7 @@ export function DisruptionAlerts({ alerts, canSend = false, demoVisitor = false 
       <p><strong>{outletName}: {signal.demo ? demoTitle(signal.name) : signal.name}</strong> <StatusBadge tone="danger">{signal.closureLikely ? "Closure likely" : "High severity"}</StatusBadge></p>
       <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
       {signal.demo ? null : <p>{signal.reasoning}</p>}
-      <p className="note">{dateSpan(signal.validFrom, signal.validTo)}{signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : ""} · {signal.categoryLabel}{signal.demo ? "" : ` · ${signal.confidence.toLowerCase()} confidence`} · <Link className="text-link" href={`/owner/locations/${outletId}`}>Open {outletName}</Link></p>
+      <p className="note">{dateSpan(signal.validFrom, signal.validTo)}{signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : ""}{signal.demo ? "" : ` · ${signal.categoryLabel} · ${signal.confidence.toLowerCase()} confidence`} · <Link className="text-link" href={`/owner/locations/${outletId}`}>Open {outletName}</Link></p>
       {signal.closureLikely ? <EarlyNotice alert={alerts.find(row => row.outletId === outletId && row.signal.key === signal.key)!} canSend={canSend} demoVisitor={demoVisitor} /> : null}
     </li>)}</ul>
   </section>;
