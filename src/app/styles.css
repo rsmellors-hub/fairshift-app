@@ -948,3 +948,6 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .home-pay small { color: var(--muted); font-size: 14px; }
 .home-pay .home-pay-status { color: var(--ink); }
 .home-next { margin-top: 8px; }
+
+/* Plan (design OwnerPlan): folded detail panels keep their own content without a second card frame. */
+.plan-fold > .panel { margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
