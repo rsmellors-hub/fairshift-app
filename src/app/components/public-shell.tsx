@@ -5,7 +5,8 @@ import "./public-site.css";
 
 // The public site: one header and footer for everything a visitor sees before signing in (design
 // Main.dc.html, 10 Nov 2026). With a hero, the header sits on the dark hero as on the landing page.
-// Product, FAQ and the demo are not in the design's header; they stay reachable from the footer.
+// Product and FAQ are not in the design's header; they stay reachable from the footer. The public demo
+// is off for judging (Owner, 12 Nov 2026), so nothing here links to it.
 export function PublicShell({ hero, children }: { hero?: ReactNode; children: ReactNode }) {
   const header = <header className="fs pub-header"><div className="pub-width pub-header-row">
     <FsBrand inverse={Boolean(hero)} />
@@ -35,7 +36,6 @@ export function PublicShell({ hero, children }: { hero?: ReactNode; children: Re
         <Link href="/pricing">Pricing</Link>
         <Link href="/product">Product</Link>
         <Link href="/faq">FAQ</Link>
-        <Link href="/demo">Try the demo</Link>
         <Link href="/sign-in">Sign in</Link>
         <details className="pub-note"><summary>Privacy</summary><p>FairShift keeps name, email, mobile, PayPal email and shift and pay records. Never a home address, ID number or bank details.</p></details>
         <details className="pub-note"><summary>Terms</summary><p>Owners and managers confirm all work and pay. The AI suggests and checks; it never sets amounts, picks workers or books shifts. Sandbox: no real money moves.</p></details>
