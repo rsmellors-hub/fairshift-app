@@ -163,11 +163,12 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
     {area === "payments" ? <PayoutRatePanel rate={fxRate} fresh={!!fxRate && isFreshRateDate(fxRate.rateDate, new Date())} feed={fxFeed} timeZone={locations.find(location => location.id === scope.locationId)?.timezone ?? "UTC"} /> : null}
     {area === "payments" && payments.length ?<section className="panel"><h2>Organisation incentive payments</h2>{payments.map((payment, index) => <div className="record-row" key={`${payment.outletId}-${payment.shiftDate}-${index}`}><span>{locations.find((location) => location.id === payment.outletId)?.name} · {payment.shiftDate} · {money(payment.amount, payment.currency)}</span><PaymentBadge status={payment.status} /></div>)}</section> : null}
     {area === "settings" ? <>
-      <section className="panel"><h2>Connected services</h2>
+      {/* Design (OwnerSettings): one column of collapsible sections, each with its key value in the header. */}
+      <details className="panel disclosure" id="connected-services"><summary><span className="h4">Connected services</span><span className="note"> · PayPal {configuration.paypalPayoutConfigured ? "set up" : "not set up"} · Square {commerceConnectionsConfigured() && squareSandboxCredentials() ? "available" : "not set up"}</span></summary>
         <div className="record-row"><span><strong>PayPal worker payments</strong><small>Sends approved earnings. PayPal Sandbox in this environment.</small></span><StatusBadge tone={configuration.paypalPayoutConfigured ? "success" : "warning"}>{configuration.paypalPayoutConfigured ? "Set up" : "Not set up"}</StatusBadge></div>
         <div className="record-row"><span><strong>Square Sandbox</strong><small>{!connectionsAvailable ? "Connection status could not be loaded." : connections.some(row => row.provider === "SQUARE") ? `${connections.filter(row => row.provider === "SQUARE").length} of ${active.length} active locations connected.` : "No location is connected."} <Link href="/owner/reporting">Manage sales sources</Link></small></span><StatusBadge tone={commerceConnectionsConfigured() && squareSandboxCredentials() ? "success" : "warning"}>{commerceConnectionsConfigured() && squareSandboxCredentials() ? "Available" : "Not set up"}</StatusBadge></div>
         <p className="note">Every sales record keeps its source. Reference, imported, Square Sandbox and PayPal Sandbox history are never combined.</p>
-      </section>
+      </details>
       {business ? <BusinessSettings business={business} locationCount={locations.length} disabled={!!scope.demo} /> : null}
       <HoursRuleSettings rule={hoursRule} disabled={!!scope.demo} />
       <details className="panel disclosure" id="sales-data"><summary><span className="h4">Sales data</span><span className="note"> · {scope.locationName}</span></summary>
