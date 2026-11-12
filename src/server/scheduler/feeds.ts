@@ -255,6 +255,10 @@ export function latestSlotStart(now: Date, slot: Pick<Slot, "minute" | "timeZone
 }
 
 type JobRow = typeof scheduledJobs.$inferSelect;
+// The scheduler ticks every 10 minutes and a run records its success a moment after it starts, so a job
+// on a 10-minute interval was a second short of due at the next tick and ran every 20 minutes (12 Nov
+// 2026). A job is due within this margin of its interval, still measured from its last success.
+export const DUE_MARGIN_MS = 60_000;
 export function isDue(job: Pick<Job, "intervalMs" | "retryMs" | "slot">, row: JobRow | undefined, now: Date) {
   if (job.slot) {
     const start = latestSlotStart(now, job.slot);
@@ -269,7 +273,7 @@ export function isDue(job: Pick<Job, "intervalMs" | "retryMs" | "slot">, row: Jo
   }
   if (!row) return true;
   if (row.lastFailureCode && row.lastFinishedAt && now.getTime() - row.lastFinishedAt.getTime() < job.retryMs) return false;
-  return !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= (job.intervalMs ?? 0);
+  return !row.lastSuccessAt || now.getTime() - row.lastSuccessAt.getTime() >= (job.intervalMs ?? 0) - DUE_MARGIN_MS;
 }
 
 export type TickOutcome = { key: JobKey; outcome: "RAN" | "NOT_DUE" | "LEASED" | "DISABLED"; ok?: boolean; code?: string | null };
