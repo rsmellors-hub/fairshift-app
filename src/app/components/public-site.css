@@ -108,3 +108,5 @@
 .fs .land-fair-intro{flex-basis:min(360px,100%)}
 .fs .land-promises{flex-basis:min(560px,100%)}
 .fs .land-ctas .btn{white-space:normal;text-align:center}
+.fs .land-people .land-card{padding:24px;gap:10px}
+.fs .land-people-note{margin-top:16px}

@@ -4,6 +4,14 @@ import { PublicShell } from "@/app/components/public-shell";
 import { AiChip, Chip, DemoChip } from "@/app/components/fs-ui";
 import { commercialPlan, TRIAL_DAYS } from "@/server/billing/plans";
 
+// The public demo is off for judging (Owner, 12 Nov 2026). "Watch the demo" opens the demo video from
+// FAIRSHIFT_DEMO_VIDEO_URL; with no valid http(s) address set, no button is shown.
+function demoVideoUrl() {
+  const value = process.env.FAIRSHIFT_DEMO_VIDEO_URL?.trim();
+  if (!value) return null;
+  try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null; } catch { return null; }
+}
+
 // Landing page (design Main.dc.html, 10 Nov 2026). Public copy follows the decision record:
 // DEC-SA-011 and FS-APPROVER-DEC-001 (casual pay on preauthorised terms, confirmed by a person),
 // DEC-SA-012 (rand earnings paid in US dollars at the ECB reference rate, locked at reservation),
@@ -35,7 +43,6 @@ const PEOPLE = [
   ["Owners", "Run the business", "See every venue’s week ahead, approve suggested shifts, release anything the Pay Agent holds, and manage billing. Owners can do everything a manager can, so a single-venue owner needs no one else."],
   ["Managers", "Run a venue", "Plan their location, send offers, and confirm the hours actually worked. Confirmation is what starts the pay."],
   ["Casual workers", "Pick up shifts", "Get offers on their phone with the pay up front, accept or decline, see every shift on a calendar, and get paid to PayPal after each one."],
-  ["Permanent staff", "Get their tips", "Card tips are allocated under the venue’s written rule and paid to PayPal after the shift, not held until month-end."],
 ] as const;
 
 const PROMISES = [
@@ -68,7 +75,7 @@ function Hero() {
         <p className="land-intro-sub">For owners and managers who want fewer short-staffed nights, and for casual workers who deserve clear terms and to be paid on time.</p>
         <div className="cta-row land-ctas">
           <Link className="btn lg inv" href="/register">Start your {TRIAL_DAYS}-day free trial</Link>
-          <Link className="btn lg inv-out" href="/demo">Watch the demo</Link>
+          {(() => { const video = demoVideoUrl(); return video ? <a className="btn lg inv-out" href={video} target="_blank" rel="noreferrer">Watch the demo</a> : null; })()}
         </div>
         <p className="tiny land-hero-note">{TRIAL_DAYS} days free. Billed through PayPal. Workers never pay.</p>
       </div>
@@ -130,8 +137,10 @@ export default function Home() {
       </section>
 
       <section id="who" className="pub-width land-section" aria-labelledby="who-title">
-        <div className="land-head"><span className="eyebrow">Who it’s for</span><h2 id="who-title" className="d2">One system, four people, each with their own view</h2><p className="small land-sub">Built for independent restaurants, cafés and bars, from a single venue run by its owner to a group of up to five locations.</p></div>
-        <div className="land-grid land-grid-4">{PEOPLE.map(([eyebrow, title, text]) => <div className="card land-card" key={eyebrow}><span className="eyebrow">{eyebrow}</span><p className="h4">{title}</p><p className="small">{text}</p></div>)}</div>
+        <div className="land-head"><span className="eyebrow">Who it’s for</span><h2 id="who-title" className="d2">One system, three people, each with their own view</h2><p className="small land-sub">Built for independent restaurants, cafés and bars, from a single venue run by its owner to a group of up to five locations.</p></div>
+        <div className="land-grid land-grid-3 land-people">{PEOPLE.map(([eyebrow, title, text]) => <div className="card land-card" key={eyebrow}><span className="eyebrow">{eyebrow}</span><p className="h4">{title}</p><p className="small">{text}</p></div>)}</div>
+        {/* Permanent staff can't yet see or receive their share on the hosted build (Owner, 12 Nov 2026). */}
+        <p className="small land-people-note">Permanent staff are included when card tips are shared. Paying their share through PayPal comes next.</p>
       </section>
 
       <section id="fair" className="pub-width land-section land-fair" aria-labelledby="fair-title">
@@ -151,7 +160,7 @@ export default function Home() {
         <div className="pub-width land-section">
           <h2 id="closing-title" className="d2 land-closing-title">Your next busy night <span className="land-dim">is already on the calendar</span></h2>
           <p className="land-closing-copy">Choose a plan, add your venue’s address and pay terms, and invite your team. FairShift will tell you when to call in extra hands, and make sure the people who answer are paid properly.</p>
-          <div className="cta-row land-ctas"><Link className="btn lg inv" href="/register">Start your {TRIAL_DAYS}-day free trial</Link><Link className="btn lg inv-out" href="/demo">Try the live demo</Link></div>
+          <div className="cta-row land-ctas"><Link className="btn lg inv" href="/register">Start your {TRIAL_DAYS}-day free trial</Link><Link className="btn lg inv-out" href="/sign-in">Sign in</Link></div>
         </div>
       </section>
     </div>
