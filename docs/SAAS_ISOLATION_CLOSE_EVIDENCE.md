@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-HACK-SAAS-ISOLATION-CLOSE-001
 
 Date: 5 November 2026. Scope: SUBMISSION-CRITICAL security blocker repair for PayPal payment operations (roadmap section 15, step 13), including related subscription and webhook state. This record does not authorise a successor package or deployment.

@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # PayPal Sandbox negative tests (Postman + Newman), 11 November 2026
 
 **Status:** VERIFIED against PayPal Sandbox for the run below (13 of 15 requests passed; the two failures are recorded as PayPal returned them, not as passes).

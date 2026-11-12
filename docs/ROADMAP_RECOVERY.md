@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FairShift Roadmap Recovery
 
 Package FS-ROADMAP-RESTORE-001. Baseline `main` at `94cedad`. Evidence labels follow `AGENTS.md` §8.

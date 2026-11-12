@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Public Demo Access: state decision (FS-UI-PRODUCT-001)
 
 **Concurrency: SHARED-BUT-RESETTABLE.** Demo sessions are not isolated from each other. Everyone in the public demo sees the same demonstration business and the same writable shifts. This was decided after inspecting the code and before implementing it.

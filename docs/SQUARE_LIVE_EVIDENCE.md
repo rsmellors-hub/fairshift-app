@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Square Sandbox Commerce and Worker Attribution Evidence
 
 **Status: SANDBOX-CONNECTED, verified locally on a production build against a scratch database.** FairShift reads genuine Square Sandbox payments through its existing commerce boundary and uses the team member on them for worker performance. It has not been deployed, and production Square is not connected.

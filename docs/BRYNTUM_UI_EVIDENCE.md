@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Bryntum Scheduler and Product Surfaces Evidence
 
 **Bryntum status: integrated with authoritative FairShift data, verified locally on a production build against a scratch database.** It has not been deployed. The package is the Bryntum trial, and its licence terms have not been checked here.

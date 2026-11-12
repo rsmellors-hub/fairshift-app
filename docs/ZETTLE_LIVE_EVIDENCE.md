@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Zettle Live Evidence
 
 **Status: Stage A blocked. No genuine Zettle authentication, purchase read or sync has taken place.**

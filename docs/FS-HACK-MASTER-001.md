@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 <!--
 Repository custody note. This block is not part of FS-HACK-MASTER-001.
 Added by FS-AUTHORITY-REPAIR-001, 2 November 2026.

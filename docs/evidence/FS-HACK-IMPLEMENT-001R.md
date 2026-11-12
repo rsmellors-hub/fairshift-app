@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-HACK-IMPLEMENT-001R — Webhook recovery repair
 
 Date: 2026-10-14 (Africa/Johannesburg).

@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-UI-PRODUCT-001: Product UI Report
 
 **Status: the final combined tree passed every gate locally, and the owner then authorised deployment.** This report describes the state at that point. What happened next is in [HOSTED_REHEARSAL_EVIDENCE.md](HOSTED_REHEARSAL_EVIDENCE.md).

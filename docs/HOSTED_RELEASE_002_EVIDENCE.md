@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Hosted Release 002 Evidence (FS-HOSTED-RELEASE-002)
 
 **Status: the hospitality engine is live on `https://getafairshift.com`, with a new five-location reference organisation, a Manager and a Worker. The Golden Path has not been run on hosted.** No PayPal payout, Square payment or OpenAI call was made. Status terms follow `AGENTS.md` §8.

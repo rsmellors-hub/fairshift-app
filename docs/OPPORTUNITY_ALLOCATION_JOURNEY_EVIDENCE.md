@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Opportunity to allocation journey: evidence
 
 Scope: the middle of the golden path, from a forecast staffing gap to a worker's booked shift, on a disposable local database and a local production build. No hosted system was touched, and no PayPal request was made. The earlier ONHOLD Sandbox payout was not retried or replaced.

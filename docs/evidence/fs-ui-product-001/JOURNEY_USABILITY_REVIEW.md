@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Journey usability review (FS-UI-PRODUCT-001)
 
 How the signup and demo journeys were checked against published guidance, and what was changed. No conversion or drop-off has been measured: FairShift has no real users yet, so nothing here is a measured improvement. Evidence strength differs by source, as labelled.

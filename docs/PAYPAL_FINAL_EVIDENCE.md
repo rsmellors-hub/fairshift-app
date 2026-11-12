@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Square Earnings to PayPal Sandbox Payout Evidence
 
 **Result: one genuine PayPal Sandbox payout of GBP 121.00 reached item `SUCCESS`, and FairShift recorded it as `PAID`.** The payout came from a payable built on genuine Square Sandbox sales attributed to a mapped worker, and a Manager approved it. It ran locally on a production build against a scratch database. It is test money: not production PayPal, and not deployed.

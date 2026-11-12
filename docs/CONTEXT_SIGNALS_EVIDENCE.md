@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Context Signals Evidence (FS-CONTEXT-SIGNALS-001)
 
 **Status: implemented and verified locally, with genuine Open-Meteo, Ticketmaster and OpenAI responses. Not deployed.** Parts A to D are all built. Status terms follow `AGENTS.md` §8.

@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-HACK-SA-SUBMISSION-001 - Combined submission work package
 
 **Date:** 6 November 2026

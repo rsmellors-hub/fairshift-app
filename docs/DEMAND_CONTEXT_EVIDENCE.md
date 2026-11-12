@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Contextual Demand Evidence (FS-DEMAND-CONTEXT-001)
 
 **Status: implemented and verified locally, with genuine OpenAI responses. Not deployed.** A Manager can see a location's deterministic baseline and the context FairShift holds, ask AI for a bounded scenario, and accept or dismiss it. Only acceptance changes staffing, and the recalculation carries into Fill Shifts.

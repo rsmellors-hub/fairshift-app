@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Performance and incentive journey: evidence
 
 Scope: Golden Path steps 10–12, from confirmed work to an approved final payable, on real-business records. Tested on a disposable local database and a local production build. No hosted system was touched and no PayPal request was made. The earlier ONHOLD Sandbox payout is untouched.

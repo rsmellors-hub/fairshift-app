@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 > **Historical correction checkpoint.** Sections 1–8 record the earlier documentation-only package. The subsequent consolidation implemented ZAR operating terms. Section 9 records FS-HACK-SA-GOV-ZAR-CLOSE-001 review and bounded corrections; it is the current local checkpoint and grants no integration or provider authority.
 
 # FS-HACK-SA-ROADMAP-CORRECTION-001 — Governance correction evidence

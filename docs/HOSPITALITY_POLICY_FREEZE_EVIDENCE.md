@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Hospitality Policy Freeze Evidence (FS-HOSPITALITY-POLICY-FREEZE-001)
 
 **Status: frozen and verified locally. Not deployed.** The reference company now has its Owner-decided workload policy and a corrected Leeds rota, and authority and public copy match. The resulting Opportunity Demand is reported below as it fell. Status terms follow `AGENTS.md` §8. Reference data is **SIMULATED**.

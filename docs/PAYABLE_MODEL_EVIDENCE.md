@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-PAY-001 Evidence
 
 Evidence for confirmed work and the authoritative base payable:

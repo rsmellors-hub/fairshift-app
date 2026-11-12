@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Subscription trial evidence (FS-SUBSCRIPTION-TRIAL-001)
 
 Decision: FS-SUBSCRIPTION-TRIAL-DEC-001 (product specification, section 1). Every new self-service subscription starts with a 30-day free trial through PayPal Subscriptions, then continues at the unchanged catalogue price.

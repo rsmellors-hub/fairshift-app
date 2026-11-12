@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Reference Refresh Evidence (FS-REFERENCE-REFRESH-001)
 
 > **Superseded as the active reference company on 2 November 2026.** The Owner moved the reference vertical to hospitality. See `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md`. This record describes the retail work as it was and is otherwise unchanged. Its staffing method and £100 per labour hour assumption are no longer in the active path. `uk-specialty-retail-v2` stays reproducible in `src/server/reference/uk-retail.ts` and can't be loaded.

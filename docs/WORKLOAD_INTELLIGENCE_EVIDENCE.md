@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Workload Intelligence Evidence (FS-WORKLOAD-INTELLIGENCE-001)
 
 > **Later change:** the Owner has since set the reference policy and corrected the Leeds rota. See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.

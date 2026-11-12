@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-HACK-PAYOUT-RECOVERY-GUARD-001
 
 Date: 5 November 2026. Owner-authorised P0 financial-integrity correction for roadmap steps 13–15. Local implementation and deterministic verification only. Provider integration in this verification: **MOCKED**.

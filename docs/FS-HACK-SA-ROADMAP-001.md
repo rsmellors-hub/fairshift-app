@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FairShift South African Hackathon Delivery Roadmap
 
 | Control | Value |

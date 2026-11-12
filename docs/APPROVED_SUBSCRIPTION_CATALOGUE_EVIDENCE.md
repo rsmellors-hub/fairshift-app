@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Approved subscription catalogue and Sandbox provisioning
 
 > **Historical for plan shape, 16 October 2026.** Its no-trial plan check is superseded for new self-service checkout by FS-SUBSCRIPTION-TRIAL-DEC-001 (30-day trial) and [`SUBSCRIPTION_TRIAL_EVIDENCE.md`](SUBSCRIPTION_TRIAL_EVIDENCE.md). Subscriptions on the original no-trial plans continue. Prices and location limits are unchanged. The body below is unchanged.

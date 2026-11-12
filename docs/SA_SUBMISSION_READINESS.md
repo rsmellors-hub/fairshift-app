@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FairShift SA submission readiness
 
 Date: 5 November 2026. Package: FS-HACK-SA-JUDGE-SUBMISSION-001. Classification: SUBMISSION-CRITICAL preparation for SA-R8 / SA-G8, covering canonical SA steps 1–14. **SA-G8 NOT PASSED.** Earlier gates remain prerequisites.

@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-AI-001 Evidence
 
 > **Later change:** the AI input now carries transaction workload by time window (contract v3). See `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md`. This record is otherwise unchanged.

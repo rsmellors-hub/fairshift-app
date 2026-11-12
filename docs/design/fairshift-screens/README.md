@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FairShift design reference (10 Nov 2026)
 
 These are the approved screen designs for FairShift. Use them as the design source of truth when building the real app.

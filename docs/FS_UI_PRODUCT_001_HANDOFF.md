@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-UI-PRODUCT-001 Handoff
 
 > **Superseded for the reference company and demo path.** See `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This handoff is otherwise unchanged.

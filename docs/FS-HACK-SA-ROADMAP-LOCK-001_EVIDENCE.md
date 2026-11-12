@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 > **Historical checkpoint; later correction — 5 November 2026.** This original FS-HACK-SA-ROADMAP-LOCK-001 report is retained unchanged below. FS-HACK-SA-GOLDEN-RECON-001 subsequently completed read-only reconciliation in the session response. Owner work package FS-HACK-SA-ROADMAP-CORRECTION-001 then supplied DEC-SA-011, superseding its casual-worker request sequence and any second discretionary casual payment approval. The [current SA roadmap](FS-HACK-SA-ROADMAP-001.md) and [correction evidence](FS-HACK-SA-ROADMAP-CORRECTION-001_EVIDENCE.md) govern the updated target/status. This report does not activate its historical next-package recommendations.
 
 # FS-HACK-SA-ROADMAP-LOCK-001 — Governance Evidence

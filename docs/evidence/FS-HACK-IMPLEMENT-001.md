@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-HACK-IMPLEMENT-001 Evidence
 
 > Historical package record. Independent review subsequently found a webhook recovery defect that the original 37 tests did not cover. FS-HACK-IMPLEMENT-001R repairs it and supersedes the original recovery/completeness claims; see the addendum below and [repair evidence](FS-HACK-IMPLEMENT-001R.md).

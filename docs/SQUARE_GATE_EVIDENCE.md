@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Square Sandbox Attribution Gate Evidence
 
 **Verdict: GO under the gate rule.** Square Sandbox stores a `team_member_id` supplied when a payment is created, and returns the same value on every read.

@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # FS-STAFF-001 Evidence
 
 > **Later change:** the revenue-based method described here is retired from the active path. See `docs/WORKLOAD_INTELLIGENCE_EVIDENCE.md` and `docs/HOSPITALITY_POLICY_FREEZE_EVIDENCE.md`. This record is otherwise unchanged.

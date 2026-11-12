@@ -1,3 +1,5 @@
+Working note from the build. It may describe an earlier state. The README and docs/SUBMISSION_EVIDENCE.md describe the submitted build.
+
 # Hosted Release Evidence (FS-HOSTED-RELEASE-001)
 
 > **Historical hosted evidence, 1 November 2026. It does not describe the current hosted state or direct new work.** It was followed by [`HOSTED_REHEARSAL_EVIDENCE.md`](HOSTED_REHEARSAL_EVIDENCE.md) and then [`HOSTED_RELEASE_002_EVIDENCE.md`](HOSTED_RELEASE_002_EVIDENCE.md), which deployed `77ae36d` and created the reference organisation. Current authority: [`FS-DOCUMENT-AUTHORITY-REGISTER.md`](FS-DOCUMENT-AUTHORITY-REGISTER.md). The body below is unchanged.
