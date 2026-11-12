@@ -923,3 +923,7 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 /* Pay (design OwnerPay): the Pay Agent's checks sit apart from the payment steps above them. */
 .pay-card .pay-agent { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .pay-card .pay-agent > p:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.offer-response { gap: 4px; padding-block: 8px; box-shadow: 0 -8px 18px rgba(18, 17, 16, .06); }
+.offer-response .acceptance-check { font-size: 13px !important; line-height: 1.35; min-height: 0; align-items: center; }
+.offer-response .worker-shift-actions { gap: 6px; }
+.offer-response .worker-shift-actions button { min-height: 46px; }
