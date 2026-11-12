@@ -43,7 +43,7 @@ export default function ProductPage() {
     </div></section>
     <section className="site-section closing-cta"><div className="site-width closing-cta-row">
       <div><h2>See it with a real week</h2><p>Follow one shift from forecast to PayPal confirmation.</p></div>
-      <div className="cta-row"><Link className="primary-button button-link" href="/demo">Try the demo</Link><Link className="secondary-button button-link" href="/pricing">See pricing</Link></div>
+      <div className="cta-row"><Link className="primary-button button-link" href="/register">Start free trial</Link><Link className="secondary-button button-link" href="/pricing">See pricing</Link></div>
     </div></section>
   </PublicShell>;
 }
