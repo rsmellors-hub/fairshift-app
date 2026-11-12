@@ -72,6 +72,8 @@ pnpm build
 
 PayPal Sandbox negative tests (Postman and Newman) are in `docs/paypal-negative-tests/`.
 
+`docs/` holds working notes from the build; where they differ from this README, the README describes the submitted build.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
