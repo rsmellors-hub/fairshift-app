@@ -3,6 +3,12 @@
 The single evidence file for FS-HACK-SA-SUBMISSION-001. Status terms follow `AGENTS.md` §8. Each
 entry says what was run, where, and what was observed; nothing here is a hosted or demo-ready claim.
 
+> **History note (12 November 2026).** Before publication, the history was rewritten to remove
+> third-party test fixtures (event listings under `tests/fixtures/`) that were committed on 10 November
+> and removed again the same day. The files in every commit are otherwise unchanged. Commit ids in this
+> file and in other documents refer to the pre-publication history. The hosted release `d8fd827` is
+> `24ba2a6` in the published history.
+
 ## Day 4, Checkpoint A — runtime, DEC-SA-012, casual Pay Agent (7 November 2026)
 
 **Environment.** Branch `submission`, local only. A scratch PostgreSQL 15 cluster (127.0.0.1, port
