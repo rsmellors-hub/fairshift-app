@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { money } from "@/app/components/format";
 import { StatusBadge } from "@/app/components/product-ui";
-import { labourHours } from "@/app/components/staffing";
+import { labourHours, wholeMoney } from "@/app/components/staffing";
 import { selectLocationAction } from "@/app/auth-actions";
 import type { OwnerForecastSummary, OwnerStaffingSummary } from "@/server/product/owner-overview";
 import type { TodayNeeds } from "@/server/product/owner-today";
@@ -40,9 +40,11 @@ export function TodayTiles({ staffing, forecast, needs, timezone }: { staffing: 
   const gap = staffing?.consolidated?.casualGapMinutes ?? null, shifts = staffing?.consolidated?.indicativeShifts ?? null;
   const tiles = [
     { label: "Staff hours still needed", value: gap === null ? "Not available" : labourHours(gap), small: shifts !== null ? `≈ ${shifts} shifts · ${staffing?.outlets.length ?? 0} locations` : "Needs sales history and staffing inputs" },
-    { label: "Forecast sales", value: forecast?.consolidated ? money(forecast.consolidated.totalMinor, forecast.consolidated.currency) : "Not available", small: "Next 7 days" },
+    { label: "Forecast sales", value: forecast?.consolidated ? wholeMoney(forecast.consolidated.totalMinor, forecast.consolidated.currency) : "Not available", small: "Next 7 days" },
     { label: "Shifts on offer", value: String(needs.offers.open + needs.offers.accepted), small: `${needs.offers.accepted} accepted${needs.offers.nextClose ? ` · round closes ${clock(needs.offers.nextClose, timezone)}` : ""}` },
-    { label: "Pay to confirm", value: needs.unconfirmed.currency ? money(needs.unconfirmed.amountMinor, needs.unconfirmed.currency) : "—", small: `${needs.unconfirmed.count} ${needs.unconfirmed.count === 1 ? "shift" : "shifts"} · ${needs.failedPayouts} payouts failed` },
+    // The amount when the page has it; otherwise the shift count is the figure, never a bare dash.
+    (() => { const shifts = `${needs.unconfirmed.count} ${needs.unconfirmed.count === 1 ? "shift" : "shifts"}`, failed = `${needs.failedPayouts} ${needs.failedPayouts === 1 ? "payout" : "payouts"} failed`;
+      return needs.unconfirmed.currency ? { label: "Pay to confirm", value: money(needs.unconfirmed.amountMinor, needs.unconfirmed.currency), small: `${shifts} · ${failed}` } : { label: "Pay to confirm", value: shifts, small: failed }; })(),
   ];
   return <section className="kpi-tiles" aria-label="This week">{tiles.map(tile => <div className="panel kpi-tile" key={tile.label}><span className="eyebrow">{tile.label}</span><strong className="money">{tile.value}</strong><small>{tile.small}</small></div>)}</section>;
 }

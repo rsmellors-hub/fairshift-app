@@ -51,7 +51,7 @@ export default async function OwnerPage({ searchParams }: { searchParams?: Promi
     <TodayHeader name={user?.firstName ?? ""} date={now} timezone={timezone} addPersonHref={`/owner/locations/${scope.locationId}#add-team-member`} />
     {setup && setup.some(step => !step.done) ? <OwnerSetupChecklist steps={setup} welcome={!!params?.welcome} /> : null}
     {needs ? <NeedsYou needs={needs} timezone={timezone} teamHref={`/owner/locations/${scope.locationId}?team=invited#team`} /> : null}
-    {staffingWeek ? <AiThisWeek outlets={staffingWeek.outlets} act={!scope.demo} /> : null}
+    {staffingWeek ? <AiThisWeek outlets={staffingWeek.outlets} act={!scope.demo} hideDemo={alerts.some(alert => alert.signal.demo)} /> : null}
     <DisruptionAlerts alerts={alerts} canSend={!scope.demo} demoVisitor={!!scope.demo} />
     {needs ? <TodayTiles staffing={staffing} forecast={forecast} needs={needs} timezone={timezone} /> : null}
     <WhereShort staffing={staffing} names={names} />

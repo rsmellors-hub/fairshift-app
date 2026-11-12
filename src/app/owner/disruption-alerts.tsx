@@ -34,16 +34,19 @@ function EarlyNotice({ alert, canSend, demoVisitor }: { alert: DisruptionAlert; 
   </div>;
 }
 
+// A DEMO scenario's stored name already says "DEMO scenario: … (synthetic)"; the label below says it once.
+const demoTitle = (name: string) => { const plain = name.replace(/^DEMO scenario:\s*/i, "").replace(/\s*\(synthetic\)\s*$/i, ""); return plain.charAt(0).toUpperCase() + plain.slice(1); };
+
 export function DisruptionAlerts({ alerts, canSend = false, demoVisitor = false }: { alerts: readonly DisruptionAlert[]; canSend?: boolean; demoVisitor?: boolean }) {
   if (!alerts.length) return null;
   return <section className="panel disruption-alerts" id="disruption-alerts" aria-labelledby="disruption-alerts-title" role="status">
     <h2 id="disruption-alerts-title">Disruption alerts</h2>
-    <p className="panel-lede">{alerts.every(alert => alert.signal.demo) ? "A DEMO scenario shows how FairShift alerts you when something could stop a location trading. It is synthetic, made for the demonstration." : "AI found something that could stop a location trading. Each alert has the source it was found in. Check it, and decide what to tell your team."}</p>
+    <p className="panel-lede">{alerts.every(alert => alert.signal.demo) ? "How FairShift alerts you when something could stop a location trading." : "AI found something that could stop a location trading. Each alert has the source it was found in. Check it, and decide what to tell your team."}</p>
     <ul className="context-signals">{alerts.map(({ outletId, outletName, signal }) => <li key={`${outletId}-${signal.key}`} className="context-signal">
-      <p><strong>{outletName}: {signal.name}</strong> <StatusBadge tone="danger">{signal.closureLikely ? "Closure likely" : "High severity"}</StatusBadge></p>
+      <p><strong>{outletName}: {signal.demo ? demoTitle(signal.name) : signal.name}</strong> <StatusBadge tone="danger">{signal.closureLikely ? "Closure likely" : "High severity"}</StatusBadge></p>
       <p>{signal.demo ? <DemoScenarioLabel /> : <AiFoundLabel url={signal.sourceUrl} title={signal.sourceTitle} />}</p>
-      <p>{signal.reasoning}</p>
-      <p className="note">{dateSpan(signal.validFrom, signal.validTo)}{signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : ""} · {signal.categoryLabel} · {signal.demo ? "synthetic" : `${signal.confidence.toLowerCase()} confidence`} · <Link className="text-link" href={`/owner/locations/${outletId}`}>Open {outletName}</Link></p>
+      {signal.demo ? null : <p>{signal.reasoning}</p>}
+      <p className="note">{dateSpan(signal.validFrom, signal.validTo)}{signal.startMinute !== null && signal.endMinute !== null ? ` · ${formatClock(signal.startMinute)}–${formatClock(signal.endMinute)}` : ""} · {signal.categoryLabel}{signal.demo ? "" : ` · ${signal.confidence.toLowerCase()} confidence`} · <Link className="text-link" href={`/owner/locations/${outletId}`}>Open {outletName}</Link></p>
       {signal.closureLikely ? <EarlyNotice alert={alerts.find(row => row.outletId === outletId && row.signal.key === signal.key)!} canSend={canSend} demoVisitor={demoVisitor} /> : null}
     </li>)}</ul>
   </section>;

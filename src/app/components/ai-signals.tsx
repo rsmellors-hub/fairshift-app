@@ -98,10 +98,11 @@ export function searchTimes(runs: readonly (RunView & { timeZone: string })[]) {
 const RANK: Record<LocalSignalView["use"], number> = { APPLIED: 0, ALERT: 1, ATTENDANCE_RISK: 2, LISTED: 3, NOTED: 4, DISMISSED: 5, UNCONFIRMED: 6 };
 
 // The Owner's "AI this week": every location's findings for the planning week, read from storage.
-export function AiThisWeek({ outlets, act = false }: { outlets: readonly OutletStaffing[]; act?: boolean }) {
+// hideDemo: the page already shows the DEMO scenario once, as a disruption alert, so it isn't repeated here.
+export function AiThisWeek({ outlets, act = false, hideDemo = false }: { outlets: readonly OutletStaffing[]; act?: boolean; hideDemo?: boolean }) {
   const rows = outlets.flatMap(outlet => (outlet.localIntelligence?.signals ?? []).map(signal => ({ outlet, signal })));
   const kept = rows.filter(row => !row.signal.demo && row.signal.use !== "UNCONFIRMED").sort((a, b) => RANK[a.signal.use] - RANK[b.signal.use] || a.signal.validFrom.localeCompare(b.signal.validFrom));
-  const demo = rows.filter(row => row.signal.demo);
+  const demo = hideDemo ? [] : rows.filter(row => row.signal.demo);
   const unconfirmed = rows.filter(row => row.signal.use === "UNCONFIRMED");
   const rejected = outlets.flatMap(outlet => (outlet.localIntelligence?.runs ?? []).flatMap(run => run.rejected.map(item => ({ outlet, item }))));
   const runs = outlets.flatMap(outlet => (outlet.localIntelligence?.runs ?? []).map(run => ({ ...run, timeZone: outlet.timezone })));
