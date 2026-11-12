@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { DatabaseSession } from "@/server/db/client";
 import { payAgentEvents, shiftOffers, shifts, workAcceptances, workAllocations, workers, workPayables, workPayouts, workPerformanceResults } from "@/server/db/schema";
 import { canonicalJson } from "@/server/domain/canonical-json";
+import { worksAt } from "@/server/people/worker-locations";
 
 // Confirmed-work evidence for the FairShift Pay Agent (DEC-SA-011): what a manager confirmed,
 // under which preauthorised terms the worker accepted, and what the deterministic payable is.
@@ -36,7 +37,9 @@ export type ConfirmedWorkEvidence = {
   acceptance: { id: string; termsVersion: number; acceptedAt: Date; acknowledged: boolean } | null;
   shift: { id: string; status: string; termsVersion: number; startsAt: Date; endsAt: Date } | null;
   // userId is internal (independent-confirmation check) and never reaches the model.
-  worker: { id: string; status: string; locationId: string | null; workerType: string; userId: string | null } | null;
+  // worksHere: the worker is active at the payable's location, their main one or another they were added
+  // to (12 Nov 2026), by the same rule the schedule offers work with (worksAt).
+  worker: { id: string; status: string; locationId: string | null; workerType: string; userId: string | null; worksHere: boolean } | null;
   performance: { id: string; salesCount: number; salesMinor: number; targetMinor: number; bonusMinor: number; earnedMinor: number; evidenceProvenance: string; confirmedAt: Date } | null;
   payout: { id: string; status: string } | null;
   // A manager has rejected a Pay Agent hold for this payable: it stays unpaid.
@@ -113,7 +116,8 @@ export async function loadConfirmedWork(db: DatabaseSession, scope: PayAgentScop
   const [acceptance] = await db.select({ id: workAcceptances.id, offerId: workAcceptances.offerId, workerId: workAcceptances.workerId, termsVersion: workAcceptances.termsVersion, acceptedAt: workAcceptances.acceptedAt, snapshot: workAcceptances.snapshot })
     .from(workAcceptances).where(and(eq(workAcceptances.id, payable.acceptanceId), eq(workAcceptances.offerId, payable.offerId), eq(workAcceptances.workerId, payable.workerId)));
   // Never the worker's name, contact details or payment destination.
-  const [worker] = await db.select({ id: workers.id, organisationId: workers.organisationId, locationId: workers.locationId, status: workers.status, workerType: workers.workerType, userId: workers.userId })
+  const [worker] = await db.select({ id: workers.id, organisationId: workers.organisationId, locationId: workers.locationId, status: workers.status, workerType: workers.workerType, userId: workers.userId,
+    worksHere: sql<boolean>`${worksAt(scope.locationId)}` })
     .from(workers).where(and(eq(workers.id, payable.workerId), eq(workers.organisationId, scope.organisationId)));
   const [performance] = payable.performanceResultId ? await db.select().from(workPerformanceResults).where(and(
     eq(workPerformanceResults.id, payable.performanceResultId), eq(workPerformanceResults.allocationId, payable.allocationId),
@@ -158,7 +162,7 @@ export async function loadConfirmedWork(db: DatabaseSession, scope: PayAgentScop
     offer: offer ? { id: offer.id, status: offer.status } : null,
     acceptance: acceptance ? { id: acceptance.id, termsVersion: acceptance.termsVersion, acceptedAt: acceptance.acceptedAt, acknowledged: (acceptance.snapshot as { acknowledged?: unknown } | null)?.acknowledged === true } : null,
     shift: shift ? { id: shift.id, status: shift.status, termsVersion: shift.termsVersion, startsAt: shift.startsAt, endsAt: shift.endsAt } : null,
-    worker: worker ? { id: worker.id, status: worker.status, locationId: worker.locationId, workerType: worker.workerType, userId: worker.userId } : null,
+    worker: worker ? { id: worker.id, status: worker.status, locationId: worker.locationId, workerType: worker.workerType, userId: worker.userId, worksHere: !!worker.worksHere } : null,
     performance: performance ? {
       id: performance.id, salesCount: performance.salesCount, salesMinor: performance.salesMinor, targetMinor: performance.targetMinor,
       bonusMinor: performance.bonusMinor, earnedMinor: performance.earnedMinor, evidenceProvenance: performance.evidenceProvenance, confirmedAt: performance.confirmedAt,
@@ -185,7 +189,7 @@ export function workEvidenceGap(evidence: ConfirmedWorkEvidence): WorkEvidenceGa
   if (allocation.state !== "ALLOCATED") return "ALLOCATION_REQUIRED";
   if (!offer || offer.status !== "ACCEPTED") return "ACCEPTANCE_REQUIRED";
   if (!acceptance || acceptance.termsVersion !== payable.termsVersion) return "TERMS_REQUIRED";
-  if (!worker || worker.status !== "ACTIVE" || worker.locationId !== evidence.locationId) return "WORKER_NOT_ELIGIBLE";
+  if (!worker || worker.status !== "ACTIVE" || !worker.worksHere) return "WORKER_NOT_ELIGIBLE";
   if (!shift) return "EVIDENCE_INVALID";
   return null;
 }

@@ -164,7 +164,7 @@ describe("confirmed-work evidence reader", () => {
       allocation: { id: "a", state: "ALLOCATED", confirmedAt: new Date(2) }, offer: { id: "f", status: "ACCEPTED" },
       acceptance: { id: "c", termsVersion: 1, acceptedAt: new Date(0), acknowledged: true },
       shift: { id: "s", status: "PUBLISHED", termsVersion: 1, startsAt: new Date(0), endsAt: new Date(1) },
-      worker: { id: "w", status: "ACTIVE", locationId: "l", workerType: "CASUAL", userId: "worker" },
+      worker: { id: "w", status: "ACTIVE", locationId: "l", workerType: "CASUAL", userId: "worker", worksHere: true },
       performance: null, payout: null, managerRejected: false, missing: [], overlappingConfirmedWork: 0,
     } satisfies ConfirmedWorkEvidence;
     const variant = (change: (value: ConfirmedWorkEvidence) => void) => { const value = structuredClone(base) as ConfirmedWorkEvidence; change(value); return preModelCheck(value); };
@@ -177,7 +177,9 @@ describe("confirmed-work evidence reader", () => {
     expect(variant(v => { v.allocation!.state = "REACCEPTANCE_REQUIRED"; })).toEqual({ status: "BLOCKED", code: "ALLOCATION_REQUIRED" });
     expect(variant(v => { v.offer = { id: "f", status: "CANCELLED" }; })).toEqual({ status: "BLOCKED", code: "ACCEPTANCE_REQUIRED" });
     expect(variant(v => { v.acceptance!.termsVersion = 2; })).toEqual({ status: "BLOCKED", code: "TERMS_REQUIRED" });
-    expect(variant(v => { v.worker!.locationId = "elsewhere"; })).toEqual({ status: "BLOCKED", code: "WORKER_NOT_ELIGIBLE" });
+    expect(variant(v => { v.worker!.worksHere = false; })).toEqual({ status: "BLOCKED", code: "WORKER_NOT_ELIGIBLE" });
+    // A worker whose main location is elsewhere, working at another location they were added to.
+    expect(variant(v => { v.worker!.locationId = "elsewhere"; })).toBeNull();
     expect(variant(v => { v.shift = null; })).toEqual({ status: "BLOCKED", code: "EVIDENCE_INVALID" });
     expect(variant(v => { v.payable.finalAmountMinor = null; })).toEqual({ status: "BLOCKED", code: "PERFORMANCE_REQUIRED" });
     expect(variant(v => { v.payable.finalAmountMinor = 0; })).toEqual({ status: "SKIPPED", code: "NOTHING_PAYABLE" });
