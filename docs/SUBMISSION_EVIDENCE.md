@@ -953,3 +953,50 @@ Automatic settlement of confirmed work through to PayPal SUCCESS is therefore NO
 confirmed only through a statement link (`src/server/tips/statement.ts`), and statement links can't be
 created in a production build. On hosted, a permanent staff member's tip line therefore stays
 `BLOCKED:staff-destination-unconfirmed`. Casual workers in a pool are not affected.
+
+**Automatic settlement through to SUCCESS (VERIFIED, 12:18–12:19).** Ayanda Casual's Wed 11 Nov 10:00–14:00
+Rosebank shift (R180.00) was confirmed by the judge Owner 22.3 h after it ended, within the 24-hour window.
+The Pay Agent decided SETTLE (`resp_04267bf512545b3d016af592880e9887d0825acaf5d8cbf5a8`), approved the
+payable itself at 12:18:50 and sent it, with no Owner step: batch `ZQ4NP8HGPZE7G`, item `7LQMZYQ8SPKAA`
+**SUCCESS** (PayPal completed 10:19:14 UTC), US$10.86, from `fs-jacaranda-table@business.example.com`. It was
+read back to PAID at 12:29:41 by a person's "Check payment status", not by the scheduled refresh, which had
+skipped its 12:27:40 run by one second (fixed in `d8fd827` below).
+
+**Freeze release `d8fd827` (VERIFIED).** It contains the design merge `b6e4d53` and the scheduler fix (an
+interval job is due within 60 s of its interval). Gate: 138 files and 1,341 tests passed, typecheck, ESLint
+with no warnings, isolated build and `git diff --check`, with the working tree unchanged. A backup was taken
+first (`hosted-before-freeze-push-20261112T1110Z.dump`). The push went `8d9db08..d8fd827`, and deploy
+`dep-dbqpuf67bikc739ubidg` was live at 13:15:10. Health, sign-in and the closed `/demo` page were checked;
+`FAIRSHIFT_PUBLIC_DEMO=off`, `FAIRSHIFT_PAY_AGENT_DRY_RUN=false` and `FAIRSHIFT_PAYOUT_SENDER=business`.
+
+**Held payment from overlapping work: the DEMO scenario (VERIFIED, 13:47).** Thabo Molefe (fictional casual
+worker, Pretoria Central and Rosebank) was booked at Pretoria Central through the normal operations for Thu
+12 Nov 13:30–13:45. The booking clash check refused an overlapping Rosebank offer (`worker-working`), and
+that booking was then written as "DEMO scenario: overlapping work at two locations (synthetic)". The judge
+Owner confirmed both after they ended:
+
+| | Pay Agent | Result |
+|---|---|---|
+| Pretoria Central, R11.25 | SETTLE (`resp_01548adfc53cf0aa016af5a73df58887d0976775bf0d28f43b`) | Paid automatically: batch `UCDBQSC33K9QA`, US$0.67 |
+| Rosebank (DEMO scenario), R11.25 | **HOLD**, `OVERLAPPING_WORK` (`resp_036d0e6ac455ebb2016af5a762fc7c87d09ac1cd1fb3af23ac`) | "Another confirmed shift overlaps this shift's scheduled time." Held for the Owner |
+
+**Scheduled payout refresh reaches PAID with no person (VERIFIED, twice).** Thabo's Pretoria payout went
+PROCESSING → PAID (item SUCCESS) at 13:55:11. Ayanda's Thu 12 Nov payout (batch `3YJH7CM9BVVS6`, item
+`YGSLP4VVQVGU8` SUCCESS, transaction `1PA18951N5268961V`, US$10.86) went PROCESSING → PAID at 15:15:11, when
+the run at 15:15:09 logged `{"PAID": 1, "checked": 1}`. In both cases the audit trail records the service
+`fairshift-payout-refresh` and no user, and the worker's one Paid notice followed ("Paid: R180.00 for Thu 12
+Nov, Rosebank", 15:15:13).
+
+**False overlap from shared placeholder telephones, found and corrected (12 Nov).** Ayanda Casual's Thu 12
+Nov 10:00–14:00 Rosebank shift, confirmed at 14:39:56, was held as `OVERLAPPING_WORK` ("Two other confirmed
+work records overlap this shift"). The two records were Thabo's 13:30–13:45 shifts. The overlap check counts
+another worker record as the same person when it shares an email or a telephone (at least 6 digits), and all
+four Jacaranda casuals had been provisioned with the same placeholder `+27 11 000 0000`. The query and the
+model behaved as designed; the demo data was wrong. As the judge Owner, through the person edit
+(PERSON_UPDATED), the telephone was cleared on the Judge Worker, Sipho Ndlovu and Thabo Molefe, so no two
+Jacaranda workers share a telephone or an email. The hold was then released with the reason "False overlap:
+demo workers shared a placeholder telephone" (15:13:04): the payment settled and was paid as above. The
+Mon 9 Nov and Tue 10 Nov holds (`CONFIRMATION_DELAY`) and Thabo's Rosebank hold were left as they were.
+Nothing automatic sets the placeholder again: it is written only by the provisioning scripts, only for a
+new invitation. Logged for after the hackathon: stop giving demo people a shared placeholder telephone in
+`src/server/demo/provision.ts`, `judges.ts` and `people.ts`.
