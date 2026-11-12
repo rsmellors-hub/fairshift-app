@@ -31,7 +31,7 @@ Rand can't be sent through PayPal, so a rand payout is sent in US dollars at the
 
 AI (OpenAI, a configured model) suggests and checks; **it never sets an amount, picks a worker or books a shift.**
 
-- **Local signals**: a web search per location for events, closures and weather that could change demand, each with a source page that FairShift fetches and checks. A demand change applies only after an Owner or Manager accepts it.
+- **Local signals**: for each location, an OpenAI web search for events and closures that could change demand, each with a source page that FairShift fetches and checks; hourly weather from Open-Meteo; South African public holidays from Nager.Date; and, where an API key is configured, Ticketmaster event listings near the venue. A demand change applies only after an Owner or Manager accepts it.
 - **Staffing briefing**: explains which gaps to fill first, citing the figures.
 - **Pay Agent**: checks each confirmed shift (hours, overlaps, timing, records) before payout. It can recommend settling or holding; holds go to the Owner, who decides with a written reason.
 
