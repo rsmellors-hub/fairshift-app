@@ -187,11 +187,25 @@ export async function OwnerWorkspace({ area, status, ai, salesFilter }: { area: 
         <p className="note">The AI never sets an amount, chooses a worker or books a shift.</p></details>
     </> : null}
     {area === "billing" ? <>
-      <section className="panel"><h2>Subscription</h2>{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? <p><DataLabel kind="demo">Local runtime fixture</DataLabel> This subscription record was made for local testing. It is not a PayPal subscription.</p> : null}<p><strong>{SUBSCRIPTION_STATE[subscription?.status ?? ""] ?? "Needs attention"}</strong>{subscription?.tier ? ` · ${subscription.tier === "SINGLE_OUTLET" || subscription.tier === "MULTI_OUTLET" ? PLAN_COPY[subscription.tier].name : "Enterprise"}${subscription.billingPeriod ? `, billed ${subscription.billingPeriod === "ANNUAL" ? "annually" : "monthly"}` : ""}` : ""}</p><p className="note">{subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE ? "Never confirmed with PayPal: it is a local fixture. " : subscription?.verifiedAt ? `Last confirmed with PayPal ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(subscription.verifiedAt)}. ` : "Not yet confirmed with PayPal. "}Billed through PayPal Sandbox in this environment, separately from worker payments.</p><div className="button-row"><Link className="secondary-button button-link" href="/subscribe">Review subscription</Link><form action={refreshSubscriptionAction}><button className="secondary-button">Check subscription with PayPal</button></form></div></section>
-      <section className="panel"><h2>Plans</h2><p className="panel-lede">Prices include VAT. FairShift charges no fees on workers’ earnings or tips.</p>
-        <ul className="role-list">{(["SINGLE_OUTLET", "MULTI_OUTLET"] as const).map(tier => <li key={tier}><p><strong>{PLAN_COPY[tier].name}</strong> · {PLAN_COPY[tier].limit}{subscription?.tier === tier ? " · current plan" : ""}</p>
-          {tier === "SINGLE_OUTLET" && active.length > 1 ? <p className="note">You have {active.length} active locations. Deactivate {active.length - 1} before switching to {PLAN_COPY[tier].name}.</p> : null}</li>)}</ul>
-        <p className="note">{subscription?.providerId && subscription.providerId !== LOCAL_SUBSCRIPTION_FIXTURE ? <>Subscription ID <span className="mono">{subscription.providerId}</span>. </> : null}To change your card or PayPal balance, or cancel, use <a className="link" href={PAYPAL_SANDBOX_AUTOPAY_URL} target="_blank" rel="noreferrer">Manage in PayPal</a> (PayPal Sandbox).</p></section>
+      {/* Design (OwnerBilling): the current plan as a dark card, then Change plan and Payment method folded.
+          Invoices and Cancel plan are left out: the app has no invoices, and cancelling happens in PayPal. */}
+      {(() => { const tier = subscription?.tier === "SINGLE_OUTLET" || subscription?.tier === "MULTI_OUTLET" ? subscription.tier : null;
+        const fixture = subscription?.providerId === LOCAL_SUBSCRIPTION_FIXTURE;
+        return <>
+      <section className="plan-current" aria-labelledby="plan-current-title">
+        <div className="plan-current-head"><span className="eyebrow">Current plan</span><strong className="plan-current-state">{SUBSCRIPTION_STATE[subscription?.status ?? ""] ?? "Needs attention"}</strong></div>
+        <h2 id="plan-current-title">{tier ? PLAN_COPY[tier].name : subscription?.tier ? "Enterprise" : "No plan yet"}</h2>
+        <p>{tier ? `${PLAN_COPY[tier].limit} · ${active.length} in use` : `${active.length} ${active.length === 1 ? "location" : "locations"} in use`}{subscription?.billingPeriod ? ` · billed ${subscription.billingPeriod === "ANNUAL" ? "annually" : "monthly"}` : ""}</p>
+        {fixture ? <p><DataLabel kind="demo">Local runtime fixture</DataLabel> This subscription record was made for local testing. It is not a PayPal subscription.</p> : null}
+        <p className="plan-current-note">{fixture ? "Never confirmed with PayPal: it is a local fixture. " : subscription?.verifiedAt ? `Last confirmed with PayPal ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(subscription.verifiedAt)}. ` : "Not yet confirmed with PayPal. "}Billed through PayPal Sandbox in this environment, separately from worker payments. Prices include VAT; FairShift charges no fees on workers’ earnings or tips.</p>
+        <div className="button-row"><a className="plan-current-primary" href={PAYPAL_SANDBOX_AUTOPAY_URL} target="_blank" rel="noreferrer">Manage in PayPal</a><form action={refreshSubscriptionAction}><button className="plan-current-secondary">Check subscription with PayPal</button></form><Link className="plan-current-secondary" href="/subscribe">Review subscription</Link></div>
+      </section>
+      <details className="panel disclosure" id="change-plan"><summary><span className="h4">Change plan</span><span className="note"> · {tier ? `${PLAN_COPY[tier].name} now` : "choose a plan"}</span></summary>
+        <ul className="role-list">{(["SINGLE_OUTLET", "MULTI_OUTLET"] as const).map(option => <li key={option}><p><strong>{PLAN_COPY[option].name}</strong> · {PLAN_COPY[option].limit}{subscription?.tier === option ? " · current plan" : ""}</p>
+          {option === "SINGLE_OUTLET" && active.length > 1 ? <p className="note">You have {active.length} active locations. Deactivate {active.length - 1} before switching to {PLAN_COPY[option].name}.</p> : null}</li>)}</ul></details>
+      <details className="panel disclosure" id="payment-method"><summary><span className="h4">Payment method</span><span className="note"> · PayPal subscription</span></summary>
+        <p className="note">{subscription?.providerId && !fixture ? <>Subscription ID <span className="mono">{subscription.providerId}</span>. </> : null}To change your card or PayPal balance, or cancel, use <a className="link" href={PAYPAL_SANDBOX_AUTOPAY_URL} target="_blank" rel="noreferrer">Manage in PayPal</a> (PayPal Sandbox).</p></details>
+      </>; })()}
     </> : null}
   </>;
 }

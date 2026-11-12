@@ -993,3 +993,16 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .auth-aside { align-self: start; }
 .auth-sandbox-phone { display: none; }
 @media (max-width: 899px) { .auth-sandbox-phone { display: block; } }
+
+/* Billing (design OwnerBilling): the current plan as a dark card. */
+.plan-current { display: grid; gap: 8px; margin-bottom: 14px; padding: 24px 28px; border-radius: var(--radius); background: #121110; color: #E8E5DF; }
+.plan-current h2 { margin: 0; color: #fff; font-size: 30px; }
+.plan-current p { margin: 0; }
+.plan-current .eyebrow { color: #A9A59C; }
+.plan-current-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plan-current-state { font-size: 13px; color: #fff; padding: 3px 10px; border: 1px solid #4a4741; border-radius: 999px; }
+.plan-current-note { font-size: 13px; color: #A9A59C; }
+.plan-current .button-row { margin-top: 8px; }
+.plan-current-primary, .plan-current-secondary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.plan-current-primary { background: #fff; color: #121110; border: 1px solid #fff; }
+.plan-current-secondary { background: transparent; color: #E8E5DF; border: 1px solid #4a4741; }
