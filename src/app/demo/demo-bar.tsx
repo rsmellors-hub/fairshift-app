@@ -25,18 +25,19 @@ export function DemoBar({ persona }: { persona: DemoPersona }) {
 }
 
 // Signed-in accounts of the demo business (judges' accounts): everything is live in the PayPal Sandbox,
-// and recorded. Reset demo is offered here too; forms are not hidden.
-export function SandboxBar() {
+// and recorded. Reset demo is offered here only while the public demo is on (resetDemo refuses it
+// otherwise); with it off, judges have the venue to themselves (12 Nov 2026).
+export function SandboxBar({ reset }: { reset: boolean }) {
   return <aside className="demo-bar sandbox-bar" aria-label="Sandbox demo business">
     <div className="demo-bar-row">
       <strong>Sandbox demo business</strong>
       <span>Live: AI search and assessments, in-app notices and PayPal Sandbox payouts. Every action is recorded.</span>
-      <details className="demo-reset"><summary>Reset demo</summary>
+      {reset ? <details className="demo-reset"><summary>Reset demo</summary>
         <div>
           <p>Closes shifts and offers made since setup, books tomorrow’s demo shift again and returns AI decisions to the start. Completed, paid work and its records aren’t changed.</p>
           <form action={resetDemoAction}><button>Reset demo</button></form>
         </div>
-      </details>
+      </details> : null}
     </div>
   </aside>;
 }
