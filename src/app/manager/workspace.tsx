@@ -148,7 +148,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
   let work: Awaited<ReturnType<typeof getLocationPerformance>> | null = null;
   if (area === "review") { try { work = await getLocationPerformance(getDatabase(), scope); } catch { work = null; } }
   return <>
-    <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Plan", fill: "Fill shifts", allocations: "Schedule", team: `${scope.locationName} team`, review: scope.role === "OWNER" ? "Pay" : "Confirm work" }[area]} description={{ overview: undefined, plan: "Next week’s demand by time of day, what you already have covered, and what’s left to fill.", fill: undefined, allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: "Confirm finished work, see what the Pay Agent checked, and pay it through PayPal Sandbox." }[area]} />
+    <PageHeader eyebrow={scope.locationName} title={{ overview: "Today", plan: "Plan", fill: "Fill shifts", allocations: "Schedule", team: `${scope.locationName} team`, review: scope.role === "OWNER" ? "Pay" : "Confirm work" }[area]} description={{ overview: undefined, plan: "Next week’s demand by time of day, what you already have covered, and what’s left to fill.", fill: undefined, allocations: "Who is working when. Finalise accepted offers and change shifts here.", team: `The casual workers at ${scope.locationName}.`, review: scope.role === "OWNER" ? "Amounts come from the terms each worker accepted. The AI Pay Agent checks every confirmed shift before PayPal; you decide anything it holds." : "Confirm finished work, see what the Pay Agent checked, and pay it through PayPal Sandbox." }[area]} />
     {!financialOnly && (area === "plan" || area === "fill" || area === "allocations" || area === "review") ? <ManagerJourney current={area} /> : null}
     <ActionFeedback status={status} saved={area === "fill" ? "Saved. Check the shifts below for your next step" : "Changes saved"} />
     {area === "overview" ? <ManagerToday today={localDate(now, timezone)} now={now} timezone={timezone} staffing={planningOutlet} requirements={requirements} offers={offers} payables={payables} paymentIssues={paymentIssues} departments={departments} team={team} /> : null}
@@ -206,8 +206,8 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       </section>
     </> : null}
     {area === "review" ? <>
-      {/* Design (OwnerPay): Needs you · Payouts · Tips. Tips are kept per location on the Owner's tips page. */}
-      <nav className="page-tabs" aria-label="Pay"><a href="#needs-you">Needs you</a><a href="#payouts">Payouts</a>{scope.role === "OWNER" ? <Link href="/owner/tips">Tips</Link> : null}</nav>
+      {/* Design (OwnerPay): Needs you · Recent payouts · Card tips. Card tips are kept per location on the Owner's tips page. */}
+      <nav className="page-tabs" aria-label="Pay"><a href="#needs-you">Needs you</a><a href="#payouts">Recent payouts</a>{scope.role === "OWNER" ? <Link href="/owner/tips">Card tips</Link> : null}</nav>
       <span id="needs-you" />
       {await PayQueries({ scope, timezone })}
       {financialOnly ? <section className="panel" id="confirm-work"><h2>Confirm completed work</h2>
@@ -233,7 +233,6 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
           : <form action={confirmWorkAction}><input name="offerId" type="hidden" value={o.offer.id} /><input name="confirmed" type="hidden" value="yes" /><p>The base payable for this confirmed work has not been recorded.</p><button className="secondary-button">Calculate base payable</button></form>}
       </> : <form action={confirmWorkAction} className="workspace-form"><input name="offerId" type="hidden" value={o.offer.id} /><label className="acceptance-check"><input name="confirmed" type="checkbox" value="yes" required /> I confirm the scheduled work was performed.</label><button className="primary-button" disabled={r.endsAt > now}>Confirm {shiftHours(r.startsAt, r.endsAt)} h worked</button>{r.endsAt > now ? <small>Available after the scheduled end.</small> : null}</form>}</div>; };
         return <section className="panel" id="confirm-work"><h2>Confirm work performed</h2>{waiting.length ? waiting.map(item) : <p className="note">No finished work is waiting to be confirmed.</p>}{upcoming.length ? <details className="disclosure-inline"><summary>Not finished yet · {upcoming.length}</summary>{upcoming.map(item)}</details> : null}{done.length ? <details className="disclosure-inline"><summary>Already confirmed · {done.length}</summary>{done.map(item)}</details> : null}</section>; })()}
-      {await PerformanceReview(scope, payables, timezone, work, importResult)}
       </> : null}
       <section className="panel" id="base-payables" aria-labelledby="base-payables-title"><h2 id="base-payables-title">Payments &amp; approvals</h2>
         {payables.length ? <>
@@ -242,7 +241,7 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             <div><span>Approved · not yet paid</span><strong>{currencyTotals(payables.filter(p => p.payable.status === "APPROVED" && p.payout?.status !== "PAID").map(p => ({ amountMinor: p.payable.approvedAmountMinor ?? 0, currencyCode: p.payable.approvedCurrencyCode ?? p.payable.currencyCode }))) || "None"}</strong></div>
             <div><span>Paid · confirmed by PayPal</span><strong>{currencyTotals(payables.filter(p => p.payout?.status === "PAID").map(p => ({ amountMinor: p.payout!.amountMinor, currencyCode: p.payout!.currencyCode }))) || "None"}</strong></div>
           </div>
-          <div className="pay-cards">{payables.map(({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved, payAgent }) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
+          {(() => { const card = ({ payable, payout, workerName, shiftDate, roleName, paymentDetailsSaved, payAgent }: (typeof payables)[number]) => { const evidence = work?.find(item => item.allocationId === payable.allocationId); const unknown = payable.incentiveRequired && payable.incentiveAmountMinor === null; const amount = (value: number) => money(value, payable.currencyCode); const salesMinor = evidence?.result?.salesMinor ?? evidence?.attributed.minor ?? null, salesCount = evidence?.result?.salesCount ?? evidence?.attributed.count ?? 0; return <article className="pay-card" key={payable.id}>
             {scope.demo ? <EarlierEvidenceLabel /> : null}
             <header><div><h3>{workerName}</h3><p>{longDate(shiftDate)} · {roleName}</p></div><PayableBadge status={payable.status} payout={payout ? { ...payout, refusal: payoutRefusal(payout) } : payout} /></header>
             <dl className="pay-sum">
@@ -259,11 +258,17 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
             <PayoutProgress status={payable.status} payout={payout ? { ...payout, refusal: payoutRefusal(payout) } : payout} />
             {payAgent ? <PayAgentPanel event={payAgent} payableId={payable.id} demo={!!scope.demo} timezone={timezone} owner={scope.role === "OWNER"} /> : null}
             <div className="pay-card-action"><PayableAction demo={!!scope.demo} payable={payable} payout={payout} paymentDetailsSaved={paymentDetailsSaved} payoutsConfigured={getConfigurationStatus().paypalPayoutConfigured} timezone={timezone} agentStatus={payAgent?.status ?? null} /></div>
-          </article>; })}</div>
-          <p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p>
+          </article>; };
+            // Design (OwnerPay): what still needs a decision leads; payments PayPal confirmed fold, counted in the header.
+            const paid = payables.filter(row => row.payout?.status === "PAID"), pending = payables.filter(row => row.payout?.status !== "PAID");
+            return <>{pending.length ? <div className="pay-cards">{pending.map(card)}</div> : <p className="note">Nothing here needs you: every payment below is confirmed by PayPal.</p>}
+              {paid.length ? <details className="disclosure-inline"><summary>Paid · confirmed by PayPal · {paid.length}</summary><div className="pay-cards">{paid.map(card)}</div></details> : null}</>; })()}
+          <details className="disclosure-inline"><summary>How amounts and payment work</summary><p className="note">FairShift calculates each total from the terms the worker accepted, for work confirmed as scheduled, plus any bonus earned under those terms. No timesheet or overtime is applied, and amounts can’t be edited. Approving doesn’t send money: you send the approved amount to PayPal as a separate step (PayPal Sandbox in this environment). A payment shows as Paid only after PayPal reports it as successful.</p></details>
         </> : <StatePanel title="No confirmed work awaiting approval"><p>Base payables appear here when allocated work is confirmed.</p></StatePanel>}
       </section>
       <RecentPayouts rows={payables.filter(row => row.payout).map(row => ({ id: row.payout!.id, workerName: row.workerName, shiftDate: row.shiftDate, payout: row.payout! }))} timezone={timezone} />
+      {scope.role === "OWNER" && !financialOnly ? <section className="panel" id="card-tips" aria-labelledby="card-tips-title"><div className="panel-head"><h2 id="card-tips-title">Card tips</h2><Link className="text-link" href="/owner/tips">Open card tips <span aria-hidden="true">→</span></Link></div><p className="panel-lede">Card tips are shared per location, with the Pay Agent check, on the tips page.</p></section> : null}
+      {!financialOnly ? await PerformanceReview(scope, payables, timezone, work, importResult) : null}
     </> : null}
   </>;
 }
@@ -336,7 +341,8 @@ async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<type
           <button className="primary-button">Confirm sales results</button></form>
           : <p><small>Confirm the work above before its sales results. Allocated {dateTime(item.startsAt, timezone)}.</small></p>}
       </article>; };
-  return <section className="panel" id="performance" aria-labelledby="performance-title"><h2 id="performance-title">Sales check · attributed sales</h2>
+  // Design (OwnerPay): the sales check and import are folded below Card tips, with what's waiting in the header.
+  return <details className="panel disclosure" id="performance"><summary><span className="h4" id="performance-title">Sales check · attributed sales</span><span className="note"> · {open.length ? `${open.length} to check` : "nothing waiting"}</span></summary>
     {freshness ? <>
       <p className="note">Sales come from Square Sandbox payments carrying the team-member identity mapped to a worker, within their accepted shift at this location. The Square Sandbox seller is a UK (GBP) test seller, not this business’s own till. This doesn’t show who was logged in to a till. Refunds are recorded but don’t change the result. The bonus is calculated from the accepted terms and can’t be edited.</p>
       {work.some(item => !item.result) && !scope.demo ? <SquareLiveRefresh timeZone={timezone} initial={{ revision: freshness.revision, failed: freshness.attention || freshness.lastFailed, lastCheckedAt: freshness.lastSuccessAt?.toISOString() ?? null }} /> : null}
@@ -351,7 +357,7 @@ async function PerformanceReview(scope: Scope, payables: Awaited<ReturnType<type
         <p className="note">Columns: transaction_id, attribution_code, occurred_at (with a time zone offset, such as 2026-11-03T11:15:00+00:00), amount (such as 25.00), currency. Importing the same rows again doesn’t count them twice. Don’t include customer or product details.</p>
         <button className="secondary-button">Import sales</button>
       </form></details>}
-  </section>;
+  </details>;
 }
 // The structured PayPal error code recorded with a payout, if any (never a provider message).
 function plainPayoutReason(lastError: unknown) {
