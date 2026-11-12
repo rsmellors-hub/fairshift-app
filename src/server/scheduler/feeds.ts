@@ -6,6 +6,8 @@ import { externalFeeds, localIntelligenceRuns, memberships, organisations, outle
 import { isEntitled } from "@/server/billing/entitlement";
 import { ensureDemoBooking } from "@/server/demo/booking";
 import { advanceOfferRounds } from "@/server/scheduling/shift-suggestions";
+import { refreshProcessingPayouts, type PayoutClientSource } from "@/server/payments/work-payouts";
+import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
 import { ensureDemoRules } from "@/server/demo/settings-seed";
 import { getStaffingAssessmentProvider, type StaffingAssessmentProvider } from "@/server/integrations/openai/staffing-assessment";
 import { generateStaffingAssessment, NoPlanningEvidenceError } from "@/server/intelligence/ai-staffing";
@@ -43,7 +45,7 @@ export const AI_SLOT_TIME_ZONE = "Africa/Johannesburg";
 const SLOT_GRACE_MS = 3 * HOUR;
 export type Slot = { minute: number; timeZone: string; graceMs: number };
 
-export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily" | "demo:booking" | "ai:briefing" | "offers:rounds" | "cache:demo";
+export type JobKey = "holidays:ZA" | "ecb:daily" | "weather:demo" | "intel:recheck" | "intel:daily" | "intel:disruptions" | "track:daily" | "demo:booking" | "ai:briefing" | "offers:rounds" | "cache:demo" | "payouts:refresh";
 export type JobResult = { ok: boolean; code?: string | null; detail?: Record<string, unknown> };
 export type SchedulerDeps = {
   now: () => Date;
@@ -54,6 +56,8 @@ export type SchedulerDeps = {
   // The staffing briefing's model ("What to staff first"); the job runs only with one.
   assessment?: StaffingAssessmentProvider | null;
   checkSource?: SourceChecker;
+  // PayPal payout clients for the scheduled status reads; the job runs only with one.
+  payoutClient?: PayoutClientSource | null;
   // The AI jobs run only when this is on and a provider is configured.
   aiSchedule: boolean;
   // A pause between one location's model call and the next, so a run never bursts at the provider.
@@ -204,6 +208,9 @@ export const JOBS: readonly Job[] = [
   // visitor after a restart doesn't wait for months of history to be aggregated. Reads only.
   { key: "cache:demo", intervalMs: 15 * MINUTE, retryMs: 5 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => ({ ok: true, detail: { warmed: await warmDemoPlanning(db, deps.demoOrganisationIds, deps.now()) } }) },
+  // Payouts PayPal accepted and hasn't settled yet, read again every ten minutes (work-payouts.ts). Reads only.
+  { key: "payouts:refresh", intervalMs: 10 * MINUTE, retryMs: 10 * MINUTE, leaseMs: 10 * MINUTE, enabled: deps => !!deps.payoutClient,
+    run: async (db, deps) => { const result = await refreshProcessingPayouts(db, deps.payoutClient!); return { ok: !result.UNCHANGED_READ_FAILED, code: result.UNCHANGED_READ_FAILED ? "SOME_READS_FAILED" : null, detail: result }; } },
   { key: "intel:recheck", intervalMs: 2 * HOUR, retryMs: 30 * MINUTE, leaseMs: 10 * MINUTE, enabled: () => true,
     run: async (db, deps) => { const result = await recheckUnreachableSources(db, await operatingOrganisationIds(db, deps.demoOrganisationIds), deps.checkSource ?? createSourceChecker({ fetchImpl: deps.fetchImpl }), deps.now()); return { ok: true, detail: result }; } },
   { key: "track:daily", intervalMs: 6 * HOUR, retryMs: 30 * MINUTE, leaseMs: 15 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
@@ -322,7 +329,7 @@ export function startScheduledFeeds() {
     try {
       const organisations = demoOrganisationIds();
       const ai = aiScheduleEnabled();
-      await runDueJobs(db, { now: () => new Date(), demoOrganisationIds: organisations, aiSchedule: ai, discovery: ai ? getLocalDiscoveryProvider() : null, assessment: ai ? getStaffingAssessmentProvider() : null, pauseMs: 30_000 });
+      await runDueJobs(db, { now: () => new Date(), demoOrganisationIds: organisations, aiSchedule: ai, payoutClient: getConfigurationStatus().paypalPayoutConfigured ? getPayPalPayoutClient : null, discovery: ai ? getLocalDiscoveryProvider() : null, assessment: ai ? getStaffingAssessmentProvider() : null, pauseMs: 30_000 });
     } catch (error) {
       console.error("Scheduled feeds did not complete; the last good data stands.", { error: error instanceof Error ? error.name : "unknown" });
     } finally { running = false; }

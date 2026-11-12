@@ -10,7 +10,7 @@ import { credentialsForPayout, newPayoutSender, type PayoutCredentials } from "@
 import { finalPayableMinor } from "@/server/domain/work-payable";
 import { refusalReason } from "@/server/domain/payout-refusal";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertRole, type Scope } from "@/server/auth/access";
@@ -36,7 +36,7 @@ type WorkPayable = typeof workPayables.$inferSelect;
 type PayoutScope = Pick<Scope, "userId" | "organisationId" | "locationId" | "role" | "workerId" | "demo">;
 // Who records a payable or payout write: a signed-in Owner or Manager, or the Pay Agent service
 // acting on DEC-SA-011 authority (no user, service named). The audit keeps the distinction.
-type PayoutActor = { userId: string | null; organisationId: string; locationId: string; service?: "fairshift-pay-agent" };
+type PayoutActor = { userId: string | null; organisationId: string; locationId: string; service?: "fairshift-pay-agent" | typeof PAYOUT_REFRESH_SERVICE };
 type Tenancy = Pick<PayoutActor, "organisationId" | "locationId">;
 
 export class PaymentDetailsRequiredError extends Error {
@@ -426,8 +426,31 @@ export async function refreshWorkPayout(db: Database, paypal: PayoutClientSource
   }, payout => `STATUS:${payout.status}`);
 }
 
+// Scheduled status reads (F5, 12 Nov 2026): a payout PayPal has accepted (it has a PayPal batch ID) and
+// that is still PROCESSING is read again through the same reconciliation as "Check payment status", by
+// the FairShift payout service, with the account that sent it. Reads only: a payout without a batch ID
+// is never sent or resent here; recovering one stays a person's decision. Paid ✓ and the worker's one
+// Paid notice follow from PayPal's item SUCCESS exactly as for a manual check.
+export const PAYOUT_REFRESH_SERVICE = "fairshift-payout-refresh";
+export async function refreshProcessingPayouts(db: Database, paypal: PayoutClientSource, options: { limit?: number } = {}) {
+  const due = await db.select().from(workPayouts).where(and(eq(workPayouts.status, "PROCESSING"), isNotNull(workPayouts.paypalBatchId)))
+    .orderBy(sql`${workPayouts.statusCheckedAt} asc nulls first`, asc(workPayouts.createdAt)).limit(options.limit ?? 25);
+  const tally: Record<string, number> = {};
+  for (const payout of due) {
+    let outcome: string;
+    try {
+      assertSandboxBusiness(payout.organisationId);
+      outcome = (await refreshPayout(db, paypal, { userId: null, organisationId: payout.organisationId, locationId: payout.outletId, service: PAYOUT_REFRESH_SERVICE }, payout)).status;
+    } catch {
+      outcome = "UNCHANGED_READ_FAILED";
+    }
+    tally[outcome] = (tally[outcome] ?? 0) + 1;
+  }
+  return { checked: due.length, ...tally } as Record<string, number> & { checked: number };
+}
+
 // The shared reconciliation of one payout row (a work payable's or a tip line's).
-async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: PayoutScope, payout: WorkPayout): Promise<WorkPayout> {
+async function refreshPayout(db: Database, paypal: PayoutClientSource, scope: PayoutActor & { role?: string; demo?: unknown }, payout: WorkPayout): Promise<WorkPayout> {
 
   if (payout.paypalBatchId) {
     const now = new Date();
