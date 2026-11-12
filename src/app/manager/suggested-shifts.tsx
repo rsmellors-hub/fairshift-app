@@ -56,8 +56,9 @@ export function SuggestedShifts({ outlet, briefing, departments, policies, appro
     {notice ? <p role="status" className="note context-notice">{notice}</p> : null}
     {!rules ? <p>This location has no shift-length rules yet, so no shifts are suggested. Set them on the location’s page under Staffing and offers.</p>
       : <p className="panel-lede">Cut from this venue’s gap using its shift rules ({labourHours(rules.minMinutes)}–{labourHours(rules.maxMinutes)}, about {labourHours(rules.preferredMinutes)}) and its pay terms. {order.length ? "The AI orders them by need and says why. " : ""}Nothing is sent until you approve.</p>}
-    {act && open.length && departments.length && policies.length ? <form action={approveAllSuggestedShiftsAction} className="button-row suggestion-approve">{open.map(s => <input key={s.key} type="hidden" name="key" value={s.key} />)}{chooser}
-      <button className="primary-button">Approve all {open.length} and send offers</button></form> : null}
+    {act && open.length && departments.length && policies.length ? <form action={approveAllSuggestedShiftsAction} className="button-row suggestion-approve">{open.map(s => <input key={s.key} type="hidden" name="key" value={s.key} />)}
+      <button className="primary-button">Approve all {open.length} and send offers</button>
+      <details className="disclosure-inline suggestion-terms"><summary>Role and pay terms · {departments[0]?.name} · {pay ? `${money(pay.rateMinor, pay.currencyCode)}/h` : ""}</summary><div className="button-row">{chooser}</div></details></form> : null}
     {rules && !suggestions.length ? <p>No open casual gap this week, so nothing to suggest.</p> : null}
     {open.length ? <div className="table-frame"><table className="data-table"><caption className="visually-hidden">Suggested shifts</caption><thead><tr><th scope="col">#</th><th scope="col">Shift</th><th scope="col">Terms</th><th scope="col">Why first</th><th scope="col"><span className="visually-hidden">Act</span></th></tr></thead><tbody>{open.map(row)}</tbody></table></div> : null}
     {act && rules && open.length && (!departments.length || !policies.length) ? <p className="note">Add a role and hourly pay terms for this location before approving.</p> : null}

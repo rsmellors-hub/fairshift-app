@@ -901,3 +901,10 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .workspace-switch { display: flex; align-items: center; min-width: 0; }
 .workspace-switch .location-switcher { margin: 0; }
 .workspace-switch select { min-height: 38px; max-width: 100%; }
+
+/* Fill shifts (design OwnerFill, 10 Nov 2026): Approve all leads; role and pay terms fold under it.
+   On each shift card, responses and the worker pool fold with their count in the header. */
+.suggestion-approve { margin-bottom: 12px; }
+.suggestion-approve .suggestion-terms { flex-basis: 100%; margin-top: 0; }
+.suggestion-terms > summary { padding: 6px 0; }
+.shift-card .fill-fold > summary { font-weight: 600; }
