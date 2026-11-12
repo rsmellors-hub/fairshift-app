@@ -63,6 +63,9 @@ export default async function Onboarding({ searchParams }: { searchParams?: Prom
     {step === "venue" ? <>
       <div className="workplace-heading"><h1>{location && progress.venue ? `Your venue: ${location.name}` : "Where is your venue?"}</h1>
         <p>FairShift uses the address to check weather, public holidays and what’s happening nearby. Nothing is shared with your customers or staff.</p></div>
+      {/* Design (Setup, step 3): once the venue has an address, the pin and the AI first look sit beside the
+          form. One black button: Save until the venue is saved, then Place the pin, then Continue. */}
+      <div className={location && progress.venue ? "setup-split" : undefined}>
       <form action={saveSetupVenueAction} className="workspace-form form-grid">{hidden}
         <label>Venue name<input name="name" defaultValue={location?.name ?? ""} required maxLength={150} /></label>
         <label>Street address<input name="address" defaultValue={location?.address ?? ""} required maxLength={200} /></label>
@@ -74,14 +77,17 @@ export default async function Onboarding({ searchParams }: { searchParams?: Prom
           {CUSTOMER_TYPES.map(type => <label className="acceptance-check" key={type}><input type="checkbox" name="customerTypes" value={type} defaultChecked={location?.customerTypes.includes(type)} /> <span><strong>{CUSTOMER_TYPE_LABEL[type]}</strong><small>AI checks: {CUSTOMER_TYPE_CHECKS[type]}</small></span></label>)}
           <small>Each choice decides exactly which local signals the AI looks for at this location, so results are consistent and explainable.</small></fieldset>
         <label className="form-span">Nothing fits? Add a short note (optional; it can only narrow the search)<input name="customerNote" defaultValue={location?.customerNote ?? ""} maxLength={200} /></label>
-        <fieldset className="form-span"><legend>When are you open? (e.g. 07:00-17:00, or closed)</legend>{DAYS.map((day, i) => <label key={day}>{day}<input name={`trading${i + 1}`} defaultValue={TYPICAL_HOURS[(location?.venueType ?? "CAFE_RESTAURANT") as keyof typeof TYPICAL_HOURS]} required /></label>)}</fieldset>
+        <fieldset className="form-span day-grid"><legend>When are you open? (e.g. 07:00-17:00, or closed)</legend>{DAYS.map((day, i) => <label key={day}>{day}<input name={`trading${i + 1}`} defaultValue={TYPICAL_HOURS[(location?.venueType ?? "CAFE_RESTAURANT") as keyof typeof TYPICAL_HOURS]} required /></label>)}</fieldset>
         <label>Bills one person serves an hour<input name="transactionsPerStaffHour" inputMode="numeric" required /><small>Your own figure: FairShift doesn’t guess it.</small></label>
         <label>Minimum on the floor while open<input name="minimumStaffWhileOpen" inputMode="numeric" required /></label>
-        <fieldset className="form-span"><legend>Permanent staff already on each day (optional, e.g. 08:00-16:00 x2, or none)</legend>{DAYS.map((day, i) => <label key={day}>{day}<input name={`coverage${i + 1}`} defaultValue="none" /></label>)}</fieldset>
-        <button className="primary-button form-span">Save venue and place the pin</button>
+        <fieldset className="form-span day-grid"><legend>Permanent staff already on each day (optional, e.g. 08:00-16:00 x2, or none)</legend>{DAYS.map((day, i) => <label key={day}>{day}<input name={`coverage${i + 1}`} defaultValue="none" /></label>)}</fieldset>
+        <button className={`${location && progress.venue ? "secondary-button" : "primary-button"} form-span`}>Save venue and place the pin</button>
       </form>
-      {location && progress.venue ? <p className="note">{progress.pin ? <>Pin confirmed · {location.latitude?.toFixed(3)}, {location.longitude?.toFixed(3)} · <Link className="link" href={`/owner/locations/${location.id}/pin?next=setup`}>Move pin</Link></> : <Link className="primary-button button-link" href={`/owner/locations/${location.id}/pin?next=setup`}>Place the pin on your venue</Link>}</p> : null}
-      {location ? await FirstLook({ organisationId: scope.organisationId, location }) : null}
+      {location && progress.venue ? <aside className="setup-aside" aria-label="Pin and first look">
+        <p className="note">{progress.pin ? <>Pin confirmed · {location.latitude?.toFixed(3)}, {location.longitude?.toFixed(3)} · <Link className="link" href={`/owner/locations/${location.id}/pin?next=setup`}>Move pin</Link></> : <><Link className="primary-button button-link" href={`/owner/locations/${location.id}/pin?next=setup`}>Place the pin on your venue</Link><br />The AI’s first look at what’s happening nearby starts once the pin is on your venue.</>}</p>
+        {await FirstLook({ organisationId: scope.organisationId, location })}
+      </aside> : location ? await FirstLook({ organisationId: scope.organisationId, location }) : null}
+      </div>
       {location && progress.venue && progress.pin ? nav(null) : null}
     </> : null}
 

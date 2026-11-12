@@ -963,3 +963,16 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .proof-legend-list div { display: grid; gap: 6px; }
 .proof-legend-list dd { margin: 0; font-size: 14px; color: var(--muted); }
 .proof-group { margin: 28px 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* Onboarding venue step (design Setup): the form, with the pin and the AI first look beside it on wide screens. */
+.setup-split { display: grid; gap: 20px; }
+@media (min-width: 1100px) { .setup-split { grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); align-items: start; } .setup-aside { position: sticky; top: 16px; } }
+.setup-aside { display: grid; gap: 12px; }
+/* A day-by-day fieldset: Mon–Sun side by side on wide screens, two a row on a phone. */
+.day-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.day-grid > legend { grid-column: 1 / -1; }
+.day-grid > label { display: grid; gap: 4px; font-size: 13px; }
+@media (max-width: 767px) { .day-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* A choice with a detail line: the detail sits under the choice, not run into it. */
+.acceptance-check > span > small { display: block; font-weight: 500; color: var(--muted); }
+@media (min-width: 1100px) { .setup-split .day-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
