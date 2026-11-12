@@ -28,7 +28,7 @@ export function PublicShell({ hero, children }: { hero?: ReactNode; children: Re
     <footer className="fs pub-footer"><div className="pub-width pub-footer-row">
       <div className="pub-footer-brand">
         <FsBrand inverse />
-        <p className="tiny">FairShift is not a payroll service. Shift earnings and tips are paid to the worker’s PayPal wallet once the shift is confirmed.</p>
+        <p className="tiny">FairShift is not a payroll service. Shift earnings are paid to the worker’s PayPal wallet once the shift is confirmed. A casual worker’s share of card tips follows as its own PayPal payment.</p>
         <p className="tiny">This environment uses PayPal Sandbox, so no real money moves. FairShift does not run payroll or handle tax.</p>
       </div>
       <nav aria-label="Footer" className="pub-footer-nav">
