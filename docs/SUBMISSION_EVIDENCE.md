@@ -871,3 +871,85 @@ platform app.
 
 Read back from PayPal Sandbox with the platform app's credentials on 12 Nov, the batch and item are
 SUCCESS for USD 1.37.
+
+**FS8 Test Cafe pays from its own PayPal account (VERIFIED, 12:02–12:04).** Lwazi Fs8 at FS8 Test Cafe
+Rosebank, Thu 12 Nov 07:00–12:00, R225.00 (5 h × R45.00, accepted terms). Signed in as the FS8 Owner:
+**Confirm 5 h** at 12:02:47 on `/manager`. The Pay Agent decided SETTLE with all four checks passed
+(`resp_018485e86aaf9e45016af58ec8c38c87d08afc3e7920ed2c4f`). Dry run was still on, so the event ended
+`DRY_RUN_ELIGIBLE`. Then **Approve R225.00** (12:03), **Send R225.00 payout with PayPal**, and **Check
+payment status** on `/manager/review`.
+
+| | |
+|---|---|
+| Payable | `123ddb48-4883-4c7e-a55e-a660e50b317f` |
+| PayPal batch | `ZAGAEZG7A7X48` (SUCCESS, completed 10:04:39 UTC) |
+| PayPal item | `J45RYG2DHGLLA`, **SUCCESS** |
+| Transaction | `3HG056997P376182N` |
+| Amount | R225.00 → US$13.58 at `ECB_EUROFXREF_DAILY:2026-11-11` (16.563944) |
+| Sending account | `fs-fs8-test-cafe@business.example.com`, app `APP-1BG65873FS292853V` |
+| FairShift | PAID at 12:04:48, one Paid notice to the worker |
+
+Read back from PayPal Sandbox with FS8's credentials, the batch and item are SUCCESS for USD 13.58. The
+platform app gets HTTP 404 for the same batch.
+
+**Hosted configuration changes after the proofs (Owner decisions, 12 Nov).**
+`FAIRSHIFT_PUBLIC_DEMO=off` was set at 11:08 (deploy `dep-dbqo3spsrm7s73dg8kng` live 11:10): `/demo` shows
+"The demo isn't open right now.", while sign-in and `/api/health` work. Judges use signed-in accounts
+only. `FAIRSHIFT_PAY_AGENT_DRY_RUN=false` was set at 12:06 (deploy `dep-dbqout8ae00c7391rb5g` live 12:08),
+after a read-only check that no work payable or tip line on hosted was waiting to settle automatically.
+
+**Card tips released at Rosebank and paid from Jacaranda's PayPal app (VERIFIED, 12:09–12:11).** Signed in
+as the judge Owner on `/owner/tips` at Rosebank:
+
+1. Rule: **Shift pool: equal shares per shift block**, auto-release cap R1,500.00 per staff member per day.
+2. Blocks: Morning 07:00–12:00, Afternoon 12:00–17:00, Evening 17:00–23:00.
+3. Import: the three Afternoon rows of `scripts/demo/jacaranda-rosebank-tips.template.csv`, re-dated
+   from Fri 6 Nov to Sun 8 Nov (Owner decision), when Ayanda Casual had confirmed Rosebank work in that
+   block. The casual's row carries her POS reference. The two permanent-staff rows have no staff
+   reference, because no permanent staff are recorded on hosted. The import is labelled "Synthetic demo
+   POS export" (DEMO).
+
+| | |
+|---|---|
+| Import | `c0cc6549-11f2-4b89-8f92-be698bfc296a`, 3 rows, R73.80, SHIFT_POOL |
+| Tip block | Sun 8 Nov, Afternoon 12:00–17:00, allocation `e83fa5f4-f203-47a2-8362-ab6ec2573f79`: R73.80 allocated, R0.00 unallocated |
+| Shares | Ayanda Casual (casual, confirmed shift): **R73.80**, the only member of the block |
+| Pay Agent | Tip check RELEASE (`resp_0e0aedeb7132b952016af590b1db0087d0a6baa3663686e805`), dry run off, `PAYOUT_RESERVED:1` |
+| PayPal batch | `YRX7NW2FTLGVA` (SUCCESS, completed 10:11:24 UTC) |
+| PayPal item | `QFYBVQAB77HUC`, **SUCCESS**, note "FairShift tip release" |
+| Transaction | `09J87023EF858482A` |
+| Amount | R73.80 → US$4.45 at `ECB_EUROFXREF_DAILY:2026-11-11` (16.5639) |
+| Sending account | `fs-jacaranda-table@business.example.com`, app `APP-2L149153SH969613U` |
+| FairShift | PAID at 12:11:49 after **Refresh PayPal status**; the Tips page reads "Paid (PayPal item SUCCESS) · released via FairShift" |
+
+Read back from PayPal Sandbox with Jacaranda's credentials, the batch and item are SUCCESS for USD 4.45.
+
+Where the worker sees it, signed in as Ayanda Casual:
+- **Pay (`/worker/pay`), "Your tips":** "2026-11-08 Afternoon 12:00–17:00 · pooled share R73.80 Paid
+  (PayPal confirmed)", then "At this location tips are pooled by shift block: each block's tips are split
+  equally between everyone who worked it, and your share is paid through the pool, not with your shift pay."
+- **Her Sun 8 Nov 15:45–16:45 shift (`/worker/pay/dae25862-…`), "This shift's pay":** "Card tips ·
+  Afternoon · Paid separately under the location's tip policy · Paid ✓ R73.80", then "Total · Shift earnings
+  and tips · R118.80", and "Tips sent as US$4.45 at ECB 16.5639 · batch YRX7NW2FTLGVA."
+- **Inbox:** a PAYOUT_PAID notice at 12:11:50, "Tips paid: R73.80 for Sun 8 Nov, Rosebank" ("Paid ✓ R73.80
+  in card tips is in your PayPal account.").
+
+Side effect: the first attempt ran with the Tips page still on Durban North, because that page has its
+own location switch. It saved Durban North's tip rule (shift pool, R1,500 cap) and the same three blocks,
+and the import was refused there (`tip-csv-invalid`, rows for another location). Durban North had no tip
+settings, staff or imports before, and still has no imports. The product can't delete a tip rule, so it
+was left as it is.
+
+**Automatic settlement with the dry run off: the Pay Agent held the payment (VERIFIED, 12:13).** Only Ayanda
+Casual's Mon 9 Nov 10:00–14:00 Rosebank shift (R180.00) was confirmed, by the judge Owner. The Tue 10 and
+Wed 11 Nov shifts were left unconfirmed. The payable `f248ef61-d14b-4f02-882a-49ae86ac893f` was recorded
+PENDING_REVIEW. The Pay Agent decided **HOLD**, reason `CONFIRMATION_DELAY`
+(`resp_0f5cf9cdde74e7ac016af5913e331087d0ae21c9bb1189f9d3`): "The shift ended on 2026-11-09 at 12:00 UTC
+and was confirmed 70.2 hours later, outside the normal confirmation window." No payout was reserved or
+sent. The only notice was WORK_CONFIRMED to the worker ("This does not mean a payment has been sent.").
+Automatic settlement of confirmed work through to PayPal SUCCESS is therefore NOT VERIFIED on hosted.
+
+**Known gap, not fixed (logged for after the hackathon).** A permanent staff member's PayPal destination is
+confirmed only through a statement link (`src/server/tips/statement.ts`), and statement links can't be
+created in a production build. On hosted, a permanent staff member's tip line therefore stays
+`BLOCKED:staff-destination-unconfirmed`. Casual workers in a pool are not affected.
