@@ -231,7 +231,9 @@ export async function ManagerWorkspace({ area, status, date, window: requestedWi
       {!financialOnly ? <>
       <ReviewStages stages={[
         { label: "Work confirmed", waiting: offers.filter(o => o.allocation?.state === "ALLOCATED" && !o.allocation.confirmedAt && requirements.find(s => s.id === o.offer.shiftId)!.endsAt <= new Date()).length, href: "#confirm-work" },
-        { label: "Sales checked", waiting: payables.filter(p => p.payable.status === "PENDING_REVIEW" && p.payable.incentiveRequired && p.payable.incentiveAmountMinor === null).length, href: "#performance" },
+        // The sales check belongs to the older commission terms: shown only when this location's terms
+        // carry a sales target, or a payable still waits on one.
+        ...(policies.some(p => p.incentiveTargetMinor !== null) || payables.some(p => p.payable.incentiveRequired) ? [{ label: "Sales checked", waiting: payables.filter(p => p.payable.status === "PENDING_REVIEW" && p.payable.incentiveRequired && p.payable.incentiveAmountMinor === null).length, href: "#performance" }] : []),
         { label: "Approve", waiting: payables.filter(p => p.payable.status === "PENDING_REVIEW" && !(p.payable.incentiveRequired && p.payable.incentiveAmountMinor === null)).length, href: "#base-payables" },
         { label: "Pay with PayPal", waiting: payables.filter(p => p.payable.status === "APPROVED" && (!p.payout || p.payout.status === "NOT_SENT")).length, href: "#base-payables" },
       ]} />

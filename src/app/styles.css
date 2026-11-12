@@ -927,3 +927,6 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 .offer-response .acceptance-check { font-size: 13px !important; line-height: 1.35; min-height: 0; align-items: center; }
 .offer-response .worker-shift-actions { gap: 6px; }
 .offer-response .worker-shift-actions button { min-height: 46px; }
+/* Pay: three steps when the sales check doesn't apply. */
+@media (min-width: 768px) { .review-stages:has(> li:nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .review-stages:has(> li:nth-child(3):last-child) > li:last-child { grid-column: 1 / -1; } }
