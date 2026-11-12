@@ -448,3 +448,7 @@ html[data-design="v2"] .offer-response { margin: 4px -20px -18px; padding: 12px 
   html[data-design="v2"] #suggested-shifts .data-table td[data-label="Act"] .secondary-button,
   html[data-design="v2"] #suggested-shifts .data-table td[data-label="Act"] .link-button { min-height: 44px; padding: 0 18px; }
 }
+/* Worker Home: section labels as in the design (small mono caps), the offer heading as a card title. */
+html[data-design="v2"] .home-section-head h2 { font: 500 11px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+html[data-design="v2"] .home-offers h2 { font: 600 16px/1.3 var(--sans); letter-spacing: 0; }
+html[data-design="v2"] .home-offers, html[data-design="v2"] .home-pay { border-radius: 14px; }

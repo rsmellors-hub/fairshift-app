@@ -930,3 +930,21 @@ td[data-heat="1"] .heat-gap, td[data-heat="2"] .heat-gap, td[data-heat="3"] .hea
 /* Pay: three steps when the sales check doesn't apply. */
 @media (min-width: 768px) { .review-stages:has(> li:nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .review-stages:has(> li:nth-child(3):last-child) > li:last-child { grid-column: 1 / -1; } }
+
+/* Worker Home (design WorkerHome, 10 Nov 2026): messages, one offers card, one pay card, the week strip. */
+.home-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.home-section-head h2 { margin: 0 0 8px; font-size: 13px; }
+.home-section-head a { font-size: 14px; }
+.home-offers { display: grid; gap: 8px; margin-top: 18px; }
+.home-offers h2 { margin: 0; font-size: 16px; }
+.home-offers p { margin: 0; }
+.home-offer-when strong, .home-offer-pay strong { display: block; }
+.home-offer-when small, .home-offer-pay small { color: var(--muted); font-size: 14px; }
+.home-offer-pay { display: flex; align-items: baseline; gap: 10px; }
+.home-offer-pay strong { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.home-offers-cta { width: 100%; min-height: 46px; justify-content: center; }
+.home-pay { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+.home-pay .money { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.home-pay small { color: var(--muted); font-size: 14px; }
+.home-pay .home-pay-status { color: var(--ink); }
+.home-next { margin-top: 8px; }

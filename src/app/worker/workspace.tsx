@@ -123,25 +123,41 @@ export async function WorkerWorkspace({ area, status, view, offer: selectedOffer
     <PageHeader eyebrow={scope.locationName} title={title} />
     {isDemoOrganisation(scope.organisationId) ? <p className="note"><DataLabel kind="demo">Fictional demo staff</DataLabel> A fictional staff account at a fictional venue, made for the demonstration.</p> : null}
     <ActionFeedback status={status} saved={area === "shifts" ? "Response saved" : "Changes saved"} />
-    {area === "home" ? <>
-      {inbox && inbox.notices.some(notice => !notice.readAt) ? <section className="worker-section" aria-labelledby="home-inbox"><h2 id="home-inbox">New in your Inbox</h2>
-        <ul className="inbox-list">{inbox.notices.filter(notice => !notice.readAt).slice(0, 3).map(notice => <li key={notice.id} className="inbox-new"><Link href={notice.href.startsWith("/") ? notice.href : "/worker/inbox"}><strong>{notice.title}</strong></Link></li>)}</ul>
-        <p><Link href="/worker/inbox">Open your Inbox →</Link></p></section> : null}
-      {offersNow.length ? <Link className="panel offers-card" href="/worker/shifts#offers"><strong>{offersNow.length} open {offersNow.length === 1 ? "offer" : "offers"}</strong><span>Choose one to see the pay, the wage check, the tip rule and the terms →</span></Link> : null}
-      {(() => { const week = accepted.filter(row => row.shift.status !== "CANCELLED" && sameWeek(row.shift.startsAt, now, timezone));
-        const total = currencyTotals(week.map(row => ({ amountMinor: row.payable ? finalPayableMinor(row.payable) : row.shift.earningsModel === "COMMISSION" ? 0 : row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, currencyCode: row.shift.currencyCode })));
-        return <section className="worker-section" aria-labelledby="home-week-pay"><h2 id="home-week-pay">This week’s pay</h2><Link className="money-summary" href="/worker/pay"><span>{total ? `${total} from ${week.length} ${week.length === 1 ? "shift" : "shifts"} you accepted (Mon–Sun)` : "No accepted shifts this week yet"}</span></Link></section>; })()}
+    {area === "home" ? (() => {
+      // Design (WorkerHome, 10 Nov 2026): messages, the open offers as one card, this week's pay as one card,
+      // and the 7-day strip with the next shift. Full offer and shift cards fold, so every action stays here.
+      const unread = inbox ? inbox.notices.filter(notice => !notice.readAt) : [];
+      const short = (date: Date) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: timezone }).format(date);
+      const clock = (date: Date) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timezone }).format(date);
+      const earns = (row: (typeof assignments)[number]) => row.shift.earningsModel === "COMMISSION" ? "Commission" : money(row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, row.shift.currencyCode);
+      const hours = (row: (typeof assignments)[number]) => { const h = (row.shift.endsAt.getTime() - row.shift.startsAt.getTime()) / 3_600_000; return `${Number.isInteger(h) ? h : h.toFixed(1)} ${h === 1 ? "hour" : "hours"}`; };
+      const week = accepted.filter(row => row.shift.status !== "CANCELLED" && sameWeek(row.shift.startsAt, now, timezone));
+      const weekTotal = currencyTotals(week.map(row => ({ amountMinor: row.payable ? finalPayableMinor(row.payable) : row.shift.earningsModel === "COMMISSION" ? 0 : row.shift.expectedEarningsMinor ?? row.shift.guaranteedBasePayMinor, currencyCode: row.shift.currencyCode })));
+      const moneyLine = [paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ");
+      const next = upcoming[0];
+      return <>
+      {unread.length ? <section className="worker-section home-messages" aria-labelledby="home-inbox"><div className="home-section-head"><h2 id="home-inbox">Messages · {unread.length} new</h2><Link href="/worker/inbox">Open inbox</Link></div>
+        <ul className="inbox-list">{unread.slice(0, 3).map(notice => <li key={notice.id} className="inbox-new"><Link href={notice.href.startsWith("/") ? notice.href : "/worker/inbox"}><strong>{notice.title}</strong></Link></li>)}</ul></section> : null}
+      {offersNow.length ? (() => { const first = offersNow[0];
+        return <section className="panel home-offers" aria-labelledby="home-offers"><h2 id="home-offers">{offersNow.length === 1 ? "You have a new shift offer" : `You have ${offersNow.length} new shift offers`}</h2>
+          <p className="home-offer-when"><strong>{short(first.shift.startsAt)} · {clock(first.shift.startsAt)}–{clock(first.shift.endsAt)}</strong><small>{scope.locationName} · {first.departmentName ?? first.shift.roleName} · {hours(first)}</small></p>
+          <p className="home-offer-pay"><strong>{earns(first)}</strong>{first.shift.earningsModel === "HOURLY" && first.shift.rateMinor ? <small>{money(first.shift.rateMinor, first.shift.currencyCode)} an hour</small> : null}</p>
+          {offersNow.length > 1 ? <p className="note">+ {offersNow.slice(1, 4).map(row => short(row.shift.startsAt)).join(" · ")}{offersNow.length > 4 ? " …" : ""}</p> : null}
+          <Link className="primary-button button-link home-offers-cta" href="/worker/shifts#offers">{offersNow.length === 1 ? "See the offer" : "See all offers"}</Link>
+          <details className="offer-fold"><summary>Answer {offersNow.length === 1 ? "it" : "the first one"} here</summary>{card(first)}</details></section>; })() : null}
+      <section className="worker-section" aria-labelledby="home-week-pay"><Link className="panel home-pay" href="/worker/pay"><span className="eyebrow" id="home-week-pay">This week’s pay <span aria-hidden="true">→</span></span>
+        <strong className="money">{weekTotal || "Nothing yet"}</strong><small>{weekTotal ? `from ${week.length} ${week.length === 1 ? "shift" : "shifts"} you accepted (Mon–Sun)` : "No accepted shifts this week yet"}</small>
+        {moneyLine ? <small className="home-pay-status">{moneyLine}</small> : null}</Link></section>
       <HomeStrip rows={assignments} kindOf={kindOf} timezone={timezone} now={now} />
+      {next ? <p className="note home-next">Next: <strong>{short(next.shift.startsAt)}, {clock(next.shift.startsAt)}–{clock(next.shift.endsAt)}</strong> · {scope.locationName} · {earns(next)}</p> : null}
       {onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null : null}
-      {offersNow.length ? <section className="worker-section" aria-labelledby="home-offers"><h2 id="home-offers">{offersNow.length === 1 ? "You have a new shift offer" : `You have ${offersNow.length} new shift offers`}</h2>{card(offersNow[0])}{offersNow.length > 1 ? <p><Link href="/worker/shifts">See all offers →</Link></p> : null}</section> : null}
       {!onShift ? targetCards.length ? <section className="worker-section" aria-label="Your shift target">{liveRefresh}{targetCards[0]}{targetCards.length > 1 ? <p><Link href="/worker/shifts">See your other targets →</Link></p> : null}</section> : null : null}
-      {waiting.length ? <section className="worker-section" aria-labelledby="home-waiting"><h2 id="home-waiting">Accepted · your manager will confirm the booking</h2>{card(waiting[0])}{waiting.length > 1 ? <p><Link href="/worker/shifts">See all →</Link></p> : null}</section> : null}
-      {upcoming.length ? <section className="worker-section" aria-labelledby="home-upcoming"><h2 id="home-upcoming">Your next shift</h2>{card(upcoming[0])}{upcoming.length > 1 ? <p><Link href="/worker/shifts">See all your shifts →</Link></p> : null}</section> : null}
+      {waiting.length ? <details className="worker-section"><summary>Accepted · your manager will confirm the booking · {waiting.length}</summary>{card(waiting[0])}{waiting.length > 1 ? <p><Link href="/worker/shifts">See all →</Link></p> : null}</details> : null}
+      {next ? <details className="worker-section"><summary>Your next shift · {short(next.shift.startsAt)}</summary>{card(next)}{upcoming.length > 1 ? <p><Link href="/worker/shifts">See all your shifts →</Link></p> : null}</details> : null}
       {!offersNow.length && !waiting.length && !upcoming.length ? <StatePanel title="Nothing needs you right now"><p>When a manager offers you work, it appears here with what you’ll earn.</p></StatePanel> : null}
       {!profile?.paypalPayoutEmail ? <StatePanel title="Payment setup incomplete" tone="warning"><p>Add your payment details before your approved earnings can be sent. <Link href="/worker/profile#payment-settings">Add payment details</Link></p></StatePanel> : null}
-      <section className="worker-section" aria-labelledby="home-money"><h2 id="home-money">Your money</h2><Link className="money-summary" href="/worker/pay"><span>{[paidTotal && `${paidTotal} paid`, inPayPalTotal && `${inPayPalTotal} sent to PayPal · processing`, notSentTotal && `${notSentTotal} approved`, payableTotal && `${payableTotal} confirmed · awaiting approval`].filter(Boolean).join(" · ") || "What you’ve earned and how payment is going."}</span><span aria-hidden="true">→</span></Link></section>
       {!availability.length ? <p className="note"><Link href="/worker/availability">Tell your manager which days you can work</Link></p> : null}
-    </> : null}
+    </>; })() : null}
     {area === "shifts" ? <nav className="page-tabs" aria-label="Shifts view"><Link href="/worker/shifts" aria-current={view !== "month" && view !== "list" ? "page" : undefined}>To do</Link><Link href="/worker/shifts?view=month" aria-current={view === "month" ? "page" : undefined}>Month</Link><Link href="/worker/shifts?view=list" aria-current={view === "list" ? "page" : undefined}>List</Link></nav> : null}
     {area === "shifts" && view === "month" ? <section className="panel"><ShiftsMonth rows={assignments} kindOf={kindOf} timezone={timezone} now={now} /></section> : null}
     {area === "shifts" && view === "list" ? <section className="panel"><ShiftsList rows={assignments} kindOf={kindOf} timezone={timezone} cancellations={cancellations} /></section> : null}

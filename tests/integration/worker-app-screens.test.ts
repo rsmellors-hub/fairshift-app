@@ -40,7 +40,7 @@ describe("worker app screens", () => {
       const home = await render(workerScope, () => WorkerWorkspace({ area: "home" }));
       expect(home).toContain("This week’s pay");
       expect(home).toContain("Next 7 days");
-      expect(home).toContain("New in your Inbox");
+      expect(home).toContain("Messages · ");
       const month = await render(workerScope, () => WorkerWorkspace({ area: "shifts", view: "month" }));
       expect(month).toContain("month-grid");
       const list = await render(workerScope, () => WorkerWorkspace({ area: "shifts", view: "list" }));
