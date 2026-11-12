@@ -2,9 +2,11 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-o
 import { getConfigurationStatus } from "@/server/config/env";
 import { deploymentMode, sandboxOrganisationId } from "@/server/config/deployment";
 import { getDatabase, type Database } from "@/server/db/client";
-import { externalFeeds, localIntelligenceRuns, memberships, organisations, outlets, scheduledJobs, subscriptions } from "@/server/db/schema";
+import { externalFeeds, localIntelligenceRuns, memberships, organisations, outlets, scheduledJobs, subscriptions, users } from "@/server/db/schema";
 import { isEntitled } from "@/server/billing/entitlement";
-import { ensureDemoBooking } from "@/server/demo/booking";
+import { ensureDemoBooking, ensureDemoOpenOffer } from "@/server/demo/booking";
+import { DEMO_ACCOUNTS } from "@/server/demo/provision";
+import { JUDGE_ACCOUNTS } from "@/server/demo/judges";
 import { advanceOfferRounds } from "@/server/scheduling/shift-suggestions";
 import { refreshProcessingPayouts, type PayoutClientSource } from "@/server/payments/work-payouts";
 import { getPayPalPayoutClient } from "@/server/integrations/paypal/factory";
@@ -160,17 +162,25 @@ export const JOBS: readonly Job[] = [
   { key: "demo:booking", intervalMs: HOUR, retryMs: 15 * MINUTE, leaseMs: 5 * MINUTE, enabled: deps => deps.demoOrganisationIds.length > 0,
     run: async (db, deps) => {
       const config = demoConfig();
-      const booked: string[] = [];
+      const booked: string[] = [], offered: string[] = [];
       let changed = false;
       for (const organisationId of deps.demoOrganisationIds) {
-        const [worker] = config?.organisationId === organisationId ? await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, organisationId))) : [];
+        // The demo worker: the public demo's Worker persona, or with the public demo off, the same demo
+        // account (Ayanda Casual) by its sign-in address, so the booking never moves to another worker.
+        const [worker] = config?.organisationId === organisationId
+          ? await db.select({ workerId: memberships.workerId }).from(memberships).where(and(eq(memberships.id, config.WORKER), eq(memberships.organisationId, organisationId)))
+          : await accountWorker(db, organisationId, DEMO_ACCOUNTS.WORKER.email);
         // The demo business's shift-length and hours rules (Owner decisions, 9 November 2026), once.
         const seeded = await ensureDemoRules(db, organisationId);
         const booking = await ensureDemoBooking(db, { organisationId, workerId: worker?.workerId ?? null, now: deps.now() });
         if (booking) booked.push(booking.date);
-        changed ||= seeded.shiftRulesAdded > 0 || seeded.payTermsAdded > 0 || !!booking?.created;
+        // The Judge Worker's daily open offer, for the day after tomorrow.
+        const [judge] = await accountWorker(db, organisationId, JUDGE_ACCOUNTS.WORKER.email);
+        const offer = judge?.workerId ? await ensureDemoOpenOffer(db, { organisationId, workerId: judge.workerId, now: deps.now() }) : null;
+        if (offer) offered.push(offer.refused ? `${offer.date}:${offer.refused}` : offer.date);
+        changed ||= seeded.shiftRulesAdded > 0 || seeded.payTermsAdded > 0 || !!booking?.created || !!offer?.created;
       }
-      return { ok: true, detail: { booked, planningChanged: changed } };
+      return { ok: true, detail: { booked, offered, planningChanged: changed } };
     } },
   // "What to staff first" (Day 6, Step 1h): the AI briefing for the demo business and each of its
   // locations, so it is there when anyone opens the page. A briefing is generated only when the
@@ -289,6 +299,11 @@ export async function runDueJobs(db: Database, deps: SchedulerDeps, jobs: readon
   return results;
 }
 
+// An account's worker record in a business, by its sign-in address.
+function accountWorker(db: Database, organisationId: string, email: string) {
+  return db.select({ workerId: memberships.workerId }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(users.email, email), eq(memberships.organisationId, organisationId), eq(memberships.state, "ACTIVE"))).limit(1);
+}
 export function demoOrganisationIds() {
   return [...new Set([sandboxOrganisationId(), demoConfig()?.organisationId].filter((id): id is string => !!id))];
 }

@@ -1,5 +1,6 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
-import type { Database } from "@/server/db/client";
+import { and, asc, eq, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { UserFacingError } from "@/server/domain/errors";
+import type { Database, DatabaseSession } from "@/server/db/client";
 import { randomUUID } from "node:crypto";
 import { auditEvents, departments, shiftOffers, shifts, workAllocations, workers, workPolicies } from "@/server/db/schema";
 import { localDate, shiftDate, startOfLocalDay } from "@/server/intelligence/forecast";
@@ -43,7 +44,9 @@ export async function ensureDemoBooking(db: Database, input: { organisationId: s
       .where(and(eq(shifts.outletId, rosebank), eq(shifts.shiftDate, date), eq(shifts.status, "PUBLISHED"), eq(shiftOffers.status, "ACCEPTED"), eq(workAllocations.state, "ALLOCATED"), eq(workers.workerType, "CASUAL"))).limit(1);
     if (booked) return { ...booked, date, created: false };
     if (!input.rebuild) {
-      const [anyShift] = await tx.select({ id: shifts.id }).from(shifts).where(and(eq(shifts.outletId, rosebank), eq(shifts.shiftDate, date))).limit(1);
+      // The daily open offer's own shift (ensureDemoOpenOffer) doesn't count as a judge's shift.
+      const offered = await demoOfferShiftIds(tx, input.organisationId, date);
+      const [anyShift] = await tx.select({ id: shifts.id }).from(shifts).where(and(eq(shifts.outletId, rosebank), eq(shifts.shiftDate, date), offered.length ? notInArray(shifts.id, offered) : undefined)).limit(1);
       const [madeBefore] = await tx.select({ id: auditEvents.id }).from(auditEvents)
         .where(and(eq(auditEvents.organisationId, input.organisationId), eq(auditEvents.action, "DEMO_BOOKING_CREATED"), sql`${auditEvents.metadata}->>'date' = ${date}`)).limit(1);
       if (anyShift || madeBefore) return null;
@@ -69,4 +72,46 @@ export async function ensureDemoBooking(db: Database, input: { organisationId: s
       correlationId: `demo-booking:${date}`, metadata: { date, offerId: offer.id, workerId: worker.id, rebuild: !!input.rebuild } });
     return { shiftId: shift.id, offerId: offer.id, workerId: worker.id, date, created: true };
   });
+}
+
+// The daily open offer (Owner instruction, 12 November 2026): with the public demo off, judges sign in
+// to the demo business, and each day the Judge Worker has one open offer to answer, for the day after
+// tomorrow at Rosebank (15:00–19:00, the same casual terms). It is made through the normal scheduling
+// operations (createRequirement, offerAssignment), so the clash and availability checks apply; when they
+// refuse it, nothing is kept for that day. Once per date, recorded as DEMO_OFFER_CREATED, whatever the
+// worker then does with it. Demo business only.
+export const DEMO_OFFER = { startMinute: 15 * 60, endMinute: 19 * 60 } as const;
+async function demoOfferShiftIds(db: DatabaseSession, organisationId: string, date: string) {
+  const rows = await db.select({ shiftId: auditEvents.entityId }).from(auditEvents)
+    .where(and(eq(auditEvents.organisationId, organisationId), eq(auditEvents.action, "DEMO_OFFER_CREATED"), sql`${auditEvents.metadata}->>'date' = ${date}`));
+  return rows.map(row => row.shiftId).filter((id): id is string => !!id);
+}
+export type DemoOffer = { shiftId: string | null; offerId: string | null; workerId: string; date: string; created: boolean; refused?: string };
+export async function ensureDemoOpenOffer(db: Database, input: { organisationId: string; workerId: string; now?: Date }): Promise<DemoOffer | null> {
+  if (input.organisationId !== SA_REFERENCE_ORGANISATION.id) return null;
+  const now = input.now ?? new Date(), timezone = SA_REFERENCE_DATASET.timezone;
+  const rosebank = saReferenceLocation(DEMO_SCENARIO_LOCATION).id, site = { organisationId: input.organisationId, locationId: rosebank };
+  const date = shiftDate(localDate(now, timezone), 2), dayStart = startOfLocalDay(date, timezone).getTime();
+  try {
+    return await db.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`demo-offer:${input.organisationId}`}))`);
+      const [made] = await demoOfferShiftIds(tx, input.organisationId, date);
+      if (made) return { shiftId: made, offerId: null, workerId: input.workerId, date, created: false };
+      const session = tx as unknown as Database;
+      const [department] = await tx.select().from(departments).where(and(eq(departments.outletId, rosebank), eq(departments.name, DEMO_BOOKING.department))).limit(1);
+      const departmentId = department?.id ?? (await createDepartment(session, DEMO_BOOKING.department, site))[0].id;
+      const [policy] = await tx.select().from(workPolicies).where(and(eq(workPolicies.outletId, rosebank), eq(workPolicies.name, DEMO_BOOKING.policy), isNull(workPolicies.supersededAt), eq(workPolicies.earningsModel, "HOURLY"),
+        eq(workPolicies.rateMinor, DEMO_BOOKING.rateMinor), eq(workPolicies.currencyCode, "ZAR"), isNull(workPolicies.incentiveTargetMinor))).limit(1);
+      const policyId = policy?.id ?? (await createWorkPolicy(session, { earningsModel: "HOURLY", rateMinor: DEMO_BOOKING.rateMinor }, DEMO_BOOKING.policy, site))[0].id;
+      const shift = await createRequirement(session, { departmentId, policyId, startsAt: new Date(dayStart + DEMO_OFFER.startMinute * 60_000), endsAt: new Date(dayStart + DEMO_OFFER.endMinute * 60_000), requiredHeadcount: 1 }, site);
+      const offer = await offerAssignment(session, shift.id, input.workerId, site);
+      await tx.insert(auditEvents).values({ id: randomUUID(), organisationId: input.organisationId, outletId: rosebank, action: "DEMO_OFFER_CREATED", entityType: "shift", entityId: shift.id,
+        correlationId: `demo-offer:${date}`, metadata: { date, offerId: offer.id, workerId: input.workerId } });
+      return { shiftId: shift.id, offerId: offer.id, workerId: input.workerId, date, created: true };
+    });
+  } catch (error) {
+    // Refused by a scheduling rule (the worker is unavailable or already working): nothing is kept.
+    if (error instanceof UserFacingError) return { shiftId: null, offerId: null, workerId: input.workerId, date, created: false, refused: error.feedback };
+    throw error;
+  }
 }
